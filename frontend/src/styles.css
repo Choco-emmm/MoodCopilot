@@ -1,0 +1,114 @@
+:root {
+  color: #18201e;
+  background: #f7f4ef;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+.shell {
+  width: min(100%, 520px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 28px 18px 96px;
+}
+
+.today {
+  display: grid;
+  gap: 16px;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #4f7f71;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+h1,
+h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+h1 {
+  font-size: 30px;
+  line-height: 1.2;
+}
+
+h2 {
+  font-size: 18px;
+}
+
+.diary-input {
+  width: 100%;
+  min-height: 240px;
+  padding: 16px;
+  border: 1px solid #d8d2c7;
+  border-radius: 8px;
+  color: #18201e;
+  background: #fffdf8;
+  resize: vertical;
+  outline: none;
+  line-height: 1.7;
+}
+
+.diary-input:focus {
+  border-color: #4f7f71;
+  box-shadow: 0 0 0 3px rgba(79, 127, 113, 0.16);
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.primary,
+.secondary {
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.primary {
+  color: #fff;
+  background: #2f6f62;
+}
+
+.secondary {
+  color: #2f4f49;
+  background: #e8efe9;
+  border-color: #cbd9d1;
+}
+
+.preview {
+  display: grid;
+  gap: 10px;
+  margin-top: 34px;
+}
+
+.item {
+  padding: 14px;
+  border: 1px solid #ded8cd;
+  border-radius: 8px;
+  background: #fffaf2;
+  line-height: 1.55;
+}
+
