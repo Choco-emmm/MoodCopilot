@@ -10,3 +10,4 @@ frontend/tsconfig.tsbuildinfo
 frontend/src/**/*.vue.js
 frontend/src/**/*.js
 !frontend/src/**/*.d.ts
+.env
