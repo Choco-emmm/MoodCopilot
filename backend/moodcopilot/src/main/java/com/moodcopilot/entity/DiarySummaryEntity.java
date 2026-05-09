@@ -17,6 +17,9 @@ public class DiarySummaryEntity {
     private LocalDate startDate;
     private LocalDate endDate;
     private String aiSummary;
+    private String moodsJson;
+    private String topicsJson;
+    private Integer diaryCount;
     private LocalDateTime createdAt;
 
     public Long getId() { return id; }
@@ -36,6 +39,15 @@ public class DiarySummaryEntity {
 
     public String getAiSummary() { return aiSummary; }
     public void setAiSummary(String aiSummary) { this.aiSummary = aiSummary; }
+
+    public String getMoodsJson() { return moodsJson; }
+    public void setMoodsJson(String moodsJson) { this.moodsJson = moodsJson; }
+
+    public String getTopicsJson() { return topicsJson; }
+    public void setTopicsJson(String topicsJson) { this.topicsJson = topicsJson; }
+
+    public Integer getDiaryCount() { return diaryCount; }
+    public void setDiaryCount(Integer diaryCount) { this.diaryCount = diaryCount; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

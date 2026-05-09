@@ -26,21 +26,15 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/summaries',
-      name: 'summaries',
-      component: () => import('../pages/SummaryLibraryPage.vue'),
+      path: '/report',
+      name: 'report',
+      component: () => import('../pages/ReportPage.vue'),
       meta: { requiresAuth: true },
     },
     {
       path: '/following',
       name: 'following',
       component: () => import('../pages/FollowingPage.vue'),
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/weekly-report',
-      name: 'weekly-report',
-      component: () => import('../pages/WeeklyReportPage.vue'),
       meta: { requiresAuth: true },
     },
     {

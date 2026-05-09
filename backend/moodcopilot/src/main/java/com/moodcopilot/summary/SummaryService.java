@@ -1,8 +1,10 @@
 package com.moodcopilot.summary;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.AiAnalysisService;
 import com.moodcopilot.diary.DiaryAnalysis;
+import com.moodcopilot.diary.WeeklyReportView.DailyMood;
 import com.moodcopilot.entity.*;
 import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.DiaryMapper;
@@ -17,7 +19,10 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -29,15 +34,18 @@ public class SummaryService {
     private final DiaryMapper diaryMapper;
     private final DiaryAnalysisMapper diaryAnalysisMapper;
     private final AiAnalysisService aiAnalysisService;
+    private final ObjectMapper objectMapper;
 
     public SummaryService(DiarySummaryMapper summaryMapper,
                           DiaryMapper diaryMapper,
                           DiaryAnalysisMapper diaryAnalysisMapper,
-                          AiAnalysisService aiAnalysisService) {
+                          AiAnalysisService aiAnalysisService,
+                          ObjectMapper objectMapper) {
         this.summaryMapper = summaryMapper;
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.aiAnalysisService = aiAnalysisService;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -58,23 +66,35 @@ public class SummaryService {
 
         List<String> contents = new ArrayList<>();
         List<DiaryAnalysis> analyses = new ArrayList<>();
+        List<DailyMood> dailyMoods = new ArrayList<>();
+        Map<String, Integer> topicCounts = new LinkedHashMap<>();
+
         for (DiaryEntity diary : diaries) {
             contents.add(diary.getContent());
             DiaryAnalysisEntity analysisEntity = diaryAnalysisMapper.selectById(diary.getId());
             if (analysisEntity != null) {
-                analyses.add(new DiaryAnalysis(
+                DiaryAnalysis a = new DiaryAnalysis(
                         analysisEntity.getMoodLabel(),
                         analysisEntity.getMoodIntensity(),
                         analysisEntity.getTopicLabelsJson(),
                         analysisEntity.getSummary(),
                         analysisEntity.getFeedback()
-                ));
+                );
+                analyses.add(a);
+                dailyMoods.add(new DailyMood(diary.getCreatedAt().toLocalDate(), a.moodLabel(), a.moodIntensity()));
+                for (String topic : a.topicLabels()) {
+                    topicCounts.merge(topic, 1, Integer::sum);
+                }
             } else {
                 analyses.add(null);
             }
         }
 
         String aiSummary = aiAnalysisService.generateWeeklySummary(contents, analyses);
+
+        var sortedTopics = topicCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
 
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("M/d");
         String title = startDate.format(fmt) + " - " + endDate.format(fmt);
@@ -85,9 +105,14 @@ public class SummaryService {
         entity.setStartDate(startDate);
         entity.setEndDate(endDate);
         entity.setAiSummary(aiSummary);
+        entity.setDiaryCount(diaries.size());
+        try {
+            entity.setMoodsJson(objectMapper.writeValueAsString(dailyMoods));
+            entity.setTopicsJson(objectMapper.writeValueAsString(sortedTopics));
+        } catch (Exception ignored) {}
         summaryMapper.insert(entity);
 
-        return SummaryView.from(entity);
+        return SummaryView.from(entity, objectMapper);
     }
 
     public List<SummaryView> list() {
@@ -96,7 +121,7 @@ public class SummaryService {
                 new LambdaQueryWrapper<DiarySummaryEntity>()
                         .eq(DiarySummaryEntity::getUserId, user.getId())
                         .orderByDesc(DiarySummaryEntity::getCreatedAt)
-        ).stream().map(SummaryView::from).toList();
+        ).stream().map(e -> SummaryView.from(e, objectMapper)).toList();
     }
 
     @Transactional
