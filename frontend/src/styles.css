@@ -509,3 +509,111 @@ h2 {
   color: #4d766b;
   font-weight: 600;
 }
+
+/* Weekly report */
+.report-page {
+  max-width: 760px;
+  display: grid;
+  gap: 24px;
+  padding-bottom: 48px;
+}
+
+.report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.report-header h2 {
+  color: #23322e;
+}
+
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.week-label {
+  font-size: 15px;
+  color: #4d766b;
+  font-weight: 600;
+  min-width: 120px;
+  text-align: center;
+}
+
+.arrow {
+  font-size: 18px;
+  color: #4d766b;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 0;
+  color: #8d9793;
+}
+
+.empty-state p {
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+
+.report-section {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid #ded7ca;
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.report-section h3 {
+  margin: 0;
+  color: #4d766b;
+  font-size: 16px;
+}
+
+.mood-chart {
+  display: grid;
+  gap: 10px;
+}
+
+.mood-bar-row {
+  display: grid;
+  grid-template-columns: 48px 1fr 56px;
+  align-items: center;
+  gap: 10px;
+}
+
+.mood-date {
+  font-size: 13px;
+  color: #8d9793;
+  text-align: right;
+}
+
+.mood-bar-track {
+  height: 12px;
+  border-radius: 999px;
+  background: #e8e3d8;
+  overflow: hidden;
+}
+
+.mood-bar {
+  height: 100%;
+  border-radius: 999px;
+  min-width: 8px;
+  transition: width 0.4s ease;
+}
+
+.topic-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ai-summary {
+  margin: 0;
+  color: #263733;
+  line-height: 1.8;
+  font-size: 15px;
+}

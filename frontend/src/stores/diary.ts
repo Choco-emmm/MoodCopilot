@@ -21,6 +21,20 @@ export interface DiaryAnalysis {
   feedback: string
 }
 
+export interface WeeklyReport {
+  weekLabel: string
+  diaryCount: number
+  dailyMoods: DailyMood[]
+  topicCounts: Record<string, number>
+  aiSummary: string
+}
+
+export interface DailyMood {
+  date: string
+  moodLabel: string
+  moodIntensity: number
+}
+
 export interface DiaryComment {
   id: number
   parentCommentId: number | null
@@ -42,6 +56,8 @@ export const useDiaryStore = defineStore('diary', () => {
   const publicPage = ref(1)
   const publicTotal = ref(0)
   const hasMore = ref(true)
+  const weeklyReport = ref<WeeklyReport | null>(null)
+  const reportLoading = ref(false)
 
   async function fetchDiaries() {
     loading.value = true
@@ -136,6 +152,16 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
+  async function fetchWeeklyReport(weekOffset = 0) {
+    reportLoading.value = true
+    try {
+      const res = await diaryApi.weeklyReport(weekOffset)
+      weeklyReport.value = res.data.data
+    } finally {
+      reportLoading.value = false
+    }
+  }
+
   function mergeDiary(updated: Diary) {
     replaceIn(myDiaries, updated)
     replaceIn(publicDiaries, updated)
@@ -147,8 +173,9 @@ export const useDiaryStore = defineStore('diary', () => {
 
   return {
     myDiaries, publicDiaries, activeDiary, similarDiaries, loading, saving, errorMessage,
-    hasMore,
-    fetchDiaries, loadMorePublic, createDiary, loadSimilar, addComment, resonate, normalize,
+    hasMore, weeklyReport, reportLoading,
+    fetchDiaries, loadMorePublic, createDiary, loadSimilar, addComment, resonate,
+    fetchWeeklyReport, normalize,
   }
 })
 

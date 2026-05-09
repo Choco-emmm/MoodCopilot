@@ -20,6 +20,12 @@ const router = createRouter({
       component: () => import('../pages/RegisterPage.vue'),
     },
     {
+      path: '/weekly-report',
+      name: 'weekly-report',
+      component: () => import('../pages/WeeklyReportPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/diary/:id',
       name: 'diary-detail',
       component: () => import('../pages/DiaryDetailPage.vue'),

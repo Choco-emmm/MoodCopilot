@@ -20,10 +20,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -139,6 +147,71 @@ public class DiaryService {
                 .limit(cappedLimit)
                 .map(this::toDiaryView)
                 .toList();
+    }
+
+    public WeeklyReportView weeklyReport(int weekOffset) {
+        LocalDate today = LocalDate.now();
+        LocalDate monday = today.with(DayOfWeek.MONDAY).plusWeeks(weekOffset);
+        LocalDate sunday = monday.plusDays(6);
+
+        LocalDateTime start = monday.atStartOfDay();
+        LocalDateTime end = sunday.atTime(LocalTime.MAX);
+
+        List<DiaryEntity> diaries = diaryMapper.selectList(
+                new LambdaQueryWrapper<DiaryEntity>()
+                        .eq(DiaryEntity::getAuthorUserId, currentUser().getId())
+                        .ge(DiaryEntity::getCreatedAt, start)
+                        .le(DiaryEntity::getCreatedAt, end)
+                        .orderByAsc(DiaryEntity::getCreatedAt)
+        );
+
+        List<WeeklyReportView.DailyMood> dailyMoods = new ArrayList<>();
+        Map<String, Integer> topicCounts = new LinkedHashMap<>();
+        List<String> contents = new ArrayList<>();
+        List<DiaryAnalysis> analyses = new ArrayList<>();
+
+        for (DiaryEntity diary : diaries) {
+            contents.add(diary.getContent());
+            DiaryAnalysisEntity analysisEntity = findAnalysis(diary.getId());
+            if (analysisEntity != null) {
+                DiaryAnalysis analysis = new DiaryAnalysis(
+                        analysisEntity.getMoodLabel(),
+                        analysisEntity.getMoodIntensity(),
+                        analysisEntity.getTopicLabelsJson(),
+                        analysisEntity.getSummary(),
+                        analysisEntity.getFeedback()
+                );
+                analyses.add(analysis);
+                dailyMoods.add(new WeeklyReportView.DailyMood(
+                        diary.getCreatedAt().toLocalDate(),
+                        analysis.moodLabel(),
+                        analysis.moodIntensity()
+                ));
+                for (String topic : analysis.topicLabels()) {
+                    topicCounts.merge(topic, 1, Integer::sum);
+                }
+            } else {
+                analyses.add(null);
+            }
+        }
+
+        var sortedTopics = topicCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                        (a, b) -> a, LinkedHashMap::new));
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("M/d");
+        String weekLabel = monday.format(fmt) + " - " + sunday.format(fmt);
+
+        String aiSummary = aiAnalysisService.generateWeeklySummary(contents, analyses);
+
+        return new WeeklyReportView(
+                weekLabel,
+                diaries.size(),
+                dailyMoods,
+                sortedTopics,
+                aiSummary
+        );
     }
 
     @Transactional

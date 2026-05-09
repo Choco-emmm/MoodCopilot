@@ -32,6 +32,12 @@ public class DiaryController {
         return ApiResponse.ok(diaryService.myDiaries());
     }
 
+    @GetMapping("/weekly-report")
+    public ApiResponse<WeeklyReportView> weeklyReport(
+            @RequestParam(defaultValue = "0") int weekOffset) {
+        return ApiResponse.ok(diaryService.weeklyReport(weekOffset));
+    }
+
     @GetMapping("/public")
     public ApiResponse<java.util.Map<String, Object>> publicDiaries(
             @RequestParam(defaultValue = "1") int page,

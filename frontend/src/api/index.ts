@@ -33,6 +33,7 @@ export const diaryApi = {
   addComment: (id: number, content: string, parentCommentId?: number) =>
     api.post(`/diaries/${id}/comments`, { content, parentCommentId: parentCommentId ?? null }),
   resonate: (id: number) => api.post(`/diaries/${id}/resonance`),
+  weeklyReport: (weekOffset = 0) => api.get('/diaries/weekly-report', { params: { weekOffset } }),
 }
 
 export const notificationApi = {

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class AiAnalysisService {
@@ -23,6 +24,13 @@ public class AiAnalysisService {
             - topicLabels: array of strings from [人际关系, 工作学习, 睡眠身体, 自我成长, 日常情绪]
             - summary: brief Chinese summary, max 48 characters
             - feedback: gentle, compassionate Chinese feedback, max 200 characters""";
+
+    private static final String WEEKLY_SYSTEM_PROMPT = """
+            You are a compassionate weekly reflection assistant. Below is a list of diary entries from the past week, each with its mood label, topic, and summary. Write a warm, gentle Chinese reflection (150-300 characters) that:
+            1. Acknowledges the emotional journey of the week
+            2. Notices patterns or shifts in mood and themes
+            3. Offers gentle encouragement without being preachy
+            Return ONLY the Chinese text, no markdown, no JSON, no explanation.""";
 
     private final DeepSeekClient deepSeekClient;
     private final ObjectMapper objectMapper;
@@ -52,6 +60,50 @@ public class AiAnalysisService {
         String feedback = (String) map.get("feedback");
         return new DiaryAnalysis(moodLabel, Math.min(5, Math.max(1, moodIntensity)),
                 topicLabels, summary, feedback);
+    }
+
+    // ── Weekly report ──
+
+    public String generateWeeklySummary(List<String> diaryContents, List<DiaryAnalysis> analyses) {
+        if (diaryContents.isEmpty()) return "本周还没有记录日记，去写一篇吧～";
+
+        StringBuilder prompt = new StringBuilder("本周日记摘要：\n");
+        for (int i = 0; i < diaryContents.size(); i++) {
+            DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
+            prompt.append("- ");
+            if (a != null) {
+                prompt.append("情绪：").append(a.moodLabel())
+                        .append("，主题：").append(String.join("、", a.topicLabels()))
+                        .append("，摘要：").append(a.summary());
+            } else {
+                String content = diaryContents.get(i);
+                prompt.append(content.length() > 60 ? content.substring(0, 60) + "..." : content);
+            }
+            prompt.append("\n");
+        }
+
+        try {
+            return deepSeekClient.chat(WEEKLY_SYSTEM_PROMPT, prompt.toString());
+        } catch (Exception e) {
+            log.warn("DeepSeek weekly summary failed, falling back: {}", e.getMessage());
+            return fallbackWeeklySummary(diaryContents.size(), analyses);
+        }
+    }
+
+    private String fallbackWeeklySummary(int count, List<DiaryAnalysis> analyses) {
+        if (count == 0) return "本周还没有记录日记，去写一篇吧～";
+
+        var moodCounts = analyses.stream()
+                .collect(Collectors.groupingBy(
+                        DiaryAnalysis::moodLabel,
+                        Collectors.counting()
+                ));
+        String topMood = moodCounts.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse("—");
+
+        return String.format("本周共记录了 %d 篇日记，主要情绪为「%s」。继续记录，你会慢慢看清自己的节奏。", count, topMood);
     }
 
     // ── Keyword-based fallback ──
