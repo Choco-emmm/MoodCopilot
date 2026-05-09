@@ -160,6 +160,18 @@ docs/                 产品和工程文档
 backend/moodcopilot/src/main/resources/application.yaml
 ```
 
+数据库初始化脚本：
+
+```text
+backend/moodcopilot/db/mysql/V1__init_schema.sql
+```
+
+可使用 MySQL 客户端执行：
+
+```bash
+mysql -uroot -p < backend/moodcopilot/db/mysql/V1__init_schema.sql
+```
+
 本地开发时请使用自己的 MySQL、Redis 和 AI 服务配置，不要提交真实密钥。
 
 后端启动：
@@ -167,6 +179,13 @@ backend/moodcopilot/src/main/resources/application.yaml
 ```bash
 cd backend/moodcopilot
 ./mvnw spring-boot:run
+```
+
+推荐本地开发使用 dev profile（默认端口 18080）：
+
+```bash
+cd backend/moodcopilot
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
 前端启动：

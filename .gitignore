@@ -1,0 +1,11 @@
+.maven-repo/
+.maven-verify-repo/
+maven-verify-settings.xml
+
+backend/moodcopilot/target/
+
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+frontend/src/App.vue.js
+frontend/src/main.js

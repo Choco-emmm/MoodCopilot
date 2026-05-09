@@ -4,9 +4,9 @@ spring:
   data:
     # redis配置
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
-      password: ${REDIS_PASSWORD}
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
       lettuce:
         pool:
           max-active: 10
@@ -16,13 +16,22 @@ spring:
   #数据库的连接信息
   datasource:
     #    url: jdbc:mysql://localhost:3306/dems
-    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:moodcopilot}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: true
+    clean-disabled: true
+    locations: classpath:db/migration
 #Mybatis相关配置
 mybatis-plus:
   map-underscore-to-camel-case: true
   global-config:
     db-config:
       id-type: auto # 全局设置主键生成策略为数据库自增
+ai:
+  deepseek:
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+    model: ${DEEPSEEK_MODEL:deepseek-chat}

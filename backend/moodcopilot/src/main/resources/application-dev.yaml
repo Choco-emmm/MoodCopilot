@@ -1,0 +1,4 @@
+server:
+  # Dedicated local dev port to avoid conflict with other services on 8080.
+  port: ${SERVER_PORT:18080}
+

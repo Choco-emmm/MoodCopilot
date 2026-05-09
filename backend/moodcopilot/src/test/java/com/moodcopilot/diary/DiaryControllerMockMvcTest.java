@@ -1,0 +1,177 @@
+package com.moodcopilot.diary;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@WebMvcTest(controllers = DiaryController.class)
+@AutoConfigureMockMvc(addFilters = false)
+class DiaryControllerMockMvcTest {
+
+    @Autowired
+    private org.springframework.test.web.servlet.MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockBean
+    private DiaryService diaryService;
+
+    @Test
+    void createReturnsDiary() throws Exception {
+        DiaryView diary = sampleDiary(1L);
+        when(diaryService.create(any(CreateDiaryRequest.class))).thenReturn(diary);
+
+        mockMvc.perform(post("/api/diaries")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CreateDiaryRequest("今天有点累", "PUBLIC"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.id").value(1))
+                .andExpect(jsonPath("$.data.analysis.moodLabel").value("疲惫"));
+
+        verify(diaryService).create(any(CreateDiaryRequest.class));
+    }
+
+    @Test
+    void createReturnsBadRequestWhenServiceRejects() throws Exception {
+        when(diaryService.create(any(CreateDiaryRequest.class)))
+                .thenThrow(new ResponseStatusException(BAD_REQUEST, "请先写下今天的情绪"));
+
+        mockMvc.perform(post("/api/diaries")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CreateDiaryRequest(" ", "PUBLIC"))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void myDiariesReturnsList() throws Exception {
+        when(diaryService.myDiaries()).thenReturn(List.of(sampleDiary(1L), sampleDiary(2L)));
+
+        mockMvc.perform(get("/api/diaries/mine"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.length()").value(2));
+    }
+
+    @Test
+    void publicDiariesReturnsList() throws Exception {
+        when(diaryService.publicDiaries()).thenReturn(List.of(sampleDiary(3L)));
+
+        mockMvc.perform(get("/api/diaries/public"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data[0].id").value(3));
+    }
+
+    @Test
+    void getReturnsNotFoundWhenDiaryMissing() throws Exception {
+        when(diaryService.get(99L)).thenThrow(new ResponseStatusException(NOT_FOUND, "日记不存在"));
+
+        mockMvc.perform(get("/api/diaries/99"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void similarUsesLimitQuery() throws Exception {
+        when(diaryService.similar(1L, 5)).thenReturn(List.of(sampleDiary(2L)));
+
+        mockMvc.perform(get("/api/diaries/1/similar").param("limit", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1));
+
+        verify(diaryService).similar(1L, 5);
+    }
+
+    @Test
+    void similarUsesDefaultLimitWhenQueryMissing() throws Exception {
+        when(diaryService.similar(anyLong(), anyInt())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/diaries/1/similar"))
+                .andExpect(status().isOk());
+
+        verify(diaryService).similar(1L, 3);
+    }
+
+    @Test
+    void addCommentReturnsUpdatedDiary() throws Exception {
+        DiaryView withComment = new DiaryView(
+                1L,
+                "同频的人",
+                "辛苦了",
+                DiaryVisibility.PUBLIC,
+                new DiaryAnalysis("委屈", 3, List.of("人际关系"), "辛苦了", "你并不孤单"),
+                LocalDateTime.now(),
+                1,
+                List.of(new DiaryComment(1L, "陌生人", "抱抱你", LocalDateTime.now()))
+        );
+        when(diaryService.addComment(anyLong(), any(CreateCommentRequest.class))).thenReturn(withComment);
+
+        mockMvc.perform(post("/api/diaries/1/comments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CreateCommentRequest("抱抱你"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.comments.length()").value(1))
+                .andExpect(jsonPath("$.data.comments[0].authorName").value("陌生人"));
+    }
+
+    @Test
+    void addCommentReturnsBadRequestWhenBodyMissing() throws Exception {
+        mockMvc.perform(post("/api/diaries/1/comments")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void resonateReturnsUpdatedDiary() throws Exception {
+        DiaryView updated = new DiaryView(
+                1L,
+                "同频的人",
+                "辛苦了",
+                DiaryVisibility.PUBLIC,
+                new DiaryAnalysis("委屈", 3, List.of("人际关系"), "辛苦了", "你并不孤单"),
+                LocalDateTime.now(),
+                4,
+                List.of()
+        );
+        when(diaryService.resonate(1L)).thenReturn(updated);
+
+        mockMvc.perform(post("/api/diaries/1/resonance"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.resonanceCount").value(4));
+    }
+
+    private DiaryView sampleDiary(long id) {
+        return new DiaryView(
+                id,
+                "同频的人",
+                "今天很累",
+                DiaryVisibility.PUBLIC,
+                new DiaryAnalysis("疲惫", 3, List.of("工作学习"), "今天很累", "先休息一下"),
+                LocalDateTime.now(),
+                1,
+                List.of()
+        );
+    }
+}
+
