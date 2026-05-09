@@ -55,8 +55,10 @@ interface Message {
   content: string
 }
 
+const API = 'http://localhost:18080/api'
+
 function saveToBackend() {
-  fetch('/api/chat/history', {
+  fetch(API + '/chat/history', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
     body: JSON.stringify({ messages: messages.value }),
@@ -65,7 +67,7 @@ function saveToBackend() {
 
 async function loadFromBackend(): Promise<Message[]> {
   try {
-    const res = await fetch('/api/chat/history', {
+    const res = await fetch(API + '/chat/history', {
       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
     })
     const data = await res.json()
@@ -109,7 +111,7 @@ async function send() {
   }
 
   const xhr = new XMLHttpRequest()
-  xhr.open('POST', '/api/chat')
+  xhr.open('POST', API + '/chat')
   xhr.setRequestHeader('Content-Type', 'application/json')
   xhr.setRequestHeader('Authorization', `Bearer ${token}`)
 
@@ -155,7 +157,7 @@ async function send() {
 async function clearChat() {
   messages.value = []
   try {
-    await fetch('/api/chat/memory', { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+    await fetch(API + '/chat/memory', { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
   } catch { /* ignore */ }
 }
 
