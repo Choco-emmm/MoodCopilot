@@ -1,6 +1,8 @@
 package com.moodcopilot.diary;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moodcopilot.mapper.UserMapper;
+import com.moodcopilot.security.JwtAuthenticationFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -36,6 +38,12 @@ class DiaryControllerMockMvcTest {
 
     @MockBean
     private DiaryService diaryService;
+
+    @MockBean
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    @MockBean
+    private UserMapper userMapper;
 
     @Test
     void createReturnsDiary() throws Exception {

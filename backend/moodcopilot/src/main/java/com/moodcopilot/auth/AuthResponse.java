@@ -1,0 +1,4 @@
+package com.moodcopilot.auth;
+
+public record AuthResponse(String token, Long userId, String displayName) {
+}

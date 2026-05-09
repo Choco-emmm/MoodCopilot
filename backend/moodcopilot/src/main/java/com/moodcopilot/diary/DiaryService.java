@@ -13,6 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.moodcopilot.entity.UserEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -24,8 +28,6 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class DiaryService {
-    private static final long CURRENT_USER_ID = 1001L;
-    private static final String CURRENT_USER_NAME = "我";
 
     private final DiaryMapper diaryMapper;
     private final DiaryAnalysisMapper diaryAnalysisMapper;
@@ -49,8 +51,9 @@ public class DiaryService {
         DiaryAnalysis analysis = analyze(content);
 
         DiaryEntity diary = new DiaryEntity();
-        diary.setAuthorUserId(CURRENT_USER_ID);
-        diary.setAuthorName(CURRENT_USER_NAME);
+        UserEntity user = currentUser();
+        diary.setAuthorUserId(user.getId());
+        diary.setAuthorName(user.getDisplayName());
         diary.setContent(content);
         diary.setVisibility(visibility.name());
         diary.setResonanceCount(0);
@@ -76,7 +79,7 @@ public class DiaryService {
     public List<DiaryView> myDiaries() {
         List<DiaryEntity> diaries = diaryMapper.selectList(
                 new LambdaQueryWrapper<DiaryEntity>()
-                        .eq(DiaryEntity::getAuthorUserId, CURRENT_USER_ID)
+                        .eq(DiaryEntity::getAuthorUserId, currentUser().getId())
                         .orderByDesc(DiaryEntity::getCreatedAt)
         );
         return diaries.stream().map(this::toDiaryView).toList();
@@ -125,9 +128,10 @@ public class DiaryService {
         String content = normalizeContent(request.content());
 
         DiaryCommentEntity comment = new DiaryCommentEntity();
+        UserEntity commenter = currentUser();
         comment.setDiaryId(diaryId);
-        comment.setAuthorUserId(CURRENT_USER_ID);
-        comment.setAuthorName(CURRENT_USER_NAME);
+        comment.setAuthorUserId(commenter.getId());
+        comment.setAuthorName(commenter.getDisplayName());
         comment.setContent(content);
         comment.setIsDeleted(false);
         comment.setCreatedAt(LocalDateTime.now());
@@ -143,15 +147,16 @@ public class DiaryService {
     public DiaryView resonate(long diaryId) {
         DiaryEntity diary = findPublicDiary(diaryId);
 
+        Long userId = currentUser().getId();
         boolean exists = diaryResonanceMapper.exists(
                 new LambdaQueryWrapper<DiaryResonanceEntity>()
                         .eq(DiaryResonanceEntity::getDiaryId, diaryId)
-                        .eq(DiaryResonanceEntity::getUserId, CURRENT_USER_ID)
+                        .eq(DiaryResonanceEntity::getUserId, userId)
         );
         if (!exists) {
             DiaryResonanceEntity resonance = new DiaryResonanceEntity();
             resonance.setDiaryId(diaryId);
-            resonance.setUserId(CURRENT_USER_ID);
+            resonance.setUserId(userId);
             resonance.setCreatedAt(LocalDateTime.now());
             diaryResonanceMapper.insert(resonance);
 
@@ -205,6 +210,16 @@ public class DiaryService {
                         .eq(DiaryCommentEntity::getDiaryId, diaryId)
                         .orderByAsc(DiaryCommentEntity::getCreatedAt)
         );
+    }
+
+    // ── Current user ──
+
+    private UserEntity currentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof UserEntity user) {
+            return user;
+        }
+        throw new ResponseStatusException(BAD_REQUEST, "用户未登录");
     }
 
     // ── Validation ──

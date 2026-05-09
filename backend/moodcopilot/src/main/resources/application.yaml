@@ -24,6 +24,9 @@ spring:
     enabled: true
     clean-disabled: true
     locations: classpath:db/migration
+jwt:
+  secret: ${JWT_SECRET:bW9vZGNvcGlsb3Qtc2VjcmV0LWtleS1mb3ItZGV2ZWxvcG1lbnQtb25seS0yMDI2}
+  expiration: 86400000
 #Mybatis相关配置
 mybatis-plus:
   map-underscore-to-camel-case: true
