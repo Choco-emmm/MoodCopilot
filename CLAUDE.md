@@ -70,13 +70,14 @@ src/main/java/com/moodcopilot/
 
 ```
 src/
-├── api/index.ts         Axios 实例，拦截器（JWT 附加、401/403→跳到/login）、diaryApi、authApi、notificationApi
+├── api/index.ts         Axios 实例，拦截器（JWT 附加、401/403→跳到/login）、diaryApi、authApi、
+│                        notificationApi、followApi、summaryApi、chatApi
 ├── components/          7 个组件：AppHeader、DiaryComposer、AiAnalysisCard、
 │                        SimilarDiariesPanel、MyDiaryList、PublicFeed、DiaryFeedItem
-├── pages/               HomePage、LoginPage、RegisterPage、DiaryDetailPage、WeeklyReportPage、FollowingPage
-├── router/index.ts      6 条路由，beforeEach 守卫（requiresAuth→跳转/login）
-├── stores/              auth.ts（JWT token+用户）、diary.ts（增删改+分页+轮询）、notification.ts、
-│                        follow.ts（关注/取消关注/状态查询）
+├── pages/               HomePage、LoginPage、RegisterPage、DiaryDetailPage、ReportPage、
+│                        FollowingPage、ChatPage
+├── router/index.ts      7 条路由，beforeEach 守卫（requiresAuth→跳转/login）
+├── stores/              auth.ts、diary.ts、notification.ts、follow.ts
 └── styles.css           全局 CSS（无 scoped 样式）
 ```
 
@@ -97,6 +98,11 @@ src/
 | POST | `/api/follows/{userId}` | 是 |
 | DELETE | `/api/follows/{userId}` | 是 |
 | GET | `/api/follows/{userId}/status` | 是 |
+| POST | `/api/chat`（SSE 流式） | 是 |
+| DELETE | `/api/chat/memory` | 是 |
+| POST | `/api/summaries` | 是 |
+| GET | `/api/summaries` | 是 |
+| DELETE | `/api/summaries/{id}` | 是 |
 
 ### 数据库
 
@@ -118,7 +124,7 @@ MyBatis-Plus 配置：`is_deleted` 字段使用 `@TableLogic`，主键使用 `@T
 ## 重要踩坑记录
 
 - **绝不要在 Filter 类上加 `@Component`。** Spring Boot 会自动将其注册为全局 servlet 过滤器，绕过 Spring Security 过滤器链。正确做法是在 `SecurityConfig` 中用 `@Bean` 创建，并用 `FilterRegistrationBean.setEnabled(false)` 禁用自动注册。
-- **`@Cacheable` + Redis 与 Spring Security 冲突**，会导致受保护接口返回 403。已移除缓存注解。如需缓存，用手动缓存或 Caffeine 本地缓存代替。
+- **`@Cacheable` + Redis 与 Spring Security 冲突**，会导致受保护接口返回 403。**已解决**：改用 `StringRedisTemplate` 手动缓存，AOP 代理不会干扰 Security 过滤器链。
 - **`n-segmented` 在 Naive UI 中不存在。** 用 `<n-radio-group>` + `<n-radio-button>` 实现分段控件效果。
 - **不要提交 `dist/` 或 `src/` 中的 `*.js` 文件。** `dist/` 中的旧构建产物会使 Vite dev server 失效（浏览器加载带 hash 的过期 JS 文件）。`.gitignore` 已包含 `frontend/dist/` 和 `frontend/src/**/*.vue.js`。
 - **Windows bash 下的 curl 会损坏中文 UTF-8**。用 ASCII 内容测试 API，或使用 Playwright E2E 脚本。
