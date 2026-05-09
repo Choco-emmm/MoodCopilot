@@ -3,6 +3,7 @@ package com.moodcopilot.ai;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.*;
+import com.moodcopilot.mapper.ChatConversationMapper;
 import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.DiaryMapper;
 import org.springframework.ai.chat.client.ChatClient;
@@ -25,34 +26,91 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 @Service
 public class ChatService {
 
-    private static final String HISTORY_PREFIX = "chat:history:";
+    private static final String MSG_PREFIX = "chat:msgs:";
 
     private final ChatClient chatChatClient;
     private final DiaryMapper diaryMapper;
     private final DiaryAnalysisMapper diaryAnalysisMapper;
-    private final Map<Long, ChatMemory> userChatMemories;
+    private final ChatConversationMapper conversationMapper;
+    private final Map<String, ChatMemory> userChatMemories;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
     public ChatService(ChatClient chatChatClient,
                        DiaryMapper diaryMapper,
                        DiaryAnalysisMapper diaryAnalysisMapper,
-                       Map<Long, ChatMemory> userChatMemories,
+                       ChatConversationMapper conversationMapper,
+                       Map<String, ChatMemory> userChatMemories,
                        StringRedisTemplate redisTemplate,
                        ObjectMapper objectMapper) {
         this.chatChatClient = chatChatClient;
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
+        this.conversationMapper = conversationMapper;
         this.userChatMemories = userChatMemories;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
     }
 
-    public Flux<String> chat(String message) {
+    // ---- 会话管理 ----
+
+    public List<ChatConversationEntity> listConversations() {
+        UserEntity user = currentUser();
+        return conversationMapper.selectList(
+                new LambdaQueryWrapper<ChatConversationEntity>()
+                        .eq(ChatConversationEntity::getUserId, user.getId())
+                        .orderByDesc(ChatConversationEntity::getUpdatedAt)
+        );
+    }
+
+    public ChatConversationEntity createConversation(String title) {
+        UserEntity user = currentUser();
+        ChatConversationEntity conv = new ChatConversationEntity();
+        conv.setUserId(user.getId());
+        conv.setTitle(title != null && !title.isBlank() ? title : "新对话");
+        conv.setCreatedAt(java.time.LocalDateTime.now());
+        conv.setUpdatedAt(java.time.LocalDateTime.now());
+        conversationMapper.insert(conv);
+        return conv;
+    }
+
+    public void deleteConversation(Long conversationId) {
+        UserEntity user = currentUser();
+        ChatConversationEntity conv = conversationMapper.selectById(conversationId);
+        if (conv == null || !conv.getUserId().equals(user.getId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "会话不存在");
+        }
+        // 清除 ChatMemory
+        String memKey = user.getId() + ":" + conversationId;
+        userChatMemories.remove(memKey);
+        // 清除 Redis 消息历史
+        try {
+            redisTemplate.delete(MSG_PREFIX + conversationId);
+        } catch (Exception ignored) {}
+        // 删除数据库记录
+        conversationMapper.deleteById(conversationId);
+    }
+
+    // ---- 聊天 ----
+
+    public Flux<String> chat(Long conversationId, String message) {
         UserEntity user = currentUser();
         String context = buildContext(user.getId());
 
-        ChatMemory memory = userChatMemories.computeIfAbsent(user.getId(), k -> new InMemoryChatMemory());
+        String memKey = user.getId() + ":" + conversationId;
+        ChatMemory memory = userChatMemories.computeIfAbsent(memKey, k -> new InMemoryChatMemory());
+
+        // 首次用户消息作为会话标题
+        ChatConversationEntity conv = conversationMapper.selectById(conversationId);
+        if (conv != null && "新对话".equals(conv.getTitle())) {
+            String title = message.length() > 20 ? message.substring(0, 20) : message;
+            conv.setTitle(title);
+            conv.setUpdatedAt(java.time.LocalDateTime.now());
+            conversationMapper.updateById(conv);
+        } else if (conv != null) {
+            conv.setUpdatedAt(java.time.LocalDateTime.now());
+            conversationMapper.updateById(conv);
+        }
 
         return chatChatClient.prompt()
                 .user(message)
@@ -62,28 +120,25 @@ public class ChatService {
                 .content();
     }
 
-    public void saveHistory(Long userId, Map<String, Object> body) {
+    // ---- 消息历史（Redis） ----
+
+    public void saveHistory(Long conversationId, Map<String, Object> body) {
         try {
             String json = objectMapper.writeValueAsString(body.get("messages"));
-            redisTemplate.opsForValue().set(HISTORY_PREFIX + userId, json, Duration.ofDays(7));
+            redisTemplate.opsForValue().set(MSG_PREFIX + conversationId, json, Duration.ofDays(7));
         } catch (Exception ignored) {}
     }
 
-    public Object loadHistory(Long userId) {
+    public Object loadHistory(Long conversationId) {
         try {
-            String json = redisTemplate.opsForValue().get(HISTORY_PREFIX + userId);
+            String json = redisTemplate.opsForValue().get(MSG_PREFIX + conversationId);
             return json != null ? objectMapper.readValue(json, Object.class) : List.of();
         } catch (Exception e) {
             return List.of();
         }
     }
 
-    public void clearMemory(Long userId) {
-        userChatMemories.remove(userId);
-        try {
-            redisTemplate.delete(HISTORY_PREFIX + userId);
-        } catch (Exception ignored) {}
-    }
+    // ---- 日记上下文 ----
 
     private String buildContext(long userId) {
         StringBuilder sb = new StringBuilder();

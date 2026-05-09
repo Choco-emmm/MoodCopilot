@@ -20,29 +20,40 @@ public class ChatController {
         this.chatService = chatService;
     }
 
-    @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> chat(@RequestBody Map<String, String> body) {
-        String message = body.get("message");
-        return chatService.chat(message);
+    // ---- 会话管理 ----
+
+    @GetMapping("/conversations")
+    public ApiResponse<Object> listConversations() {
+        return ApiResponse.ok(chatService.listConversations());
     }
 
-    @PutMapping("/history")
-    public ApiResponse<Void> saveHistory(@RequestBody Map<String, Object> body) {
-        UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        chatService.saveHistory(user.getId(), body);
+    @PostMapping("/conversations")
+    public ApiResponse<Object> createConversation(@RequestBody Map<String, String> body) {
+        return ApiResponse.ok(chatService.createConversation(body.get("title")));
+    }
+
+    @DeleteMapping("/conversations/{id}")
+    public ApiResponse<Void> deleteConversation(@PathVariable Long id) {
+        chatService.deleteConversation(id);
         return ApiResponse.ok(null);
     }
 
-    @GetMapping("/history")
-    public ApiResponse<Object> loadHistory() {
-        UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        return ApiResponse.ok(chatService.loadHistory(user.getId()));
+    // ---- 聊天消息 ----
+
+    @PostMapping(value = "/conversations/{id}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> chat(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String message = body.get("message");
+        return chatService.chat(id, message);
     }
 
-    @DeleteMapping("/memory")
-    public ApiResponse<Void> clearMemory() {
-        UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        chatService.clearMemory(user.getId());
+    @GetMapping("/conversations/{id}/history")
+    public ApiResponse<Object> loadHistory(@PathVariable Long id) {
+        return ApiResponse.ok(chatService.loadHistory(id));
+    }
+
+    @PutMapping("/conversations/{id}/history")
+    public ApiResponse<Void> saveHistory(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        chatService.saveHistory(id, body);
         return ApiResponse.ok(null);
     }
 }

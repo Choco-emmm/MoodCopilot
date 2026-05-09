@@ -2,60 +2,93 @@
   <main class="app-shell chat-shell">
     <AppHeader />
 
-    <div class="chat-window">
-      <div class="chat-top">
-        <div>
-          <h2>小情绪</h2>
-          <p class="chat-subtitle">你的 AI 情绪伙伴，可以聊聊最近的心情</p>
+    <div class="chat-layout">
+      <!-- 会话列表侧边栏 -->
+      <aside class="chat-sidebar">
+        <div class="sidebar-head">
+          <span class="sidebar-title">对话</span>
+          <n-button size="tiny" text type="primary" @click="createConversation">+ 新建</n-button>
         </div>
-        <n-button size="small" text @click="clearChat">清空对话</n-button>
-      </div>
+        <div class="conv-list">
+          <div
+            v-for="conv in conversations"
+            :key="conv.id"
+            :class="['conv-item', { active: conv.id === activeConvId }]"
+            @click="selectConversation(conv.id)"
+          >
+            <span class="conv-title">{{ conv.title }}</span>
+            <n-button
+              size="tiny"
+              text
+              class="conv-delete"
+              @click.stop="deleteConversation(conv.id)"
+            >&times;</n-button>
+          </div>
+          <div v-if="conversations.length === 0" class="conv-empty">暂无对话</div>
+        </div>
+      </aside>
 
-      <div class="chat-messages" ref="msgBox">
-        <div v-if="messages.length === 0" class="chat-empty">
-          跟我说说今天怎么样吧～
+      <!-- 聊天区域 -->
+      <div class="chat-window">
+        <div class="chat-top">
+          <div>
+            <h2>小情绪</h2>
+            <p class="chat-subtitle">你的 AI 情绪伙伴，可以聊聊最近的心情</p>
+          </div>
         </div>
 
-        <div
-          v-for="(msg, i) in messages"
-          :key="i"
-          :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
-        >
-          <div v-if="msg.role === 'ai'" class="md-content" v-html="renderMd(msg.content)" />
-          <p v-else>{{ msg.content }}</p>
+        <div class="chat-messages" ref="msgBox">
+          <div v-if="messages.length === 0" class="chat-empty">
+            跟我说说今天怎么样吧～
+          </div>
+
+          <div
+            v-for="(msg, i) in messages"
+            :key="i"
+            :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
+          >
+            <div v-if="msg.role === 'ai'" class="md-content" v-html="renderMd(msg.content)" />
+            <p v-else>{{ msg.content }}</p>
+          </div>
+
+          <div v-if="streaming" class="chat-bubble chat-ai">
+            <div class="md-content" v-html="renderMd(streamingText)" />
+            <span class="chat-cursor">|</span>
+          </div>
         </div>
 
-        <div v-if="streaming" class="chat-bubble chat-ai">
-          <div class="md-content" v-html="renderMd(streamingText)" />
-          <span class="chat-cursor">|</span>
+        <div class="chat-input-row">
+          <n-input
+            v-model:value="draft"
+            placeholder="聊聊你今天的心情..."
+            :disabled="streaming || !activeConvId"
+            clearable
+            @keyup.enter="send"
+          />
+          <n-button type="primary" :disabled="!draft.trim() || streaming || !activeConvId" @click="send">
+            发送
+          </n-button>
         </div>
-      </div>
-
-      <div class="chat-input-row">
-        <n-input
-          v-model:value="draft"
-          placeholder="聊聊你今天的心情..."
-          :disabled="streaming"
-          clearable
-          @keyup.enter="send"
-        />
-        <n-button type="primary" :disabled="!draft.trim() || streaming" @click="send">
-          发送
-        </n-button>
       </div>
     </div>
   </main>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { NButton, NInput } from 'naive-ui'
 import { marked } from 'marked'
 import AppHeader from '../components/AppHeader.vue'
+import { chatApi } from '../api'
 
 interface Message {
   role: 'user' | 'ai'
   content: string
+}
+
+interface Conversation {
+  id: number
+  title: string
 }
 
 function renderMd(text: string) {
@@ -64,24 +97,8 @@ function renderMd(text: string) {
 
 const API = 'http://localhost:18080/api'
 
-function saveToBackend() {
-  fetch(API + '/chat/history', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
-    body: JSON.stringify({ messages: messages.value }),
-  }).catch(() => {})
-}
-
-async function loadFromBackend(): Promise<Message[]> {
-  try {
-    const res = await fetch(API + '/chat/history', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-    })
-    const data = await res.json()
-    return data.data ?? []
-  } catch { return [] }
-}
-
+const conversations = ref<Conversation[]>([])
+const activeConvId = ref<number | null>(null)
 const messages = ref<Message[]>([])
 const draft = ref('')
 const streaming = ref(false)
@@ -89,23 +106,89 @@ const streamingText = ref('')
 const msgBox = ref<HTMLElement | null>(null)
 
 onMounted(async () => {
-  messages.value = await loadFromBackend()
-  if (messages.value.length === 0) {
-    messages.value.push({
-      role: 'ai',
-      content: '嗨，我是小情绪。今天过得怎么样？有什么想聊的吗？',
-    })
-    saveToBackend()
+  await loadConversations()
+  if (conversations.value.length > 0) {
+    await selectConversation(conversations.value[0].id)
+  } else {
+    await createConversation()
   }
-  scrollBottom()
 })
+
+async function loadConversations() {
+  try {
+    const res = await chatApi.listConversations()
+    conversations.value = (res.data.data || []) as Conversation[]
+  } catch { conversations.value = [] }
+}
+
+async function selectConversation(id: number) {
+  if (id === activeConvId.value) return
+  // 保存当前会话
+  if (activeConvId.value && messages.value.length > 0) {
+    saveToBackend(activeConvId.value)
+  }
+  activeConvId.value = id
+  messages.value = await loadFromBackend(id)
+  await nextTick()
+  scrollBottom()
+}
+
+async function createConversation() {
+  try {
+    const res = await chatApi.createConversation()
+    const conv = res.data.data as Conversation
+    conversations.value.unshift(conv)
+    // 保存当前会话消息
+    if (activeConvId.value && messages.value.length > 0) {
+      saveToBackend(activeConvId.value)
+    }
+    activeConvId.value = conv.id
+    messages.value = []
+  } catch { /* ignore */ }
+}
+
+async function deleteConversation(id: number) {
+  try {
+    await chatApi.deleteConversation(id)
+  } catch { /* ignore */ }
+  conversations.value = conversations.value.filter(c => c.id !== id)
+  if (id === activeConvId.value) {
+    activeConvId.value = null
+    messages.value = []
+    // 自动选第一个
+    if (conversations.value.length > 0) {
+      await selectConversation(conversations.value[0].id)
+    } else {
+      await createConversation()
+    }
+  }
+}
+
+function saveToBackend(convId: number) {
+  fetch(API + `/chat/conversations/${convId}/history`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+    body: JSON.stringify({ messages: messages.value }),
+  }).catch(() => {})
+}
+
+async function loadFromBackend(convId: number): Promise<Message[]> {
+  try {
+    const res = await fetch(API + `/chat/conversations/${convId}/history`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    })
+    const data = await res.json()
+    return data.data ?? []
+  } catch { return [] }
+}
 
 async function send() {
   const content = draft.value.trim()
-  if (!content || streaming.value) return
+  const convId = activeConvId.value
+  if (!content || streaming.value || !convId) return
 
   messages.value.push({ role: 'user', content })
-  saveToBackend()
+  saveToBackend(convId)
   draft.value = ''
   streaming.value = true
   streamingText.value = ''
@@ -118,7 +201,7 @@ async function send() {
   }
 
   const xhr = new XMLHttpRequest()
-  xhr.open('POST', API + '/chat')
+  xhr.open('POST', API + `/chat/conversations/${convId}`)
   xhr.setRequestHeader('Content-Type', 'application/json')
   xhr.setRequestHeader('Authorization', `Bearer ${token}`)
 
@@ -145,27 +228,22 @@ async function send() {
     } else {
       messages.value.push({ role: 'ai', content: '抱歉，我暂时无法回复，请稍后再试。' })
     }
-    saveToBackend()
+    saveToBackend(convId)
     streaming.value = false
     streamingText.value = ''
     scrollBottom()
+    // 刷新会话列表以更新顺序
+    loadConversations()
   }
 
   xhr.onerror = () => {
     messages.value.push({ role: 'ai', content: '抱歉，网络错误，请稍后再试。' })
-    saveToBackend()
+    saveToBackend(convId)
     streaming.value = false
     streamingText.value = ''
   }
 
   xhr.send(JSON.stringify({ message: content }))
-}
-
-async function clearChat() {
-  messages.value = []
-  try {
-    await fetch(API + '/chat/memory', { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
-  } catch { /* ignore */ }
 }
 
 function scrollBottom() {

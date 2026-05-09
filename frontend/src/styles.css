@@ -286,11 +286,22 @@ h2 {
 
 .my-diary {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-columns: 36px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   min-height: 58px;
   padding: 10px 12px;
+}
+
+.my-diary-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .my-diary-info {
@@ -301,9 +312,6 @@ h2 {
 }
 
 .my-diary-info strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .my-diary-time {
@@ -465,6 +473,14 @@ h2 {
   .comment-box {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .chat-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-sidebar {
+    order: -1;
   }
 }
 
@@ -759,6 +775,90 @@ h2 {
   display: grid;
   grid-template-rows: auto 1fr;
   min-height: 100vh;
+}
+
+.chat-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 16px;
+  max-width: 920px;
+  width: 100%;
+  margin: 0 auto;
+  align-items: start;
+}
+
+.chat-sidebar {
+  display: grid;
+  gap: 0;
+  border: 1px solid #ded7ca;
+  border-radius: 8px;
+  background: #fffdf8;
+  overflow: hidden;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e8e3d8;
+}
+
+.sidebar-title {
+  font-weight: 600;
+  color: #4d766b;
+  font-size: 14px;
+}
+
+.conv-list {
+  display: grid;
+  gap: 0;
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+}
+
+.conv-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0ece2;
+  transition: background 0.15s;
+}
+
+.conv-item:hover {
+  background: #f8f5ec;
+}
+
+.conv-item.active {
+  background: #eef5f2;
+}
+
+.conv-title {
+  font-size: 14px;
+  color: #263733;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conv-delete {
+  opacity: 0;
+  color: #c44;
+  font-size: 16px;
+  transition: opacity 0.15s;
+}
+
+.conv-item:hover .conv-delete {
+  opacity: 1;
+}
+
+.conv-empty {
+  padding: 24px 12px;
+  text-align: center;
+  color: #c4c0b8;
+  font-size: 13px;
 }
 
 .chat-window {

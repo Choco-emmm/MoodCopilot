@@ -63,5 +63,9 @@ export const summaryApi = {
 }
 
 export const chatApi = {
-  send: (message: string) => api.post('/chat', { message }),
+  listConversations: () => api.get('/chat/conversations'),
+  createConversation: (title?: string) => api.post('/chat/conversations', { title: title || '' }),
+  deleteConversation: (id: number) => api.delete(`/chat/conversations/${id}`),
+  getHistory: (id: number) => api.get(`/chat/conversations/${id}/history`),
+  saveHistory: (id: number, messages: any[]) => api.put(`/chat/conversations/${id}/history`, { messages }),
 }

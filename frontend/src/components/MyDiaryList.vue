@@ -17,10 +17,9 @@
       >
         <span class="avatar avatar-sm">{{ diary.authorName.charAt(0) }}</span>
         <span class="my-diary-info">
-          <strong>{{ diary.analysis?.moodLabel || '分析中...' }}</strong>
-          <small>{{ diary.analysis?.summary || diary.content.slice(0, 24) }}</small>
+          <strong class="my-diary-content">{{ diary.content }}</strong>
+          <small>{{ formatTime(diary.createdAt) }} · {{ diary.analysis?.moodLabel || '分析中...' }}</small>
         </span>
-        <span class="my-diary-time">{{ formatTime(diary.createdAt) }}</span>
       </button>
     </div>
     <n-empty v-else description="还没有写过日记" />

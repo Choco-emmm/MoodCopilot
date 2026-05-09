@@ -17,30 +17,47 @@
         @resonate="$emit('resonate', $event)"
         @comment="(d, c) => $emit('comment', d, c)"
       />
-      <n-button
-        v-if="hasMore"
-        block
-        text
-        :loading="loading"
-        @click="$emit('loadMore')"
-      >
-        加载更多
-      </n-button>
+      <div v-if="hasMore" ref="sentinel" class="scroll-sentinel" />
+      <n-spin v-if="loading && diaries.length" size="small" />
     </div>
     <n-empty v-else-if="!loading" description="暂无公开日记" />
   </article>
 </template>
 
 <script setup lang="ts">
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import DiaryFeedItem from './DiaryFeedItem.vue'
 import type { Diary } from '../stores/diary'
 
 defineProps<{ diaries: Diary[]; loading: boolean; hasMore?: boolean }>()
-defineEmits<{
+const emit = defineEmits<{
   refresh: []
   select: [diary: Diary]
   resonate: [diary: Diary]
   comment: [diary: Diary, content: string, parentCommentId?: number]
   loadMore: []
 }>()
+
+const sentinel = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | null = null
+
+onMounted(() => {
+  if (typeof IntersectionObserver === 'undefined') return
+  observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      emit('loadMore')
+    }
+  }, { rootMargin: '200px' })
+})
+
+onUnmounted(() => {
+  observer?.disconnect()
+})
+
+function setupSentinel(el: HTMLElement | null) {
+  observer?.disconnect()
+  if (el) observer?.observe(el)
+}
+
+watch(sentinel, (el) => setupSentinel(el))
 </script>

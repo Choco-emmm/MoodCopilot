@@ -5,8 +5,14 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'home',
-      component: () => import('../pages/HomePage.vue'),
+      name: 'write',
+      component: () => import('../pages/WritePage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/square',
+      name: 'square',
+      component: () => import('../pages/SquarePage.vue'),
       meta: { requiresAuth: true },
     },
     {

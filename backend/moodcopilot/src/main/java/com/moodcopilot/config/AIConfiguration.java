@@ -21,7 +21,7 @@ public class AIConfiguration {
     private static final Logger log = LoggerFactory.getLogger(AIConfiguration.class);
 
     @Bean
-    public Map<Long, ChatMemory> userChatMemories() {
+    public Map<String, ChatMemory> userChatMemories() {
         return new ConcurrentHashMap<>();
     }
 

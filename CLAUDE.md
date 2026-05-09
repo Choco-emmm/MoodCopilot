@@ -59,9 +59,9 @@ src/main/java/com/moodcopilot/
 ├── follow/          FollowController、FollowService
 ├── diary/           DiaryController、DiaryService、DiaryView、DiaryComment、WeeklyReportView、CreateDiaryRequest
 ├── entity/          MyBatis-Plus 实体：UserEntity、DiaryEntity（@TableLogic）、DiaryAnalysisEntity、
-│                    DiaryCommentEntity、DiaryResonanceEntity、NotificationEntity
+│                    DiaryCommentEntity、DiaryResonanceEntity、NotificationEntity、ChatConversationEntity
 ├── health/          HealthController
-├── mapper/          MyBatis-Plus BaseMapper 接口（共 6 个）
+├── mapper/          MyBatis-Plus BaseMapper 接口（共 7 个，含 ChatConversationMapper）
 ├── notification/    NotificationService、NotificationController
 └── security/        JwtTokenProvider、JwtAuthenticationFilter
 ```
@@ -73,10 +73,10 @@ src/
 ├── api/index.ts         Axios 实例，拦截器（JWT 附加、401/403→跳到/login）、diaryApi、authApi、
 │                        notificationApi、followApi、summaryApi、chatApi
 ├── components/          7 个组件：AppHeader、DiaryComposer、AiAnalysisCard、
-│                        SimilarDiariesPanel、MyDiaryList、PublicFeed、DiaryFeedItem
-├── pages/               HomePage、LoginPage、RegisterPage、DiaryDetailPage、ReportPage、
-│                        FollowingPage、ChatPage
-├── router/index.ts      7 条路由，beforeEach 守卫（requiresAuth→跳转/login）
+│                        SimilarDiariesPanel、MyDiaryList、PublicFeed（瀑布流）、DiaryFeedItem
+├── pages/               WritePage（写日记+我的日记）、SquarePage（广场瀑布流）、LoginPage、
+│                        RegisterPage、DiaryDetailPage、ReportPage、FollowingPage、ChatPage（多对话）
+├── router/index.ts      8 条路由，beforeEach 守卫（requiresAuth→跳转/login）
 ├── stores/              auth.ts、diary.ts、notification.ts、follow.ts
 └── styles.css           全局 CSS（无 scoped 样式）
 ```
@@ -98,8 +98,12 @@ src/
 | POST | `/api/follows/{userId}` | 是 |
 | DELETE | `/api/follows/{userId}` | 是 |
 | GET | `/api/follows/{userId}/status` | 是 |
-| POST | `/api/chat`（SSE 流式） | 是 |
-| DELETE | `/api/chat/memory` | 是 |
+| GET | `/api/chat/conversations` | 是 |
+| POST | `/api/chat/conversations` | 是 |
+| DELETE | `/api/chat/conversations/{id}` | 是 |
+| POST | `/api/chat/conversations/{id}`（SSE 流式） | 是 |
+| GET | `/api/chat/conversations/{id}/history` | 是 |
+| PUT | `/api/chat/conversations/{id}/history` | 是 |
 | POST | `/api/summaries` | 是 |
 | GET | `/api/summaries` | 是 |
 | DELETE | `/api/summaries/{id}` | 是 |
@@ -123,9 +127,11 @@ MyBatis-Plus 配置：`is_deleted` 字段使用 `@TableLogic`，主键使用 `@T
 
 ### AI 对话架构
 
-- **SSE 流式**：ChatController 返回 `Flux<String>`（`text/event-stream`），前端用 `XMLHttpRequest` 直连 `localhost:18080` 消费
-- **ChatMemory**：`Map<Long, ChatMemory>` 按用户隔离，`MessageChatMemoryAdvisor` 自动管理对话历史
-- **历史持久化**：`PUT/GET /api/chat/history` 存 Redis，TTL 7 天，跨设备同步
+- **多对话管理**：MySQL `chat_conversations` 表存会话元数据（id, user_id, title），支持新建/切换/删除
+- **SSE 流式**：`POST /api/chat/conversations/{id}` 返回 `Flux<String>`（`text/event-stream`），前端用 `XMLHttpRequest` 直连 `localhost:18080` 消费
+- **ChatMemory**：`Map<String, ChatMemory>` 按 `userId:conversationId` 隔离，每个会话独立记忆
+- **历史持久化**：`PUT/GET /api/chat/conversations/{id}/history` 存 Redis（key=`chat:msgs:{convId}`），TTL 7 天
+- **自动标题**：首条用户消息前 20 字自动设为会话标题
 - **上下文**：只注入原始日记（最近 10 篇），不读总结防止幻觉传递
 - **Markdown**：前端用 `marked` 渲染 AI 回复，AI prompt 指引使用基本 Markdown 格式
 
@@ -138,7 +144,7 @@ MyBatis-Plus 配置：`is_deleted` 字段使用 `@TableLogic`，主键使用 `@T
 | `report:{userId}:{weekOffset}` | 30min | 用户写新日记 |
 | `public:diaries:{page}:{size}` | 5min | 新公开日记 |
 | `following:{userId}:{page}:{size}` | 5min | 新日记/关注变化 |
-| `chat:history:{userId}` | 7d | 用户清空对话 |
+| `chat:msgs:{conversationId}` | 7d | 用户删除会话 |
 
 ### CORS
 
