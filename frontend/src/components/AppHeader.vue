@@ -9,7 +9,7 @@
               v-for="item in navItems"
               :key="item.path"
               :to="item.path"
-              :class="['nav-link', { active: route.path === item.path }]"
+              :class="['nav-link', item.cls, { active: route.path === item.path }]"
             >{{ item.label }}</router-link>
           </div>
           <div class="nav-sep" />
@@ -65,7 +65,7 @@ const notif = useNotificationStore()
 const navItems = [
   { label: '广场', path: '/' },
   { label: '写日记', path: '/write' },
-  { label: '对话', path: '/chat' },
+  { label: 'AI 小情绪', path: '/chat', cls: 'nav-link-ai' },
   { label: '关注', path: '/following' },
   { label: '报告', path: '/report' },
 ]

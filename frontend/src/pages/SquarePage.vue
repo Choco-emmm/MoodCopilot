@@ -2,6 +2,14 @@
   <main class="app-shell">
     <AppHeader />
 
+    <div class="chat-tease">
+      <router-link to="/chat" class="chat-tease-link">
+        <span class="chat-tease-icon">&#128302;</span>
+        <span class="chat-tease-text">和小情绪聊聊今天的心情</span>
+        <span class="chat-tease-arrow">&rarr;</span>
+      </router-link>
+    </div>
+
     <PublicFeed
       :diaries="store.publicDiaries"
       :loading="store.loading"

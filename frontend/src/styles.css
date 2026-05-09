@@ -138,6 +138,22 @@ button, textarea, input { font: inherit; }
   font-weight: 600;
 }
 
+/* AI chat nav pill — standout treatment */
+.nav-link-ai {
+  background: linear-gradient(135deg, var(--color-jade-light), #e6f2ed);
+  color: var(--color-jade);
+  font-weight: 600;
+}
+.nav-link-ai:hover {
+  background: linear-gradient(135deg, var(--color-jade-light), #d4e8de);
+  color: var(--color-jade-hover);
+}
+.nav-link-ai.active {
+  background: linear-gradient(135deg, var(--color-jade), #5b8f74);
+  color: #fff;
+  font-weight: 600;
+}
+
 /* Separator between nav and user area */
 .nav-sep {
   width: 1px;
@@ -963,6 +979,44 @@ h2 {
 
 .chat-input-row { display: flex; gap: 10px; }
 .chat-input-row .n-input { flex: 1; }
+
+/* ── AI chat tease card (square page) ── */
+.chat-tease {
+  margin-bottom: 16px;
+}
+
+.chat-tease-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--color-jade-light), #e6f2ed);
+  text-decoration: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.chat-tease-link:hover {
+  border-color: var(--color-jade);
+  box-shadow: var(--shadow-sm);
+}
+
+.chat-tease-icon {
+  font-size: 22px;
+}
+
+.chat-tease-text {
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-jade);
+  font-weight: 500;
+}
+
+.chat-tease-arrow {
+  font-size: 18px;
+  color: var(--color-jade);
+  font-weight: 600;
+}
 
 /* ── Scroll sentinel (infinite scroll) ── */
 .scroll-sentinel {
