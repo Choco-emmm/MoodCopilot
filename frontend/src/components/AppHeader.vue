@@ -1,15 +1,24 @@
 <template>
   <header class="masthead">
     <div class="masthead-top">
-      <p class="eyebrow">MoodCopilot</p>
+      <router-link to="/" class="brand-mark">MoodCopilot</router-link>
       <nav class="masthead-nav">
         <template v-if="auth.isAuthenticated">
+          <div class="nav-links">
+            <router-link
+              v-for="item in navItems"
+              :key="item.path"
+              :to="item.path"
+              :class="['nav-link', { active: route.path === item.path }]"
+            >{{ item.label }}</router-link>
+          </div>
+          <div class="nav-sep" />
           <n-popover trigger="click" placement="bottom-end" @update:show="onPopoverShow">
             <template #trigger>
               <n-badge :value="notif.unreadCount" :max="99" :show="notif.unreadCount > 0">
-                <n-button text size="small" circle>
+                <n-button text size="small" class="nav-bell">
                   <template #icon>
-                    <span style="font-size: 18px">🔔</span>
+                    <span style="font-size: 16px">&#128276;</span>
                   </template>
                 </n-button>
               </n-badge>
@@ -28,13 +37,8 @@
               </div>
             </div>
           </n-popover>
-          <n-button text type="primary" @click="router.push('/')">广场</n-button>
-          <n-button text type="primary" @click="router.push('/write')">写日记</n-button>
-          <n-button text type="primary" @click="router.push('/chat')">对话</n-button>
-          <n-button text type="primary" @click="router.push('/following')">关注</n-button>
-          <n-button text type="primary" @click="router.push('/report')">报告</n-button>
           <span class="masthead-user">{{ auth.displayName }}</span>
-          <n-button text type="primary" @click="handleLogout">退出</n-button>
+          <n-button text size="small" class="nav-logout" @click="handleLogout">退出</n-button>
         </template>
         <template v-else>
           <n-button text type="primary" @click="router.push('/login')">登录</n-button>
@@ -48,14 +52,23 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { NButton, NBadge, NPopover } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore, type Notification } from '../stores/notification'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const notif = useNotificationStore()
+
+const navItems = [
+  { label: '广场', path: '/' },
+  { label: '写日记', path: '/write' },
+  { label: '对话', path: '/chat' },
+  { label: '关注', path: '/following' },
+  { label: '报告', path: '/report' },
+]
 
 notif.fetchUnreadCount()
 

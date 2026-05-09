@@ -95,12 +95,77 @@ button, textarea, input { font: inherit; }
 .masthead-nav {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+}
+
+/* Brand mark — seal-red, links to home */
+.brand-mark {
+  color: var(--color-accent);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.brand-mark:hover { opacity: 0.8; }
+
+/* Nav links row */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: all 0.2s;
+  letter-spacing: 0.02em;
+}
+.nav-link:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+.nav-link.active {
+  color: var(--color-jade);
+  background: var(--color-jade-light);
+  font-weight: 600;
+}
+
+/* Separator between nav and user area */
+.nav-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--color-border-strong);
+  margin: 0 8px;
+}
+
+/* Notification bell */
+.nav-bell {
+  color: var(--color-text-muted) !important;
+}
+.nav-bell:hover {
+  color: var(--color-text) !important;
+}
+
+/* Logout link */
+.nav-logout {
+  color: var(--color-text-muted) !important;
+  font-size: 12px !important;
+}
+.nav-logout:hover {
+  color: var(--color-accent) !important;
 }
 
 .masthead-user {
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -357,6 +422,34 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── Follow button ── */
+.follow-btn {
+  padding: 3px 10px;
+  border: 1.5px solid var(--color-jade);
+  border-radius: 14px;
+  background: var(--color-jade);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  line-height: 1.4;
+}
+.follow-btn:hover {
+  background: var(--color-jade-hover);
+  border-color: var(--color-jade-hover);
+}
+.follow-btn.following {
+  background: transparent;
+  color: var(--color-jade);
+  border-color: var(--color-jade);
+}
+.follow-btn.following:hover {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 /* ── Feed item ── */

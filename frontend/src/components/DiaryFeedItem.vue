@@ -6,17 +6,15 @@
         <div>
           <div class="author-row">
             <strong>{{ diary.authorName }}</strong>
-            <n-button
+            <button
               v-if="diary.authorUserId !== auth.userId"
-              size="tiny"
-              :type="followStore.isFollowing(diary.authorUserId) ? 'default' : 'primary'"
-              :secondary="followStore.isFollowing(diary.authorUserId)"
+              :class="['follow-btn', { following: followStore.isFollowing(diary.authorUserId) }]"
               @mouseenter="hoveringId = diary.authorUserId"
               @mouseleave="hoveringId = null"
               @click.stop="toggleFollow(diary.authorUserId)"
             >
               {{ followBtnLabel(diary.authorUserId) }}
-            </n-button>
+            </button>
           </div>
           <span>{{ formatTime(diary.createdAt) }}</span>
         </div>
