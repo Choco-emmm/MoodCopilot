@@ -3,8 +3,13 @@
     <AppHeader />
 
     <div class="chat-window">
-      <h2>小情绪</h2>
-      <p class="chat-subtitle">你的 AI 情绪伙伴，可以聊聊最近的心情</p>
+      <div class="chat-top">
+        <div>
+          <h2>小情绪</h2>
+          <p class="chat-subtitle">你的 AI 情绪伙伴，可以聊聊最近的心情</p>
+        </div>
+        <n-button size="small" text @click="clearChat">清空对话</n-button>
+      </div>
 
       <div class="chat-messages" ref="msgBox">
         <div v-if="messages.length === 0" class="chat-empty">
@@ -19,8 +24,8 @@
           <p>{{ msg.content }}</p>
         </div>
 
-        <div v-if="waiting" class="chat-bubble chat-ai">
-          <p class="chat-typing">思考中...</p>
+        <div v-if="streaming" class="chat-bubble chat-ai">
+          <p>{{ streamingText }}<span class="chat-cursor">|</span></p>
         </div>
       </div>
 
@@ -28,11 +33,11 @@
         <n-input
           v-model:value="draft"
           placeholder="聊聊你今天的心情..."
-          :disabled="waiting"
+          :disabled="streaming"
           clearable
           @keyup.enter="send"
         />
-        <n-button type="primary" :disabled="!draft.trim() || waiting" @click="send">
+        <n-button type="primary" :disabled="!draft.trim() || streaming" @click="send">
           发送
         </n-button>
       </div>
@@ -44,7 +49,6 @@
 import { ref, nextTick, onMounted } from 'vue'
 import { NButton, NInput } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
-import { chatApi } from '../api'
 
 interface Message {
   role: 'user' | 'ai'
@@ -53,36 +57,66 @@ interface Message {
 
 const messages = ref<Message[]>([])
 const draft = ref('')
-const waiting = ref(false)
+const streaming = ref(false)
+const streamingText = ref('')
 const msgBox = ref<HTMLElement | null>(null)
 
 onMounted(() => {
   messages.value.push({
     role: 'ai',
-    content: '嗨，我是你的情绪伙伴小情绪。今天过得怎么样？有什么想聊的吗？',
+    content: '嗨，我是小情绪。今天过得怎么样？有什么想聊的吗？',
   })
 })
 
 async function send() {
   const content = draft.value.trim()
-  if (!content || waiting.value) return
+  if (!content || streaming.value) return
 
   messages.value.push({ role: 'user', content })
   draft.value = ''
-  waiting.value = true
+  streaming.value = true
+  streamingText.value = ''
   await nextTick()
   scrollBottom()
 
   try {
-    const res = await chatApi.send(content)
-    messages.value.push({ role: 'ai', content: res.data.data.reply })
+    const token = localStorage.getItem('token')
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ message: content }),
+    })
+
+    const reader = response.body?.getReader()
+    if (!reader) throw new Error('No reader')
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      streamingText.value = buffer
+      await nextTick()
+      scrollBottom()
+    }
+    messages.value.push({ role: 'ai', content: streamingText.value || '...' })
   } catch {
     messages.value.push({ role: 'ai', content: '抱歉，我暂时无法回复，请稍后再试。' })
   } finally {
-    waiting.value = false
+    streaming.value = false
+    streamingText.value = ''
     await nextTick()
     scrollBottom()
   }
+}
+
+async function clearChat() {
+  messages.value = []
+  try {
+    await fetch('/api/chat/memory', { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+  } catch { /* ignore */ }
 }
 
 function scrollBottom() {

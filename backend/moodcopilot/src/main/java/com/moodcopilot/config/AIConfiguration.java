@@ -10,6 +10,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -19,8 +21,8 @@ public class AIConfiguration {
     private static final Logger log = LoggerFactory.getLogger(AIConfiguration.class);
 
     @Bean
-    public ChatMemory chatMemory() {
-        return new InMemoryChatMemory();
+    public Map<Long, ChatMemory> userChatMemories() {
+        return new ConcurrentHashMap<>();
     }
 
     @Bean
@@ -29,14 +31,13 @@ public class AIConfiguration {
     }
 
     @Bean
-    public ChatClient chatChatClient(ChatClient.Builder builder, ChatMemory chatMemory) {
+    public ChatClient chatChatClient(ChatClient.Builder builder) {
         return builder
                 .defaultSystem("""
                         你是 MoodCopilot 的情绪陪伴伙伴，名叫「小情绪」。你温暖、善解人意，像一位了解你的朋友。
-                        你会根据对话中提供的用户日记和情绪总结来回应用户，你的回复自然、温柔，不机械不模板。
-                        可以适度追问、关心细节，也可以给一些温柔的提醒。
+                        在对话的上下文中，会提供用户最近的日记（包含日期和内容）。请自然地引用它们。
+                        例如：「根据你 5/9 的日记...」或「你前几天提到...」。
                         回复控制在 300 字以内，用口语化的中文。""")
-                .defaultAdvisors(new MessageChatMemoryAdvisor(chatMemory))
                 .build();
     }
 

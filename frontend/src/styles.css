@@ -771,15 +771,29 @@ h2 {
   padding-bottom: 24px;
 }
 
+.chat-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 .chat-window h2 {
   color: #23322e;
-  margin-top: 8px;
+  margin: 8px 0 0;
 }
 
 .chat-subtitle {
   margin: 0;
   color: #8d9793;
   font-size: 14px;
+}
+
+.chat-cursor {
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
 }
 
 .chat-messages {

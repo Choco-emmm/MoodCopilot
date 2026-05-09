@@ -1,7 +1,12 @@
 package com.moodcopilot.ai;
 
 import com.moodcopilot.common.ApiResponse;
+import com.moodcopilot.entity.UserEntity;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 
 import java.util.Map;
 
@@ -15,10 +20,16 @@ public class ChatController {
         this.chatService = chatService;
     }
 
-    @PostMapping
-    public ApiResponse<Map<String, String>> chat(@RequestBody Map<String, String> body) {
+    @PostMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> chat(@RequestBody Map<String, String> body) {
         String message = body.get("message");
-        String reply = chatService.chat(message);
-        return ApiResponse.ok(Map.of("reply", reply));
+        return chatService.chat(message);
+    }
+
+    @DeleteMapping("/memory")
+    public ApiResponse<Void> clearMemory() {
+        UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        chatService.clearMemory(user.getId());
+        return ApiResponse.ok(null);
     }
 }
