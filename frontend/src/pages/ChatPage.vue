@@ -91,17 +91,35 @@ async function send() {
     if (!reader) throw new Error('No reader')
 
     const decoder = new TextDecoder()
-    let buffer = ''
+    let displayText = ''
+    let rawBuffer = ''
 
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      streamingText.value = buffer
+
+      rawBuffer += decoder.decode(value, { stream: true })
+      // Parse SSE events: "data:xxx\n\n"
+      const lines = rawBuffer.split('\n')
+      rawBuffer = lines.pop() || '' // keep incomplete last line
+
+      for (const line of lines) {
+        if (line.startsWith('data:')) {
+          displayText += line.slice(5).replace(/^\s+/, '')
+        }
+      }
+      streamingText.value = displayText
       await nextTick()
       scrollBottom()
     }
-    messages.value.push({ role: 'ai', content: streamingText.value || '...' })
+    // Drain remaining buffer
+    if (rawBuffer.trim()) {
+      const line = rawBuffer.trim()
+      if (line.startsWith('data:')) {
+        displayText += line.slice(5).replace(/^\s+/, '')
+      }
+    }
+    messages.value.push({ role: 'ai', content: displayText || '...' })
   } catch {
     messages.value.push({ role: 'ai', content: '抱歉，我暂时无法回复，请稍后再试。' })
   } finally {
