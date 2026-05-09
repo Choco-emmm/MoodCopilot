@@ -61,3 +61,7 @@ export const summaryApi = {
   list: () => api.get('/summaries'),
   delete: (id: number) => api.delete(`/summaries/${id}`),
 }
+
+export const chatApi = {
+  send: (message: string) => api.post('/chat', { message }),
+}

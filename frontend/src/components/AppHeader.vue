@@ -28,6 +28,7 @@
               </div>
             </div>
           </n-popover>
+          <n-button text type="primary" @click="router.push('/chat')">对话</n-button>
           <n-button text type="primary" @click="router.push('/following')">关注</n-button>
           <n-button text type="primary" @click="router.push('/summaries')">总结</n-button>
           <n-button text type="primary" @click="router.push('/weekly-report')">周报</n-button>

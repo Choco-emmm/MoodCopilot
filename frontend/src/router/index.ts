@@ -20,6 +20,12 @@ const router = createRouter({
       component: () => import('../pages/RegisterPage.vue'),
     },
     {
+      path: '/chat',
+      name: 'chat',
+      component: () => import('../pages/ChatPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/summaries',
       name: 'summaries',
       component: () => import('../pages/SummaryLibraryPage.vue'),
