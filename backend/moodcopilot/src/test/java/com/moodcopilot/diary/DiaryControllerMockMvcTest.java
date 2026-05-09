@@ -84,12 +84,15 @@ class DiaryControllerMockMvcTest {
 
     @Test
     void publicDiariesReturnsList() throws Exception {
-        when(diaryService.publicDiaries()).thenReturn(List.of(sampleDiary(3L)));
+        when(diaryService.publicDiaries(anyInt(), anyInt())).thenReturn(
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<DiaryView>(1, 20)
+                        .setRecords(List.of(sampleDiary(3L)))
+        );
 
         mockMvc.perform(get("/api/diaries/public"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data[0].id").value(3));
+                .andExpect(jsonPath("$.data.items[0].id").value(3));
     }
 
     @Test
@@ -125,19 +128,20 @@ class DiaryControllerMockMvcTest {
     void addCommentReturnsUpdatedDiary() throws Exception {
         DiaryView withComment = new DiaryView(
                 1L,
+                1L,
                 "同频的人",
                 "辛苦了",
                 DiaryVisibility.PUBLIC,
                 new DiaryAnalysis("委屈", 3, List.of("人际关系"), "辛苦了", "你并不孤单"),
                 LocalDateTime.now(),
                 1,
-                List.of(new DiaryComment(1L, "陌生人", "抱抱你", LocalDateTime.now()))
+                List.of(new DiaryComment(1L, null, null, "陌生人", "抱抱你", LocalDateTime.now(), List.of()))
         );
         when(diaryService.addComment(anyLong(), any(CreateCommentRequest.class))).thenReturn(withComment);
 
         mockMvc.perform(post("/api/diaries/1/comments")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new CreateCommentRequest("抱抱你"))))
+                        .content(objectMapper.writeValueAsString(new CreateCommentRequest("抱抱你", null))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.comments.length()").value(1))
                 .andExpect(jsonPath("$.data.comments[0].authorName").value("陌生人"));
@@ -153,6 +157,7 @@ class DiaryControllerMockMvcTest {
     @Test
     void resonateReturnsUpdatedDiary() throws Exception {
         DiaryView updated = new DiaryView(
+                1L,
                 1L,
                 "同频的人",
                 "辛苦了",
@@ -171,6 +176,7 @@ class DiaryControllerMockMvcTest {
 
     private DiaryView sampleDiary(long id) {
         return new DiaryView(
+                id,
                 id,
                 "同频的人",
                 "今天很累",
