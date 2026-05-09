@@ -1,5 +1,8 @@
 <template>
-  <div class="report-page">
+  <main class="app-shell">
+    <AppHeader />
+
+    <div class="report-page">
     <div class="report-header">
       <h2>周报</h2>
       <div class="week-nav">
@@ -64,13 +67,15 @@
         <p class="ai-summary">{{ report.aiSummary }}</p>
       </section>
     </template>
-  </div>
+    </div>
+  </main>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton, NTag } from 'naive-ui'
+import AppHeader from '../components/AppHeader.vue'
 import { useDiaryStore } from '../stores/diary'
 
 const router = useRouter()
