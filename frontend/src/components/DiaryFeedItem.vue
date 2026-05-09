@@ -48,11 +48,14 @@
     <div v-if="(diary.comments ?? []).length" class="comments">
       <div v-for="comment in diary.comments" :key="comment.id" class="comment-thread">
         <div class="comment-main">
-          <p>
+          <p class="comment-text">
             <strong>{{ comment.authorName }}</strong>
-            <span>{{ comment.content }}</span>
+            <span class="comment-time">{{ formatTime(comment.createdAt) }}</span>
           </p>
-          <n-button size="tiny" text @click="replyTo = replyTo === comment.id ? null : comment.id">回复</n-button>
+          <p class="comment-body">{{ comment.content }}</p>
+          <div class="comment-foot">
+            <n-button size="tiny" text @click="replyTo = replyTo === comment.id ? null : comment.id">回复</n-button>
+          </div>
         </div>
         <div v-if="replyTo === comment.id" class="comment-box">
           <n-input
@@ -66,12 +69,13 @@
           </n-button>
         </div>
         <div v-if="(comment.replies ?? []).length" class="comment-replies">
-          <div v-for="reply in comment.replies" :key="reply.id">
-            <p>
+          <div v-for="reply in comment.replies" :key="reply.id" class="reply-item">
+            <p class="comment-text">
               <strong>{{ reply.authorName }}</strong>
               <span v-if="reply.replyToUserName" class="reply-to"> 回复 @{{ reply.replyToUserName }} </span>
-              <span>{{ reply.content }}</span>
+              <span class="comment-time">{{ formatTime(reply.createdAt) }}</span>
             </p>
+            <p class="comment-body">{{ reply.content }}</p>
           </div>
         </div>
       </div>

@@ -362,11 +362,38 @@ h2 {
   padding-top: 2px;
 }
 
-.comments p {
-  display: grid;
-  gap: 3px;
+.comment-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
-  padding: 9px 10px;
+}
+
+.comment-text strong {
+  color: #23322e;
+  font-size: 14px;
+}
+
+.comment-time {
+  color: #a8b2ae;
+  font-size: 12px;
+}
+
+.comment-body {
+  margin: 0;
+  color: #4d5a56;
+  line-height: 1.6;
+  font-size: 14px;
+  padding: 4px 0;
+}
+
+.comment-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.comments p {
+  padding: 10px 12px;
   border-radius: 8px;
   background: #eef4ef;
   line-height: 1.5;
@@ -384,6 +411,9 @@ h2 {
 .comment-main {
   display: grid;
   gap: 4px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #eef4ef;
 }
 
 .comment-replies {
@@ -391,7 +421,13 @@ h2 {
   padding-left: 12px;
   border-left: 2px solid #d8d3c4;
   display: grid;
-  gap: 4px;
+  gap: 6px;
+}
+
+.reply-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f3f5f0;
 }
 
 .reply-to {
