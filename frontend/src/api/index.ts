@@ -33,6 +33,8 @@ export const diaryApi = {
   addComment: (id: number, content: string, parentCommentId?: number) =>
     api.post(`/diaries/${id}/comments`, { content, parentCommentId: parentCommentId ?? null }),
   resonate: (id: number) => api.post(`/diaries/${id}/resonance`),
+  encourageCandidates: (id: number) => api.get(`/diaries/${id}/encourage-candidates`),
+  sendEncouragement: (id: number, message: string) => api.post(`/diaries/${id}/encourage`, { message }),
   weeklyReport: (weekOffset = 0) => api.get('/diaries/weekly-report', { params: { weekOffset } }),
   monthlyReport: (monthOffset = 0) => api.get('/diaries/monthly-report', { params: { monthOffset } }),
   following: (page = 1, size = 20) => api.get('/diaries/following', { params: { page, size } }),

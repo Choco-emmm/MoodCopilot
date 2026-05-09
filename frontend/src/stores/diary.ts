@@ -155,6 +155,15 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
+  async function sendEncouragement(diaryId: number, message: string) {
+    const res = await diaryApi.sendEncouragement(diaryId, message)
+    const updated = normalize(res.data.data)
+    mergeDiary(updated)
+    if (activeDiary.value?.id === diaryId) {
+      activeDiary.value = updated
+    }
+  }
+
   async function fetchWeeklyReport(weekOffset = 0) {
     reportLoading.value = true
     try {
@@ -196,7 +205,7 @@ export const useDiaryStore = defineStore('diary', () => {
   return {
     myDiaries, publicDiaries, activeDiary, similarDiaries, loading, saving, errorMessage,
     hasMore, weeklyReport, reportLoading, monthlyReport, monthLoading,
-    fetchDiaries, loadMorePublic, createDiary, loadSimilar, addComment, resonate, deleteDiary,
+    fetchDiaries, loadMorePublic, createDiary, loadSimilar, addComment, resonate, sendEncouragement, deleteDiary,
     fetchWeeklyReport, fetchMonthlyReport, normalize,
   }
 })
