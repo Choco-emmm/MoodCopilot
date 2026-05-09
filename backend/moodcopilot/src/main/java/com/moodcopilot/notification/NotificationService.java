@@ -97,4 +97,21 @@ public class NotificationService {
             log.warn("Failed to create resonance notification", e);
         }
     }
+
+    public void notifyEncouragement(Long diaryId, Long recipientUserId, String message) {
+        try {
+            NotificationEntity n = new NotificationEntity();
+            n.setRecipientUserId(recipientUserId);
+            n.setDiaryId(diaryId);
+            n.setType("ENCOURAGEMENT");
+            String preview = message != null && message.length() > 30
+                    ? message.substring(0, 30) + "..." : message;
+            n.setMessage("有人给你的日记送来了鼓励：" + preview);
+            n.setIsRead(false);
+            n.setCreatedAt(LocalDateTime.now());
+            notificationMapper.insert(n);
+        } catch (Exception e) {
+            log.warn("Failed to create encouragement notification", e);
+        }
+    }
 }

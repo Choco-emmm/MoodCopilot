@@ -1,6 +1,7 @@
 package com.moodcopilot.ai;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.diary.DiaryAnalysis;
 import org.slf4j.Logger;
@@ -146,6 +147,34 @@ public class AiAnalysisService {
                 .entrySet().stream().max(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey).orElse("平静");
         return "本月共记录了 " + count + " 篇日记，主要情绪为「" + topMood + "」。一个月的坚持不容易，继续记录，你会看见自己的成长轨迹。";
+    }
+
+    // ── Encouragement generation ──
+
+    private static final String ENCOURAGEMENT_SYSTEM_PROMPT = """
+            You are a warm, compassionate stranger. Below is a diary entry. Generate exactly 3 short, anonymous encouragement messages in Chinese, each under 60 characters. They should be gentle, specific (reference the diary content), and feel like a real person wrote them, not a therapist. Format your response as a JSON array of 3 strings, nothing else.
+            Example: ["抱抱你，摔倒了没关系，明天又是新的一天","减肥真的好难，但你已经在努力了","我也有过类似的委屈，想说你不是一个人"]""";
+
+    public List<String> generateEncouragements(String diaryContent) {
+        try {
+            String response = analysisChatClient.prompt()
+                    .system(ENCOURAGEMENT_SYSTEM_PROMPT)
+                    .user(diaryContent)
+                    .call()
+                    .content();
+            return objectMapper.readValue(response, new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            log.warn("AI encouragement generation failed: {}", e.getMessage());
+            return fallbackEncouragements();
+        }
+    }
+
+    private List<String> fallbackEncouragements() {
+        return List.of(
+                "看到你了，今天辛苦了",
+                "你的感受很重要，谢谢你的分享",
+                "你不是一个人，有我在听"
+        );
     }
 
     private String fallbackWeeklySummary(int count, List<DiaryAnalysis> analyses) {

@@ -535,6 +535,35 @@ public class DiaryService {
         return content.length() > 30 ? content.substring(0, 30) : content;
     }
 
+    // ── Encouragement ──
+
+    public List<String> generateEncouragements(long diaryId) {
+        DiaryEntity diary = findPublicDiary(diaryId);
+        return aiAnalysisService.generateEncouragements(diary.getContent());
+    }
+
+    @Transactional
+    public DiaryView sendEncouragement(long diaryId, String message) {
+        DiaryEntity diary = findPublicDiary(diaryId);
+        UserEntity actor = currentUser();
+
+        DiaryResonanceEntity r = new DiaryResonanceEntity();
+        r.setDiaryId(diaryId);
+        r.setUserId(actor.getId());
+        r.setMessage(message != null && message.length() > 200
+                ? message.substring(0, 200) : message);
+        diaryResonanceMapper.insert(r);
+
+        diary.setResonanceCount(diary.getResonanceCount() + 1);
+        diaryMapper.updateById(diary);
+
+        if (!diary.getAuthorUserId().equals(actor.getId())) {
+            notificationService.notifyEncouragement(diaryId, diary.getAuthorUserId(), message);
+        }
+
+        return toDiaryView(diary);
+    }
+
     private UserEntity currentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof UserEntity user) {

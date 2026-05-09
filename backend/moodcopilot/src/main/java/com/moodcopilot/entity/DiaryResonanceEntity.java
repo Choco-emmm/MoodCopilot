@@ -24,6 +24,11 @@ public class DiaryResonanceEntity {
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
 
+    private String message;
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public String getMessage() { return message; }
+    public void setMessage(String message) { this.message = message; }
 }

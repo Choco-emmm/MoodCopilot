@@ -114,4 +114,16 @@ public class DiaryController {
         diaryService.deleteComment(diaryId, commentId);
         return ApiResponse.ok(null);
     }
+
+    @GetMapping("/{id}/encourage-candidates")
+    public ApiResponse<List<String>> encourageCandidates(@PathVariable long id) {
+        return ApiResponse.ok(diaryService.generateEncouragements(id));
+    }
+
+    @PostMapping("/{id}/encourage")
+    public ApiResponse<DiaryView> sendEncouragement(
+            @PathVariable long id,
+            @RequestBody Map<String, String> body) {
+        return ApiResponse.ok(diaryService.sendEncouragement(id, body.get("message")));
+    }
 }
