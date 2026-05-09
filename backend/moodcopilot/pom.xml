@@ -100,7 +100,25 @@
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Spring AI OpenAI (DeepSeek compatible) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai-spring-boot-starter</artifactId>
+        </dependency>
     </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>1.0.0-M6</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <build>
         <plugins>
@@ -115,6 +133,14 @@
         <repository>
             <id>central</id>
             <url>https://repo.maven.apache.org/maven2</url>
+        </repository>
+        <repository>
+            <id>spring-milestones</id>
+            <name>Spring Milestones</name>
+            <url>https://repo.spring.io/milestone</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
         </repository>
     </repositories>
 </project>

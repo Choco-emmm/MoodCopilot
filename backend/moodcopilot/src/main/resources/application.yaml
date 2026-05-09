@@ -30,6 +30,13 @@ spring:
     redis:
       time-to-live: 120000
       cache-null-values: false
+  ai:
+    openai:
+      api-key: ${DEEPSEEK_API_KEY:}
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      chat:
+        options:
+          model: ${DEEPSEEK_MODEL:deepseek-chat}
 jwt:
   secret: ${JWT_SECRET:bW9vZGNvcGlsb3Qtc2VjcmV0LWtleS1mb3ItZGV2ZWxvcG1lbnQtb25seS0yMDI2}
   expiration: 86400000
@@ -39,8 +46,3 @@ mybatis-plus:
   global-config:
     db-config:
       id-type: auto # 全局设置主键生成策略为数据库自增
-ai:
-  deepseek:
-    api-key: ${DEEPSEEK_API_KEY:}
-    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
-    model: ${DEEPSEEK_MODEL:deepseek-chat}

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.diary.DiaryAnalysis;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -32,20 +33,24 @@ public class AiAnalysisService {
             3. Offers gentle encouragement without being preachy
             Return ONLY the Chinese text, no markdown, no JSON, no explanation.""";
 
-    private final DeepSeekClient deepSeekClient;
+    private final ChatClient analysisChatClient;
     private final ObjectMapper objectMapper;
 
-    public AiAnalysisService(DeepSeekClient deepSeekClient, ObjectMapper objectMapper) {
-        this.deepSeekClient = deepSeekClient;
+    public AiAnalysisService(ChatClient analysisChatClient, ObjectMapper objectMapper) {
+        this.analysisChatClient = analysisChatClient;
         this.objectMapper = objectMapper;
     }
 
     public DiaryAnalysis analyze(String content) {
         try {
-            String json = deepSeekClient.chat(SYSTEM_PROMPT, content);
+            String json = analysisChatClient.prompt()
+                    .system(SYSTEM_PROMPT)
+                    .user(content)
+                    .call()
+                    .content();
             return parseAiResponse(json);
         } catch (Exception e) {
-            log.warn("DeepSeek AI failed, falling back to keyword analysis: {}", e.getMessage());
+            log.warn("AI analysis failed, falling back to keyword analysis: {}", e.getMessage());
             return keywordAnalyze(content);
         }
     }
@@ -83,9 +88,13 @@ public class AiAnalysisService {
         }
 
         try {
-            return deepSeekClient.chat(WEEKLY_SYSTEM_PROMPT, prompt.toString());
+            return analysisChatClient.prompt()
+                    .system(WEEKLY_SYSTEM_PROMPT)
+                    .user(prompt.toString())
+                    .call()
+                    .content();
         } catch (Exception e) {
-            log.warn("DeepSeek weekly summary failed, falling back: {}", e.getMessage());
+            log.warn("AI weekly summary failed, falling back: {}", e.getMessage());
             return fallbackWeeklySummary(diaryContents.size(), analyses);
         }
     }
