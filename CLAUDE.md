@@ -17,6 +17,7 @@ MoodCopilot 是一个 AI 情绪日记 + 陌生人互助社区。用户写日记�
 
 - 后端：Spring Boot 3.5.14、Java 21、MySQL 8、Redis (Lettuce)、MyBatis-Plus 3.5.10.1
 - 前端：Vue 3、Vite 5、TypeScript、Naive UI 2.41、Pinia 2.2、Vue Router 4.4
+- 设计：纸墨之间 (Between Ink & Paper) — 纸质纹理 + 墨色层次 + 楷体标题 + 印章红点缀 + 玉绿行动色
 - AI：Spring AI 1.0.0-M6 + DeepSeek API（OpenAI 兼容），失败时回退关键词分析
 
 ## 构建与运行
