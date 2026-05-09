@@ -28,8 +28,8 @@
               </div>
             </div>
           </n-popover>
-          <n-button text type="primary" @click="router.push('/')">写日记</n-button>
-          <n-button text type="primary" @click="router.push('/square')">广场</n-button>
+          <n-button text type="primary" @click="router.push('/')">广场</n-button>
+          <n-button text type="primary" @click="router.push('/write')">写日记</n-button>
           <n-button text type="primary" @click="router.push('/chat')">对话</n-button>
           <n-button text type="primary" @click="router.push('/following')">关注</n-button>
           <n-button text type="primary" @click="router.push('/report')">报告</n-button>

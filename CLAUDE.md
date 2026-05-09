@@ -74,7 +74,7 @@ src/
 │                        notificationApi、followApi、summaryApi、chatApi
 ├── components/          7 个组件：AppHeader、DiaryComposer、AiAnalysisCard、
 │                        SimilarDiariesPanel、MyDiaryList、PublicFeed（瀑布流）、DiaryFeedItem
-├── pages/               WritePage（写日记+我的日记）、SquarePage（广场瀑布流）、LoginPage、
+├── pages/               SquarePage（`/` 广场瀑布流）、WritePage（`/write` 写日记+我的日记）、LoginPage、
 │                        RegisterPage、DiaryDetailPage、ReportPage、FollowingPage、ChatPage（多对话）
 ├── router/index.ts      8 条路由，beforeEach 守卫（requiresAuth→跳转/login）
 ├── stores/              auth.ts、diary.ts、notification.ts、follow.ts

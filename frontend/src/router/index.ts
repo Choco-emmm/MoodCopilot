@@ -5,14 +5,14 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'write',
-      component: () => import('../pages/WritePage.vue'),
+      name: 'square',
+      component: () => import('../pages/SquarePage.vue'),
       meta: { requiresAuth: true },
     },
     {
-      path: '/square',
-      name: 'square',
-      component: () => import('../pages/SquarePage.vue'),
+      path: '/write',
+      name: 'write',
+      component: () => import('../pages/WritePage.vue'),
       meta: { requiresAuth: true },
     },
     {
