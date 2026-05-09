@@ -185,3 +185,47 @@ npm install playwright
 npx playwright install chromium
 node -e "..."    # Playwright 脚本测试登录→聊天流式→历史持久化
 ```
+
+## gstack
+
+使用 gstack 中的 `/browse` 技能进行所有网页浏览，切勿使用 `mcp__claude-in-chrome__*` 工具。
+
+### 可用技能
+
+| 技能 | 用途 |
+|------|------|
+| `/office-hours` | 办公时间咨询 |
+| `/plan-ceo-review` | CEO 审查计划 |
+| `/plan-eng-review` | 工程审查计划 |
+| `/plan-design-review` | 设计审查计划 |
+| `/plan-devex-review` | DevEx 审查计划 |
+| `/design-consultation` | 设计咨询 |
+| `/design-shotgun` | 设计发散 |
+| `/design-html` | HTML 设计输出 |
+| `/design-review` | 设计审查 |
+| `/review` | 代码审查 |
+| `/code-review` | PR 审查 |
+| `/ship` | 发布上线 |
+| `/land-and-deploy` | 合并并部署 |
+| `/canary` | 金丝雀发布 |
+| `/benchmark` | 性能基准测试 |
+| `/browse` | 无头浏览器网页浏览 |
+| `/connect-chrome` | 连接 Chrome |
+| `/qa` | QA 测试 |
+| `/qa-only` | 仅 QA |
+| `/setup-browser-cookies` | 设置浏览器 cookies |
+| `/setup-deploy` | 设置部署 |
+| `/setup-gbrain` | 设置 gbrain |
+| `/retro` | 回顾总结 |
+| `/investigate` | 调查问题 |
+| `/document-release` | 发布文档 |
+| `/codex` | Codex 模式 |
+| `/cso` | CSO 模式 |
+| `/autoplan` | 自动规划 |
+| `/devex-review` | DevEx 审查 |
+| `/careful` | 谨慎模式 |
+| `/freeze` | 冻结部署 |
+| `/guard` | 守卫模式 |
+| `/unfreeze` | 解冻 |
+| `/gstack-upgrade` | 升级 gstack |
+| `/learn` | 学习记录 |
