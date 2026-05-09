@@ -1,24 +1,24 @@
 package com.moodcopilot.diary;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.moodcopilot.ai.AiAnalysisService;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.entity.DiaryCommentEntity;
 import com.moodcopilot.entity.DiaryEntity;
 import com.moodcopilot.entity.DiaryResonanceEntity;
+import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.DiaryCommentMapper;
 import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.mapper.DiaryResonanceMapper;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.moodcopilot.entity.UserEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -33,22 +33,24 @@ public class DiaryService {
     private final DiaryAnalysisMapper diaryAnalysisMapper;
     private final DiaryCommentMapper diaryCommentMapper;
     private final DiaryResonanceMapper diaryResonanceMapper;
+    private final AiAnalysisService aiAnalysisService;
 
     public DiaryService(DiaryMapper diaryMapper,
                         DiaryAnalysisMapper diaryAnalysisMapper,
                         DiaryCommentMapper diaryCommentMapper,
-                        DiaryResonanceMapper diaryResonanceMapper) {
+                        DiaryResonanceMapper diaryResonanceMapper,
+                        AiAnalysisService aiAnalysisService) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
         this.diaryResonanceMapper = diaryResonanceMapper;
+        this.aiAnalysisService = aiAnalysisService;
     }
 
     @Transactional
     public DiaryView create(CreateDiaryRequest request) {
         String content = normalizeContent(request.content());
         DiaryVisibility visibility = parseVisibility(request.visibility());
-        DiaryAnalysis analysis = analyze(content);
 
         DiaryEntity diary = new DiaryEntity();
         UserEntity user = currentUser();
@@ -62,8 +64,16 @@ public class DiaryService {
         diary.setUpdatedAt(LocalDateTime.now());
         diaryMapper.insert(diary);
 
+        return DiaryView.from(diary, List.of());
+    }
+
+    @Async
+    @Transactional
+    public void runAiAnalysis(long diaryId, String content) {
+        DiaryAnalysis analysis = aiAnalysisService.analyze(content);
+
         DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
-        analysisEntity.setDiaryId(diary.getId());
+        analysisEntity.setDiaryId(diaryId);
         analysisEntity.setMoodLabel(analysis.moodLabel());
         analysisEntity.setMoodIntensity(analysis.moodIntensity());
         analysisEntity.setTopicLabelsJson(analysis.topicLabels());
@@ -72,8 +82,6 @@ public class DiaryService {
         analysisEntity.setCreatedAt(LocalDateTime.now());
         analysisEntity.setUpdatedAt(LocalDateTime.now());
         diaryAnalysisMapper.insert(analysisEntity);
-
-        return DiaryView.from(diary, analysisEntity, List.of());
     }
 
     public List<DiaryView> myDiaries() {
@@ -197,11 +205,7 @@ public class DiaryService {
     }
 
     private DiaryAnalysisEntity findAnalysis(long diaryId) {
-        DiaryAnalysisEntity analysis = diaryAnalysisMapper.selectById(diaryId);
-        if (analysis == null) {
-            throw new ResponseStatusException(NOT_FOUND, "日记分析不存在");
-        }
-        return analysis;
+        return diaryAnalysisMapper.selectById(diaryId);
     }
 
     private List<DiaryCommentEntity> findComments(long diaryId) {
@@ -246,68 +250,8 @@ public class DiaryService {
         }
     }
 
-    // ── AI Analysis (keyword-based, will be replaced by DeepSeek in Phase 3) ──
-
-    private DiaryAnalysis analyze(String content) {
-        String mood = pickMood(content);
-        List<String> topics = pickTopics(content);
-        return new DiaryAnalysis(
-                mood,
-                intensity(content, mood),
-                topics,
-                summarize(content),
-                feedbackFor(mood, topics)
-        );
-    }
-
-    private String pickMood(String content) {
-        if (containsAny(content, "焦虑", "担心", "紧张", "害怕", "慌")) return "焦虑";
-        if (containsAny(content, "委屈", "难过", "想哭", "失落", "孤单")) return "委屈";
-        if (containsAny(content, "生气", "烦", "愤怒", "讨厌")) return "烦躁";
-        if (containsAny(content, "累", "疲惫", "困", "撑", "压力", "崩溃")) return "疲惫";
-        if (containsAny(content, "开心", "高兴", "舒服", "期待", "安心")) return "轻松";
-        return "平静";
-    }
-
-    private List<String> pickTopics(String content) {
-        List<String> topics = new ArrayList<>();
-        if (containsAny(content, "朋友", "同事", "家人", "关系", "聊天", "争吵", "误会")) topics.add("人际关系");
-        if (containsAny(content, "工作", "加班", "任务", "项目", "考试", "学习", "上课")) topics.add("工作学习");
-        if (containsAny(content, "睡", "失眠", "身体", "头痛", "胃", "运动")) topics.add("睡眠身体");
-        if (containsAny(content, "自己", "未来", "目标", "坚持", "改变")) topics.add("自我成长");
-        if (topics.isEmpty()) topics.add("日常情绪");
-        return topics;
-    }
-
-    private int intensity(String content, String mood) {
-        int base = switch (mood) {
-            case "焦虑", "委屈", "烦躁" -> 3;
-            case "疲惫" -> 2;
-            default -> 1;
-        };
-        int extra = containsAny(content, "很", "特别", "一直", "真的", "崩溃") ? 1 : 0;
-        return Math.min(5, base + extra);
-    }
-
-    private String summarize(String content) {
-        String compact = content.replaceAll("\\s+", " ");
-        if (compact.length() <= 48) return compact;
-        return compact.substring(0, 48) + "...";
-    }
-
-    private String feedbackFor(String mood, List<String> topics) {
-        String topic = topics.get(0);
-        return switch (mood) {
-            case "焦虑" -> "你正在承受一些不确定感，可以先把最小的一步从脑子里拿出来。";
-            case "委屈" -> "这份委屈值得被看见，先不用急着替别人解释一切。";
-            case "烦躁" -> "烦躁可能是在提醒你边界被挤压了，给自己留一点缓冲。";
-            case "疲惫" -> "今天已经消耗了你不少能量，休息不是退后，是在保护自己。";
-            case "轻松" -> "这份轻松很珍贵，可以记住让你感觉被托住的细节。";
-            default -> "这是一段关于" + topic + "的日常波动，慢慢记录会更看清自己的节奏。";
-        };
-    }
-
     private int similarityScore(DiaryAnalysisEntity sourceAnalysis, DiaryEntity target) {
+        if (sourceAnalysis == null) return 0;
         DiaryAnalysisEntity targetAnalysis = diaryAnalysisMapper.selectById(target.getId());
         if (targetAnalysis == null) return 0;
         int score = 0;
@@ -320,12 +264,5 @@ public class DiaryService {
             }
         }
         return score;
-    }
-
-    private boolean containsAny(String content, String... keywords) {
-        for (String keyword : keywords) {
-            if (content.contains(keyword)) return true;
-        }
-        return false;
     }
 }

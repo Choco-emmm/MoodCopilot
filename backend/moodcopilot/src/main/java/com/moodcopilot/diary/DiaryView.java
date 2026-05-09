@@ -23,18 +23,22 @@ public record DiaryView(
                 diary.getAuthorName(),
                 diary.getContent(),
                 DiaryVisibility.valueOf(diary.getVisibility()),
-                new DiaryAnalysis(
+                analysis != null ? new DiaryAnalysis(
                         analysis.getMoodLabel(),
                         analysis.getMoodIntensity(),
                         analysis.getTopicLabelsJson(),
                         analysis.getSummary(),
                         analysis.getFeedback()
-                ),
+                ) : null,
                 diary.getCreatedAt(),
                 diary.getResonanceCount(),
                 comments.stream()
                         .map(c -> new DiaryComment(c.getId(), c.getAuthorName(), c.getContent(), c.getCreatedAt()))
                         .toList()
         );
+    }
+
+    static DiaryView from(DiaryEntity diary, List<DiaryCommentEntity> comments) {
+        return from(diary, null, comments);
     }
 }
