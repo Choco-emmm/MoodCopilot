@@ -2,6 +2,8 @@ package com.moodcopilot.diary;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.AiAnalysisService;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.follow.FollowService;
@@ -14,6 +16,9 @@ import com.moodcopilot.mapper.DiaryCommentMapper;
 import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.mapper.DiaryResonanceMapper;
 import com.moodcopilot.notification.NotificationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -44,9 +50,13 @@ public class DiaryService {
     private final DiaryAnalysisMapper diaryAnalysisMapper;
     private final DiaryCommentMapper diaryCommentMapper;
     private final DiaryResonanceMapper diaryResonanceMapper;
+    private static final Logger log = LoggerFactory.getLogger(DiaryService.class);
+
     private final AiAnalysisService aiAnalysisService;
     private final NotificationService notificationService;
     private final FollowService followService;
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
 
     public DiaryService(DiaryMapper diaryMapper,
                         DiaryAnalysisMapper diaryAnalysisMapper,
@@ -54,7 +64,9 @@ public class DiaryService {
                         DiaryResonanceMapper diaryResonanceMapper,
                         AiAnalysisService aiAnalysisService,
                         NotificationService notificationService,
-                        FollowService followService) {
+                        FollowService followService,
+                        StringRedisTemplate redisTemplate,
+                        ObjectMapper objectMapper) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
@@ -62,6 +74,8 @@ public class DiaryService {
         this.aiAnalysisService = aiAnalysisService;
         this.notificationService = notificationService;
         this.followService = followService;
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -80,6 +94,8 @@ public class DiaryService {
         diary.setCreatedAt(LocalDateTime.now());
         diary.setUpdatedAt(LocalDateTime.now());
         diaryMapper.insert(diary);
+
+        evictUserCache(user.getId());
 
         return DiaryView.from(diary, List.of());
     }
@@ -113,14 +129,30 @@ public class DiaryService {
     public Page<DiaryView> publicDiaries(int page, int size) {
         int cappedPage = Math.max(1, page);
         int cappedSize = Math.min(50, Math.max(1, size));
+        String cacheKey = "public:diaries:%d:%d".formatted(cappedPage, cappedSize);
+
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) return objectMapper.readValue(cached, new TypeReference<Page<DiaryView>>() {});
+        } catch (Exception e) { log.debug("Cache miss {}", cacheKey); }
+
+        Page<DiaryView> result = queryPublicDiaries(cappedPage, cappedSize);
+
+        try {
+            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(result), Duration.ofMinutes(5));
+        } catch (Exception e) { log.debug("Cache write failed"); }
+        return result;
+    }
+
+    private Page<DiaryView> queryPublicDiaries(int page, int size) {
         Page<DiaryEntity> entityPage = diaryMapper.selectPage(
-                Page.of(cappedPage, cappedSize),
+                Page.of(page, size),
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
                         .orderByDesc(DiaryEntity::getCreatedAt)
         );
         List<DiaryView> views = entityPage.getRecords().stream().map(this::toDiaryView).toList();
-        Page<DiaryView> viewPage = new Page<>(cappedPage, cappedSize, entityPage.getTotal());
+        Page<DiaryView> viewPage = new Page<>(page, size, entityPage.getTotal());
         viewPage.setRecords(views);
         return viewPage;
     }
@@ -154,29 +186,66 @@ public class DiaryService {
     }
 
     public Page<DiaryView> followingDiaries(int page, int size) {
-        List<Long> followingIds = followService.getFollowingIds(currentUser().getId());
+        Long userId = currentUser().getId();
+        int cappedPage = Math.max(1, page);
+        int cappedSize = Math.min(50, Math.max(1, size));
+        String cacheKey = "following:%d:%d:%d".formatted(userId, cappedPage, cappedSize);
+
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) return objectMapper.readValue(cached, new TypeReference<Page<DiaryView>>() {});
+        } catch (Exception e) { log.debug("Cache miss {}", cacheKey); }
+
+        Page<DiaryView> result = queryFollowingDiaries(userId, cappedPage, cappedSize);
+
+        try {
+            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(result), Duration.ofMinutes(5));
+        } catch (Exception e) { log.debug("Cache write failed"); }
+        return result;
+    }
+
+    private Page<DiaryView> queryFollowingDiaries(long userId, int page, int size) {
+        List<Long> followingIds = followService.getFollowingIds(userId);
         if (followingIds.isEmpty()) {
             Page<DiaryView> empty = new Page<>(page, size, 0);
             empty.setRecords(List.of());
             return empty;
         }
-
-        int cappedPage = Math.max(1, page);
-        int cappedSize = Math.min(50, Math.max(1, size));
         Page<DiaryEntity> entityPage = diaryMapper.selectPage(
-                Page.of(cappedPage, cappedSize),
+                Page.of(page, size),
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
                         .in(DiaryEntity::getAuthorUserId, followingIds)
                         .orderByDesc(DiaryEntity::getCreatedAt)
         );
         List<DiaryView> views = entityPage.getRecords().stream().map(this::toDiaryView).toList();
-        Page<DiaryView> viewPage = new Page<>(cappedPage, cappedSize, entityPage.getTotal());
+        Page<DiaryView> viewPage = new Page<>(page, size, entityPage.getTotal());
         viewPage.setRecords(views);
         return viewPage;
     }
 
     public WeeklyReportView weeklyReport(int weekOffset) {
+        Long userId = currentUser().getId();
+        String cacheKey = "report:%d:%d".formatted(userId, weekOffset);
+
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) return objectMapper.readValue(cached, WeeklyReportView.class);
+        } catch (Exception e) {
+            log.debug("Cache read failed for {}", cacheKey, e);
+        }
+
+        WeeklyReportView report = computeWeeklyReport(weekOffset, userId);
+
+        try {
+            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), Duration.ofMinutes(30));
+        } catch (Exception e) {
+            log.debug("Cache write failed for {}", cacheKey, e);
+        }
+        return report;
+    }
+
+    private WeeklyReportView computeWeeklyReport(int weekOffset, long userId) {
         LocalDate today = LocalDate.now();
         LocalDate monday = today.with(DayOfWeek.MONDAY).plusWeeks(weekOffset);
         LocalDate sunday = monday.plusDays(6);
@@ -186,7 +255,7 @@ public class DiaryService {
 
         List<DiaryEntity> diaries = diaryMapper.selectList(
                 new LambdaQueryWrapper<DiaryEntity>()
-                        .eq(DiaryEntity::getAuthorUserId, currentUser().getId())
+                        .eq(DiaryEntity::getAuthorUserId, userId)
                         .ge(DiaryEntity::getCreatedAt, start)
                         .le(DiaryEntity::getCreatedAt, end)
                         .orderByAsc(DiaryEntity::getCreatedAt)
@@ -377,6 +446,19 @@ public class DiaryService {
             return DiaryVisibility.valueOf(visibility.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(BAD_REQUEST, "日记权限只能是 PRIVATE 或 PUBLIC");
+        }
+    }
+
+    private void evictUserCache(long userId) {
+        try {
+            var keys = redisTemplate.keys("report:%d:*".formatted(userId));
+            if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
+            keys = redisTemplate.keys("following:%d:*".formatted(userId));
+            if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
+            keys = redisTemplate.keys("public:diaries:*");
+            if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
+        } catch (Exception e) {
+            log.debug("Cache evict failed", e);
         }
     }
 
