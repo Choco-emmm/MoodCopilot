@@ -46,7 +46,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { NButton, NInput } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 
@@ -100,63 +100,56 @@ async function send() {
   draft.value = ''
   streaming.value = true
   streamingText.value = ''
-  await nextTick()
   scrollBottom()
+  const token = localStorage.getItem('token')
+  if (!token) {
+    messages.value.push({ role: 'ai', content: '请先登录' })
+    streaming.value = false
+    return
+  }
 
-  try {
-    const token = localStorage.getItem('token')
-    if (!token) throw new Error('Not logged in')
+  const xhr = new XMLHttpRequest()
+  xhr.open('POST', '/api/chat')
+  xhr.setRequestHeader('Content-Type', 'application/json')
+  xhr.setRequestHeader('Authorization', `Bearer ${token}`)
 
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ message: content }),
-    })
-    if (!response.ok) throw new Error('Server error: ' + response.status)
+  let lastIndex = 0
+  let displayText = ''
 
-    const reader = response.body?.getReader()
-    if (!reader) throw new Error('No reader')
-
-    const decoder = new TextDecoder()
-    let displayText = ''
-    let rawBuffer = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      rawBuffer += decoder.decode(value, { stream: true })
-      const lines = rawBuffer.split('\n')
-      rawBuffer = lines.pop() || ''
-
-      for (const line of lines) {
-        const cleaned = line.replace(/\r$/, '')
-        if (cleaned.startsWith('data:')) {
-          displayText += cleaned.slice(5).replace(/^\s+/, '')
-        }
+  xhr.onprogress = () => {
+    const newText = xhr.responseText.substring(lastIndex)
+    lastIndex = xhr.responseText.length
+    const lines = newText.split('\n')
+    for (const line of lines) {
+      const cleaned = line.replace(/\r$/, '')
+      if (cleaned.startsWith('data:')) {
+        displayText += cleaned.slice(5).replace(/^\s+/, '')
       }
-      streamingText.value = displayText
-      scrollBottom()
     }
-    // Drain remaining buffer
-    const last = rawBuffer.trim().replace(/\r$/, '')
-    if (last.startsWith('data:')) {
-      displayText += last.slice(5).replace(/^\s+/, '')
-    }
+    streamingText.value = displayText
+    scrollBottom()
+  }
+
+  xhr.onloadend = () => {
     if (displayText) {
       messages.value.push({ role: 'ai', content: displayText })
     } else {
-      messages.value.push({ role: 'ai', content: '（收到回应了，但内容为空）' })
+      messages.value.push({ role: 'ai', content: '抱歉，我暂时无法回复，请稍后再试。' })
     }
     saveToBackend()
-  } catch (e) {
-    messages.value.push({ role: 'ai', content: '抱歉，我暂时无法回复，请稍后再试。' })
-    saveToBackend()
-  } finally {
     streaming.value = false
     streamingText.value = ''
     scrollBottom()
   }
+
+  xhr.onerror = () => {
+    messages.value.push({ role: 'ai', content: '抱歉，网络错误，请稍后再试。' })
+    saveToBackend()
+    streaming.value = false
+    streamingText.value = ''
+  }
+
+  xhr.send(JSON.stringify({ message: content }))
 }
 
 async function clearChat() {
