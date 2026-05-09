@@ -121,6 +121,29 @@ MyBatis-Plus 配置：`is_deleted` 字段使用 `@TableLogic`，主键使用 `@T
 
 `diary_comments` 表有 `parent_comment_id`（回复了谁）和 `root_comment_id`（锚定顶级评论）。所有回复平铺在根评论下方，最多两级，不会无限嵌套。
 
+### AI 对话架构
+
+- **SSE 流式**：ChatController 返回 `Flux<String>`（`text/event-stream`），前端用 `XMLHttpRequest` 直连 `localhost:18080` 消费
+- **ChatMemory**：`Map<Long, ChatMemory>` 按用户隔离，`MessageChatMemoryAdvisor` 自动管理对话历史
+- **历史持久化**：`PUT/GET /api/chat/history` 存 Redis，TTL 7 天，跨设备同步
+- **上下文**：只注入原始日记（最近 10 篇），不读总结防止幻觉传递
+- **Markdown**：前端用 `marked` 渲染 AI 回复，AI prompt 指引使用基本 Markdown 格式
+
+### Redis 缓存
+
+用 `StringRedisTemplate` 手动缓存（不用 `@Cacheable` 避免 AOP 与 Security 冲突）。
+
+| 缓存 Key | TTL | 失效触发 |
+|------|------|------|
+| `report:{userId}:{weekOffset}` | 30min | 用户写新日记 |
+| `public:diaries:{page}:{size}` | 5min | 新公开日记 |
+| `following:{userId}:{page}:{size}` | 5min | 新日记/关注变化 |
+| `chat:history:{userId}` | 7d | 用户清空对话 |
+
+### CORS
+
+SecurityConfig 已配置 CORS（`allowedOriginPatterns("*")` + `allowCredentials(true)`），ChatPage 直连后端绕过 Vite 代理的 SSE 缓冲问题。
+
 ## 重要踩坑记录
 
 - **绝不要在 Filter 类上加 `@Component`。** Spring Boot 会自动将其注册为全局 servlet 过滤器，绕过 Spring Security 过滤器链。正确做法是在 `SecurityConfig` 中用 `@Bean` 创建，并用 `FilterRegistrationBean.setEnabled(false)` 禁用自动注册。
@@ -129,10 +152,14 @@ MyBatis-Plus 配置：`is_deleted` 字段使用 `@TableLogic`，主键使用 `@T
 - **不要提交 `dist/` 或 `src/` 中的 `*.js` 文件。** `dist/` 中的旧构建产物会使 Vite dev server 失效（浏览器加载带 hash 的过期 JS 文件）。`.gitignore` 已包含 `frontend/dist/` 和 `frontend/src/**/*.vue.js`。
 - **Windows bash 下的 curl 会损坏中文 UTF-8**。用 ASCII 内容测试 API，或使用 Playwright E2E 脚本。
 - **MyBatis-Plus 3.5.10 缺少 `PaginationInnerInterceptor`** — 必须用 3.5.10.1，并添加 `mybatis-plus-jsqlparser` 依赖。
+- **Vite 代理会缓冲 SSE 流**，导致连接不关闭、`reader.read()` 永不返回 `done: true`。解决方案：SSE 端点直连后端（`localhost:18080`），不走 Vite 代理，需配合 CORS。
+- **`fetch` + `ReadableStream` 的 `reader.read()` 在 Vite 代理下可能永不返回 `done`**。改用 `XMLHttpRequest`，其 `onloadend` 更可靠地触发。
+- **`allowCredentials(true)` 不能用 `allowedOrigins("*")`**，必须用 `allowedOriginPatterns("*")`。Spring Security 的 `UrlBasedCorsConfigurationSource` 支持此模式。
 
 ## E2E 测试
 
 ```bash
 npm install playwright
-node test-e2e.js      # 16 项检查：登录→主页→创建日记→评论→回复→通知→分析
+npx playwright install chromium
+node -e "..."    # Playwright 脚本测试登录→聊天流式→历史持久化
 ```
