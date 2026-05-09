@@ -10,7 +10,7 @@
     </section>
 
     <section class="content-grid">
-      <MyDiaryList :diaries="store.myDiaries" @select="selectDiary" />
+      <MyDiaryList :diaries="store.myDiaries" @select="selectDiary" @delete="handleDelete" />
       <div />
     </section>
   </main>
@@ -33,5 +33,11 @@ function selectDiary(diary: Diary) {
   store.activeDiary = diary
   store.loadSimilar(diary.id)
   window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+async function handleDelete(diary: Diary) {
+  if (confirm('确定删除这篇日记吗？')) {
+    await store.deleteDiary(diary.id)
+  }
 }
 </script>

@@ -28,6 +28,7 @@
                 v-for="day in report.dailyMoods"
                 :key="day.date + '-' + (day.diaryIds?.[0] ?? '')"
                 class="mood-bar-row mood-bar-row-clickable"
+                :title="day.contentSnippet || ''"
                 @click="goDiary(day.diaryIds)"
               >
                 <span class="mood-date">{{ formatDay(day.date) }}</span>
@@ -84,16 +85,15 @@
               </div>
             </div>
             <p class="summary-body">{{ s.aiSummary }}</p>
-            <div v-if="s.diaryIds?.length" class="summary-diary-links">
+            <div v-if="s.dailyMoods?.length" class="summary-diary-links">
               <span class="summary-diary-label">相关日记：</span>
-              <n-button
-                v-for="did in s.diaryIds"
-                :key="did"
-                size="tiny"
-                text
-                type="primary"
-                @click="router.push('/diary/' + did)"
-              >#{{ did }}</n-button>
+              <button
+                v-for="day in s.dailyMoods"
+                :key="day.diaryIds?.[0]"
+                class="diary-link-btn"
+                :title="day.contentSnippet"
+                @click="router.push('/diary/' + day.diaryIds?.[0])"
+              >「{{ day.contentSnippet || '...' }}{{ (day.contentSnippet?.length || 0) >= 30 ? '...' : '' }}」</button>
             </div>
           </article>
         </div>

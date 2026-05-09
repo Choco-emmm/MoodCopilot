@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
@@ -282,7 +283,8 @@ public class DiaryService {
                         diary.getCreatedAt().toLocalDate(),
                         analysis.moodLabel(),
                         analysis.moodIntensity(),
-                        List.of(diary.getId())
+                        List.of(diary.getId()),
+                        snippet(diary.getContent())
                 ));
                 for (String topic : analysis.topicLabels()) {
                     topicCounts.merge(topic, 1, Integer::sum);
@@ -410,6 +412,36 @@ public class DiaryService {
     }
 
     // ── Current user ──
+
+    @Transactional
+    public void deleteDiary(long diaryId) {
+        DiaryEntity diary = diaryMapper.selectById(diaryId);
+        if (diary == null) throw new ResponseStatusException(NOT_FOUND, "日记不存在");
+        if (!diary.getAuthorUserId().equals(currentUser().getId())) {
+            throw new ResponseStatusException(FORBIDDEN, "只能删除自己的日记");
+        }
+        diaryMapper.deleteById(diaryId);
+        evictUserCache(currentUser().getId());
+    }
+
+    @Transactional
+    public void deleteComment(long diaryId, long commentId) {
+        DiaryEntity diary = diaryMapper.selectById(diaryId);
+        if (diary == null) throw new ResponseStatusException(NOT_FOUND, "日记不存在");
+        DiaryCommentEntity comment = diaryCommentMapper.selectById(commentId);
+        if (comment == null || !comment.getDiaryId().equals(diaryId)) {
+            throw new ResponseStatusException(NOT_FOUND, "评论不存在");
+        }
+        if (!comment.getAuthorName().equals(currentUser().getDisplayName())) {
+            throw new ResponseStatusException(FORBIDDEN, "只能删除自己的评论");
+        }
+        diaryCommentMapper.deleteById(commentId);
+    }
+
+    private static String snippet(String content) {
+        if (content == null || content.isEmpty()) return "";
+        return content.length() > 30 ? content.substring(0, 30) : content;
+    }
 
     private UserEntity currentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

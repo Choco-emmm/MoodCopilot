@@ -5,6 +5,7 @@ import com.moodcopilot.common.ApiResponse;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -92,5 +93,19 @@ public class DiaryController {
     @PostMapping("/{id}/resonance")
     public ApiResponse<DiaryView> resonate(@PathVariable("id") long id) {
         return ApiResponse.ok(diaryService.resonate(id));
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> deleteDiary(@PathVariable long id) {
+        diaryService.deleteDiary(id);
+        return ApiResponse.ok(null);
+    }
+
+    @DeleteMapping("/{diaryId}/comments/{commentId}")
+    public ApiResponse<Void> deleteComment(
+            @PathVariable long diaryId,
+            @PathVariable long commentId) {
+        diaryService.deleteComment(diaryId, commentId);
+        return ApiResponse.ok(null);
     }
 }

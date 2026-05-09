@@ -35,6 +35,7 @@ export interface DailyMood {
   moodLabel: string
   moodIntensity: number
   diaryIds?: number[]
+  contentSnippet?: string
 }
 
 export interface DiaryComment {
@@ -173,10 +174,16 @@ export const useDiaryStore = defineStore('diary', () => {
     return { ...d, comments: d.comments || [] }
   }
 
+  async function deleteDiary(id: number) {
+    await diaryApi.delete(id)
+    myDiaries.value = myDiaries.value.filter(d => d.id !== id)
+    if (activeDiary.value?.id === id) activeDiary.value = null
+  }
+
   return {
     myDiaries, publicDiaries, activeDiary, similarDiaries, loading, saving, errorMessage,
     hasMore, weeklyReport, reportLoading,
-    fetchDiaries, loadMorePublic, createDiary, loadSimilar, addComment, resonate,
+    fetchDiaries, loadMorePublic, createDiary, loadSimilar, addComment, resonate, deleteDiary,
     fetchWeeklyReport, normalize,
   }
 })

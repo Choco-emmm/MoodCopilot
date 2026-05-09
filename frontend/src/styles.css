@@ -440,6 +440,25 @@ h2 {
   white-space: nowrap;
 }
 
+.diary-delete-btn {
+  opacity: 0;
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-accent);
+  font-size: 16px;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+  line-height: 1;
+}
+.my-diary:hover .diary-delete-btn {
+  opacity: 1;
+}
+.diary-delete-btn:hover {
+  background: var(--color-accent-bg);
+}
+
 /* ── Follow button ── */
 .follow-btn {
   padding: 3px 10px;
@@ -808,6 +827,23 @@ h2 {
   font-size: 12px;
   color: var(--color-text-muted);
   margin-right: 4px;
+}
+
+.diary-link-btn {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-jade);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.5;
+  text-decoration: none;
+}
+.diary-link-btn:hover {
+  color: var(--color-jade-hover);
+  text-decoration: underline;
 }
 
 /* ── Following page ── */

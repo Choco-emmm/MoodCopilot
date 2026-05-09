@@ -20,6 +20,11 @@
           <strong class="my-diary-content">{{ diary.content }}</strong>
           <small>{{ formatTime(diary.createdAt) }} · {{ diary.analysis?.moodLabel || '分析中...' }}</small>
         </span>
+        <button
+          class="diary-delete-btn"
+          title="删除日记"
+          @click.stop="$emit('delete', diary)"
+        >&times;</button>
       </button>
     </div>
     <n-empty v-else description="还没有写过日记" />
@@ -30,7 +35,7 @@
 import type { Diary } from '../stores/diary'
 
 defineProps<{ diaries: Diary[] }>()
-defineEmits<{ select: [diary: Diary] }>()
+defineEmits<{ select: [diary: Diary]; delete: [diary: Diary] }>()
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat('zh-CN', {

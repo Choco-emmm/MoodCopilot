@@ -52,6 +52,13 @@
           </p>
           <p class="comment-body">{{ comment.content }}</p>
           <div class="comment-foot">
+            <n-button
+              v-if="comment.authorName === auth.displayName"
+              size="tiny"
+              text
+              type="error"
+              @click="deleteComment(comment.id)"
+            >删除</n-button>
             <n-button size="tiny" text @click="replyTo = replyTo === comment.id ? null : comment.id">回复</n-button>
           </div>
         </div>
@@ -98,6 +105,7 @@ import { ref, onMounted } from 'vue'
 import type { Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
 import { useAuthStore } from '../stores/auth'
+import { diaryApi } from '../api'
 
 const props = defineProps<{ diary: Diary }>()
 const emit = defineEmits<{
@@ -133,6 +141,13 @@ function followBtnLabel(userId: number) {
     return hoveringId.value === userId ? '取消关注' : '已关注'
   }
   return '+ 关注'
+}
+
+async function deleteComment(commentId: number) {
+  try {
+    await diaryApi.deleteComment(props.diary.id, commentId)
+    emit('comment', props.diary, '') // 触发父组件刷新
+  } catch { /* ignore */ }
 }
 
 function submit() {
