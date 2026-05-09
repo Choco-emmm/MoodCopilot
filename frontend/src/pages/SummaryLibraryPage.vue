@@ -3,11 +3,26 @@
     <AppHeader />
 
     <div class="summary-page">
-      <h2>总结库</h2>
+      <div class="summary-page-head">
+        <h2>总结库</h2>
+        <n-button type="primary" @click="showCreate = !showCreate">
+          {{ showCreate ? '取消' : '新建总结' }}
+        </n-button>
+      </div>
 
-      <div v-if="summaries.length === 0 && !loading" class="empty-state">
-        <p>还没有保存的总结，去周报页面生成吧～</p>
-        <n-button type="primary" @click="router.push('/weekly-report')">去周报</n-button>
+      <div v-if="showCreate" class="create-panel">
+        <div class="create-row">
+          <n-date-picker v-model:value="startDate" type="date" placeholder="开始日期" />
+          <span class="create-sep">至</span>
+          <n-date-picker v-model:value="endDate" type="date" placeholder="结束日期" />
+          <n-button type="primary" :loading="creating" :disabled="!startDate || !endDate" @click="createSummary">
+            生成总结
+          </n-button>
+        </div>
+      </div>
+
+      <div v-if="!loading && summaries.length === 0" class="empty-state">
+        <p>还没有保存的总结</p>
       </div>
 
       <div v-else class="summary-list">
@@ -25,14 +40,16 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { NButton } from 'naive-ui'
+import { NButton, NDatePicker } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import { summaryApi } from '../api'
 
-const router = useRouter()
 const summaries = ref<any[]>([])
 const loading = ref(false)
+const showCreate = ref(false)
+const startDate = ref<number | null>(null)
+const endDate = ref<number | null>(null)
+const creating = ref(false)
 
 onMounted(async () => {
   loading.value = true
@@ -43,6 +60,22 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+async function createSummary() {
+  if (!startDate.value || !endDate.value) return
+  creating.value = true
+  try {
+    const iso = (ts: number) => new Date(ts).toISOString().split('T')[0]
+    await summaryApi.create({ startDate: iso(startDate.value), endDate: iso(endDate.value) })
+    showCreate.value = false
+    startDate.value = null
+    endDate.value = null
+    const res = await summaryApi.list()
+    summaries.value = res.data.data ?? []
+  } finally {
+    creating.value = false
+  }
+}
 
 async function remove(id: number) {
   await summaryApi.delete(id)

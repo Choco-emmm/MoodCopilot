@@ -689,6 +689,31 @@ h2 {
 
 .summary-page h2 {
   color: #23322e;
+  margin: 0;
+}
+
+.summary-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.create-panel {
+  padding: 16px;
+  border: 1px solid #ded7ca;
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.create-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.create-sep {
+  color: #8d9793;
+  font-size: 14px;
 }
 
 .summary-list {
