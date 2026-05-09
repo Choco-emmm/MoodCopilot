@@ -55,17 +55,36 @@ interface Message {
   content: string
 }
 
-const messages = ref<Message[]>([])
+const CHAT_KEY = 'moodcopilot_chat'
+
+function loadMessages(): Message[] {
+  try {
+    const raw = localStorage.getItem(CHAT_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+function saveMessages() {
+  try {
+    localStorage.setItem(CHAT_KEY, JSON.stringify(messages.value))
+  } catch { /* quota exceeded */ }
+}
+
+const messages = ref<Message[]>(loadMessages())
 const draft = ref('')
 const streaming = ref(false)
 const streamingText = ref('')
 const msgBox = ref<HTMLElement | null>(null)
 
 onMounted(() => {
-  messages.value.push({
-    role: 'ai',
-    content: '嗨，我是小情绪。今天过得怎么样？有什么想聊的吗？',
-  })
+  if (messages.value.length === 0) {
+    messages.value.push({
+      role: 'ai',
+      content: '嗨，我是小情绪。今天过得怎么样？有什么想聊的吗？',
+    })
+    saveMessages()
+  }
+  scrollBottom()
 })
 
 async function send() {
@@ -73,6 +92,7 @@ async function send() {
   if (!content || streaming.value) return
 
   messages.value.push({ role: 'user', content })
+  saveMessages()
   draft.value = ''
   streaming.value = true
   streamingText.value = ''
@@ -120,18 +140,20 @@ async function send() {
       }
     }
     messages.value.push({ role: 'ai', content: displayText || '...' })
+    saveMessages()
   } catch {
     messages.value.push({ role: 'ai', content: '抱歉，我暂时无法回复，请稍后再试。' })
+    saveMessages()
   } finally {
     streaming.value = false
     streamingText.value = ''
-    await nextTick()
     scrollBottom()
   }
 }
 
 async function clearChat() {
   messages.value = []
+  localStorage.removeItem(CHAT_KEY)
   try {
     await fetch('/api/chat/memory', { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
   } catch { /* ignore */ }
