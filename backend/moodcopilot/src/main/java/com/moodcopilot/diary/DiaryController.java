@@ -96,6 +96,18 @@ public class DiaryController {
         return ApiResponse.ok(diaryService.addComment(id, request));
     }
 
+    @GetMapping("/encourage-candidates/{id}")
+    public ApiResponse<List<String>> encourageCandidates(@PathVariable long id) {
+        return ApiResponse.ok(diaryService.generateEncouragements(id));
+    }
+
+    @PostMapping("/encourage/{id}")
+    public ApiResponse<DiaryView> sendEncouragement(
+            @PathVariable long id,
+            @RequestBody Map<String, String> body) {
+        return ApiResponse.ok(diaryService.sendEncouragement(id, body.get("message")));
+    }
+
     @PostMapping("/{id}/resonance")
     public ApiResponse<DiaryView> resonate(@PathVariable("id") long id) {
         return ApiResponse.ok(diaryService.resonate(id));
@@ -113,17 +125,5 @@ public class DiaryController {
             @PathVariable long commentId) {
         diaryService.deleteComment(diaryId, commentId);
         return ApiResponse.ok(null);
-    }
-
-    @GetMapping("/{id}/encourage-candidates")
-    public ApiResponse<List<String>> encourageCandidates(@PathVariable long id) {
-        return ApiResponse.ok(diaryService.generateEncouragements(id));
-    }
-
-    @PostMapping("/{id}/encourage")
-    public ApiResponse<DiaryView> sendEncouragement(
-            @PathVariable long id,
-            @RequestBody Map<String, String> body) {
-        return ApiResponse.ok(diaryService.sendEncouragement(id, body.get("message")));
     }
 }
