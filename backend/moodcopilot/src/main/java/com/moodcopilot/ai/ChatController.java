@@ -26,6 +26,19 @@ public class ChatController {
         return chatService.chat(message);
     }
 
+    @PutMapping("/history")
+    public ApiResponse<Void> saveHistory(@RequestBody Map<String, Object> body) {
+        UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        chatService.saveHistory(user.getId(), body);
+        return ApiResponse.ok(null);
+    }
+
+    @GetMapping("/history")
+    public ApiResponse<Object> loadHistory() {
+        UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return ApiResponse.ok(chatService.loadHistory(user.getId()));
+    }
+
     @DeleteMapping("/memory")
     public ApiResponse<Void> clearMemory() {
         UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();

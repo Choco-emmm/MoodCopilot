@@ -55,34 +55,38 @@ interface Message {
   content: string
 }
 
-const CHAT_KEY = 'moodcopilot_chat'
+function saveToBackend() {
+  fetch('/api/chat/history', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+    body: JSON.stringify({ messages: messages.value }),
+  }).catch(() => {})
+}
 
-function loadMessages(): Message[] {
+async function loadFromBackend(): Promise<Message[]> {
   try {
-    const raw = localStorage.getItem(CHAT_KEY)
-    return raw ? JSON.parse(raw) : []
+    const res = await fetch('/api/chat/history', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    })
+    const data = await res.json()
+    return data.data ?? []
   } catch { return [] }
 }
 
-function saveMessages() {
-  try {
-    localStorage.setItem(CHAT_KEY, JSON.stringify(messages.value))
-  } catch { /* quota exceeded */ }
-}
-
-const messages = ref<Message[]>(loadMessages())
+const messages = ref<Message[]>([])
 const draft = ref('')
 const streaming = ref(false)
 const streamingText = ref('')
 const msgBox = ref<HTMLElement | null>(null)
 
-onMounted(() => {
+onMounted(async () => {
+  messages.value = await loadFromBackend()
   if (messages.value.length === 0) {
     messages.value.push({
       role: 'ai',
       content: '嗨，我是小情绪。今天过得怎么样？有什么想聊的吗？',
     })
-    saveMessages()
+    saveToBackend()
   }
   scrollBottom()
 })
@@ -92,7 +96,7 @@ async function send() {
   if (!content || streaming.value) return
 
   messages.value.push({ role: 'user', content })
-  saveMessages()
+  saveToBackend()
   draft.value = ''
   streaming.value = true
   streamingText.value = ''
@@ -140,10 +144,10 @@ async function send() {
       }
     }
     messages.value.push({ role: 'ai', content: displayText || '...' })
-    saveMessages()
+    saveToBackend()
   } catch {
     messages.value.push({ role: 'ai', content: '抱歉，我暂时无法回复，请稍后再试。' })
-    saveMessages()
+    saveToBackend()
   } finally {
     streaming.value = false
     streamingText.value = ''
@@ -153,7 +157,6 @@ async function send() {
 
 async function clearChat() {
   messages.value = []
-  localStorage.removeItem(CHAT_KEY)
   try {
     await fetch('/api/chat/memory', { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
   } catch { /* ignore */ }
