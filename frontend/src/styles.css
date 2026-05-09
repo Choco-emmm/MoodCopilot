@@ -1201,6 +1201,40 @@ h2 {
 .chat-input-row { display: flex; gap: 10px; }
 .chat-input-row .n-input { flex: 1; }
 
+/* ── Daily status card ── */
+.daily-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.daily-status.done {
+  background: var(--color-jade-light);
+  border-color: var(--color-jade);
+}
+
+.daily-status-icon {
+  font-size: 20px;
+}
+
+.daily-status-text {
+  flex: 1;
+  color: var(--color-text-secondary);
+}
+
+.daily-status-write {
+  color: var(--color-jade);
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 13px;
+}
+
 /* ── AI chat tease card (square page) ── */
 .chat-tease {
   margin-bottom: 16px;

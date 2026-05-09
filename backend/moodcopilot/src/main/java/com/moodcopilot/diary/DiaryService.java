@@ -535,6 +535,56 @@ public class DiaryService {
         return content.length() > 30 ? content.substring(0, 30) : content;
     }
 
+    // ── Daily status ──
+
+    public Map<String, Object> todayStatus() {
+        UserEntity user = currentUser();
+        LocalDate today = LocalDate.now();
+        LocalDateTime todayStart = today.atStartOfDay();
+
+        // 今天是否有日记
+        boolean todayExists = diaryMapper.exists(
+                new LambdaQueryWrapper<DiaryEntity>()
+                        .eq(DiaryEntity::getAuthorUserId, user.getId())
+                        .ge(DiaryEntity::getCreatedAt, todayStart)
+        );
+
+        // 连续天数
+        int streak = 0;
+        LocalDate d = today;
+        while (true) {
+            boolean has = diaryMapper.exists(
+                    new LambdaQueryWrapper<DiaryEntity>()
+                            .eq(DiaryEntity::getAuthorUserId, user.getId())
+                            .ge(DiaryEntity::getCreatedAt, d.atStartOfDay())
+                            .lt(DiaryEntity::getCreatedAt, d.plusDays(1).atStartOfDay())
+            );
+            if (has) { streak++; d = d.minusDays(1); }
+            else break;
+        }
+
+        // 昨天情绪
+        String yesterdayMood = null;
+        List<DiaryEntity> yesterdayDiaries = diaryMapper.selectList(
+                new LambdaQueryWrapper<DiaryEntity>()
+                        .eq(DiaryEntity::getAuthorUserId, user.getId())
+                        .ge(DiaryEntity::getCreatedAt, today.minusDays(1).atStartOfDay())
+                        .lt(DiaryEntity::getCreatedAt, today.atStartOfDay())
+                        .orderByDesc(DiaryEntity::getCreatedAt)
+                        .last("LIMIT 1")
+        );
+        if (!yesterdayDiaries.isEmpty()) {
+            DiaryAnalysisEntity analysis = findAnalysis(yesterdayDiaries.get(0).getId());
+            if (analysis != null) yesterdayMood = analysis.getMoodLabel();
+        }
+
+        return Map.of(
+                "todayHasDiary", todayExists,
+                "streak", streak,
+                "yesterdayMood", yesterdayMood != null ? yesterdayMood : ""
+        );
+    }
+
     // ── Encouragement ──
 
     public List<String> generateEncouragements(long diaryId) {

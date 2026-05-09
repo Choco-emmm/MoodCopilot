@@ -96,6 +96,11 @@ public class DiaryController {
         return ApiResponse.ok(diaryService.addComment(id, request));
     }
 
+    @GetMapping("/today-status")
+    public ApiResponse<Map<String, Object>> todayStatus() {
+        return ApiResponse.ok(diaryService.todayStatus());
+    }
+
     @GetMapping("/encourage-candidates/{id}")
     public ApiResponse<List<String>> encourageCandidates(@PathVariable long id) {
         return ApiResponse.ok(diaryService.generateEncouragements(id));

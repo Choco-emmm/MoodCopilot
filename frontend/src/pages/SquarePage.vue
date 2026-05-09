@@ -2,6 +2,19 @@
   <main class="app-shell">
     <AppHeader />
 
+    <div v-if="status" class="daily-status" :class="{ done: status.todayHasDiary }">
+      <span class="daily-status-icon">{{ status.todayHasDiary ? '&#9745;' : '&#9744;' }}</span>
+      <span class="daily-status-text">
+        <template v-if="status.todayHasDiary">
+          已记录{{ status.streak }}天连更{{ status.yesterdayMood ? '，昨天心情「' + status.yesterdayMood + '」' : '' }}
+        </template>
+        <template v-else>
+          新的一天，写下今天的心情吧
+        </template>
+      </span>
+      <router-link v-if="!status.todayHasDiary" to="/write" class="daily-status-write">写日记</router-link>
+    </div>
+
     <div class="chat-tease">
       <router-link to="/chat" class="chat-tease-link">
         <span class="chat-tease-icon">&#128302;</span>
@@ -24,16 +37,24 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
 import PublicFeed from '../components/PublicFeed.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
+import { diaryApi } from '../api'
 
 const router = useRouter()
 const store = useDiaryStore()
+const status = ref<{ todayHasDiary: boolean; streak: number; yesterdayMood: string } | null>(null)
 
-onMounted(() => store.fetchDiaries())
+onMounted(async () => {
+  store.fetchDiaries()
+  try {
+    const res = await diaryApi.todayStatus()
+    status.value = res.data.data
+  } catch { /* ignore */ }
+})
 
 function selectDiary(diary: Diary) {
   router.push(`/diary/${diary.id}`)
