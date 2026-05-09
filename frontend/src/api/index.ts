@@ -27,11 +27,18 @@ api.interceptors.response.use(
 export const diaryApi = {
   create: (data: { content: string; visibility: string }) => api.post('/diaries', data),
   mine: () => api.get('/diaries/mine'),
-  public: () => api.get('/diaries/public'),
+  public: (page = 1, size = 20) => api.get('/diaries/public', { params: { page, size } }),
   get: (id: number) => api.get(`/diaries/${id}`),
   similar: (id: number, limit = 3) => api.get(`/diaries/${id}/similar`, { params: { limit } }),
-  addComment: (id: number, content: string) => api.post(`/diaries/${id}/comments`, { content }),
+  addComment: (id: number, content: string, parentCommentId?: number) =>
+    api.post(`/diaries/${id}/comments`, { content, parentCommentId: parentCommentId ?? null }),
   resonate: (id: number) => api.post(`/diaries/${id}/resonance`),
+}
+
+export const notificationApi = {
+  list: (page = 1, size = 20) => api.get('/notifications', { params: { page, size } }),
+  unreadCount: () => api.get('/notifications/unread-count'),
+  markRead: (id: number) => api.put(`/notifications/${id}/read`),
 }
 
 export const authApi = {

@@ -5,7 +5,9 @@
         <p class="eyebrow">今日日记</p>
         <h2>此刻发生了什么</h2>
       </div>
-      <n-segmented v-model:value="visibility" :options="visibilityOptions" />
+      <n-radio-group v-model:value="visibility" size="small">
+        <n-radio-button v-for="opt in visibilityOptions" :key="opt.value" :value="opt.value" :label="opt.label" />
+      </n-radio-group>
     </div>
 
     <n-input

@@ -370,6 +370,29 @@ h2 {
   color: #4d5a56;
 }
 
+.comment-thread {
+  display: grid;
+  gap: 6px;
+}
+
+.comment-main {
+  display: grid;
+  gap: 4px;
+}
+
+.comment-replies {
+  margin-left: 20px;
+  padding-left: 12px;
+  border-left: 2px solid #d8d3c4;
+  display: grid;
+  gap: 4px;
+}
+
+.reply-to {
+  color: #4d766b;
+  font-weight: 500;
+}
+
 .comment-box .n-input {
   flex: 1;
 }
@@ -401,6 +424,49 @@ h2 {
     align-items: stretch;
     flex-direction: column;
   }
+}
+
+/* Notification popover */
+.notif-popover {
+  width: 280px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.notif-empty {
+  padding: 24px;
+  text-align: center;
+  color: #8d9793;
+  font-size: 14px;
+}
+
+.notif-item {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-bottom: 1px solid #eee9da;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.notif-item:hover {
+  background: #f8f5ec;
+}
+
+.notif-item.unread {
+  background: #f0f7f4;
+}
+
+.notif-msg {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #263733;
+}
+
+.notif-time {
+  color: #8d9793;
+  font-size: 12px;
 }
 
 /* Auth pages */

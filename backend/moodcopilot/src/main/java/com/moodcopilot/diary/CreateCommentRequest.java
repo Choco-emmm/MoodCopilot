@@ -1,4 +1,4 @@
 package com.moodcopilot.diary;
 
-public record CreateCommentRequest(String content) {
+public record CreateCommentRequest(String content, Long parentCommentId) {
 }

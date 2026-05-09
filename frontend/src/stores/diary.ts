@@ -23,9 +23,12 @@ export interface DiaryAnalysis {
 
 export interface DiaryComment {
   id: number
+  parentCommentId: number | null
+  replyToUserName: string | null
   authorName: string
   content: string
   createdAt: string
+  replies: DiaryComment[]
 }
 
 export const useDiaryStore = defineStore('diary', () => {
@@ -36,13 +39,35 @@ export const useDiaryStore = defineStore('diary', () => {
   const loading = ref(false)
   const saving = ref(false)
   const errorMessage = ref<string | null>(null)
+  const publicPage = ref(1)
+  const publicTotal = ref(0)
+  const hasMore = ref(true)
 
   async function fetchDiaries() {
     loading.value = true
     try {
-      const [mineRes, publicRes] = await Promise.all([diaryApi.mine(), diaryApi.public()])
+      publicPage.value = 1
+      const [mineRes, publicRes] = await Promise.all([diaryApi.mine(), diaryApi.public(1)])
       myDiaries.value = mineRes.data.data.map(normalize)
-      publicDiaries.value = publicRes.data.data.map(normalize)
+      const pdata = publicRes.data.data
+      publicDiaries.value = (pdata.items ?? pdata).map(normalize)
+      publicTotal.value = pdata.total ?? 0
+      hasMore.value = (pdata.items ?? pdata).length >= 20
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function loadMorePublic() {
+    if (!hasMore.value || loading.value) return
+    loading.value = true
+    try {
+      publicPage.value++
+      const res = await diaryApi.public(publicPage.value)
+      const pdata = res.data.data
+      const items = (pdata.items ?? pdata).map(normalize)
+      publicDiaries.value.push(...items)
+      hasMore.value = items.length >= 20
     } finally {
       loading.value = false
     }
@@ -93,8 +118,8 @@ export const useDiaryStore = defineStore('diary', () => {
     similarDiaries.value = res.data.data.map(normalize)
   }
 
-  async function addComment(diaryId: number, content: string) {
-    const res = await diaryApi.addComment(diaryId, content)
+  async function addComment(diaryId: number, content: string, parentCommentId?: number) {
+    const res = await diaryApi.addComment(diaryId, content, parentCommentId)
     const updated = normalize(res.data.data)
     mergeDiary(updated)
     if (activeDiary.value?.id === diaryId) {
@@ -122,7 +147,8 @@ export const useDiaryStore = defineStore('diary', () => {
 
   return {
     myDiaries, publicDiaries, activeDiary, similarDiaries, loading, saving, errorMessage,
-    fetchDiaries, createDiary, loadSimilar, addComment, resonate, normalize,
+    hasMore,
+    fetchDiaries, loadMorePublic, createDiary, loadSimilar, addComment, resonate, normalize,
   }
 })
 

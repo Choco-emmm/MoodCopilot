@@ -13,6 +13,8 @@ public class DiaryCommentEntity {
 
     @TableId(type = IdType.AUTO)
     private Long id;
+    private Long parentCommentId;
+    private Long rootCommentId;
     private Long diaryId;
     private Long authorUserId;
     private String authorName;
@@ -25,6 +27,12 @@ public class DiaryCommentEntity {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getParentCommentId() { return parentCommentId; }
+    public void setParentCommentId(Long parentCommentId) { this.parentCommentId = parentCommentId; }
+
+    public Long getRootCommentId() { return rootCommentId; }
+    public void setRootCommentId(Long rootCommentId) { this.rootCommentId = rootCommentId; }
 
     public Long getDiaryId() { return diaryId; }
     public void setDiaryId(Long diaryId) { this.diaryId = diaryId; }

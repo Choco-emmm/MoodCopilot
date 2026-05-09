@@ -1,6 +1,7 @@
 package com.moodcopilot.diary;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.moodcopilot.ai.AiAnalysisService;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.entity.DiaryCommentEntity;
@@ -11,6 +12,7 @@ import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.DiaryCommentMapper;
 import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.mapper.DiaryResonanceMapper;
+import com.moodcopilot.notification.NotificationService;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -34,17 +36,20 @@ public class DiaryService {
     private final DiaryCommentMapper diaryCommentMapper;
     private final DiaryResonanceMapper diaryResonanceMapper;
     private final AiAnalysisService aiAnalysisService;
+    private final NotificationService notificationService;
 
     public DiaryService(DiaryMapper diaryMapper,
                         DiaryAnalysisMapper diaryAnalysisMapper,
                         DiaryCommentMapper diaryCommentMapper,
                         DiaryResonanceMapper diaryResonanceMapper,
-                        AiAnalysisService aiAnalysisService) {
+                        AiAnalysisService aiAnalysisService,
+                        NotificationService notificationService) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
         this.diaryResonanceMapper = diaryResonanceMapper;
         this.aiAnalysisService = aiAnalysisService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -93,13 +98,19 @@ public class DiaryService {
         return diaries.stream().map(this::toDiaryView).toList();
     }
 
-    public List<DiaryView> publicDiaries() {
-        List<DiaryEntity> diaries = diaryMapper.selectList(
+    public Page<DiaryView> publicDiaries(int page, int size) {
+        int cappedPage = Math.max(1, page);
+        int cappedSize = Math.min(50, Math.max(1, size));
+        Page<DiaryEntity> entityPage = diaryMapper.selectPage(
+                Page.of(cappedPage, cappedSize),
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
                         .orderByDesc(DiaryEntity::getCreatedAt)
         );
-        return diaries.stream().map(this::toDiaryView).toList();
+        List<DiaryView> views = entityPage.getRecords().stream().map(this::toDiaryView).toList();
+        Page<DiaryView> viewPage = new Page<>(cappedPage, cappedSize, entityPage.getTotal());
+        viewPage.setRecords(views);
+        return viewPage;
     }
 
     public DiaryView get(long id) {
@@ -138,6 +149,8 @@ public class DiaryService {
         DiaryCommentEntity comment = new DiaryCommentEntity();
         UserEntity commenter = currentUser();
         comment.setDiaryId(diaryId);
+        comment.setParentCommentId(request.parentCommentId());
+        comment.setRootCommentId(resolveRootId(diaryId, request.parentCommentId()));
         comment.setAuthorUserId(commenter.getId());
         comment.setAuthorName(commenter.getDisplayName());
         comment.setContent(content);
@@ -145,6 +158,12 @@ public class DiaryService {
         comment.setCreatedAt(LocalDateTime.now());
         comment.setUpdatedAt(LocalDateTime.now());
         diaryCommentMapper.insert(comment);
+
+        if (!commenter.getId().equals(diary.getAuthorUserId())) {
+            String snippet = content.length() > 30 ? content.substring(0, 30) + "..." : content;
+            notificationService.notifyComment(commenter, diaryId, diary.getAuthorUserId(),
+                    comment.getId(), snippet);
+        }
 
         DiaryAnalysisEntity analysis = findAnalysis(diaryId);
         List<DiaryCommentEntity> comments = findComments(diaryId);
@@ -154,23 +173,27 @@ public class DiaryService {
     @Transactional
     public DiaryView resonate(long diaryId) {
         DiaryEntity diary = findPublicDiary(diaryId);
+        UserEntity actor = currentUser();
 
-        Long userId = currentUser().getId();
         boolean exists = diaryResonanceMapper.exists(
                 new LambdaQueryWrapper<DiaryResonanceEntity>()
                         .eq(DiaryResonanceEntity::getDiaryId, diaryId)
-                        .eq(DiaryResonanceEntity::getUserId, userId)
+                        .eq(DiaryResonanceEntity::getUserId, actor.getId())
         );
         if (!exists) {
             DiaryResonanceEntity resonance = new DiaryResonanceEntity();
             resonance.setDiaryId(diaryId);
-            resonance.setUserId(userId);
+            resonance.setUserId(actor.getId());
             resonance.setCreatedAt(LocalDateTime.now());
             diaryResonanceMapper.insert(resonance);
 
             diary.setResonanceCount(diary.getResonanceCount() + 1);
             diary.setUpdatedAt(LocalDateTime.now());
             diaryMapper.updateById(diary);
+
+            if (!actor.getId().equals(diary.getAuthorUserId())) {
+                notificationService.notifyResonance(actor, diaryId, diary.getAuthorUserId());
+            }
         }
 
         DiaryAnalysisEntity analysis = findAnalysis(diaryId);
@@ -224,6 +247,13 @@ public class DiaryService {
             return user;
         }
         throw new ResponseStatusException(BAD_REQUEST, "用户未登录");
+    }
+
+    private Long resolveRootId(long diaryId, Long parentCommentId) {
+        if (parentCommentId == null) return null;
+        DiaryCommentEntity parent = diaryCommentMapper.selectById(parentCommentId);
+        if (parent == null || !parent.getDiaryId().equals(diaryId)) return null;
+        return parent.getRootCommentId() != null ? parent.getRootCommentId() : parent.getId();
     }
 
     // ── Validation ──

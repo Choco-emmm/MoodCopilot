@@ -33,10 +33,35 @@
     </div>
 
     <div v-if="(diary.comments ?? []).length" class="comments">
-      <p v-for="comment in diary.comments" :key="comment.id">
-        <strong>{{ comment.authorName }}</strong>
-        <span>{{ comment.content }}</span>
-      </p>
+      <div v-for="comment in diary.comments" :key="comment.id" class="comment-thread">
+        <div class="comment-main">
+          <p>
+            <strong>{{ comment.authorName }}</strong>
+            <span>{{ comment.content }}</span>
+          </p>
+          <n-button size="tiny" text @click="replyTo = replyTo === comment.id ? null : comment.id">回复</n-button>
+        </div>
+        <div v-if="replyTo === comment.id" class="comment-box">
+          <n-input
+            v-model:value="replyDraft"
+            size="small"
+            placeholder="回复 {{ comment.authorName }}..."
+            @keyup.enter="submitReply(comment.id)"
+          />
+          <n-button size="small" type="primary" :disabled="!replyDraft.trim()" @click="submitReply(comment.id)">
+            发送
+          </n-button>
+        </div>
+        <div v-if="(comment.replies ?? []).length" class="comment-replies">
+          <div v-for="reply in comment.replies" :key="reply.id">
+            <p>
+              <strong>{{ reply.authorName }}</strong>
+              <span v-if="reply.replyToUserName" class="reply-to"> 回复 @{{ reply.replyToUserName }} </span>
+              <span>{{ reply.content }}</span>
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="comment-box">
@@ -61,16 +86,26 @@ const props = defineProps<{ diary: Diary }>()
 const emit = defineEmits<{
   select: [diary: Diary]
   resonate: [diary: Diary]
-  comment: [diary: Diary, content: string]
+  comment: [diary: Diary, content: string, parentCommentId?: number]
 }>()
 
 const draft = ref('')
+const replyDraft = ref('')
+const replyTo = ref<number | null>(null)
 
 function submit() {
   const content = draft.value.trim()
   if (!content) return
   emit('comment', props.diary, content)
   draft.value = ''
+}
+
+function submitReply(commentId: number) {
+  const content = replyDraft.value.trim()
+  if (!content) return
+  emit('comment', props.diary, content, commentId)
+  replyDraft.value = ''
+  replyTo.value = null
 }
 
 function formatTime(value: string) {

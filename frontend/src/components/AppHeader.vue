@@ -4,6 +4,30 @@
       <p class="eyebrow">MoodCopilot</p>
       <nav class="masthead-nav">
         <template v-if="auth.isAuthenticated">
+          <n-popover trigger="click" placement="bottom-end" @update:show="onPopoverShow">
+            <template #trigger>
+              <n-badge :value="notif.unreadCount" :max="99" :show="notif.unreadCount > 0">
+                <n-button text size="small" circle>
+                  <template #icon>
+                    <span style="font-size: 18px">🔔</span>
+                  </template>
+                </n-button>
+              </n-badge>
+            </template>
+            <div class="notif-popover">
+              <div v-if="notif.items.length === 0" class="notif-empty">暂无通知</div>
+              <div
+                v-for="item in notif.items"
+                :key="item.id"
+                class="notif-item"
+                :class="{ unread: !item.isRead }"
+                @click="handleNotifClick(item)"
+              >
+                <p class="notif-msg">{{ item.message }}</p>
+                <span class="notif-time">{{ formatTime(item.createdAt) }}</span>
+              </div>
+            </div>
+          </n-popover>
           <span class="masthead-user">{{ auth.displayName }}</span>
           <n-button text type="primary" @click="handleLogout">退出</n-button>
         </template>
@@ -20,14 +44,34 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { NButton } from 'naive-ui'
+import { NButton, NBadge, NPopover } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
+import { useNotificationStore, type Notification } from '../stores/notification'
 
 const router = useRouter()
 const auth = useAuthStore()
+const notif = useNotificationStore()
+
+notif.fetchUnreadCount()
 
 function handleLogout() {
   auth.logout()
   router.push('/login')
+}
+
+function onPopoverShow(show: boolean) {
+  if (show) notif.fetchNotifications()
+}
+
+function handleNotifClick(item: Notification) {
+  if (!item.isRead) notif.markRead(item.id)
+  if (item.diaryId) router.push(`/diary/${item.diaryId}`)
+}
+
+function formatTime(value: string) {
+  if (!value || value === 'null') return ''
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).format(new Date(value))
 }
 </script>

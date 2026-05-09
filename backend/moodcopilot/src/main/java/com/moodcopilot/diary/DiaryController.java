@@ -33,8 +33,16 @@ public class DiaryController {
     }
 
     @GetMapping("/public")
-    public ApiResponse<List<DiaryView>> publicDiaries() {
-        return ApiResponse.ok(diaryService.publicDiaries());
+    public ApiResponse<java.util.Map<String, Object>> publicDiaries(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        var result = diaryService.publicDiaries(page, size);
+        return ApiResponse.ok(java.util.Map.of(
+                "items", result.getRecords(),
+                "total", result.getTotal(),
+                "page", result.getCurrent(),
+                "size", result.getSize()
+        ));
     }
 
     @GetMapping("/{id}")

@@ -17,8 +17,17 @@
         @resonate="$emit('resonate', $event)"
         @comment="(d, c) => $emit('comment', d, c)"
       />
+      <n-button
+        v-if="hasMore"
+        block
+        text
+        :loading="loading"
+        @click="$emit('loadMore')"
+      >
+        加载更多
+      </n-button>
     </div>
-    <n-empty v-else description="暂无公开日记" />
+    <n-empty v-else-if="!loading" description="暂无公开日记" />
   </article>
 </template>
 
@@ -26,11 +35,12 @@
 import DiaryFeedItem from './DiaryFeedItem.vue'
 import type { Diary } from '../stores/diary'
 
-defineProps<{ diaries: Diary[]; loading: boolean }>()
+defineProps<{ diaries: Diary[]; loading: boolean; hasMore?: boolean }>()
 defineEmits<{
   refresh: []
   select: [diary: Diary]
   resonate: [diary: Diary]
-  comment: [diary: Diary, content: string]
+  comment: [diary: Diary, content: string, parentCommentId?: number]
+  loadMore: []
 }>()
 </script>

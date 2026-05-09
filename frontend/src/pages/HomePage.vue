@@ -14,10 +14,12 @@
       <PublicFeed
         :diaries="store.publicDiaries"
         :loading="store.loading"
+        :has-more="store.hasMore"
         @refresh="store.fetchDiaries()"
+        @load-more="store.loadMorePublic()"
         @select="selectDiary"
         @resonate="(d: Diary) => store.resonate(d.id)"
-        @comment="(d: Diary, c: string) => store.addComment(d.id, c)"
+        @comment="(d: Diary, c: string, pid?: number) => store.addComment(d.id, c, pid)"
       />
     </section>
   </main>

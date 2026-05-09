@@ -25,6 +25,11 @@ spring:
     clean-disabled: true
     baseline-on-migrate: true
     locations: classpath:db/migration
+  cache:
+    type: redis
+    redis:
+      time-to-live: 120000
+      cache-null-values: false
 jwt:
   secret: ${JWT_SECRET:bW9vZGNvcGlsb3Qtc2VjcmV0LWtleS1mb3ItZGV2ZWxvcG1lbnQtb25seS0yMDI2}
   expiration: 86400000

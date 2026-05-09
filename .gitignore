@@ -7,5 +7,6 @@ backend/moodcopilot/target/
 frontend/node_modules/
 frontend/dist/
 frontend/tsconfig.tsbuildinfo
-frontend/src/App.vue.js
-frontend/src/main.js
+frontend/src/**/*.vue.js
+frontend/src/**/*.js
+!frontend/src/**/*.d.ts
