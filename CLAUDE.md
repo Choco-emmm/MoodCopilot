@@ -55,6 +55,7 @@ src/main/java/com/moodcopilot/
 ├── auth/            AuthController、AuthService、RegisterRequest/LoginRequest/AuthResponse
 ├── common/          ApiResponse<T> 统一响应包装 { code, message, data }
 ├── config/          SecurityConfig、MybatisPlusConfig
+├── follow/          FollowController、FollowService
 ├── diary/           DiaryController、DiaryService、DiaryView、DiaryComment、WeeklyReportView、CreateDiaryRequest
 ├── entity/          MyBatis-Plus 实体：UserEntity、DiaryEntity（@TableLogic）、DiaryAnalysisEntity、
 │                    DiaryCommentEntity、DiaryResonanceEntity、NotificationEntity
@@ -71,9 +72,10 @@ src/
 ├── api/index.ts         Axios 实例，拦截器（JWT 附加、401/403→跳到/login）、diaryApi、authApi、notificationApi
 ├── components/          7 个组件：AppHeader、DiaryComposer、AiAnalysisCard、
 │                        SimilarDiariesPanel、MyDiaryList、PublicFeed、DiaryFeedItem
-├── pages/               HomePage、LoginPage、RegisterPage、DiaryDetailPage、WeeklyReportPage
-├── router/index.ts      4 条路由，beforeEach 守卫（requiresAuth→跳转/login）
-├── stores/              auth.ts（JWT token+用户）、diary.ts（增删改+分页+轮询）、notification.ts
+├── pages/               HomePage、LoginPage、RegisterPage、DiaryDetailPage、WeeklyReportPage、FollowingPage
+├── router/index.ts      6 条路由，beforeEach 守卫（requiresAuth→跳转/login）
+├── stores/              auth.ts（JWT token+用户）、diary.ts（增删改+分页+轮询）、notification.ts、
+│                        follow.ts（关注/取消关注/状态查询）
 └── styles.css           全局 CSS（无 scoped 样式）
 ```
 
@@ -85,12 +87,15 @@ src/
 | POST | `/api/auth/register`、`/api/auth/login` | 否 |
 | GET | `/api/auth/me` | 是 |
 | POST | `/api/diaries` | 是 |
-| GET | `/api/diaries/mine`、`/api/diaries/public?page=&size=`、`/api/diaries/weekly-report?weekOffset=` | 是 |
+| GET | `/api/diaries/mine`、`/api/diaries/public?page=&size=`、`/api/diaries/following?page=&size=`、`/api/diaries/weekly-report?weekOffset=` | 是 |
 | GET | `/api/diaries/{id}`、`/api/diaries/{id}/similar?limit=` | 是 |
 | POST | `/api/diaries/{id}/comments`（body: `{content, parentCommentId}`） | 是 |
 | POST | `/api/diaries/{id}/resonance` | 是 |
 | GET | `/api/notifications`、`/api/notifications/unread-count` | 是 |
 | PUT | `/api/notifications/{id}/read` | 是 |
+| POST | `/api/follows/{userId}` | 是 |
+| DELETE | `/api/follows/{userId}` | 是 |
+| GET | `/api/follows/{userId}/status` | 是 |
 
 ### 数据库
 
