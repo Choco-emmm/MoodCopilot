@@ -32,7 +32,7 @@
       <div class="chat-window">
         <div class="chat-top">
           <div>
-            <h2>小情绪</h2>
+            <h2 class="chat-header-title">小情绪</h2>
             <p class="chat-subtitle">你的 AI 情绪伙伴，可以聊聊最近的心情</p>
           </div>
         </div>
