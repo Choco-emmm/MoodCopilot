@@ -1,10 +1,6 @@
 <template>
   <n-config-provider :theme-overrides="themeOverrides">
-    <router-view v-slot="{ Component }">
-      <Transition name="page" mode="out-in">
-        <component :is="Component" />
-      </Transition>
-    </router-view>
+    <router-view />
   </n-config-provider>
 </template>
 
