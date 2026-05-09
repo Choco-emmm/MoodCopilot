@@ -796,6 +796,32 @@ h2 {
   50% { opacity: 0; }
 }
 
+/* Markdown content */
+.md-content :is(p, ul, ol) {
+  margin: 0 0 6px;
+}
+.md-content :last-child {
+  margin-bottom: 0;
+}
+.md-content ul, .md-content ol {
+  padding-left: 18px;
+}
+.md-content li {
+  margin-bottom: 2px;
+}
+.md-content code {
+  background: rgba(0,0,0,0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.md-content strong {
+  color: inherit;
+}
+.md-content em {
+  color: #5a625f;
+}
+
 .chat-messages {
   max-height: calc(100vh - 280px);
   min-height: 300px;

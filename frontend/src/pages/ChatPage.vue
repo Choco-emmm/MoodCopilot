@@ -21,11 +21,13 @@
           :key="i"
           :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
         >
-          <p>{{ msg.content }}</p>
+          <div v-if="msg.role === 'ai'" class="md-content" v-html="renderMd(msg.content)" />
+          <p v-else>{{ msg.content }}</p>
         </div>
 
         <div v-if="streaming" class="chat-bubble chat-ai">
-          <p>{{ streamingText }}<span class="chat-cursor">|</span></p>
+          <div class="md-content" v-html="renderMd(streamingText)" />
+          <span class="chat-cursor">|</span>
         </div>
       </div>
 
@@ -48,11 +50,16 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { NButton, NInput } from 'naive-ui'
+import { marked } from 'marked'
 import AppHeader from '../components/AppHeader.vue'
 
 interface Message {
   role: 'user' | 'ai'
   content: string
+}
+
+function renderMd(text: string) {
+  return marked.parse(text, { async: false }) as string
 }
 
 const API = 'http://localhost:18080/api'
