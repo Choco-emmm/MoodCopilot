@@ -17,7 +17,7 @@ MoodCopilot 是一个 AI 情绪日记 + 陌生人互助社区。用户写日记�
 
 - 后端：Spring Boot 3.5.14、Java 21、MySQL 8、Redis (Lettuce)、MyBatis-Plus 3.5.10.1
 - 前端：Vue 3、Vite 5、TypeScript、Naive UI 2.41、Pinia 2.2、Vue Router 4.4
-- AI：DeepSeek Chat API（兼容），失败时回退关键词分析
+- AI：Spring AI 1.0.0-M6 + DeepSeek API（OpenAI 兼容），失败时回退关键词分析
 
 ## 构建与运行
 
@@ -51,7 +51,8 @@ npm run build           # 生产构建 → dist/
 
 ```
 src/main/java/com/moodcopilot/
-├── ai/              DeepSeekClient（RestClient）、AiAnalysisService（DeepSeek + 关键词回退）
+├── ai/              ChatService、ChatController、AiAnalysisService（Spring AI ChatClient + 关键词回退）
+├── config/           SecurityConfig、MybatisPlusConfig、AIConfiguration（ChatClient Bean、ChatMemory、aiExecutor）
 ├── auth/            AuthController、AuthService、RegisterRequest/LoginRequest/AuthResponse
 ├── common/          ApiResponse<T> 统一响应包装 { code, message, data }
 ├── config/          SecurityConfig、MybatisPlusConfig
