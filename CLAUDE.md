@@ -53,16 +53,17 @@ npm run build           # 生产构建 → dist/
 ```
 src/main/java/com/moodcopilot/
 ├── ai/              ChatService、ChatController、AiAnalysisService（Spring AI ChatClient + 关键词回退）
-├── config/           SecurityConfig、MybatisPlusConfig、AIConfiguration（ChatClient Bean、ChatMemory、aiExecutor）
+├── config/           SecurityConfig、MybatisPlusConfig、RedisConfig、AIConfiguration（ChatClient Bean、ChatMemory、aiExecutor）
 ├── auth/            AuthController、AuthService、RegisterRequest/LoginRequest/AuthResponse
 ├── common/          ApiResponse<T> 统一响应包装 { code, message, data }
-├── config/          SecurityConfig、MybatisPlusConfig
 ├── follow/          FollowController、FollowService
-├── diary/           DiaryController、DiaryService、DiaryView、DiaryComment、WeeklyReportView、CreateDiaryRequest
+├── diary/           DiaryController、DiaryService、DiaryView、DiaryComment、WeeklyReportView（含 diaryIds 溯源）、CreateDiaryRequest
+├── summary/          SummaryController、SummaryService、SummaryView（含 diaryIds）
 ├── entity/          MyBatis-Plus 实体：UserEntity、DiaryEntity（@TableLogic）、DiaryAnalysisEntity、
-│                    DiaryCommentEntity、DiaryResonanceEntity、NotificationEntity、ChatConversationEntity
+│                    DiaryCommentEntity、DiaryResonanceEntity、NotificationEntity、FollowEntity、
+│                    DiarySummaryEntity（含 diaryIds JSON）、ChatConversationEntity
 ├── health/          HealthController
-├── mapper/          MyBatis-Plus BaseMapper 接口（共 7 个，含 ChatConversationMapper）
+├── mapper/          MyBatis-Plus BaseMapper 接口（共 8 个）
 ├── notification/    NotificationService、NotificationController
 └── security/        JwtTokenProvider、JwtAuthenticationFilter
 ```
@@ -76,7 +77,8 @@ src/
 ├── components/          7 个组件：AppHeader、DiaryComposer、AiAnalysisCard、
 │                        SimilarDiariesPanel、MyDiaryList、PublicFeed（瀑布流）、DiaryFeedItem
 ├── pages/               SquarePage（`/` 广场瀑布流）、WritePage（`/write` 写日记+我的日记）、LoginPage、
-│                        RegisterPage、DiaryDetailPage、ReportPage、FollowingPage、ChatPage（多对话）
+│                        RegisterPage、DiaryDetailPage、ReportPage（周报+自定义总结，情绪趋势可溯源）、
+│                        FollowingPage、ChatPage（多对话）
 ├── router/index.ts      8 条路由，beforeEach 守卫（requiresAuth→跳转/login）
 ├── stores/              auth.ts、diary.ts、notification.ts、follow.ts
 └── styles.css           全局 CSS（无 scoped 样式）
@@ -111,7 +113,7 @@ src/
 
 ### 数据库
 
-MySQL 8，Flyway 迁移脚本位于 `src/main/resources/db/migration/`。表：`users`、`diaries`、`diary_analysis`、`diary_comments`、`diary_resonances`、`notifications`。
+MySQL 8，Flyway 迁移脚本位于 `src/main/resources/db/migration/`（当前最新 V1_8）。表：`users`、`diaries`、`diary_analysis`、`diary_comments`、`diary_resonances`、`notifications`、`follows`、`diary_summaries`、`chat_conversations`。
 
 MyBatis-Plus 配置：`is_deleted` 字段使用 `@TableLogic`，主键使用 `@TableId(type=IdType.AUTO)`，JSON 列使用 `JacksonTypeHandler`。分页需要 `PaginationInnerInterceptor`（在 `MybatisPlusConfig` 中配置）。
 
@@ -135,6 +137,19 @@ MyBatis-Plus 配置：`is_deleted` 字段使用 `@TableLogic`，主键使用 `@T
 - **自动标题**：首条用户消息前 20 字自动设为会话标题
 - **上下文**：只注入原始日记（最近 10 篇），不读总结防止幻觉传递
 - **Markdown**：前端用 `marked` 渲染 AI 回复，AI prompt 指引使用基本 Markdown 格式
+
+### 日记溯源
+
+- 周报 `WeeklyReportView.DailyMood` 包含 `diaryIds`，前端情绪趋势行可点击跳转日记详情
+- 总结库 `diary_summaries` 的 `diary_ids` JSON 列存关联日记 ID，`SummaryView.diaryIds` 返回到前端
+- 自定义总结卡片底部显示可点击的日记链接
+
+### 设计系统
+
+- **纸墨之间 (Between Ink & Paper)**：纸质纹理（SVG 噪点）+ 墨色层次 + 楷体标题 + 印章红点缀 + 玉绿行动色
+- Naive UI 主题覆盖：主色玉绿 `#4a7c62`，辅色印章红 `#b5343a`
+- 页面过渡：`fade+slide` 动画 (Transition mode="out-in")
+- 认证页：径向渐变背景 + 圆形「印」字装饰（倾斜 8° 仿真印章）
 
 ### Redis 缓存
 
