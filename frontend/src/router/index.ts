@@ -20,6 +20,12 @@ const router = createRouter({
       component: () => import('../pages/RegisterPage.vue'),
     },
     {
+      path: '/summaries',
+      name: 'summaries',
+      component: () => import('../pages/SummaryLibraryPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/following',
       name: 'following',
       component: () => import('../pages/FollowingPage.vue'),

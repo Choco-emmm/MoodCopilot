@@ -55,3 +55,9 @@ export const followApi = {
   unfollow: (userId: number) => api.delete(`/follows/${userId}`),
   status: (userId: number) => api.get(`/follows/${userId}/status`),
 }
+
+export const summaryApi = {
+  create: (data: { startDate: string; endDate: string }) => api.post('/summaries', data),
+  list: () => api.get('/summaries'),
+  delete: (id: number) => api.delete(`/summaries/${id}`),
+}

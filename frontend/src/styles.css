@@ -678,3 +678,53 @@ h2 {
   font-size: 14px;
   padding: 16px 0;
 }
+
+/* Summary library */
+.summary-page {
+  max-width: 760px;
+  display: grid;
+  gap: 16px;
+  padding-bottom: 48px;
+}
+
+.summary-page h2 {
+  color: #23322e;
+}
+
+.summary-list {
+  display: grid;
+  gap: 12px;
+}
+
+.summary-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid #ded7ca;
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.summary-head h3 {
+  margin: 0;
+  color: #4d766b;
+  font-size: 15px;
+}
+
+.summary-body {
+  margin: 0;
+  color: #263733;
+  line-height: 1.8;
+  font-size: 14px;
+}
+
+.summary-actions {
+  display: flex;
+  justify-content: flex-end;
+}
