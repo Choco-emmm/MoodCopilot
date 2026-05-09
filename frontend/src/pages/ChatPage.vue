@@ -105,11 +105,14 @@ async function send() {
 
   try {
     const token = localStorage.getItem('token')
+    if (!token) throw new Error('Not logged in')
+
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ message: content }),
     })
+    if (!response.ok) throw new Error('Server error: ' + response.status)
 
     const reader = response.body?.getReader()
     if (!reader) throw new Error('No reader')
@@ -123,29 +126,30 @@ async function send() {
       if (done) break
 
       rawBuffer += decoder.decode(value, { stream: true })
-      // Parse SSE events: "data:xxx\n\n"
       const lines = rawBuffer.split('\n')
-      rawBuffer = lines.pop() || '' // keep incomplete last line
+      rawBuffer = lines.pop() || ''
 
       for (const line of lines) {
-        if (line.startsWith('data:')) {
-          displayText += line.slice(5).replace(/^\s+/, '')
+        const cleaned = line.replace(/\r$/, '')
+        if (cleaned.startsWith('data:')) {
+          displayText += cleaned.slice(5).replace(/^\s+/, '')
         }
       }
       streamingText.value = displayText
-      await nextTick()
       scrollBottom()
     }
     // Drain remaining buffer
-    if (rawBuffer.trim()) {
-      const line = rawBuffer.trim()
-      if (line.startsWith('data:')) {
-        displayText += line.slice(5).replace(/^\s+/, '')
-      }
+    const last = rawBuffer.trim().replace(/\r$/, '')
+    if (last.startsWith('data:')) {
+      displayText += last.slice(5).replace(/^\s+/, '')
     }
-    messages.value.push({ role: 'ai', content: displayText || '...' })
+    if (displayText) {
+      messages.value.push({ role: 'ai', content: displayText })
+    } else {
+      messages.value.push({ role: 'ai', content: '（收到回应了，但内容为空）' })
+    }
     saveToBackend()
-  } catch {
+  } catch (e) {
     messages.value.push({ role: 'ai', content: '抱歉，我暂时无法回复，请稍后再试。' })
     saveToBackend()
   } finally {
