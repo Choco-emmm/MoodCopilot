@@ -2,6 +2,15 @@
   <main class="app-shell">
     <AppHeader />
 
+    <div v-if="matchDiary" class="today-match">
+      <router-link :to="'/diary/' + matchDiary.id" class="today-match-link">
+        <span class="today-match-label">今日同频</span>
+        <span class="today-match-mood">{{ matchDiary.analysis?.moodLabel }}</span>
+        <span class="today-match-content">{{ matchDiary.content.slice(0, 40) }}{{ matchDiary.content.length > 40 ? '...' : '' }}</span>
+        <span class="today-match-arrow">&rarr;</span>
+      </router-link>
+    </div>
+
     <div v-if="status" class="daily-status" :class="{ done: status.todayHasDiary }">
       <span class="daily-status-icon">{{ status.todayHasDiary ? '&#9745;' : '&#9744;' }}</span>
       <span class="daily-status-text">
@@ -47,13 +56,12 @@ import { diaryApi } from '../api'
 const router = useRouter()
 const store = useDiaryStore()
 const status = ref<{ todayHasDiary: boolean; streak: number; yesterdayMood: string } | null>(null)
+const matchDiary = ref<any>(null)
 
 onMounted(async () => {
   store.fetchDiaries()
-  try {
-    const res = await diaryApi.todayStatus()
-    status.value = res.data.data
-  } catch { /* ignore */ }
+  try { const res = await diaryApi.todayStatus(); status.value = res.data.data } catch { /* ignore */ }
+  try { const res = await diaryApi.todayMatch(); matchDiary.value = res.data.data } catch { /* ignore */ }
 })
 
 function selectDiary(diary: Diary) {

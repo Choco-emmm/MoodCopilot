@@ -1201,6 +1201,54 @@ h2 {
 .chat-input-row { display: flex; gap: 10px; }
 .chat-input-row .n-input { flex: 1; }
 
+/* ── Today match card ── */
+.today-match {
+  margin-bottom: 12px;
+}
+
+.today-match-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-accent-light);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--color-accent-bg), #fff5f5);
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+.today-match-link:hover {
+  border-color: var(--color-accent);
+}
+
+.today-match-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-accent);
+  white-space: nowrap;
+}
+
+.today-match-mood {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.today-match-content {
+  flex: 1;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-match-arrow {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
 /* ── Daily status card ── */
 .daily-status {
   display: flex;

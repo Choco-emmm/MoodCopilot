@@ -585,6 +585,41 @@ public class DiaryService {
         );
     }
 
+    // ── Today match ──
+
+    public DiaryView todayMatch() {
+        UserEntity user = currentUser();
+        // 获取用户最近的情绪标签
+        List<DiaryEntity> recent = diaryMapper.selectList(
+                new LambdaQueryWrapper<DiaryEntity>()
+                        .eq(DiaryEntity::getAuthorUserId, user.getId())
+                        .orderByDesc(DiaryEntity::getCreatedAt)
+                        .last("LIMIT 3")
+        );
+        String targetMood = null;
+        for (DiaryEntity d : recent) {
+            DiaryAnalysisEntity a = findAnalysis(d.getId());
+            if (a != null) { targetMood = a.getMoodLabel(); break; }
+        }
+        if (targetMood == null) return null;
+
+        // 找公开的同情绪日记
+        List<DiaryEntity> matches = diaryMapper.selectList(
+                new LambdaQueryWrapper<DiaryEntity>()
+                        .eq(DiaryEntity::getVisibility, "PUBLIC")
+                        .ne(DiaryEntity::getAuthorUserId, user.getId())
+                        .orderByDesc(DiaryEntity::getCreatedAt)
+                        .last("LIMIT 50")
+        );
+        for (DiaryEntity d : matches) {
+            DiaryAnalysisEntity a = findAnalysis(d.getId());
+            if (a != null && targetMood.equals(a.getMoodLabel())) {
+                return toDiaryView(d);
+            }
+        }
+        return null;
+    }
+
     // ── Encouragement ──
 
     public List<String> generateEncouragements(long diaryId) {

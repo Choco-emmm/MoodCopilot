@@ -34,6 +34,7 @@ export const diaryApi = {
     api.post(`/diaries/${id}/comments`, { content, parentCommentId: parentCommentId ?? null }),
   resonate: (id: number) => api.post(`/diaries/${id}/resonance`),
   todayStatus: () => api.get('/diaries/today-status'),
+  todayMatch: () => api.get('/diaries/today-match'),
   encourageCandidates: (id: number) => api.get(`/diaries/encourage-candidates/${id}`),
   sendEncouragement: (id: number, message: string) => api.post(`/diaries/encourage/${id}`, { message }),
   weeklyReport: (weekOffset = 0) => api.get('/diaries/weekly-report', { params: { weekOffset } }),

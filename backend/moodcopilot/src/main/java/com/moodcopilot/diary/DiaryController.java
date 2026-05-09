@@ -101,6 +101,11 @@ public class DiaryController {
         return ApiResponse.ok(diaryService.todayStatus());
     }
 
+    @GetMapping("/today-match")
+    public ApiResponse<DiaryView> todayMatch() {
+        return ApiResponse.ok(diaryService.todayMatch());
+    }
+
     @GetMapping("/encourage-candidates/{id}")
     public ApiResponse<List<String>> encourageCandidates(@PathVariable long id) {
         return ApiResponse.ok(diaryService.generateEncouragements(id));
