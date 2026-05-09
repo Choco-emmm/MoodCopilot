@@ -34,6 +34,7 @@ export const diaryApi = {
     api.post(`/diaries/${id}/comments`, { content, parentCommentId: parentCommentId ?? null }),
   resonate: (id: number) => api.post(`/diaries/${id}/resonance`),
   weeklyReport: (weekOffset = 0) => api.get('/diaries/weekly-report', { params: { weekOffset } }),
+  following: (page = 1, size = 20) => api.get('/diaries/following', { params: { page, size } }),
 }
 
 export const notificationApi = {
@@ -47,4 +48,10 @@ export const authApi = {
     api.post('/auth/register', data),
   login: (data: { email: string; password: string }) => api.post('/auth/login', data),
   me: () => api.get('/auth/me'),
+}
+
+export const followApi = {
+  follow: (userId: number) => api.post(`/follows/${userId}`),
+  unfollow: (userId: number) => api.delete(`/follows/${userId}`),
+  status: (userId: number) => api.get(`/follows/${userId}/status`),
 }

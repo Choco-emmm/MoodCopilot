@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.moodcopilot.ai.AiAnalysisService;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
+import com.moodcopilot.follow.FollowService;
 import com.moodcopilot.entity.DiaryCommentEntity;
 import com.moodcopilot.entity.DiaryEntity;
 import com.moodcopilot.entity.DiaryResonanceEntity;
@@ -45,19 +46,22 @@ public class DiaryService {
     private final DiaryResonanceMapper diaryResonanceMapper;
     private final AiAnalysisService aiAnalysisService;
     private final NotificationService notificationService;
+    private final FollowService followService;
 
     public DiaryService(DiaryMapper diaryMapper,
                         DiaryAnalysisMapper diaryAnalysisMapper,
                         DiaryCommentMapper diaryCommentMapper,
                         DiaryResonanceMapper diaryResonanceMapper,
                         AiAnalysisService aiAnalysisService,
-                        NotificationService notificationService) {
+                        NotificationService notificationService,
+                        FollowService followService) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
         this.diaryResonanceMapper = diaryResonanceMapper;
         this.aiAnalysisService = aiAnalysisService;
         this.notificationService = notificationService;
+        this.followService = followService;
     }
 
     @Transactional
@@ -147,6 +151,29 @@ public class DiaryService {
                 .limit(cappedLimit)
                 .map(this::toDiaryView)
                 .toList();
+    }
+
+    public Page<DiaryView> followingDiaries(int page, int size) {
+        List<Long> followingIds = followService.getFollowingIds(currentUser().getId());
+        if (followingIds.isEmpty()) {
+            Page<DiaryView> empty = new Page<>(page, size, 0);
+            empty.setRecords(List.of());
+            return empty;
+        }
+
+        int cappedPage = Math.max(1, page);
+        int cappedSize = Math.min(50, Math.max(1, size));
+        Page<DiaryEntity> entityPage = diaryMapper.selectPage(
+                Page.of(cappedPage, cappedSize),
+                new LambdaQueryWrapper<DiaryEntity>()
+                        .eq(DiaryEntity::getVisibility, "PUBLIC")
+                        .in(DiaryEntity::getAuthorUserId, followingIds)
+                        .orderByDesc(DiaryEntity::getCreatedAt)
+        );
+        List<DiaryView> views = entityPage.getRecords().stream().map(this::toDiaryView).toList();
+        Page<DiaryView> viewPage = new Page<>(cappedPage, cappedSize, entityPage.getTotal());
+        viewPage.setRecords(views);
+        return viewPage;
     }
 
     public WeeklyReportView weeklyReport(int weekOffset) {

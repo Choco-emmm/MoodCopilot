@@ -28,6 +28,7 @@
               </div>
             </div>
           </n-popover>
+          <n-button text type="primary" @click="router.push('/following')">关注</n-button>
           <n-button text type="primary" @click="router.push('/weekly-report')">周报</n-button>
           <span class="masthead-user">{{ auth.displayName }}</span>
           <n-button text type="primary" @click="handleLogout">退出</n-button>

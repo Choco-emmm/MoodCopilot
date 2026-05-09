@@ -20,6 +20,12 @@ const router = createRouter({
       component: () => import('../pages/RegisterPage.vue'),
     },
     {
+      path: '/following',
+      name: 'following',
+      component: () => import('../pages/FollowingPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/weekly-report',
       name: 'weekly-report',
       component: () => import('../pages/WeeklyReportPage.vue'),

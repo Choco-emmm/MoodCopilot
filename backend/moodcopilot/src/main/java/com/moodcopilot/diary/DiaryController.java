@@ -1,6 +1,10 @@
 package com.moodcopilot.diary;
 
 import com.moodcopilot.common.ApiResponse;
+
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,6 +34,19 @@ public class DiaryController {
     @GetMapping("/mine")
     public ApiResponse<List<DiaryView>> myDiaries() {
         return ApiResponse.ok(diaryService.myDiaries());
+    }
+
+    @GetMapping("/following")
+    public ApiResponse<Map<String, Object>> followingDiaries(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        var result = diaryService.followingDiaries(page, size);
+        return ApiResponse.ok(Map.of(
+                "items", result.getRecords(),
+                "total", result.getTotal(),
+                "page", page,
+                "size", size
+        ));
     }
 
     @GetMapping("/weekly-report")

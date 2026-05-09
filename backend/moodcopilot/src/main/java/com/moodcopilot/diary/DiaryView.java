@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 
 public record DiaryView(
         long id,
+        long authorUserId,
         String authorName,
         String content,
         DiaryVisibility visibility,
@@ -22,6 +23,7 @@ public record DiaryView(
     static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments) {
         return new DiaryView(
                 diary.getId(),
+                diary.getAuthorUserId(),
                 diary.getAuthorName(),
                 diary.getContent(),
                 DiaryVisibility.valueOf(diary.getVisibility()),

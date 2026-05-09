@@ -67,6 +67,21 @@ public class NotificationService {
         }
     }
 
+    public void notifyFollow(UserEntity actor, Long followedUserId) {
+        try {
+            NotificationEntity n = new NotificationEntity();
+            n.setRecipientUserId(followedUserId);
+            n.setActorUserId(actor.getId());
+            n.setType("FOLLOW");
+            n.setMessage(actor.getDisplayName() + " 关注了你");
+            n.setIsRead(false);
+            n.setCreatedAt(LocalDateTime.now());
+            notificationMapper.insert(n);
+        } catch (Exception e) {
+            log.warn("Failed to create follow notification", e);
+        }
+    }
+
     public void notifyResonance(UserEntity actor, Long diaryId, Long recipientUserId) {
         try {
             NotificationEntity n = new NotificationEntity();

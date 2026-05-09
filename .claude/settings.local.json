@@ -24,7 +24,8 @@
       "Bash(jar tf *)",
       "Bash(grep -oE '\"content\":\"[^\"]{0,40}')",
       "Bash(node test-e2e.js)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(pkill -f \"spring-boot\")"
     ]
   },
   "enabledPlugins": {

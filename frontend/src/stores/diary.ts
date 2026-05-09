@@ -4,6 +4,7 @@ import { diaryApi } from '../api'
 
 export interface Diary {
   id: number
+  authorUserId: number
   authorName: string
   content: string
   visibility: string

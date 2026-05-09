@@ -4,7 +4,20 @@
       <div class="feed-head-left">
         <span class="avatar">{{ diary.authorName.charAt(0) }}</span>
         <div>
-          <strong>{{ diary.authorName }}</strong>
+          <div class="author-row">
+            <strong>{{ diary.authorName }}</strong>
+            <n-button
+              v-if="diary.authorUserId !== auth.userId"
+              size="tiny"
+              :type="followStore.isFollowing(diary.authorUserId) ? 'default' : 'primary'"
+              :secondary="followStore.isFollowing(diary.authorUserId)"
+              @mouseenter="hoveringId = diary.authorUserId"
+              @mouseleave="hoveringId = null"
+              @click.stop="toggleFollow(diary.authorUserId)"
+            >
+              {{ followBtnLabel(diary.authorUserId) }}
+            </n-button>
+          </div>
           <span>{{ formatTime(diary.createdAt) }}</span>
         </div>
       </div>
@@ -79,8 +92,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import type { Diary } from '../stores/diary'
+import { useFollowStore } from '../stores/follow'
+import { useAuthStore } from '../stores/auth'
 
 const props = defineProps<{ diary: Diary }>()
 const emit = defineEmits<{
@@ -89,9 +104,34 @@ const emit = defineEmits<{
   comment: [diary: Diary, content: string, parentCommentId?: number]
 }>()
 
+const followStore = useFollowStore()
+const auth = useAuthStore()
+const hoveringId = ref<number | null>(null)
+
 const draft = ref('')
 const replyDraft = ref('')
 const replyTo = ref<number | null>(null)
+
+onMounted(() => {
+  if (props.diary.authorUserId !== auth.userId) {
+    followStore.checkStatus(props.diary.authorUserId)
+  }
+})
+
+function toggleFollow(userId: number) {
+  if (followStore.isFollowing(userId)) {
+    followStore.unfollow(userId)
+  } else {
+    followStore.follow(userId)
+  }
+}
+
+function followBtnLabel(userId: number) {
+  if (followStore.isFollowing(userId)) {
+    return hoveringId.value === userId ? '取消关注' : '已关注'
+  }
+  return '+ 关注'
+}
 
 function submit() {
   const content = draft.value.trim()

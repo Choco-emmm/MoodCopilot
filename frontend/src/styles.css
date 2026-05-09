@@ -171,6 +171,12 @@ h2 {
   font-size: 15px;
 }
 
+.author-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .diary-author-row {
   display: flex;
   align-items: center;
@@ -616,4 +622,23 @@ h2 {
   color: #263733;
   line-height: 1.8;
   font-size: 15px;
+}
+
+/* Following page */
+.following-page {
+  max-width: 760px;
+  display: grid;
+  gap: 16px;
+  padding-bottom: 48px;
+}
+
+.following-page h2 {
+  color: #23322e;
+}
+
+.loading-hint {
+  text-align: center;
+  color: #8d9793;
+  font-size: 14px;
+  padding: 16px 0;
 }
