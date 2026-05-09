@@ -225,6 +225,98 @@ public class DiaryService {
         return viewPage;
     }
 
+    // ── Monthly report ──
+
+    public WeeklyReportView monthlyReport(int monthOffset) {
+        Long userId = currentUser().getId();
+        String cacheKey = "report:monthly:%d:%d".formatted(userId, monthOffset);
+
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) return objectMapper.readValue(cached, WeeklyReportView.class);
+        } catch (Exception e) {
+            log.debug("Cache read failed for {}", cacheKey, e);
+        }
+
+        WeeklyReportView report = computeMonthlyReport(monthOffset, userId);
+
+        try {
+            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), Duration.ofMinutes(30));
+        } catch (Exception e) {
+            log.debug("Cache write failed for {}", cacheKey, e);
+        }
+        return report;
+    }
+
+    private WeeklyReportView computeMonthlyReport(int monthOffset, long userId) {
+        LocalDate today = LocalDate.now();
+        LocalDate firstOfMonth = today.withDayOfMonth(1).plusMonths(monthOffset);
+        LocalDate lastOfMonth = firstOfMonth.withDayOfMonth(firstOfMonth.lengthOfMonth());
+
+        LocalDateTime start = firstOfMonth.atStartOfDay();
+        LocalDateTime end = lastOfMonth.atTime(LocalTime.MAX);
+
+        List<DiaryEntity> diaries = diaryMapper.selectList(
+                new LambdaQueryWrapper<DiaryEntity>()
+                        .eq(DiaryEntity::getAuthorUserId, userId)
+                        .ge(DiaryEntity::getCreatedAt, start)
+                        .le(DiaryEntity::getCreatedAt, end)
+                        .orderByAsc(DiaryEntity::getCreatedAt)
+        );
+
+        List<WeeklyReportView.DailyMood> dailyMoods = new ArrayList<>();
+        Map<String, Integer> topicCounts = new LinkedHashMap<>();
+        List<String> contents = new ArrayList<>();
+        List<DiaryAnalysis> analyses = new ArrayList<>();
+
+        for (DiaryEntity diary : diaries) {
+            contents.add(diary.getContent());
+            DiaryAnalysisEntity analysisEntity = findAnalysis(diary.getId());
+            if (analysisEntity != null) {
+                DiaryAnalysis analysis = new DiaryAnalysis(
+                        analysisEntity.getMoodLabel(),
+                        analysisEntity.getMoodIntensity(),
+                        analysisEntity.getTopicLabelsJson(),
+                        analysisEntity.getSummary(),
+                        analysisEntity.getFeedback()
+                );
+                analyses.add(analysis);
+                dailyMoods.add(new WeeklyReportView.DailyMood(
+                        diary.getCreatedAt().toLocalDate(),
+                        analysis.moodLabel(),
+                        analysis.moodIntensity(),
+                        List.of(diary.getId()),
+                        snippet(diary.getContent())
+                ));
+                for (String topic : analysis.topicLabels()) {
+                    topicCounts.merge(topic, 1, Integer::sum);
+                }
+            } else {
+                analyses.add(null);
+            }
+        }
+
+        var sortedTopics = topicCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                        (a, b) -> a, LinkedHashMap::new));
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy年M月");
+        String monthLabel = firstOfMonth.format(fmt);
+
+        String aiSummary = aiAnalysisService.generateMonthlySummary(contents, analyses);
+
+        return new WeeklyReportView(
+                monthLabel,
+                diaries.size(),
+                dailyMoods,
+                sortedTopics,
+                aiSummary
+        );
+    }
+
+    // ── Weekly report ──
+
     public WeeklyReportView weeklyReport(int weekOffset) {
         Long userId = currentUser().getId();
         String cacheKey = "report:%d:%d".formatted(userId, weekOffset);
@@ -485,6 +577,8 @@ public class DiaryService {
     private void evictUserCache(long userId) {
         try {
             var keys = redisTemplate.keys("report:%d:*".formatted(userId));
+            if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
+            keys = redisTemplate.keys("report:monthly:%d:*".formatted(userId));
             if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
             keys = redisTemplate.keys("following:%d:*".formatted(userId));
             if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);

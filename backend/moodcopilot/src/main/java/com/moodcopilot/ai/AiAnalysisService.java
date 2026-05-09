@@ -99,6 +99,55 @@ public class AiAnalysisService {
         }
     }
 
+    // ── Monthly report ──
+
+    private static final String MONTHLY_SYSTEM_PROMPT = """
+            You are a compassionate monthly reflection assistant. Below is a list of diary entries from the past month, each with its mood label, topic, and summary. Write a warm, gentle Chinese reflection (200-400 characters) that:
+            1. Acknowledges the emotional journey of the month
+            2. Notices patterns, shifts, or trends in mood and themes over the longer period
+            3. Offers gentle encouragement and a forward-looking perspective
+            Return ONLY the Chinese text, no markdown, no JSON, no explanation.""";
+
+    public String generateMonthlySummary(List<String> diaryContents, List<DiaryAnalysis> analyses) {
+        if (diaryContents.isEmpty()) return "本月还没有记录日记，去写一篇吧～";
+
+        StringBuilder prompt = new StringBuilder("本月日记摘要：\n");
+        for (int i = 0; i < diaryContents.size(); i++) {
+            DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
+            prompt.append("- ");
+            if (a != null) {
+                prompt.append("情绪：").append(a.moodLabel())
+                        .append("，主题：").append(String.join("、", a.topicLabels()))
+                        .append("，摘要：").append(a.summary());
+            } else {
+                String content = diaryContents.get(i);
+                prompt.append(content.length() > 60 ? content.substring(0, 60) + "..." : content);
+            }
+            prompt.append("\n");
+        }
+
+        try {
+            return analysisChatClient.prompt()
+                    .system(MONTHLY_SYSTEM_PROMPT)
+                    .user(prompt.toString())
+                    .call()
+                    .content();
+        } catch (Exception e) {
+            log.warn("AI monthly summary failed, falling back: {}", e.getMessage());
+            return fallbackMonthlySummary(diaryContents.size(), analyses);
+        }
+    }
+
+    private String fallbackMonthlySummary(int count, List<DiaryAnalysis> analyses) {
+        if (count == 0) return "本月还没有记录日记，去写一篇吧～";
+        String topMood = analyses.stream()
+                .filter(a -> a != null)
+                .collect(Collectors.groupingBy(DiaryAnalysis::moodLabel, Collectors.counting()))
+                .entrySet().stream().max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey).orElse("平静");
+        return "本月共记录了 " + count + " 篇日记，主要情绪为「" + topMood + "」。一个月的坚持不容易，继续记录，你会看见自己的成长轨迹。";
+    }
+
     private String fallbackWeeklySummary(int count, List<DiaryAnalysis> analyses) {
         if (count == 0) return "本周还没有记录日记，去写一篇吧～";
 

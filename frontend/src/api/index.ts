@@ -34,6 +34,7 @@ export const diaryApi = {
     api.post(`/diaries/${id}/comments`, { content, parentCommentId: parentCommentId ?? null }),
   resonate: (id: number) => api.post(`/diaries/${id}/resonance`),
   weeklyReport: (weekOffset = 0) => api.get('/diaries/weekly-report', { params: { weekOffset } }),
+  monthlyReport: (monthOffset = 0) => api.get('/diaries/monthly-report', { params: { monthOffset } }),
   following: (page = 1, size = 20) => api.get('/diaries/following', { params: { page, size } }),
   delete: (id: number) => api.delete(`/diaries/${id}`),
   deleteComment: (diaryId: number, commentId: number) => api.delete(`/diaries/${diaryId}/comments/${commentId}`),

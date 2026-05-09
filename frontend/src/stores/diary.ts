@@ -165,6 +165,19 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
+  const monthlyReport = ref<WeeklyReport | null>(null)
+  const monthLoading = ref(false)
+
+  async function fetchMonthlyReport(monthOffset = 0) {
+    monthLoading.value = true
+    try {
+      const res = await diaryApi.monthlyReport(monthOffset)
+      monthlyReport.value = res.data.data
+    } finally {
+      monthLoading.value = false
+    }
+  }
+
   function mergeDiary(updated: Diary) {
     replaceIn(myDiaries, updated)
     replaceIn(publicDiaries, updated)
@@ -182,9 +195,9 @@ export const useDiaryStore = defineStore('diary', () => {
 
   return {
     myDiaries, publicDiaries, activeDiary, similarDiaries, loading, saving, errorMessage,
-    hasMore, weeklyReport, reportLoading,
+    hasMore, weeklyReport, reportLoading, monthlyReport, monthLoading,
     fetchDiaries, loadMorePublic, createDiary, loadSimilar, addComment, resonate, deleteDiary,
-    fetchWeeklyReport, normalize,
+    fetchWeeklyReport, fetchMonthlyReport, normalize,
   }
 })
 

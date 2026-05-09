@@ -5,8 +5,20 @@
     <div class="report-page">
       <h2>情绪报告</h2>
 
-      <!-- 本周报告：周选择器 -->
-      <section class="report-section">
+      <!-- 周/月切换 -->
+      <div class="report-mode-tabs">
+        <button
+          :class="['mode-tab', { active: mode === 'week' }]"
+          @click="switchMode('week')"
+        >周报</button>
+        <button
+          :class="['mode-tab', { active: mode === 'month' }]"
+          @click="switchMode('month')"
+        >月报</button>
+      </div>
+
+      <!-- ==================== 周报 ==================== -->
+      <section v-if="mode === 'week'" class="report-section">
         <div class="report-header">
           <h3>本周报告</h3>
           <div class="week-nav">
@@ -46,6 +58,60 @@
 
             <h4>AI 周总结</h4>
             <p class="ai-summary">{{ report.aiSummary }}</p>
+          </div>
+        </template>
+      </section>
+
+      <!-- ==================== 月报 ==================== -->
+      <section v-if="mode === 'month'" class="report-section">
+        <div class="report-header">
+          <h3>本月报告</h3>
+          <div class="week-nav">
+            <n-button text circle @click="prevMonth">&larr;</n-button>
+            <span class="week-label">{{ monthReport?.weekLabel ?? '' }}</span>
+            <n-button text circle :disabled="monthOffset === 0" @click="nextMonth">&rarr;</n-button>
+          </div>
+        </div>
+
+        <div v-if="monthReport && monthReport.diaryCount === 0" class="empty-state">
+          <p>本月还没有记录，去写一篇吧～</p>
+        </div>
+
+        <template v-if="monthReport && monthReport.diaryCount > 0">
+          <div class="report-detail">
+            <h4>情绪走向</h4>
+            <svg class="sparkline" :viewBox="'0 0 ' + sparklineW + ' 60'" preserveAspectRatio="none">
+              <polyline
+                :points="sparklinePoints"
+                fill="none"
+                stroke="#4a7c62"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <polygon
+                :points="sparklineArea"
+                fill="url(#sparkGrad)"
+              />
+              <defs>
+                <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#4a7c62" stop-opacity="0.25" />
+                  <stop offset="100%" stop-color="#4a7c62" stop-opacity="0.02" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="sparkline-labels">
+              <span>{{ sparklineFirst }}</span>
+              <span>{{ sparklineLast }}</span>
+            </div>
+
+            <h4>本月话题</h4>
+            <div class="topic-cloud">
+              <n-tag v-for="(count, topic) in monthReport.topicCounts" :key="topic" type="info" round>{{ topic }} × {{ count }}</n-tag>
+            </div>
+
+            <h4>AI 月总结</h4>
+            <p class="ai-summary">{{ monthReport.aiSummary }}</p>
           </div>
         </template>
       </section>
@@ -112,25 +178,62 @@ import { summaryApi } from '../api'
 
 const router = useRouter()
 const store = useDiaryStore()
+
+const mode = ref<'week' | 'month'>('week')
 const weekOffset = ref(0)
+const monthOffset = ref(0)
 const creating = ref(false)
 const startDate = ref<number | null>(null)
 const endDate = ref<number | null>(null)
 const summaries = ref<any[]>([])
 
 const report = computed(() => store.weeklyReport)
+const monthReport = computed(() => store.monthlyReport)
 
 onMounted(() => {
   store.fetchWeeklyReport(weekOffset.value)
+  store.fetchMonthlyReport(monthOffset.value)
   loadSummaries()
 })
 
-watch(weekOffset, (val) => {
-  store.fetchWeeklyReport(val)
-})
+watch(weekOffset, (val) => { store.fetchWeeklyReport(val) })
+watch(monthOffset, (val) => { store.fetchMonthlyReport(val) })
+
+function switchMode(m: 'week' | 'month') { mode.value = m }
 
 function prevWeek() { weekOffset.value-- }
 function nextWeek() { weekOffset.value++ }
+function prevMonth() { monthOffset.value-- }
+function nextMonth() { monthOffset.value++ }
+
+// ── SVG sparkline ──
+const sparklineW = 300
+
+const sparklinePoints = computed(() => {
+  const moods = monthReport.value?.dailyMoods ?? []
+  if (moods.length === 0) return ''
+  const step = sparklineW / Math.max(moods.length - 1, 1)
+  return moods.map((d, i) => {
+    const x = Math.round(i * step)
+    const y = Math.round(54 - (d.moodIntensity / 5) * 48)
+    return `${x},${y}`
+  }).join(' ')
+})
+
+const sparklineArea = computed(() => {
+  const pts = sparklinePoints.value
+  if (!pts) return ''
+  return `0,60 ${pts} ${sparklineW},60`
+})
+
+const sparklineFirst = computed(() => {
+  const moods = monthReport.value?.dailyMoods ?? []
+  return moods.length > 0 ? formatDay(moods[0].date) : ''
+})
+const sparklineLast = computed(() => {
+  const moods = monthReport.value?.dailyMoods ?? []
+  return moods.length > 0 ? formatDay(moods[moods.length - 1].date) : ''
+})
 
 async function createCustom() {
   if (!startDate.value || !endDate.value) return
