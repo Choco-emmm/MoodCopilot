@@ -55,7 +55,7 @@ src/main/java/com/moodcopilot/
 ├── auth/            AuthController、AuthService、RegisterRequest/LoginRequest/AuthResponse
 ├── common/          ApiResponse<T> 统一响应包装 { code, message, data }
 ├── config/          SecurityConfig、MybatisPlusConfig
-├── diary/           DiaryController、DiaryService、DiaryView、DiaryComment、CreateDiaryRequest
+├── diary/           DiaryController、DiaryService、DiaryView、DiaryComment、WeeklyReportView、CreateDiaryRequest
 ├── entity/          MyBatis-Plus 实体：UserEntity、DiaryEntity（@TableLogic）、DiaryAnalysisEntity、
 │                    DiaryCommentEntity、DiaryResonanceEntity、NotificationEntity
 ├── health/          HealthController
@@ -71,7 +71,7 @@ src/
 ├── api/index.ts         Axios 实例，拦截器（JWT 附加、401/403→跳到/login）、diaryApi、authApi、notificationApi
 ├── components/          7 个组件：AppHeader、DiaryComposer、AiAnalysisCard、
 │                        SimilarDiariesPanel、MyDiaryList、PublicFeed、DiaryFeedItem
-├── pages/               HomePage、LoginPage、RegisterPage、DiaryDetailPage
+├── pages/               HomePage、LoginPage、RegisterPage、DiaryDetailPage、WeeklyReportPage
 ├── router/index.ts      4 条路由，beforeEach 守卫（requiresAuth→跳转/login）
 ├── stores/              auth.ts（JWT token+用户）、diary.ts（增删改+分页+轮询）、notification.ts
 └── styles.css           全局 CSS（无 scoped 样式）
@@ -85,7 +85,7 @@ src/
 | POST | `/api/auth/register`、`/api/auth/login` | 否 |
 | GET | `/api/auth/me` | 是 |
 | POST | `/api/diaries` | 是 |
-| GET | `/api/diaries/mine`、`/api/diaries/public?page=&size=` | 是 |
+| GET | `/api/diaries/mine`、`/api/diaries/public?page=&size=`、`/api/diaries/weekly-report?weekOffset=` | 是 |
 | GET | `/api/diaries/{id}`、`/api/diaries/{id}/similar?limit=` | 是 |
 | POST | `/api/diaries/{id}/comments`（body: `{content, parentCommentId}`） | 是 |
 | POST | `/api/diaries/{id}/resonance` | 是 |
