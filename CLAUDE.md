@@ -144,6 +144,26 @@ MyBatis-Plus 配置：`is_deleted` 字段使用 `@TableLogic`，主键使用 `@T
 - 总结库 `diary_summaries` 的 `diary_ids` JSON 列存关联日记 ID，`SummaryView.diaryIds` 返回到前端
 - 自定义总结卡片底部显示可点击的日记链接
 
+### Docker 部署
+
+```bash
+docker compose up -d    # 启动全栈（MySQL + Redis + 后端 + 前端）
+# 前端 http://localhost:80
+# 后端 http://localhost:18080
+```
+
+### 匿名鼓励
+
+- `GET /api/diaries/encourage-candidates/{id}` — AI 生成 3 句匿名鼓励候选
+- `POST /api/diaries/encourage/{id}` — 发送选中的鼓励 (body: `{message}`)
+- 通知类型 `ENCOURAGEMENT`，不暴露发送者身份
+
+### 每日跟进 + 今日同频
+
+- `GET /api/diaries/today-status` — 返回今日记录状态、连续天数、昨天情绪
+- `GET /api/diaries/today-match` — 推荐一篇情绪相似的公开日记
+- 广场顶部显示状态卡片和同频推荐
+
 ### 设计系统
 
 - **纸墨之间 (Between Ink & Paper)**：纸质纹理（SVG 噪点）+ 墨色层次 + 楷体标题 + 印章红点缀 + 玉绿行动色
