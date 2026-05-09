@@ -20,6 +20,7 @@ public class DiarySummaryEntity {
     private String moodsJson;
     private String topicsJson;
     private Integer diaryCount;
+    private String diaryIds;
     private LocalDateTime createdAt;
 
     public Long getId() { return id; }
@@ -48,6 +49,9 @@ public class DiarySummaryEntity {
 
     public Integer getDiaryCount() { return diaryCount; }
     public void setDiaryCount(Integer diaryCount) { this.diaryCount = diaryCount; }
+
+    public String getDiaryIds() { return diaryIds; }
+    public void setDiaryIds(String diaryIds) { this.diaryIds = diaryIds; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

@@ -740,6 +740,17 @@ h2 {
 
 .mood-chart { display: grid; gap: 8px; }
 
+.mood-bar-row-clickable {
+  cursor: pointer;
+  transition: background 0.15s;
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  margin: 0 -6px;
+}
+.mood-bar-row-clickable:hover {
+  background: var(--color-surface-hover);
+}
+
 .mood-bar-row {
   display: grid;
   grid-template-columns: 48px 1fr 64px;
@@ -782,6 +793,21 @@ h2 {
 .report-detail {
   display: grid;
   gap: 14px;
+}
+
+.summary-diary-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding-top: 4px;
+  border-top: 1px solid var(--color-border);
+}
+
+.summary-diary-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-right: 4px;
 }
 
 /* ── Following page ── */

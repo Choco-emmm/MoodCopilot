@@ -14,7 +14,8 @@ public record WeeklyReportView(
     public record DailyMood(
             LocalDate date,
             String moodLabel,
-            int moodIntensity
+            int moodIntensity,
+            List<Long> diaryIds
     ) {
     }
 }

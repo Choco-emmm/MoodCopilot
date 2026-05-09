@@ -281,7 +281,8 @@ public class DiaryService {
                 dailyMoods.add(new WeeklyReportView.DailyMood(
                         diary.getCreatedAt().toLocalDate(),
                         analysis.moodLabel(),
-                        analysis.moodIntensity()
+                        analysis.moodIntensity(),
+                        List.of(diary.getId())
                 ));
                 for (String topic : analysis.topicLabels()) {
                     topicCounts.merge(topic, 1, Integer::sum);

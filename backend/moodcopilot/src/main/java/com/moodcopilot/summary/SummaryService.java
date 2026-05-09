@@ -67,10 +67,12 @@ public class SummaryService {
         List<String> contents = new ArrayList<>();
         List<DiaryAnalysis> analyses = new ArrayList<>();
         List<DailyMood> dailyMoods = new ArrayList<>();
+        List<Long> diaryIds = new ArrayList<>();
         Map<String, Integer> topicCounts = new LinkedHashMap<>();
 
         for (DiaryEntity diary : diaries) {
             contents.add(diary.getContent());
+            diaryIds.add(diary.getId());
             DiaryAnalysisEntity analysisEntity = diaryAnalysisMapper.selectById(diary.getId());
             if (analysisEntity != null) {
                 DiaryAnalysis a = new DiaryAnalysis(
@@ -81,7 +83,7 @@ public class SummaryService {
                         analysisEntity.getFeedback()
                 );
                 analyses.add(a);
-                dailyMoods.add(new DailyMood(diary.getCreatedAt().toLocalDate(), a.moodLabel(), a.moodIntensity()));
+                dailyMoods.add(new DailyMood(diary.getCreatedAt().toLocalDate(), a.moodLabel(), a.moodIntensity(), List.of(diary.getId())));
                 for (String topic : a.topicLabels()) {
                     topicCounts.merge(topic, 1, Integer::sum);
                 }
@@ -109,6 +111,7 @@ public class SummaryService {
         try {
             entity.setMoodsJson(objectMapper.writeValueAsString(dailyMoods));
             entity.setTopicsJson(objectMapper.writeValueAsString(sortedTopics));
+            entity.setDiaryIds(objectMapper.writeValueAsString(diaryIds));
         } catch (Exception ignored) {}
         summaryMapper.insert(entity);
 

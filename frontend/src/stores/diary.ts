@@ -34,6 +34,7 @@ export interface DailyMood {
   date: string
   moodLabel: string
   moodIntensity: number
+  diaryIds?: number[]
 }
 
 export interface DiaryComment {

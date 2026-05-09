@@ -24,7 +24,12 @@
           <div class="report-detail">
             <h4>情绪趋势</h4>
             <div class="mood-chart">
-              <div v-for="day in report.dailyMoods" :key="day.date" class="mood-bar-row">
+              <div
+                v-for="day in report.dailyMoods"
+                :key="day.date + '-' + (day.diaryIds?.[0] ?? '')"
+                class="mood-bar-row mood-bar-row-clickable"
+                @click="goDiary(day.diaryIds)"
+              >
                 <span class="mood-date">{{ formatDay(day.date) }}</span>
                 <div class="mood-bar-track">
                   <div class="mood-bar" :style="{ width: (day.moodIntensity / 5) * 100 + '%', background: moodColor(day.moodLabel) }" />
@@ -40,9 +45,6 @@
 
             <h4>AI 周总结</h4>
             <p class="ai-summary">{{ report.aiSummary }}</p>
-            <div class="summary-actions">
-              <n-button size="small" type="primary" :loading="saving" @click="saveToLibrary">保存到总结库</n-button>
-            </div>
           </div>
         </template>
       </section>
@@ -82,6 +84,17 @@
               </div>
             </div>
             <p class="summary-body">{{ s.aiSummary }}</p>
+            <div v-if="s.diaryIds?.length" class="summary-diary-links">
+              <span class="summary-diary-label">相关日记：</span>
+              <n-button
+                v-for="did in s.diaryIds"
+                :key="did"
+                size="tiny"
+                text
+                type="primary"
+                @click="router.push('/diary/' + did)"
+              >#{{ did }}</n-button>
+            </div>
           </article>
         </div>
       </section>
@@ -91,14 +104,15 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { NButton, NTag, NDatePicker } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import { useDiaryStore } from '../stores/diary'
 import { summaryApi } from '../api'
 
+const router = useRouter()
 const store = useDiaryStore()
 const weekOffset = ref(0)
-const saving = ref(false)
 const creating = ref(false)
 const startDate = ref<number | null>(null)
 const endDate = ref<number | null>(null)
@@ -117,22 +131,6 @@ watch(weekOffset, (val) => {
 
 function prevWeek() { weekOffset.value-- }
 function nextWeek() { weekOffset.value++ }
-
-async function saveToLibrary() {
-  if (!report.value) return
-  saving.value = true
-  try {
-    const now = new Date()
-    const monday = new Date(now)
-    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7))
-    monday.setDate(monday.getDate() + weekOffset.value * 7)
-    const sunday = new Date(monday)
-    sunday.setDate(monday.getDate() + 6)
-    const iso = (d: Date) => d.toISOString().split('T')[0]
-    await summaryApi.create({ startDate: iso(monday), endDate: iso(sunday) })
-    await loadSummaries()
-  } finally { saving.value = false }
-}
 
 async function createCustom() {
   if (!startDate.value || !endDate.value) return
@@ -164,6 +162,16 @@ function moodColor(label: string) {
     '疲惫': '#9cb4a8', '轻松': '#7db89a', '平静': '#4f8f7c',
   }
   return map[label] || '#9cb4a8'
+}
+
+function goDiary(ids?: number[]) {
+  if (!ids?.length) return
+  if (ids.length === 1) {
+    router.push('/diary/' + ids[0])
+  } else {
+    // 当天有多篇日记，跳转到第一篇，后续可优化为弹出选择
+    router.push('/diary/' + ids[0])
+  }
 }
 
 function formatDay(dateStr: string) {
