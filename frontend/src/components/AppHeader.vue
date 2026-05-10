@@ -1,7 +1,12 @@
 <template>
   <header class="masthead">
     <div class="masthead-top">
-      <router-link to="/" class="brand-mark">MoodCopilot</router-link>
+      <router-link to="/" class="brand-mark">
+        <svg class="brand-mark-icon" width="20" height="16" viewBox="0 0 20 16" fill="none">
+          <path d="M2 14 L6 2 L10 10 L14 2 L18 14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        MoodCopilot
+      </router-link>
       <nav class="masthead-nav">
         <template v-if="auth.isAuthenticated">
           <div class="nav-links desktop-only">
