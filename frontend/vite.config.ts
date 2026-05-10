@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => {
     plugins: [vue()],
     server: {
       port: 5173,
+      allowedHosts: ['moodcopilot.dpdns.org', '.dpdns.org'],
       proxy: {
         '/api': apiTarget,
       },
