@@ -20,5 +20,6 @@ const tabs = [
   { path: '/chat', label: 'AI', icon: '💬' },
   { path: '/following', label: '关注', icon: '👥' },
   { path: '/report', label: '报告', icon: '📊' },
+  { path: '/settings', label: '我的', icon: '👤' },
 ]
 </script>
