@@ -2,11 +2,6 @@
   <div class="auth-page">
     <div class="auth-card">
       <h1 class="auth-title">MoodCopilot</h1>
-      <div class="auth-logo">
-        <svg width="28" height="22" viewBox="0 0 20 16" fill="none">
-          <path d="M2 14 L6 2 L10 10 L14 2 L18 14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
       <p class="auth-sub">登录你的情绪日记</p>
       <n-alert v-if="errorMsg" type="error" :title="errorMsg" style="margin-bottom: 16px" />
       <n-form ref="formRef" :model="form" :rules="rules" size="large">
