@@ -1608,3 +1608,55 @@ h2 {
   .today-panel { grid-template-columns: 1fr; }
   .today-side { border-left: none; border-top: 1px solid var(--color-border); }
 }
+
+/* ═══════════════════════════════════════════
+   底部 Tab 栏（PWA 移动端导航）
+   ═══════════════════════════════════════════ */
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 56px;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.bottom-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0;
+  text-decoration: none;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-tab-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.bottom-tab-label {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.bottom-tab-active {
+  color: var(--color-jade);
+}
+
+/* 给有底部导航的页面留出底部 padding */
+body.has-bottom-nav .app-shell {
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0));
+}
