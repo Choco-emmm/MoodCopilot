@@ -14,8 +14,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/diaries")
 public class DiaryController {
@@ -116,20 +114,18 @@ public class DiaryController {
         return ApiResponse.ok(diaryService.communityMood());
     }
 
-    @GetMapping("/encourage-candidates/{id}")
+    @GetMapping("/{id}/encourage-candidates")
     public ApiResponse<List<String>> encourageCandidates(@PathVariable long id) {
         return ApiResponse.ok(diaryService.generateEncouragements(id));
     }
 
-    @PostMapping("/encourage/{id}")
-    public ApiResponse<DiaryView> sendEncouragement(
-            @PathVariable long id,
-            @RequestBody Map<String, String> body) {
-        return ApiResponse.ok(diaryService.sendEncouragement(id, body.get("message")));
-    }
-
     @PostMapping("/{id}/resonance")
-    public ApiResponse<DiaryView> resonate(@PathVariable("id") long id) {
+    public ApiResponse<DiaryView> resonate(
+            @PathVariable("id") long id,
+            @RequestBody(required = false) Map<String, String> body) {
+        if (body != null && body.containsKey("message")) {
+            return ApiResponse.ok(diaryService.sendEncouragement(id, body.get("message")));
+        }
         return ApiResponse.ok(diaryService.resonate(id));
     }
 

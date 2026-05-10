@@ -525,13 +525,13 @@ public class DiaryService {
         if (comment == null || !comment.getDiaryId().equals(diaryId)) {
             throw new ResponseStatusException(NOT_FOUND, "评论不存在");
         }
-        if (!comment.getAuthorName().equals(currentUser().getDisplayName())) {
+        if (!comment.getAuthorUserId().equals(currentUser().getId())) {
             throw new ResponseStatusException(FORBIDDEN, "只能删除自己的评论");
         }
         diaryCommentMapper.deleteById(commentId);
     }
 
-    private static String snippet(String content) {
+    public static String snippet(String content) {
         if (content == null || content.isEmpty()) return "";
         return content.length() > 30 ? content.substring(0, 30) : content;
     }

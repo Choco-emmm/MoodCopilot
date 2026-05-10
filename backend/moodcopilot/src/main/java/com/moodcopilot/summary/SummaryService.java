@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.AiAnalysisService;
 import com.moodcopilot.diary.DiaryAnalysis;
+import com.moodcopilot.diary.DiaryService;
 import com.moodcopilot.diary.WeeklyReportView.DailyMood;
 import com.moodcopilot.entity.*;
 import com.moodcopilot.mapper.DiaryAnalysisMapper;
@@ -83,7 +84,7 @@ public class SummaryService {
                         analysisEntity.getFeedback()
                 );
                 analyses.add(a);
-                dailyMoods.add(new DailyMood(diary.getCreatedAt().toLocalDate(), a.moodLabel(), a.moodIntensity(), List.of(diary.getId()), snippet(diary.getContent())));
+                dailyMoods.add(new DailyMood(diary.getCreatedAt().toLocalDate(), a.moodLabel(), a.moodIntensity(), List.of(diary.getId()), DiaryService.snippet(diary.getContent())));
                 for (String topic : a.topicLabels()) {
                     topicCounts.merge(topic, 1, Integer::sum);
                 }
@@ -135,11 +136,6 @@ public class SummaryService {
             throw new ResponseStatusException(NOT_FOUND, "总结不存在");
         }
         summaryMapper.deleteById(id);
-    }
-
-    private static String snippet(String content) {
-        if (content == null || content.isEmpty()) return "";
-        return content.length() > 30 ? content.substring(0, 30) : content;
     }
 
     private UserEntity currentUser() {
