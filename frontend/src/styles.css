@@ -1611,22 +1611,29 @@ h2 {
 
 /* ═══════════════════════════════════════════
    底部 Tab 栏（PWA 移动端导航）
+   桌面端隐藏，移动端（≤768px）显示
    ═══════════════════════════════════════════ */
 
 .bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  height: 56px;
-  padding-bottom: env(safe-area-inset-bottom, 0);
-  background: var(--color-surface);
-  border-top: 1px solid var(--color-border);
-  box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.04);
+  display: none; /* 桌面端隐藏 */
+}
+
+@media (max-width: 768px) {
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    height: 56px;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.04);
+  }
 }
 
 .bottom-tab {
@@ -1656,7 +1663,40 @@ h2 {
   color: var(--color-jade);
 }
 
-/* 给有底部导航的页面留出底部 padding */
-body.has-bottom-nav .app-shell {
-  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0));
+/* ═══════════════════════════════════════════
+   响应式：桌面 vs 移动端
+   ═══════════════════════════════════════════ */
+
+/* 桌面端显示 */
+.desktop-only {
+  display: revert;
+}
+
+/* 移动端显示 */
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: revert;
+  }
+
+  /* 移动端底部留出 Tab 栏高度 */
+  .app-shell {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0));
+  }
+
+  /* 移动端缩小 masthead */
+  .masthead {
+    padding: 12px 0 8px;
+  }
+
+  .masthead-top {
+    margin-bottom: 0;
+  }
 }

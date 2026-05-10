@@ -105,7 +105,10 @@ function renderMd(text: string) {
   return marked.parse(text, { async: false }) as string
 }
 
-const API = 'http://localhost:18080/api'
+// 本地用直连绕过 Vite 代理避免 SSE 缓冲；远程走同源 /api（Cloudflare 隧道路由到后端）
+const API = window.location.hostname === 'localhost'
+  ? 'http://localhost:18080/api'
+  : window.location.origin + '/api'
 
 const router = useRouter()
 const conversations = ref<Conversation[]>([])

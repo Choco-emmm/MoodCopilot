@@ -4,6 +4,15 @@
       <router-link to="/" class="brand-mark">MoodCopilot</router-link>
       <nav class="masthead-nav">
         <template v-if="auth.isAuthenticated">
+          <div class="nav-links desktop-only">
+            <router-link
+              v-for="item in navItems"
+              :key="item.path"
+              :to="item.path"
+              :class="['nav-link', item.cls, { active: route.path === item.path }]"
+            >{{ item.label }}</router-link>
+          </div>
+          <div class="nav-sep desktop-only" />
           <n-popover trigger="click" placement="bottom-end" @update:show="onPopoverShow">
             <template #trigger>
               <n-badge :value="notif.unreadCount" :max="99" :show="notif.unreadCount > 0">
@@ -29,6 +38,7 @@
             </div>
           </n-popover>
           <span class="masthead-user">{{ auth.displayName }}</span>
+          <n-button text size="small" class="nav-logout desktop-only" @click="handleLogout">退出</n-button>
         </template>
         <template v-else>
           <n-button text type="primary" @click="router.push('/login')">登录</n-button>
@@ -36,6 +46,8 @@
         </template>
       </nav>
     </div>
+    <h1 class="desktop-only">写下今天，慢慢理解自己。</h1>
+    <p class="subtitle desktop-only">AI 先帮你看见情绪；当你愿意时，再把你温和地连接给相似心情的人。</p>
   </header>
 </template>
 
@@ -46,8 +58,17 @@ import { useAuthStore } from '../stores/auth'
 import { useNotificationStore, type Notification } from '../stores/notification'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const notif = useNotificationStore()
+
+const navItems = [
+  { label: '广场', path: '/' },
+  { label: '写日记', path: '/write' },
+  { label: 'AI 小情绪', path: '/chat', cls: 'nav-link-ai' },
+  { label: '关注', path: '/following' },
+  { label: '报告', path: '/report' },
+]
 
 notif.fetchUnreadCount()
 
