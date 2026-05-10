@@ -125,7 +125,7 @@ public class DiaryService {
                         .eq(DiaryEntity::getAuthorUserId, currentUser().getId())
                         .orderByDesc(DiaryEntity::getCreatedAt)
         );
-        return diaries.stream().map(this::toDiaryView).toList();
+        return diaries.stream().map(this::toOwnDiaryView).toList();
     }
 
     public Page<DiaryView> publicDiaries(int page, int size) {
@@ -163,7 +163,9 @@ public class DiaryService {
         DiaryEntity diary = findDiary(id);
         DiaryAnalysisEntity analysis = findAnalysis(id);
         List<DiaryCommentEntity> comments = findComments(id);
-        return DiaryView.from(diary, analysis, comments);
+        boolean isOwner = diary.getAuthorUserId().equals(currentUser().getId());
+        return isOwner ? DiaryView.from(diary, analysis, comments)
+                       : DiaryView.fromPublic(diary, analysis, comments);
     }
 
     public List<DiaryView> similar(long id, int limit) {
@@ -432,7 +434,7 @@ public class DiaryService {
 
         DiaryAnalysisEntity analysis = findAnalysis(diaryId);
         List<DiaryCommentEntity> comments = findComments(diaryId);
-        return DiaryView.from(diary, analysis, comments);
+        return DiaryView.fromPublic(diary, analysis, comments);
     }
 
     @Transactional
@@ -463,10 +465,22 @@ public class DiaryService {
 
         DiaryAnalysisEntity analysis = findAnalysis(diaryId);
         List<DiaryCommentEntity> comments = findComments(diaryId);
-        return DiaryView.from(diary, analysis, comments);
+        return DiaryView.fromPublic(diary, analysis, comments);
     }
 
+    /** 公开视图：隐藏强度、AI 摘要和反馈，仅暴露情绪标签和主题 */
     private DiaryView toDiaryView(DiaryEntity diary) {
+        DiaryAnalysisEntity analysis = diaryAnalysisMapper.selectById(diary.getId());
+        List<DiaryCommentEntity> comments = diaryCommentMapper.selectList(
+                new LambdaQueryWrapper<DiaryCommentEntity>()
+                        .eq(DiaryCommentEntity::getDiaryId, diary.getId())
+                        .orderByAsc(DiaryCommentEntity::getCreatedAt)
+        );
+        return DiaryView.fromPublic(diary, analysis, comments);
+    }
+
+    /** 本人视图：包含完整的 AI 分析数据 */
+    private DiaryView toOwnDiaryView(DiaryEntity diary) {
         DiaryAnalysisEntity analysis = diaryAnalysisMapper.selectById(diary.getId());
         List<DiaryCommentEntity> comments = diaryCommentMapper.selectList(
                 new LambdaQueryWrapper<DiaryCommentEntity>()

@@ -246,29 +246,40 @@ async function send() {
     scrollBottom()
   }
 
+  let handled = false
+
   xhr.onloadend = () => {
+    if (handled) return
+    handled = true
     if (displayText) {
       messages.value.push({ role: 'ai', content: displayText })
     } else {
       messages.value.push({ role: 'ai', content: '抱歉，我暂时无法回复，请稍后再试。' })
     }
-    saveToBackend(convId)
-    streaming.value = false
-    streamingText.value = ''
-    scrollBottom()
-    // 刷新会话列表以更新顺序
-    loadConversations()
+    finishSend(convId)
   }
 
   xhr.onerror = () => {
-    messages.value.push({ role: 'ai', content: '抱歉，网络错误，请稍后再试。' })
-    saveToBackend(convId)
-    streaming.value = false
-    streamingText.value = ''
+    if (handled) return
+    handled = true
+    if (displayText) {
+      messages.value.push({ role: 'ai', content: displayText })
+    } else {
+      messages.value.push({ role: 'ai', content: '抱歉，网络错误，请稍后再试。' })
+    }
+    finishSend(convId)
   }
 
   const refContents = references.value.map(r => r.content)
   xhr.send(JSON.stringify({ message: content, references: refContents }))
+}
+
+function finishSend(convId: number) {
+  saveToBackend(convId)
+  streaming.value = false
+  streamingText.value = ''
+  scrollBottom()
+  loadConversations()
 }
 
 function scrollBottom() {

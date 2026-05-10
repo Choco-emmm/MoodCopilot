@@ -1,5 +1,5 @@
 <template>
-  <div v-if="items.length > 0" class="ref-bar">
+  <div class="ref-bar">
     <div v-for="(item, i) in items" :key="i" class="ref-chip">
       <span class="ref-chip-label">{{ item.label }}</span>
       <button class="ref-chip-remove" @click="$emit('remove', i)">×</button>

@@ -21,19 +21,43 @@ public record DiaryView(
         List<DiaryComment> comments
 ) {
     static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments) {
+        return build(diary, analysis, comments, false);
+    }
+
+    /** 公开视图：仅暴露情绪标签和主题，不暴露强度、摘要、反馈 */
+    static DiaryView fromPublic(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments) {
+        return build(diary, analysis, comments, true);
+    }
+
+    private static DiaryView build(DiaryEntity diary, DiaryAnalysisEntity analysis,
+                                    List<DiaryCommentEntity> comments, boolean isPublic) {
+        DiaryAnalysis viewAnalysis = null;
+        if (analysis != null) {
+            if (isPublic) {
+                viewAnalysis = new DiaryAnalysis(
+                        analysis.getMoodLabel(),
+                        0,
+                        analysis.getTopicLabelsJson(),
+                        null,
+                        null
+                );
+            } else {
+                viewAnalysis = new DiaryAnalysis(
+                        analysis.getMoodLabel(),
+                        analysis.getMoodIntensity(),
+                        analysis.getTopicLabelsJson(),
+                        analysis.getSummary(),
+                        analysis.getFeedback()
+                );
+            }
+        }
         return new DiaryView(
                 diary.getId(),
                 diary.getAuthorUserId(),
                 diary.getAuthorName(),
                 diary.getContent(),
                 DiaryVisibility.valueOf(diary.getVisibility()),
-                analysis != null ? new DiaryAnalysis(
-                        analysis.getMoodLabel(),
-                        analysis.getMoodIntensity(),
-                        analysis.getTopicLabelsJson(),
-                        analysis.getSummary(),
-                        analysis.getFeedback()
-                ) : null,
+                viewAnalysis,
                 diary.getCreatedAt(),
                 diary.getResonanceCount(),
                 buildCommentTree(comments)
