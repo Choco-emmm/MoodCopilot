@@ -58,7 +58,7 @@ export const authApi = {
   login: (data: { email: string; password: string }) => api.post('/auth/login', data),
   me: () => api.get('/auth/me'),
   updateProfile: (data: { displayName?: string; avatar?: string }) =>
-    api.put('/auth/profile', data),
+    api.post('/auth/update-profile', data),
   uploadAvatar: (file: File) => {
     const fd = new FormData()
     fd.append('file', file)

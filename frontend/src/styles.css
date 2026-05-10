@@ -186,6 +186,9 @@ button, textarea, input { font: inherit; }
 }
 
 .masthead-user-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--color-text-secondary);
   font-size: 13px;
   font-weight: 600;
@@ -195,6 +198,26 @@ button, textarea, input { font: inherit; }
 
 .masthead-user-link:hover {
   color: var(--color-jade);
+}
+
+.avatar-sm-nav {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-jade-light);
+  color: var(--color-jade);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.user-link-arrow {
+  font-size: 16px;
+  color: var(--color-text-muted);
+  font-weight: 400;
 }
 
 .eyebrow {

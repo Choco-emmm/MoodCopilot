@@ -37,7 +37,11 @@
               </div>
             </div>
           </n-popover>
-          <router-link to="/settings" class="masthead-user-link">{{ auth.displayName }}</router-link>
+          <router-link to="/settings" class="masthead-user-link">
+            <span class="avatar-sm-nav">{{ auth.displayName?.charAt(0) }}</span>
+            {{ auth.displayName }}
+            <span class="user-link-arrow">›</span>
+          </router-link>
           <n-button text size="small" class="nav-logout desktop-only" @click="handleLogout">退出</n-button>
         </template>
         <template v-else>

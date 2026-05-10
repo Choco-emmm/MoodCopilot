@@ -42,7 +42,7 @@ public class AuthController {
         return ApiResponse.ok(new AuthResponse(null, user.getId(), user.getDisplayName(), user.getAvatar(), user.getDailyNotifyEnabled()));
     }
 
-    @PutMapping("/profile")
+    @PostMapping("/update-profile")
     public ApiResponse<AuthResponse> updateProfile(@AuthenticationPrincipal UserEntity user,
                                                     @RequestBody Map<String, String> body) {
         String displayName = body.get("displayName");
