@@ -246,11 +246,7 @@ async function send() {
     scrollBottom()
   }
 
-  let handled = false
-
   xhr.onloadend = () => {
-    if (handled) return
-    handled = true
     if (displayText) {
       messages.value.push({ role: 'ai', content: displayText })
     } else {
@@ -259,16 +255,8 @@ async function send() {
     finishSend(convId)
   }
 
-  xhr.onerror = () => {
-    if (handled) return
-    handled = true
-    if (displayText) {
-      messages.value.push({ role: 'ai', content: displayText })
-    } else {
-      messages.value.push({ role: 'ai', content: '抱歉，网络错误，请稍后再试。' })
-    }
-    finishSend(convId)
-  }
+  // onerror 只作标记，onloadend 统一处理（SSE 断连也会触发 onerror）
+  xhr.onerror = () => { /* handled in onloadend */ }
 
   const refContents = references.value.map(r => r.content)
   xhr.send(JSON.stringify({ message: content, references: refContents }))

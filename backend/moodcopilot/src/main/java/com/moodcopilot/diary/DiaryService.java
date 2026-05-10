@@ -468,26 +468,23 @@ public class DiaryService {
         return DiaryView.fromPublic(diary, analysis, comments);
     }
 
-    /** 公开视图：隐藏强度、AI 摘要和反馈，仅暴露情绪标签和主题 */
     private DiaryView toDiaryView(DiaryEntity diary) {
-        DiaryAnalysisEntity analysis = diaryAnalysisMapper.selectById(diary.getId());
-        List<DiaryCommentEntity> comments = diaryCommentMapper.selectList(
-                new LambdaQueryWrapper<DiaryCommentEntity>()
-                        .eq(DiaryCommentEntity::getDiaryId, diary.getId())
-                        .orderByAsc(DiaryCommentEntity::getCreatedAt)
-        );
-        return DiaryView.fromPublic(diary, analysis, comments);
+        return buildDiaryView(diary, true);
     }
 
-    /** 本人视图：包含完整的 AI 分析数据 */
     private DiaryView toOwnDiaryView(DiaryEntity diary) {
+        return buildDiaryView(diary, false);
+    }
+
+    private DiaryView buildDiaryView(DiaryEntity diary, boolean isPublic) {
         DiaryAnalysisEntity analysis = diaryAnalysisMapper.selectById(diary.getId());
         List<DiaryCommentEntity> comments = diaryCommentMapper.selectList(
                 new LambdaQueryWrapper<DiaryCommentEntity>()
                         .eq(DiaryCommentEntity::getDiaryId, diary.getId())
                         .orderByAsc(DiaryCommentEntity::getCreatedAt)
         );
-        return DiaryView.from(diary, analysis, comments);
+        return isPublic ? DiaryView.fromPublic(diary, analysis, comments)
+                        : DiaryView.from(diary, analysis, comments);
     }
 
     private DiaryEntity findDiary(long id) {
