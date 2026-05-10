@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.AiAnalysisService;
+import com.moodcopilot.common.ContentFilter;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.follow.FollowService;
 import com.moodcopilot.entity.DiaryCommentEntity;
@@ -88,7 +89,7 @@ public class DiaryService {
         UserEntity user = currentUser();
         diary.setAuthorUserId(user.getId());
         diary.setAuthorName(user.getDisplayName());
-        diary.setContent(content);
+        diary.setContent(ContentFilter.filter(content));
         diary.setVisibility(visibility.name());
         diary.setResonanceCount(0);
         diary.setIsDeleted(false);
@@ -417,7 +418,7 @@ public class DiaryService {
         comment.setRootCommentId(resolveRootId(diaryId, request.parentCommentId()));
         comment.setAuthorUserId(commenter.getId());
         comment.setAuthorName(commenter.getDisplayName());
-        comment.setContent(content);
+        comment.setContent(ContentFilter.filter(content));
         comment.setIsDeleted(false);
         comment.setCreatedAt(LocalDateTime.now());
         comment.setUpdatedAt(LocalDateTime.now());
