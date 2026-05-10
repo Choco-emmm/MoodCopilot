@@ -1485,9 +1485,26 @@ h2 {
 }
 
 .today-side-text {
-  font-size: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mood-chip {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--color-bg);
   color: var(--color-text-secondary);
-  line-height: 1.6;
+  border: 1px solid var(--color-border);
+}
+
+.mood-chip em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--color-jade);
+  margin-left: 2px;
 }
 
 /* ── AI chat tease card (square page) ── */
