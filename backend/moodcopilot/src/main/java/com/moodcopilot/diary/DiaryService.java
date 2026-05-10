@@ -99,7 +99,7 @@ public class DiaryService {
         diary.setUpdatedAt(LocalDateTime.now());
         diaryMapper.insert(diary);
 
-        evictUserCache(user.getId());
+        evictUserCache();
 
         return DiaryView.from(diary, List.of());
     }
@@ -592,7 +592,7 @@ public class DiaryService {
             throw new ResponseStatusException(FORBIDDEN, "只能删除自己的日记");
         }
         diaryMapper.deleteById(diaryId);
-        evictUserCache(currentUser().getId());
+        evictUserCache();
     }
 
     @Transactional
@@ -828,19 +828,28 @@ public class DiaryService {
         }
     }
 
-    private void evictUserCache(long userId) {
-        try {
-            var keys = redisTemplate.keys("report:%d:*".formatted(userId));
-            if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
-            keys = redisTemplate.keys("report:monthly:%d:*".formatted(userId));
-            if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
-            keys = redisTemplate.keys("following:%d:*".formatted(userId));
-            if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
-            redisTemplate.delete("coaching:" + userId);
-            keys = redisTemplate.keys("public:diaries:*");
-            if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
-        } catch (Exception e) {
-            log.debug("Cache evict failed", e);
+    private void evictUserCache() {
+        Long userId = currentUser().getId();
+        // 精确删除已知 key，避免 KEYS 扫描
+        redisTemplate.delete("coaching:" + userId);
+        // 报告缓存：删除近 4 周周报 + 近 3 个月月报
+        for (int i = 0; i < 4; i++) {
+            redisTemplate.delete("report:" + userId + ":" + i);
+        }
+        for (int i = 0; i < 3; i++) {
+            redisTemplate.delete("report:monthly:" + userId + ":" + i);
+        }
+        // 公开流缓存：删除常见分页组合
+        for (int page = 1; page <= 5; page++) {
+            for (int size : new int[]{10, 20, 50}) {
+                redisTemplate.delete("public:diaries:" + page + ":" + size);
+            }
+        }
+        // 关注流缓存
+        for (int page = 1; page <= 5; page++) {
+            for (int size : new int[]{10, 20, 50}) {
+                redisTemplate.delete("following:" + userId + ":" + page + ":" + size);
+            }
         }
     }
 
