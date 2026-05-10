@@ -106,6 +106,16 @@ public class DiaryController {
         return ApiResponse.ok(diaryService.todayMatch());
     }
 
+    @GetMapping("/coaching")
+    public ApiResponse<Map<String, Object>> coachingPlan() {
+        return ApiResponse.ok(diaryService.coachingPlan());
+    }
+
+    @GetMapping("/community-mood")
+    public ApiResponse<Map<String, Integer>> communityMood() {
+        return ApiResponse.ok(diaryService.communityMood());
+    }
+
     @GetMapping("/encourage-candidates/{id}")
     public ApiResponse<List<String>> encourageCandidates(@PathVariable long id) {
         return ApiResponse.ok(diaryService.generateEncouragements(id));

@@ -149,6 +149,48 @@ public class AiAnalysisService {
         return "本月共记录了 " + count + " 篇日记，主要情绪为「" + topMood + "」。一个月的坚持不容易，继续记录，你会看见自己的成长轨迹。";
     }
 
+    // ── Coaching plan ──
+
+    private static final String COACHING_SYSTEM_PROMPT = """
+            You are a compassionate emotional wellness coach. Below are the user's recent diary entries with mood labels and topics. Write a gentle, personalized Chinese coaching suggestion (100-200 characters) that:
+            1. Acknowledges their recent emotional patterns
+            2. Suggests one small, concrete action they could try today
+            3. Is encouraging but not preachy
+            Return ONLY the Chinese text, no markdown, no JSON, no explanation.""";
+
+    public String generateCoaching(List<String> contents, List<DiaryAnalysis> analyses) {
+        if (contents.isEmpty()) return "还没有足够的日记数据，多记录几天后我会为你生成陪跑建议。";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < contents.size(); i++) {
+            DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
+            if (a != null) {
+                sb.append("情绪：").append(a.moodLabel())
+                  .append("，主题：").append(String.join("、", a.topicLabels())).append("\n");
+            }
+        }
+        try {
+            return analysisChatClient.prompt()
+                    .system(COACHING_SYSTEM_PROMPT)
+                    .user(sb.toString())
+                    .call()
+                    .content();
+        } catch (Exception e) {
+            log.warn("AI coaching failed: {}", e.getMessage());
+            String topMood = analyses.stream().filter(a -> a != null)
+                    .collect(java.util.stream.Collectors.groupingBy(DiaryAnalysis::moodLabel, java.util.stream.Collectors.counting()))
+                    .entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse("复杂");
+            return "你最近的情绪以「" + topMood + "」为主。试着每天给自己5分钟安静时间，不用想任何事，只是呼吸。";
+        }
+    }
+
+    // ── Community mood ──
+
+    public Map<String, Integer> communityMood(List<String> moodLabels) {
+        return moodLabels.stream()
+                .filter(m -> m != null)
+                .collect(java.util.stream.Collectors.groupingBy(m -> m, java.util.stream.Collectors.summingInt(m -> 1)));
+    }
+
     // ── Encouragement generation ──
 
     private static final String ENCOURAGEMENT_SYSTEM_PROMPT = """

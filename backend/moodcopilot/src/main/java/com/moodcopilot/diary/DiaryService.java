@@ -621,6 +621,45 @@ public class DiaryService {
         return null;
     }
 
+    // ── Coaching ──
+
+    public Map<String, Object> coachingPlan() {
+        UserEntity user = currentUser();
+        List<DiaryEntity> recent = diaryMapper.selectList(
+                new LambdaQueryWrapper<DiaryEntity>()
+                        .eq(DiaryEntity::getAuthorUserId, user.getId())
+                        .orderByDesc(DiaryEntity::getCreatedAt)
+                        .last("LIMIT 7")
+        );
+        List<String> contents = new ArrayList<>();
+        List<DiaryAnalysis> analyses = new ArrayList<>();
+        for (DiaryEntity d : recent) {
+            contents.add(d.getContent());
+            DiaryAnalysisEntity a = findAnalysis(d.getId());
+            if (a != null) analyses.add(new DiaryAnalysis(a.getMoodLabel(), a.getMoodIntensity(),
+                    a.getTopicLabelsJson(), a.getSummary(), a.getFeedback()));
+            else analyses.add(null);
+        }
+        String suggestion = aiAnalysisService.generateCoaching(contents, analyses);
+        return Map.of("suggestion", suggestion, "diaryCount", recent.size());
+    }
+
+    // ── Community mood ──
+
+    public Map<String, Integer> communityMood() {
+        List<DiaryEntity> todayPublic = diaryMapper.selectList(
+                new LambdaQueryWrapper<DiaryEntity>()
+                        .eq(DiaryEntity::getVisibility, "PUBLIC")
+                        .ge(DiaryEntity::getCreatedAt, LocalDate.now().atStartOfDay())
+        );
+        List<String> moods = new ArrayList<>();
+        for (DiaryEntity d : todayPublic) {
+            DiaryAnalysisEntity a = findAnalysis(d.getId());
+            if (a != null) moods.add(a.getMoodLabel());
+        }
+        return aiAnalysisService.communityMood(moods);
+    }
+
     // ── Encouragement ──
 
     public List<String> generateEncouragements(long diaryId) {

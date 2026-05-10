@@ -11,6 +11,11 @@
       </router-link>
     </div>
 
+    <div v-if="coaching" class="coaching-card">
+      <span class="coaching-label">陪跑建议</span>
+      <p class="coaching-text">{{ coaching.suggestion }}</p>
+    </div>
+
     <div v-if="status" class="daily-status" :class="{ done: status.todayHasDiary }">
       <span class="daily-status-icon">{{ status.todayHasDiary ? '&#9745;' : '&#9744;' }}</span>
       <span class="daily-status-text">
@@ -22,6 +27,13 @@
         </template>
       </span>
       <router-link v-if="!status.todayHasDiary" to="/write" class="daily-status-write">写日记</router-link>
+    </div>
+
+    <div v-if="moods && Object.keys(moods).length" class="community-mood-card">
+      <span class="community-mood-label">今日社区</span>
+      <span class="community-mood-text">
+        <template v-for="(count, mood) in moods" :key="mood">{{ mood }} {{ count }}人 </template>
+      </span>
     </div>
 
     <div class="chat-tease">
@@ -57,11 +69,15 @@ const router = useRouter()
 const store = useDiaryStore()
 const status = ref<{ todayHasDiary: boolean; streak: number; yesterdayMood: string } | null>(null)
 const matchDiary = ref<any>(null)
+const coaching = ref<{ suggestion: string; diaryCount: number } | null>(null)
+const moods = ref<Record<string, number> | null>(null)
 
 onMounted(async () => {
   store.fetchDiaries()
   try { const res = await diaryApi.todayStatus(); status.value = res.data.data } catch { /* ignore */ }
   try { const res = await diaryApi.todayMatch(); matchDiary.value = res.data.data } catch { /* ignore */ }
+  try { const res = await diaryApi.coaching(); coaching.value = res.data.data } catch { /* ignore */ }
+  try { const res = await diaryApi.communityMood(); moods.value = res.data.data } catch { /* ignore */ }
 })
 
 function selectDiary(diary: Diary) {

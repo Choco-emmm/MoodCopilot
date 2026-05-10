@@ -1201,6 +1201,54 @@ h2 {
 .chat-input-row { display: flex; gap: 10px; }
 .chat-input-row .n-input { flex: 1; }
 
+/* ── Coaching card ── */
+.coaching-card {
+  padding: 14px 18px;
+  border: 1px solid var(--color-accent-light);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #fef9f0, #fdf5f5);
+  margin-bottom: 12px;
+}
+
+.coaching-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--color-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.coaching-text {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+}
+
+/* ── Community mood card ── */
+.community-mood-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+}
+
+.community-mood-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.community-mood-text {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
 /* ── Today match card ── */
 .today-match {
   margin-bottom: 12px;
