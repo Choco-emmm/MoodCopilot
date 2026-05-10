@@ -122,7 +122,7 @@ public class DiaryService {
     }
 
     public List<DiaryView> myDiaries(int page, int size) {
-        size = Math.min(size, 50);
+        size = Math.min(50, Math.max(1, size));
         Long userId = currentUser().getId();
         Page<DiaryEntity> result = diaryMapper.selectPage(
                 Page.of(page, size),
@@ -134,7 +134,7 @@ public class DiaryService {
         Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(ids);
         Map<Long, List<DiaryCommentEntity>> commentMap = batchLoadComments(ids);
         return diaries.stream()
-                .map(d -> buildDiaryView(d, d.getAuthorUserId().equals(userId), analysisMap, commentMap))
+                .map(d -> buildDiaryView(d, false, analysisMap, commentMap))
                 .toList();
     }
 
@@ -518,10 +518,6 @@ public class DiaryService {
         return buildDiaryView(diary, true);
     }
 
-    private DiaryView toOwnDiaryView(DiaryEntity diary) {
-        return buildDiaryView(diary, false);
-    }
-
     private DiaryView buildDiaryView(DiaryEntity diary, boolean isPublic) {
         DiaryAnalysisEntity analysis = diaryAnalysisMapper.selectById(diary.getId());
         List<DiaryCommentEntity> comments = diaryCommentMapper.selectList(
@@ -728,9 +724,11 @@ public class DiaryService {
         );
         List<String> contents = new ArrayList<>();
         List<DiaryAnalysis> analyses = new ArrayList<>();
+        List<Long> recentIds = recent.stream().map(DiaryEntity::getId).toList();
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(recentIds);
         for (DiaryEntity d : recent) {
             contents.add(d.getContent());
-            DiaryAnalysisEntity a = findAnalysis(d.getId());
+            DiaryAnalysisEntity a = analysisMap.get(d.getId());
             if (a != null) analyses.add(new DiaryAnalysis(a.getMoodLabel(), a.getMoodIntensity(),
                     a.getTopicLabelsJson(), a.getSummary(), a.getFeedback()));
             else analyses.add(null);
@@ -753,8 +751,10 @@ public class DiaryService {
                         .ge(DiaryEntity::getCreatedAt, LocalDate.now().atStartOfDay())
         );
         List<String> moods = new ArrayList<>();
+        List<Long> diaryIds = todayPublic.stream().map(DiaryEntity::getId).toList();
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(diaryIds);
         for (DiaryEntity d : todayPublic) {
-            DiaryAnalysisEntity a = findAnalysis(d.getId());
+            DiaryAnalysisEntity a = analysisMap.get(d.getId());
             if (a != null) moods.add(a.getMoodLabel());
         }
         return aiAnalysisService.communityMood(moods);
