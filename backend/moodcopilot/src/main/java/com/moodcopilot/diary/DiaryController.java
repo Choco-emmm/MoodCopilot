@@ -31,8 +31,10 @@ public class DiaryController {
     }
 
     @GetMapping("/mine")
-    public ApiResponse<List<DiaryView>> myDiaries() {
-        return ApiResponse.ok(diaryService.myDiaries());
+    public ApiResponse<List<DiaryView>> myDiaries(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(diaryService.myDiaries(page, size));
     }
 
     @GetMapping("/following")

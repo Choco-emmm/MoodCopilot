@@ -26,7 +26,7 @@ api.interceptors.response.use(
 
 export const diaryApi = {
   create: (data: { content: string; visibility: string }) => api.post('/diaries', data),
-  mine: () => api.get('/diaries/mine'),
+  mine: (page = 1, size = 20) => api.get('/diaries/mine', { params: { page, size } }),
   public: (page = 1, size = 20) => api.get('/diaries/public', { params: { page, size } }),
   get: (id: number) => api.get(`/diaries/${id}`),
   similar: (id: number, limit = 3) => api.get(`/diaries/${id}/similar`, { params: { limit } }),

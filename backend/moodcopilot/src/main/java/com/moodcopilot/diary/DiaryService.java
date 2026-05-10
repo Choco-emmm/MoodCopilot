@@ -35,10 +35,12 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -119,13 +121,21 @@ public class DiaryService {
         diaryAnalysisMapper.insert(analysisEntity);
     }
 
-    public List<DiaryView> myDiaries() {
-        List<DiaryEntity> diaries = diaryMapper.selectList(
+    public List<DiaryView> myDiaries(int page, int size) {
+        size = Math.min(size, 50);
+        Long userId = currentUser().getId();
+        Page<DiaryEntity> result = diaryMapper.selectPage(
+                Page.of(page, size),
                 new LambdaQueryWrapper<DiaryEntity>()
-                        .eq(DiaryEntity::getAuthorUserId, currentUser().getId())
-                        .orderByDesc(DiaryEntity::getCreatedAt)
-        );
-        return diaries.stream().map(this::toOwnDiaryView).toList();
+                        .eq(DiaryEntity::getAuthorUserId, userId)
+                        .orderByDesc(DiaryEntity::getCreatedAt));
+        List<DiaryEntity> diaries = result.getRecords();
+        List<Long> ids = diaries.stream().map(DiaryEntity::getId).toList();
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(ids);
+        Map<Long, List<DiaryCommentEntity>> commentMap = batchLoadComments(ids);
+        return diaries.stream()
+                .map(d -> buildDiaryView(d, d.getAuthorUserId().equals(userId), analysisMap, commentMap))
+                .toList();
     }
 
     public Page<DiaryView> publicDiaries(int page, int size) {
@@ -153,7 +163,13 @@ public class DiaryService {
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
                         .orderByDesc(DiaryEntity::getCreatedAt)
         );
-        List<DiaryView> views = entityPage.getRecords().stream().map(this::toDiaryView).toList();
+        List<DiaryEntity> diaries = entityPage.getRecords();
+        List<Long> ids = diaries.stream().map(DiaryEntity::getId).toList();
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(ids);
+        Map<Long, List<DiaryCommentEntity>> commentMap = batchLoadComments(ids);
+        List<DiaryView> views = diaries.stream()
+                .map(d -> buildDiaryView(d, true, analysisMap, commentMap))
+                .toList();
         Page<DiaryView> viewPage = new Page<>(page, size, entityPage.getTotal());
         viewPage.setRecords(views);
         return viewPage;
@@ -172,21 +188,37 @@ public class DiaryService {
         DiaryEntity source = findDiary(id);
         DiaryAnalysisEntity sourceAnalysis = findAnalysis(id);
 
-        List<DiaryEntity> publicDiaries = diaryMapper.selectList(
+        // 限定候选池大小：取最近 200 篇公开日记
+        Page<DiaryEntity> candidates = diaryMapper.selectPage(
+                Page.of(1, 200),
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
                         .ne(DiaryEntity::getId, id)
-        );
+                        .orderByDesc(DiaryEntity::getCreatedAt));
 
         int cappedLimit = Math.max(1, Math.min(limit, 10));
+        List<DiaryEntity> diaries = candidates.getRecords();
 
-        return publicDiaries.stream()
-                .sorted(Comparator
-                        .comparingInt((DiaryEntity d) -> similarityScore(sourceAnalysis, d)).reversed()
-                        .thenComparing(DiaryEntity::getCreatedAt, Comparator.reverseOrder()))
-                .limit(cappedLimit)
-                .map(this::toDiaryView)
+        // 批量加载分析
+        List<Long> ids = diaries.stream().map(DiaryEntity::getId).toList();
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(ids);
+
+        // 相似度排序
+        List<DiaryEntity> sorted = diaries.stream()
+                .sorted(Comparator.comparingDouble((DiaryEntity d) ->
+                        similarityScore(sourceAnalysis, analysisMap.get(d.getId()))).reversed())
                 .toList();
+
+        // 去重：每人最多 1 篇
+        Set<Long> seenUsers = new HashSet<>();
+        List<DiaryView> result = new ArrayList<>();
+        for (DiaryEntity d : sorted) {
+            if (seenUsers.add(d.getAuthorUserId())) {
+                result.add(buildDiaryView(d, true, analysisMap, Map.of()));
+                if (result.size() >= cappedLimit) break;
+            }
+        }
+        return result;
     }
 
     public Page<DiaryView> followingDiaries(int page, int size) {
@@ -222,7 +254,13 @@ public class DiaryService {
                         .in(DiaryEntity::getAuthorUserId, followingIds)
                         .orderByDesc(DiaryEntity::getCreatedAt)
         );
-        List<DiaryView> views = entityPage.getRecords().stream().map(this::toDiaryView).toList();
+        List<DiaryEntity> diaries = entityPage.getRecords();
+        List<Long> ids = diaries.stream().map(DiaryEntity::getId).toList();
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(ids);
+        Map<Long, List<DiaryCommentEntity>> commentMap = batchLoadComments(ids);
+        List<DiaryView> views = diaries.stream()
+                .map(d -> buildDiaryView(d, true, analysisMap, commentMap))
+                .toList();
         Page<DiaryView> viewPage = new Page<>(page, size, entityPage.getTotal());
         viewPage.setRecords(views);
         return viewPage;
@@ -267,6 +305,10 @@ public class DiaryService {
                         .orderByAsc(DiaryEntity::getCreatedAt)
         );
 
+        // 批量加载分析
+        List<Long> ids = diaries.stream().map(DiaryEntity::getId).toList();
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(ids);
+
         List<WeeklyReportView.DailyMood> dailyMoods = new ArrayList<>();
         Map<String, Integer> topicCounts = new LinkedHashMap<>();
         List<String> contents = new ArrayList<>();
@@ -274,7 +316,7 @@ public class DiaryService {
 
         for (DiaryEntity diary : diaries) {
             contents.add(diary.getContent());
-            DiaryAnalysisEntity analysisEntity = findAnalysis(diary.getId());
+            DiaryAnalysisEntity analysisEntity = analysisMap.get(diary.getId());
             if (analysisEntity != null) {
                 DiaryAnalysis analysis = new DiaryAnalysis(
                         analysisEntity.getMoodLabel(),
@@ -357,6 +399,10 @@ public class DiaryService {
                         .orderByAsc(DiaryEntity::getCreatedAt)
         );
 
+        // 批量加载分析
+        List<Long> ids = diaries.stream().map(DiaryEntity::getId).toList();
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(ids);
+
         List<WeeklyReportView.DailyMood> dailyMoods = new ArrayList<>();
         Map<String, Integer> topicCounts = new LinkedHashMap<>();
         List<String> contents = new ArrayList<>();
@@ -364,7 +410,7 @@ public class DiaryService {
 
         for (DiaryEntity diary : diaries) {
             contents.add(diary.getContent());
-            DiaryAnalysisEntity analysisEntity = findAnalysis(diary.getId());
+            DiaryAnalysisEntity analysisEntity = analysisMap.get(diary.getId());
             if (analysisEntity != null) {
                 DiaryAnalysis analysis = new DiaryAnalysis(
                         analysisEntity.getMoodLabel(),
@@ -483,8 +529,33 @@ public class DiaryService {
                         .eq(DiaryCommentEntity::getDiaryId, diary.getId())
                         .orderByAsc(DiaryCommentEntity::getCreatedAt)
         );
+        return buildDiaryView(diary, isPublic,
+                analysis != null ? Map.of(analysis.getDiaryId(), analysis) : Map.of(),
+                Map.of(diary.getId(), comments));
+    }
+
+    private DiaryView buildDiaryView(DiaryEntity diary, boolean isPublic,
+            Map<Long, DiaryAnalysisEntity> analysisMap,
+            Map<Long, List<DiaryCommentEntity>> commentMap) {
+        DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
+        List<DiaryCommentEntity> comments = commentMap.getOrDefault(diary.getId(), List.of());
         return isPublic ? DiaryView.fromPublic(diary, analysis, comments)
                         : DiaryView.from(diary, analysis, comments);
+    }
+
+    private Map<Long, DiaryAnalysisEntity> batchLoadAnalyses(List<Long> diaryIds) {
+        if (diaryIds.isEmpty()) return Map.of();
+        return diaryAnalysisMapper.selectBatchIds(diaryIds).stream()
+                .collect(Collectors.toMap(DiaryAnalysisEntity::getDiaryId, a -> a));
+    }
+
+    private Map<Long, List<DiaryCommentEntity>> batchLoadComments(List<Long> diaryIds) {
+        if (diaryIds.isEmpty()) return Map.of();
+        List<DiaryCommentEntity> all = diaryCommentMapper.selectList(
+                new LambdaQueryWrapper<DiaryCommentEntity>()
+                        .in(DiaryCommentEntity::getDiaryId, diaryIds)
+                        .orderByAsc(DiaryCommentEntity::getCreatedAt));
+        return all.stream().collect(Collectors.groupingBy(DiaryCommentEntity::getDiaryId));
     }
 
     private DiaryEntity findDiary(long id) {
@@ -608,9 +679,12 @@ public class DiaryService {
                         .orderByDesc(DiaryEntity::getCreatedAt)
                         .last("LIMIT 3")
         );
+        // 批量加载最近日记的分析
+        List<Long> recentIds = recent.stream().map(DiaryEntity::getId).toList();
+        Map<Long, DiaryAnalysisEntity> recentAnalysisMap = batchLoadAnalyses(recentIds);
         String targetMood = null;
         for (DiaryEntity d : recent) {
-            DiaryAnalysisEntity a = findAnalysis(d.getId());
+            DiaryAnalysisEntity a = recentAnalysisMap.get(d.getId());
             if (a != null) { targetMood = a.getMoodLabel(); break; }
         }
         if (targetMood == null) return null;
@@ -623,10 +697,13 @@ public class DiaryService {
                         .orderByDesc(DiaryEntity::getCreatedAt)
                         .last("LIMIT 50")
         );
+        // 批量加载候选分析
+        List<Long> candidateIds = matches.stream().map(DiaryEntity::getId).toList();
+        Map<Long, DiaryAnalysisEntity> candidateAnalysisMap = batchLoadAnalyses(candidateIds);
         for (DiaryEntity d : matches) {
-            DiaryAnalysisEntity a = findAnalysis(d.getId());
+            DiaryAnalysisEntity a = candidateAnalysisMap.get(d.getId());
             if (a != null && targetMood.equals(a.getMoodLabel())) {
-                return toDiaryView(d);
+                return buildDiaryView(d, true, candidateAnalysisMap, Map.of());
             }
         }
         return null;
@@ -767,10 +844,8 @@ public class DiaryService {
         }
     }
 
-    private int similarityScore(DiaryAnalysisEntity sourceAnalysis, DiaryEntity target) {
-        if (sourceAnalysis == null) return 0;
-        DiaryAnalysisEntity targetAnalysis = diaryAnalysisMapper.selectById(target.getId());
-        if (targetAnalysis == null) return 0;
+    private int similarityScore(DiaryAnalysisEntity sourceAnalysis, DiaryAnalysisEntity targetAnalysis) {
+        if (sourceAnalysis == null || targetAnalysis == null) return 0;
         int score = 0;
         if (sourceAnalysis.getMoodLabel().equals(targetAnalysis.getMoodLabel())) {
             score += 10;
