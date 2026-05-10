@@ -126,9 +126,18 @@ AI：今天你的主要情绪是“疲惫 + 委屈”，主题集中在“人际
 - **内容审核** ✅ — 敏感词过滤 `ContentFilter`
 - **Docker 部署** ✅ — `docker compose up` 全栈启动
 
+#### ✅ 性能优化
+
+- **N+1 批量查询** ✅ — 批量加载分析+评论，公开日记流从 41 次查询降至 3 次
+- **连接池调优** ✅ — HikariCP max 30 + Redis Lettuce max 30
+- **JVM 参数** ✅ — G1GC、Xms256m/Xmx512m、MaxRAMPercentage=75%
+- **Docker 资源限制** ✅ — MySQL 512MB、Redis 128MB、Backend 768MB/1CPU
+- **Redis 缓存优化** ✅ — 精确 key 删除代替 KEYS 扫描、coaching/月报缓存、evict 范围限定
+- **前端优化** ✅ — Vite 代码分割（naive-ui/vue-vendor 独立 chunk）+ Nginx gzip + 静态资源缓存
+- **k6 压测脚本** ✅ — 冒烟/负载/压力三套脚本，50 VU 压力测试
+
 #### ⏳ 待做
 
-- **压测与性能调优** — Docker 之后进行
 - **限时匿名贴** — 匿名鼓励已满足匿名互动需求，暂不做
 
 ---

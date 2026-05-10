@@ -152,6 +152,24 @@ docker compose up -d    # 启动全栈（MySQL + Redis + 后端 + 前端）
 # 后端 http://localhost:18080
 ```
 
+Docker 资源限制：MySQL 512MB（InnoDB buffer pool 128MB / max_connections 50）、Redis 128MB、Backend 768MB / 1 CPU。JVM 参数：`-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxRAMPercentage=75.0`。
+
+### 性能优化
+
+**批量查询：** `DiaryService.batchLoadAnalyses()` 和 `batchLoadComments()` 用 `selectBatchIds` / `IN` 批量加载，消除 N+1。`buildDiaryView(diary, isPublic, analysisMap, commentMap)` 接受预加载的 Map。公开日记 20 篇从 41 次查询降至 3 次。
+
+**相似日记：** `similar()` 候选池上限 200 篇，批量加载分析，每人最多 1 篇去重。
+
+**分页：** `myDiaries()` 使用 MyBatis-Plus `Page` 分页（上限 50 条），`/api/diaries/mine` 接受 `page`/`size` 参数。
+
+**连接池：** HikariCP `maximum-pool-size=30`，Redis Lettuce `max-active=30`。
+
+**压测：** k6 脚本位于 `backend/moodcopilot/stress-test/`，包含 setup（数据准备）、smoke（冒烟）、load（20 VU 负载）、stress（50 VU 压力）。
+
+```bash
+"/c/Program Files/k6/k6.exe" run backend/moodcopilot/stress-test/k6-smoke.js
+```
+
 ### 匿名鼓励
 
 - `GET /api/diaries/{id}/encourage-candidates` — AI 生成 3 句匿名鼓励候选
@@ -187,10 +205,14 @@ docker compose up -d    # 启动全栈（MySQL + Redis + 后端 + 前端）
 
 | 缓存 Key | TTL | 失效触发 |
 |------|------|------|
-| `report:{userId}:{weekOffset}` | 30min | 用户写新日记 |
+| `report:{userId}:{weekOffset}` | 30min | 用户写/删日记 |
+| `report:monthly:{userId}:{monthOffset}` | 30min | 用户写/删日记 |
 | `public:diaries:{page}:{size}` | 5min | 新公开日记 |
 | `following:{userId}:{page}:{size}` | 5min | 新日记/关注变化 |
+| `coaching:{userId}` | 15min | 用户写/删日记 |
 | `chat:msgs:{conversationId}` | 7d | 用户删除会话 |
+
+缓存失效：`DiaryService.evictUserCache()` 用精确 key 删除（遍历已知分页组合），不用 `redisTemplate.keys()` 避免 O(N) SCAN 阻塞。
 
 ### CORS
 
