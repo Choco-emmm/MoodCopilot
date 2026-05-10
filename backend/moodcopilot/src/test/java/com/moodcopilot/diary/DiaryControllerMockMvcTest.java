@@ -74,7 +74,7 @@ class DiaryControllerMockMvcTest {
 
     @Test
     void myDiariesReturnsList() throws Exception {
-        when(diaryService.myDiaries()).thenReturn(List.of(sampleDiary(1L), sampleDiary(2L)));
+        when(diaryService.myDiaries(1, 20)).thenReturn(List.of(sampleDiary(1L), sampleDiary(2L)));
 
         mockMvc.perform(get("/api/diaries/mine"))
                 .andExpect(status().isOk())
