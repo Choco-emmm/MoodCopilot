@@ -154,8 +154,8 @@ docker compose up -d    # 启动全栈（MySQL + Redis + 后端 + 前端）
 
 ### 匿名鼓励
 
-- `GET /api/diaries/encourage-candidates/{id}` — AI 生成 3 句匿名鼓励候选
-- `POST /api/diaries/encourage/{id}` — 发送选中的鼓励 (body: `{message}`)
+- `GET /api/diaries/{id}/encourage-candidates` — AI 生成 3 句匿名鼓励候选
+- `POST /api/diaries/{id}/resonance` — 发送鼓励 (body: `{message}`)，共鸣 (无 body 或不含 message)
 - 通知类型 `ENCOURAGEMENT`，不暴露发送者身份
 
 ### 每日跟进 + 今日同频
