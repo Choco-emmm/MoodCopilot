@@ -62,7 +62,7 @@ export const authApi = {
   uploadAvatar: (file: File) => {
     const fd = new FormData()
     fd.append('file', file)
-    return api.post('/auth/avatar', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    return api.post('/auth/avatar', fd)
   },
   updateSettings: (dailyNotifyEnabled: boolean) =>
     api.put('/auth/settings', { dailyNotifyEnabled }),
