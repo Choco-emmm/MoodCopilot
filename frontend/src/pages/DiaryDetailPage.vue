@@ -1,7 +1,8 @@
 <template>
   <main class="app-shell">
     <AppHeader />
-    <div v-if="diary" class="diary-detail-page">
+    <LoadingSkeleton v-if="loading" text="加载中..." />
+    <div v-else-if="diary" class="diary-detail-page">
       <!-- 日记正文 -->
       <article class="panel analysis-panel">
         <div class="diary-content-section">
@@ -12,9 +13,6 @@
             <n-tag :type="diary.visibility === 'PUBLIC' ? 'success' : 'default'" round size="small">
               {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
             </n-tag>
-            <span v-if="!isOwner && diary.analysis?.moodLabel" class="diary-mood-badge">
-              {{ diary.analysis.moodLabel }}
-            </span>
           </div>
           <p class="diary-content">{{ diary.content }}</p>
         </div>
@@ -25,12 +23,6 @@
           <AiAnalysisCard :diary="diary" :compact="true" />
         </template>
 
-        <!-- 别人的日记：仅显示主题标签 -->
-        <div v-else-if="diary.analysis?.topicLabels?.length" class="tag-row">
-          <n-tag v-for="topic in diary.analysis.topicLabels" :key="topic" type="info" round size="small">
-            {{ topic }}
-          </n-tag>
-        </div>
       </article>
 
       <!-- 评论区域 -->
@@ -97,7 +89,7 @@
       <!-- 同频推荐（保留） -->
       <SimilarDiariesPanel :diaries="store.similarDiaries" @select="selectDiary" />
     </div>
-    <n-empty v-else description="日记不存在" />
+    <n-empty v-else-if="!loading" description="日记不存在" />
   </main>
 </template>
 
@@ -110,6 +102,7 @@ import { useAuthStore } from '../stores/auth'
 import AppHeader from '../components/AppHeader.vue'
 import AiAnalysisCard from '../components/AiAnalysisCard.vue'
 import SimilarDiariesPanel from '../components/SimilarDiariesPanel.vue'
+import LoadingSkeleton from '../components/LoadingSkeleton.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
 
 const route = useRoute()
@@ -117,6 +110,7 @@ const router = useRouter()
 const store = useDiaryStore()
 const auth = useAuthStore()
 const diary = ref<Diary | null>(null)
+const loading = ref(true)
 const commentDraft = ref('')
 const replyDraft = ref('')
 const replyTo = ref<number | null>(null)
@@ -125,6 +119,7 @@ const sending = ref(false)
 const isOwner = computed(() => auth.userId != null && diary.value != null && auth.userId === diary.value.authorUserId)
 
 onMounted(async () => {
+  loading.value = true
   const id = Number(route.params.id)
   try {
     const res = await diaryApi.get(id)
@@ -133,6 +128,7 @@ onMounted(async () => {
   } catch {
     diary.value = null
   }
+  loading.value = false
 })
 
 async function submitComment(parentId: number | null) {

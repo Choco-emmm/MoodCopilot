@@ -98,6 +98,21 @@ public class NotificationService {
         }
     }
 
+    public void notifyDailyFollowUp(Long recipientUserId, String message) {
+        try {
+            NotificationEntity n = new NotificationEntity();
+            n.setRecipientUserId(recipientUserId);
+            n.setActorUserId(null);
+            n.setType("SYSTEM");
+            n.setMessage(message);
+            n.setIsRead(false);
+            n.setCreatedAt(LocalDateTime.now());
+            notificationMapper.insert(n);
+        } catch (Exception e) {
+            log.warn("Failed to create daily follow-up notification", e);
+        }
+    }
+
     public void notifyEncouragement(Long diaryId, Long recipientUserId, String message) {
         try {
             NotificationEntity n = new NotificationEntity();

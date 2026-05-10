@@ -19,22 +19,9 @@
           <span>{{ formatTime(diary.createdAt) }}</span>
         </div>
       </div>
-      <n-tag v-if="diary.analysis?.moodLabel" round>{{ diary.analysis.moodLabel }}</n-tag>
     </div>
 
     <p class="feed-content">{{ diary.content }}</p>
-
-    <div class="tag-row">
-      <n-tag
-        v-for="topic in (diary.analysis?.topicLabels ?? [])"
-        :key="`${diary.id}-${topic}`"
-        size="small"
-        type="info"
-        round
-      >
-        {{ topic }}
-      </n-tag>
-    </div>
 
     <div class="feed-actions">
       <n-button size="small" tertiary @click="$emit('resonate', diary)">

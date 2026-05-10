@@ -6,6 +6,7 @@ import com.moodcopilot.entity.*;
 import com.moodcopilot.mapper.ChatConversationMapper;
 import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.DiaryMapper;
+import com.moodcopilot.security.RateLimitService;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -35,6 +36,7 @@ public class ChatService {
     private final Map<String, ChatMemory> userChatMemories;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final RateLimitService rateLimitService;
 
     public ChatService(ChatClient chatChatClient,
                        DiaryMapper diaryMapper,
@@ -42,7 +44,8 @@ public class ChatService {
                        ChatConversationMapper conversationMapper,
                        Map<String, ChatMemory> userChatMemories,
                        StringRedisTemplate redisTemplate,
-                       ObjectMapper objectMapper) {
+                       ObjectMapper objectMapper,
+                       RateLimitService rateLimitService) {
         this.chatChatClient = chatChatClient;
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
@@ -50,6 +53,7 @@ public class ChatService {
         this.userChatMemories = userChatMemories;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+        this.rateLimitService = rateLimitService;
     }
 
     // ---- 会话管理 ----
@@ -95,6 +99,7 @@ public class ChatService {
 
     public Flux<String> chat(Long conversationId, String message, List<String> refs) {
         UserEntity user = currentUser();
+        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.CHAT);
         String context = buildContext(user.getId(), refs);
 
         String memKey = user.getId() + ":" + conversationId;

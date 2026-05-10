@@ -18,17 +18,16 @@
           </span>
         </div>
 
-        <div v-if="coaching" class="today-coaching">
-          <p class="today-coaching-text">{{ coaching.suggestion }}</p>
-          <span class="today-coaching-tag">陪跑</span>
-          <button class="today-coaching-chat-link" @click="gotoChatWithCoaching">和 AI 聊聊这个话题 →</button>
-        </div>
       </div>
 
       <!-- 右侧：同频 + 社区 -->
       <div class="today-side">
         <router-link v-if="matchDiary" :to="'/diary/' + matchDiary.id" class="today-match-mini">
           <span class="today-side-label">有人和你感同身受</span>
+          <div class="today-match-author">
+            <span class="avatar-xs">{{ matchDiary.authorName?.charAt(0) }}</span>
+            <span class="author-name-xs">{{ matchDiary.authorName }}</span>
+          </div>
           <span class="today-side-snippet">「{{ matchDiary.content?.length > 30 ? matchDiary.content.slice(0, 30) + '...' : matchDiary.content }}」</span>
         </router-link>
 
@@ -74,25 +73,16 @@ const router = useRouter()
 const store = useDiaryStore()
 const status = ref<{ todayHasDiary: boolean; streak: number; yesterdayMood: string } | null>(null)
 const matchDiary = ref<any>(null)
-const coaching = ref<{ suggestion: string; diaryCount: number } | null>(null)
 const moods = ref<Record<string, number> | null>(null)
 
 onMounted(async () => {
   store.fetchDiaries()
   try { const res = await diaryApi.todayStatus(); status.value = res.data.data } catch { /* ignore */ }
   try { const res = await diaryApi.todayMatch(); matchDiary.value = res.data.data } catch { /* ignore */ }
-  try { const res = await diaryApi.coaching(); coaching.value = res.data.data } catch { /* ignore */ }
   try { const res = await diaryApi.communityMood(); moods.value = res.data.data } catch { /* ignore */ }
 })
 
 function selectDiary(diary: Diary) {
   router.push(`/diary/${diary.id}`)
-}
-
-function gotoChatWithCoaching() {
-  router.push({
-    path: '/chat',
-    state: { references: coaching.value ? [coaching.value.suggestion] : [] }
-  })
 }
 </script>

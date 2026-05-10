@@ -185,6 +185,18 @@ button, textarea, input { font: inherit; }
   font-weight: 600;
 }
 
+.masthead-user-link {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.masthead-user-link:hover {
+  color: var(--color-jade);
+}
+
 .eyebrow {
   margin: 0;
   color: var(--color-accent);
@@ -1417,6 +1429,31 @@ h2 {
   letter-spacing: 0.06em;
 }
 
+.today-match-author {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.avatar-xs {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-jade-light);
+  color: var(--color-jade);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.author-name-xs {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
 .today-side-snippet {
   font-size: 13px;
   color: var(--color-text-secondary);
@@ -1576,6 +1613,98 @@ h2 {
 .page-leave-to {
   opacity: 0;
   transform: translateY(-6px);
+}
+
+/* ── Loading skeleton ── */
+.loading-skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 0;
+  gap: 12px;
+}
+
+.loading-text {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+/* ── Settings page ── */
+.settings-page {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.settings-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--color-text);
+  margin: 0 0 24px;
+}
+
+.settings-section {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settings-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.settings-desc {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 8px 0 0;
+}
+
+.avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.avatar-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-jade-light);
+  color: var(--color-jade);
+  font-size: 24px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
 }
 
 /* ── Scroll sentinel (infinite scroll) ── */

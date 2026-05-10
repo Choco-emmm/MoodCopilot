@@ -37,7 +37,7 @@
               </div>
             </div>
           </n-popover>
-          <span class="masthead-user">{{ auth.displayName }}</span>
+          <router-link to="/settings" class="masthead-user-link">{{ auth.displayName }}</router-link>
           <n-button text size="small" class="nav-logout desktop-only" @click="handleLogout">退出</n-button>
         </template>
         <template v-else>
@@ -83,7 +83,11 @@ function onPopoverShow(show: boolean) {
 
 function handleNotifClick(item: Notification) {
   if (!item.isRead) notif.markRead(item.id)
-  if (item.diaryId) router.push(`/diary/${item.diaryId}`)
+  if (item.type === 'SYSTEM' && !item.diaryId) {
+    router.push('/')
+  } else if (item.diaryId) {
+    router.push(`/diary/${item.diaryId}`)
+  }
 }
 
 function formatTime(value: string) {

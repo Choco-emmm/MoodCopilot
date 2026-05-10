@@ -6,6 +6,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.AiAnalysisService;
 import com.moodcopilot.common.ContentFilter;
+import com.moodcopilot.common.RateLimitException;
+import com.moodcopilot.security.RateLimitService;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.follow.FollowService;
 import com.moodcopilot.entity.DiaryCommentEntity;
@@ -61,6 +63,7 @@ public class DiaryService {
     private final FollowService followService;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final RateLimitService rateLimitService;
 
     public DiaryService(DiaryMapper diaryMapper,
                         DiaryAnalysisMapper diaryAnalysisMapper,
@@ -70,7 +73,8 @@ public class DiaryService {
                         NotificationService notificationService,
                         FollowService followService,
                         StringRedisTemplate redisTemplate,
-                        ObjectMapper objectMapper) {
+                        ObjectMapper objectMapper,
+                        RateLimitService rateLimitService) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
@@ -80,6 +84,7 @@ public class DiaryService {
         this.followService = followService;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+        this.rateLimitService = rateLimitService;
     }
 
     @Transactional
@@ -107,6 +112,10 @@ public class DiaryService {
     @Async
     @Transactional
     public void runAiAnalysis(long diaryId, String content) {
+        DiaryEntity diary = diaryMapper.selectById(diaryId);
+        if (diary != null) {
+            rateLimitService.tryAcquire(diary.getAuthorUserId(), RateLimitService.AiApiType.ANALYSIS);
+        }
         DiaryAnalysis analysis = aiAnalysisService.analyze(content);
 
         DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
@@ -349,6 +358,7 @@ public class DiaryService {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy年M月");
         String monthLabel = firstOfMonth.format(fmt);
 
+        rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.REPORT);
         String aiSummary = aiAnalysisService.generateMonthlySummary(contents, analyses);
 
         return new WeeklyReportView(
@@ -443,6 +453,7 @@ public class DiaryService {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("M/d");
         String weekLabel = monday.format(fmt) + " - " + sunday.format(fmt);
 
+        rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.REPORT);
         String aiSummary = aiAnalysisService.generateWeeklySummary(contents, analyses);
 
         return new WeeklyReportView(
@@ -733,6 +744,7 @@ public class DiaryService {
                     a.getTopicLabelsJson(), a.getSummary(), a.getFeedback()));
             else analyses.add(null);
         }
+        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.COACHING);
         String suggestion = aiAnalysisService.generateCoaching(contents, analyses);
         Map<String, Object> result = Map.of("suggestion", suggestion, "diaryCount", recent.size());
 
@@ -764,6 +776,7 @@ public class DiaryService {
 
     public List<String> generateEncouragements(long diaryId) {
         DiaryEntity diary = findPublicDiary(diaryId);
+        rateLimitService.tryAcquire(currentUser().getId(), RateLimitService.AiApiType.ENCOURAGEMENT);
         return aiAnalysisService.generateEncouragements(diary.getContent());
     }
 

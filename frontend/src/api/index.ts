@@ -57,6 +57,16 @@ export const authApi = {
     api.post('/auth/register', data),
   login: (data: { email: string; password: string }) => api.post('/auth/login', data),
   me: () => api.get('/auth/me'),
+  updateProfile: (data: { displayName?: string; avatar?: string }) =>
+    api.put('/auth/profile', data),
+  uploadAvatar: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post('/auth/avatar', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  updateSettings: (dailyNotifyEnabled: boolean) =>
+    api.put('/auth/settings', { dailyNotifyEnabled }),
+  getQuota: () => api.get('/auth/quota'),
 }
 
 export const followApi = {
