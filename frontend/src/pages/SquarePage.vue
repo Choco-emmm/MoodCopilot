@@ -2,39 +2,43 @@
   <main class="app-shell">
     <AppHeader />
 
-    <div v-if="matchDiary" class="today-match">
-      <router-link :to="'/diary/' + matchDiary.id" class="today-match-link">
-        <span class="today-match-label">今日同频</span>
-        <span class="today-match-mood">{{ matchDiary.analysis?.moodLabel }}</span>
-        <span class="today-match-content">{{ matchDiary.content.slice(0, 40) }}{{ matchDiary.content.length > 40 ? '...' : '' }}</span>
-        <span class="today-match-arrow">&rarr;</span>
-      </router-link>
-    </div>
+    <!-- 今日概览面板 -->
+    <section class="today-panel">
+      <!-- 左侧：状态 + 陪跑 -->
+      <div class="today-main">
+        <div v-if="status" class="today-status-row">
+          <span class="today-status-dot" :class="{ filled: status.todayHasDiary }" />
+          <span class="today-status-label">
+            <template v-if="status.todayHasDiary">
+              连续记录 <strong>{{ status.streak }}</strong> 天{{ status.yesterdayMood ? ' · 昨天「' + status.yesterdayMood + '」' : '' }}
+            </template>
+            <template v-else>
+              新的一天 — <router-link to="/write" class="today-write-link">写下心情</router-link>
+            </template>
+          </span>
+        </div>
 
-    <div v-if="coaching" class="coaching-card">
-      <span class="coaching-label">陪跑建议</span>
-      <p class="coaching-text">{{ coaching.suggestion }}</p>
-    </div>
+        <div v-if="coaching" class="today-coaching">
+          <p class="today-coaching-text">{{ coaching.suggestion }}</p>
+          <span class="today-coaching-tag">陪跑</span>
+        </div>
+      </div>
 
-    <div v-if="status" class="daily-status" :class="{ done: status.todayHasDiary }">
-      <span class="daily-status-icon">{{ status.todayHasDiary ? '&#9745;' : '&#9744;' }}</span>
-      <span class="daily-status-text">
-        <template v-if="status.todayHasDiary">
-          已记录{{ status.streak }}天连更{{ status.yesterdayMood ? '，昨天心情「' + status.yesterdayMood + '」' : '' }}
-        </template>
-        <template v-else>
-          新的一天，写下今天的心情吧
-        </template>
-      </span>
-      <router-link v-if="!status.todayHasDiary" to="/write" class="daily-status-write">写日记</router-link>
-    </div>
+      <!-- 右侧：同频 + 社区 -->
+      <div class="today-side">
+        <router-link v-if="matchDiary" :to="'/diary/' + matchDiary.id" class="today-match-mini">
+          <span class="today-side-label">同频推荐</span>
+          <span class="today-side-mood">{{ matchDiary.analysis?.moodLabel }}</span>
+        </router-link>
 
-    <div v-if="moods && Object.keys(moods).length" class="community-mood-card">
-      <span class="community-mood-label">今日社区</span>
-      <span class="community-mood-text">
-        <template v-for="(count, mood) in moods" :key="mood">{{ mood }} {{ count }}人 </template>
-      </span>
-    </div>
+        <div v-if="moods && Object.keys(moods).length">
+          <span class="today-side-label">社区共鸣</span>
+          <span class="today-side-text">
+            <template v-for="(count, mood) in moods" :key="mood">{{ mood }}{{ count }} </template>
+          </span>
+        </div>
+      </div>
+    </section>
 
     <div class="chat-tease">
       <router-link to="/chat" class="chat-tease-link">

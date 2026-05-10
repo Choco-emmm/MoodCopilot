@@ -1201,134 +1201,121 @@ h2 {
 .chat-input-row { display: flex; gap: 10px; }
 .chat-input-row .n-input { flex: 1; }
 
-/* ── Coaching card ── */
-.coaching-card {
-  padding: 14px 18px;
-  border: 1px solid var(--color-accent-light);
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #fef9f0, #fdf5f5);
-  margin-bottom: 12px;
-}
-
-.coaching-label {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--color-accent);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.coaching-text {
-  margin: 6px 0 0;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-  line-height: 1.7;
-}
-
-/* ── Community mood card ── */
-.community-mood-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  background: var(--color-surface);
+/* ── Today panel (unified dashboard) ── */
+.today-panel {
+  display: grid;
+  grid-template-columns: 1fr 200px;
+  gap: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  margin-bottom: 12px;
-}
-
-.community-mood-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-
-.community-mood-text {
-  font-size: 13px;
-  color: var(--color-text-secondary);
-}
-
-/* ── Today match card ── */
-.today-match {
-  margin-bottom: 12px;
-}
-
-.today-match-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border: 1px solid var(--color-accent-light);
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--color-accent-bg), #fff5f5);
-  text-decoration: none;
-  transition: border-color 0.2s;
-}
-.today-match-link:hover {
-  border-color: var(--color-accent);
-}
-
-.today-match-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-accent);
-  white-space: nowrap;
-}
-
-.today-match-mood {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text);
-  white-space: nowrap;
-}
-
-.today-match-content {
-  flex: 1;
-  font-size: 13px;
-  color: var(--color-text-secondary);
+  background: var(--color-surface);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-bottom: 14px;
 }
 
-.today-match-arrow {
-  color: var(--color-accent);
-  font-weight: 600;
+.today-main {
+  display: grid;
+  gap: 0;
+  padding: 18px;
 }
 
-/* ── Daily status card ── */
-.daily-status {
+.today-status-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  margin-bottom: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.today-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-border-strong);
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+.today-status-dot.filled {
+  background: var(--color-jade);
+  box-shadow: 0 0 0 3px var(--color-jade-light);
+}
+
+.today-status-label {
   font-size: 14px;
-}
-
-.daily-status.done {
-  background: var(--color-jade-light);
-  border-color: var(--color-jade);
-}
-
-.daily-status-icon {
-  font-size: 20px;
-}
-
-.daily-status-text {
-  flex: 1;
   color: var(--color-text-secondary);
 }
+.today-status-label strong {
+  color: var(--color-jade);
+  font-weight: 700;
+}
 
-.daily-status-write {
+.today-write-link {
   color: var(--color-jade);
   font-weight: 600;
   text-decoration: none;
-  font-size: 13px;
+}
+
+.today-coaching {
+  position: relative;
+}
+
+.today-coaching-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text);
+  line-height: 1.75;
+}
+
+.today-coaching-tag {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-accent);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Right sidebar */
+.today-side {
+  display: grid;
+  gap: 0;
+  border-left: 1px solid var(--color-border);
+  background: linear-gradient(180deg, #fdfbf7 0%, #f9f5ed 100%);
+  padding: 14px;
+  align-content: start;
+  gap: 16px;
+}
+
+.today-match-mini {
+  display: grid;
+  gap: 3px;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.today-match-mini:hover { opacity: 0.7; }
+
+.today-side-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.today-side-mood {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-accent);
+  font-family: var(--font-display);
+}
+
+.today-side-text {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
 }
 
 /* ── AI chat tease card (square page) ── */
@@ -1409,4 +1396,7 @@ h2 {
 
   .chat-layout { grid-template-columns: 1fr; }
   .chat-sidebar { order: -1; }
+
+  .today-panel { grid-template-columns: 1fr; }
+  .today-side { border-left: none; border-top: 1px solid var(--color-border); }
 }
