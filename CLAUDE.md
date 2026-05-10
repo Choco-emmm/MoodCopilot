@@ -71,10 +71,12 @@ src/main/java/com/moodcopilot/
 ### 前端：Vue 3 单页应用
 
 ```
+public/
+│   manifest.json、sw.js、icon-192.svg    PWA 支持
 src/
 ├── api/index.ts         Axios 实例，拦截器（JWT 附加、401/403→跳到/login）、diaryApi、authApi、
 │                        notificationApi、followApi、summaryApi、chatApi
-├── components/          8 个组件：AppHeader、DiaryComposer、AiAnalysisCard、
+├── components/          9 个组件：AppHeader、BottomNav（底部 Tab 栏）、DiaryComposer、AiAnalysisCard、
 │                        SimilarDiariesPanel、MyDiaryList、PublicFeed（瀑布流）、DiaryFeedItem、ReferenceBar（聊天引用栏）
 ├── pages/               SquarePage（`/` 广场瀑布流）、WritePage（`/write` 写日记+我的日记）、LoginPage、
 │                        RegisterPage、DiaryDetailPage、ReportPage（周报+自定义总结，情绪趋势可溯源）、
@@ -217,6 +219,33 @@ Docker 资源限制：MySQL 512MB（InnoDB buffer pool 128MB / max_connections 5
 ### CORS
 
 SecurityConfig 已配置 CORS（`allowedOriginPatterns("*")` + `allowCredentials(true)`），ChatPage 直连后端绕过 Vite 代理的 SSE 缓冲问题。
+
+### PWA + 响应式 UI
+
+- **PWA 可安装**：`public/manifest.json`（`display: standalone` 全屏模式）、`public/sw.js`（Service Worker 缓存壳）、`public/icon-192.svg`（玉绿方底「印」字图标）
+- **底部 Tab 栏**（`BottomNav.vue`）：5 个 Tab（广场/写日记/AI/关注/报告），仅在移动端（≤768px）显示
+- **桌面端**：保留原版顶栏导航链接 + 标语「写下今天，慢慢理解自己。」（≥769px 显示）
+- **响应式**：CSS 媒体查询 `.desktop-only` / 移动端 `.app-shell` 底部 padding 适配安全区
+- Apple 兼容：`apple-mobile-web-app-capable` + `apple-touch-icon`
+
+### 生产构建与对外分享
+
+**Cloudflare Tunnel**：用 `cloudflared` 把本地服务暴露到 HTTPS 域名，分享给朋友。
+
+```bash
+# 生产构建（压缩 + 代码分割）
+cd frontend && npx vite build
+
+# 启动生产预览（端口 4173）
+npx vite preview --host --port 4173
+
+# Cloudflare 隧道（配置见 ~/.cloudflared/moodcopilot-config.yaml）
+cloudflared tunnel --config moodcopilot-config.yaml run moodcopilot
+```
+
+**cloudflared 配置关键**：`/api` 路由直连后端 `:18080`，避免 SSE 被代理缓冲截断。其余请求走 Vite preview `:4173`。
+
+**SSE 直连策略**：`ChatPage.vue` 检测 `window.location.hostname`，本地（`localhost`）用 `http://localhost:18080/api`，远程走同源 `/api`。`onloadend` 补调 `processSSE()` 防止最后一段数据丢失。
 
 ## 重要踩坑记录
 

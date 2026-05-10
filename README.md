@@ -134,7 +134,10 @@ AI：今天你的主要情绪是“疲惫 + 委屈”，主题集中在“人际
 - **Docker 资源限制** ✅ — MySQL 512MB、Redis 128MB、Backend 768MB/1CPU
 - **Redis 缓存优化** ✅ — 精确 key 删除代替 KEYS 扫描、coaching/月报缓存、evict 范围限定
 - **前端优化** ✅ — Vite 代码分割（naive-ui/vue-vendor 独立 chunk）+ Nginx gzip + 静态资源缓存
-- **k6 压测脚本** ✅ — 冒烟/负载/压力三套脚本，50 VU 压力测试
+- **k6 压测** ✅ — 冒烟/负载/压力三套脚本，20 VU 负载测试 p95 54ms
+- **PWA 可安装** ✅ — manifest.json + Service Worker + 全屏模式，手机浏览器「添加到主屏幕」
+- **响应式双 UI** ✅ — 桌面端原版顶栏导航 / 移动端底部 Tab 栏（广场/写日记/AI/关注/报告）
+- **对外分享** ✅ — Cloudflare Tunnel 免费 HTTPS 域名，`/api` 直连后端避免 SSE 缓冲
 
 #### ⏳ 待做
 
@@ -219,3 +222,20 @@ npm run dev
 cd frontend
 npm run build
 ```
+
+### 对外分享（给朋友用）
+
+完成本地开发后，构建生产版本并通过 Cloudflare Tunnel 暴露 HTTPS 地址：
+
+```bash
+# 1. 构建生产版本（压缩 + 代码分割）
+cd frontend && npx vite build
+
+# 2. 启动生产预览
+npx vite preview --host --port 4173
+
+# 3. 启动 Cloudflare 隧道
+cloudflared tunnel --config ~/.cloudflared/moodcopilot-config.yaml run moodcopilot
+```
+
+隧道配置将 `/api` 请求直连后端 `:18080`（避免 SSE 缓冲），其余请求走预览服务器 `:4173`。
