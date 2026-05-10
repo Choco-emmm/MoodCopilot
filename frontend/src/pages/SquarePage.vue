@@ -21,14 +21,15 @@
         <div v-if="coaching" class="today-coaching">
           <p class="today-coaching-text">{{ coaching.suggestion }}</p>
           <span class="today-coaching-tag">陪跑</span>
+          <button class="today-coaching-chat-link" @click="gotoChatWithCoaching">和 AI 聊聊这个话题 →</button>
         </div>
       </div>
 
       <!-- 右侧：同频 + 社区 -->
       <div class="today-side">
         <router-link v-if="matchDiary" :to="'/diary/' + matchDiary.id" class="today-match-mini">
-          <span class="today-side-label">同频推荐</span>
-          <span class="today-side-mood">{{ matchDiary.analysis?.moodLabel }}</span>
+          <span class="today-side-label">有人和你感同身受</span>
+          <span class="today-side-snippet">「{{ matchDiary.content?.length > 30 ? matchDiary.content.slice(0, 30) + '...' : matchDiary.content }}」</span>
         </router-link>
 
         <div v-if="moods && Object.keys(moods).length">
@@ -86,5 +87,12 @@ onMounted(async () => {
 
 function selectDiary(diary: Diary) {
   router.push(`/diary/${diary.id}`)
+}
+
+function gotoChatWithCoaching() {
+  router.push({
+    path: '/chat',
+    state: { references: coaching.value ? [coaching.value.suggestion] : [] }
+  })
 }
 </script>

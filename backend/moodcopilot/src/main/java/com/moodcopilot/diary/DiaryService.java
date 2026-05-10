@@ -625,6 +625,13 @@ public class DiaryService {
 
     public Map<String, Object> coachingPlan() {
         UserEntity user = currentUser();
+        String cacheKey = "coaching:" + user.getId();
+
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) return objectMapper.readValue(cached, Map.class);
+        } catch (Exception e) { log.debug("Coaching cache miss"); }
+
         List<DiaryEntity> recent = diaryMapper.selectList(
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getAuthorUserId, user.getId())
@@ -641,7 +648,12 @@ public class DiaryService {
             else analyses.add(null);
         }
         String suggestion = aiAnalysisService.generateCoaching(contents, analyses);
-        return Map.of("suggestion", suggestion, "diaryCount", recent.size());
+        Map<String, Object> result = Map.of("suggestion", suggestion, "diaryCount", recent.size());
+
+        try {
+            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(result), Duration.ofMinutes(15));
+        } catch (Exception e) { log.debug("Coaching cache write failed"); }
+        return result;
     }
 
     // ── Community mood ──
@@ -736,6 +748,7 @@ public class DiaryService {
             if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
             keys = redisTemplate.keys("following:%d:*".formatted(userId));
             if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
+            redisTemplate.delete("coaching:" + userId);
             keys = redisTemplate.keys("public:diaries:*");
             if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
         } catch (Exception e) {

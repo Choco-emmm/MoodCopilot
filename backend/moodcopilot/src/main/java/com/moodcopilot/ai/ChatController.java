@@ -8,6 +8,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -41,9 +42,11 @@ public class ChatController {
     // ---- 聊天消息 ----
 
     @PostMapping(value = "/conversations/{id}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> chat(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        String message = body.get("message");
-        return chatService.chat(id, message);
+    public Flux<String> chat(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        String message = (String) body.get("message");
+        @SuppressWarnings("unchecked")
+        List<String> references = (List<String>) body.get("references");
+        return chatService.chat(id, message, references);
     }
 
     @GetMapping("/conversations/{id}/history")

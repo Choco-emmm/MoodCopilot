@@ -93,9 +93,9 @@ public class ChatService {
 
     // ---- 聊天 ----
 
-    public Flux<String> chat(Long conversationId, String message) {
+    public Flux<String> chat(Long conversationId, String message, List<String> refs) {
         UserEntity user = currentUser();
-        String context = buildContext(user.getId());
+        String context = buildContext(user.getId(), refs);
 
         String memKey = user.getId() + ":" + conversationId;
         ChatMemory memory = userChatMemories.computeIfAbsent(memKey, k -> new InMemoryChatMemory());
@@ -140,8 +140,17 @@ public class ChatService {
 
     // ---- 日记上下文 ----
 
-    private String buildContext(long userId) {
+    private String buildContext(long userId, List<String> refs) {
         StringBuilder sb = new StringBuilder();
+
+        // 引用栏内容（广场陪跑跳转、引用日记等）
+        if (refs != null && !refs.isEmpty()) {
+            sb.append("以下内容是用户引用的话题或资料，你的回答应重点基于这些内容：\n");
+            for (int i = 0; i < refs.size(); i++) {
+                sb.append("[引用 #").append(i + 1).append("] ").append(refs.get(i)).append("\n");
+            }
+            sb.append("\n");
+        }
 
         List<DiaryEntity> recentDiaries = diaryMapper.selectList(
                 new LambdaQueryWrapper<DiaryEntity>()

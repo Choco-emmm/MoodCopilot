@@ -39,15 +39,21 @@
               <div
                 v-for="day in report.dailyMoods"
                 :key="day.date + '-' + (day.diaryIds?.[0] ?? '')"
-                class="mood-bar-row mood-bar-row-clickable"
-                :title="day.contentSnippet || ''"
-                @click="goDiary(day.diaryIds)"
+                class="mood-day-block"
               >
-                <span class="mood-date">{{ formatDay(day.date) }}</span>
-                <div class="mood-bar-track">
-                  <div class="mood-bar" :style="{ width: (day.moodIntensity / 5) * 100 + '%', background: moodColor(day.moodLabel) }" />
+                <div
+                  class="mood-bar-row mood-bar-row-clickable"
+                  @click="goDiary(day.diaryIds)"
+                >
+                  <span class="mood-date">{{ formatDay(day.date) }}</span>
+                  <div class="mood-bar-track">
+                    <div class="mood-bar" :style="{ width: (day.moodIntensity / 5) * 100 + '%', background: moodColor(day.moodLabel) }" />
+                  </div>
+                  <n-tag :color="{ color: moodColor(day.moodLabel), textColor: '#fff' }" size="small" round>{{ day.moodLabel }}</n-tag>
                 </div>
-                <n-tag :color="{ color: moodColor(day.moodLabel), textColor: '#fff' }" size="small" round>{{ day.moodLabel }}</n-tag>
+                <div v-if="day.contentSnippet" class="mood-snippet" @click="goDiary(day.diaryIds)">
+                  「{{ day.contentSnippet }}{{ day.contentSnippet.length >= 30 ? '...' : '' }}」
+                </div>
               </div>
             </div>
 
@@ -103,6 +109,19 @@
             <div class="sparkline-labels">
               <span>{{ sparklineFirst }}</span>
               <span>{{ sparklineLast }}</span>
+            </div>
+
+            <div v-if="monthReport.dailyMoods?.length" class="mood-snippet-list">
+              <div
+                v-for="day in monthReport.dailyMoods"
+                :key="day.date + '-' + (day.diaryIds?.[0] ?? '')"
+                class="mood-snippet-row"
+                @click="goDiary(day.diaryIds)"
+              >
+                <span class="mood-snippet-date">{{ formatDay(day.date) }}</span>
+                <span class="mood-snippet-tag" :style="{ color: moodColor(day.moodLabel) }">{{ day.moodLabel }}</span>
+                <span v-if="day.contentSnippet" class="mood-snippet-text">「{{ day.contentSnippet }}{{ day.contentSnippet.length >= 30 ? '...' : '' }}」</span>
+              </div>
             </div>
 
             <h4>本月话题</h4>

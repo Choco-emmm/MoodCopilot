@@ -74,8 +74,8 @@ src/main/java/com/moodcopilot/
 src/
 ├── api/index.ts         Axios 实例，拦截器（JWT 附加、401/403→跳到/login）、diaryApi、authApi、
 │                        notificationApi、followApi、summaryApi、chatApi
-├── components/          7 个组件：AppHeader、DiaryComposer、AiAnalysisCard、
-│                        SimilarDiariesPanel、MyDiaryList、PublicFeed（瀑布流）、DiaryFeedItem
+├── components/          8 个组件：AppHeader、DiaryComposer、AiAnalysisCard、
+│                        SimilarDiariesPanel、MyDiaryList、PublicFeed（瀑布流）、DiaryFeedItem、ReferenceBar（聊天引用栏）
 ├── pages/               SquarePage（`/` 广场瀑布流）、WritePage（`/write` 写日记+我的日记）、LoginPage、
 │                        RegisterPage、DiaryDetailPage、ReportPage（周报+自定义总结，情绪趋势可溯源）、
 │                        FollowingPage、ChatPage（多对话）
@@ -162,7 +162,17 @@ docker compose up -d    # 启动全栈（MySQL + Redis + 后端 + 前端）
 
 - `GET /api/diaries/today-status` — 返回今日记录状态、连续天数、昨天情绪
 - `GET /api/diaries/today-match` — 推荐一篇情绪相似的公开日记
-- 广场顶部显示状态卡片和同频推荐
+- 广场顶部显示状态卡片和同频推荐（显示日记内容摘要，不直接显示情绪标签）
+
+### 陪跑 + 聊天引用栏
+
+- `GET /api/diaries/coaching` — AI 陪跑建议，Redis 缓存（key=`coaching:{userId}`，TTL 15min），写日记时 evict
+- 广场陪跑面板新增「和 AI 聊聊这个话题」入口，点击跳转聊天页并传递陪跑建议作为引用
+- 聊天输入框上方新增引用栏（`ReferenceBar.vue` 组件），支持：
+  - 自动接收广场传过来的陪跑引用
+  - 「+ 引用日记」从最近 7 篇日记中添加引用
+  - 每个引用以可移除卡片展示
+- `POST /api/chat/conversations/{id}` SSE body 新增 `references` 字段（`List<String>`），拼入 AI system prompt
 
 ### 设计系统
 

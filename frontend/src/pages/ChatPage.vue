@@ -57,17 +57,25 @@
           </div>
         </div>
 
-        <div class="chat-input-row">
-          <n-input
-            v-model:value="draft"
-            placeholder="聊聊你今天的心情..."
-            :disabled="streaming || !activeConvId"
-            clearable
-            @keyup.enter="send"
+        <div class="chat-input-area">
+          <ReferenceBar
+            :items="references"
+            :recent-diaries="recentDiaryOptions"
+            @remove="removeRef"
+            @add="addDiaryRef"
           />
-          <n-button type="primary" :disabled="!draft.trim() || streaming || !activeConvId" @click="send">
-            发送
-          </n-button>
+          <div class="chat-input-row">
+            <n-input
+              v-model:value="draft"
+              placeholder="聊聊你今天的心情..."
+              :disabled="streaming || !activeConvId"
+              clearable
+              @keyup.enter="send"
+            />
+            <n-button type="primary" :disabled="!draft.trim() || streaming || !activeConvId" @click="send">
+              发送
+            </n-button>
+          </div>
         </div>
       </div>
     </div>
@@ -76,10 +84,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
-import { NButton, NInput } from 'naive-ui'
+import { useRouter } from 'vue-router'
+import { NButton, NInput, NPopover } from 'naive-ui'
 import { marked } from 'marked'
 import AppHeader from '../components/AppHeader.vue'
-import { chatApi } from '../api'
+import ReferenceBar from '../components/ReferenceBar.vue'
+import { chatApi, diaryApi } from '../api'
 
 interface Message {
   role: 'user' | 'ai'
@@ -97,6 +107,7 @@ function renderMd(text: string) {
 
 const API = 'http://localhost:18080/api'
 
+const router = useRouter()
 const conversations = ref<Conversation[]>([])
 const activeConvId = ref<number | null>(null)
 const messages = ref<Message[]>([])
@@ -104,9 +115,22 @@ const draft = ref('')
 const streaming = ref(false)
 const streamingText = ref('')
 const msgBox = ref<HTMLElement | null>(null)
+const references = ref<{ label: string; content: string }[]>([])
+const recentDiaryOptions = ref<{ id: number; date: string; snippet: string }[]>([])
 
 onMounted(async () => {
+  // 读取广场陪跑传递的引用
+  const state = history.state as any
+  if (state?.references?.length) {
+    references.value = state.references.map((r: string) => ({
+      label: '陪跑建议',
+      content: r
+    }))
+    // 清除 state 避免刷新后重复
+    history.replaceState({ ...history.state, references: undefined }, '')
+  }
   await loadConversations()
+  await loadRecentDiaryOptions()
   if (conversations.value.length > 0) {
     await selectConversation(conversations.value[0].id)
   } else {
@@ -243,12 +267,36 @@ async function send() {
     streamingText.value = ''
   }
 
-  xhr.send(JSON.stringify({ message: content }))
+  const refContents = references.value.map(r => r.content)
+  xhr.send(JSON.stringify({ message: content, references: refContents }))
 }
 
 function scrollBottom() {
   if (msgBox.value) {
     msgBox.value.scrollTop = msgBox.value.scrollHeight
   }
+}
+
+function removeRef(index: number) {
+  references.value.splice(index, 1)
+}
+
+function addDiaryRef(diaryId: string) {
+  const d = recentDiaryOptions.value.find(o => String(o.id) === diaryId)
+  if (d && !references.value.some(r => r.label === '日记 · ' + d.date)) {
+    references.value.push({ label: '日记 · ' + d.date, content: d.snippet })
+  }
+}
+
+async function loadRecentDiaryOptions() {
+  try {
+    const res = await diaryApi.mine()
+    const diaries = (res.data.data || []) as any[]
+    recentDiaryOptions.value = diaries.slice(0, 7).map((d: any) => ({
+      id: d.id,
+      date: d.createdAt?.split('T')[0] ?? '',
+      snippet: d.content?.length > 30 ? d.content.slice(0, 30) : d.content ?? ''
+    }))
+  } catch { recentDiaryOptions.value = [] }
 }
 </script>
