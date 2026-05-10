@@ -13,5 +13,16 @@ export default defineConfig(({ mode }) => {
         '/api': apiTarget,
       },
     },
+    build: {
+      chunkSizeWarningLimit: 500,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'naive-ui': ['naive-ui'],
+            'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          },
+        },
+      },
+    },
   }
 })
