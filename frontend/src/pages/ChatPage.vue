@@ -232,21 +232,28 @@ async function send() {
   let lastIndex = 0
   let displayText = ''
 
-  xhr.onprogress = () => {
+  function processSSE() {
     const newText = xhr.responseText.substring(lastIndex)
     lastIndex = xhr.responseText.length
     const lines = newText.split('\n')
     for (const line of lines) {
-      const cleaned = line.replace(/\r$/, '')
-      if (cleaned.startsWith('data:')) {
-        displayText += cleaned.slice(5).replace(/^\s+/, '')
+      const trimmed = line.trim()
+      if (trimmed.startsWith('data:')) {
+        displayText += trimmed.slice(5).trimStart()
       }
     }
+  }
+
+  xhr.onprogress = () => {
+    processSSE()
     streamingText.value = displayText
     scrollBottom()
   }
 
   xhr.onloadend = () => {
+    // 处理 onloadend 可能在最后一次 onprogress 之前触发的残余数据
+    processSSE()
+    streamingText.value = displayText
     if (displayText) {
       messages.value.push({ role: 'ai', content: displayText })
     } else {
@@ -255,7 +262,6 @@ async function send() {
     finishSend(convId)
   }
 
-  // onerror 只作标记，onloadend 统一处理（SSE 断连也会触发 onerror）
   xhr.onerror = () => { /* handled in onloadend */ }
 
   xhr.send(JSON.stringify({ message: content, references: refContents }))

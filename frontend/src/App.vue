@@ -1,11 +1,21 @@
 <template>
   <n-config-provider :theme-overrides="themeOverrides">
     <router-view />
+    <BottomNav v-if="showNav" />
   </n-config-provider>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import type { GlobalThemeOverrides } from 'naive-ui'
+import BottomNav from './components/BottomNav.vue'
+
+const route = useRoute()
+const showNav = computed(() => {
+  const name = route.name as string
+  return name && !['login', 'register'].includes(name)
+})
 
 const themeOverrides: GlobalThemeOverrides = {
   common: {

@@ -6,8 +6,14 @@ import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.security.JwtTokenProvider;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -54,7 +60,7 @@ public class AuthService {
         userMapper.insert(user);
 
         String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail());
-        return new AuthResponse(token, user.getId(), user.getDisplayName());
+        return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getAvatar(), user.getDailyNotifyEnabled());
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -75,6 +81,51 @@ public class AuthService {
         }
 
         String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail());
-        return new AuthResponse(token, user.getId(), user.getDisplayName());
+        return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getAvatar(), user.getDailyNotifyEnabled());
+    }
+
+    public AuthResponse updateProfile(Long userId, String displayName, String avatar) {
+        UserEntity user = userMapper.selectById(userId);
+        if (displayName != null && !displayName.isBlank()) {
+            user.setDisplayName(displayName.trim());
+        }
+        if (avatar != null) {
+            user.setAvatar(avatar);
+        }
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+        return new AuthResponse(null, user.getId(), user.getDisplayName(), user.getAvatar(), user.getDailyNotifyEnabled());
+    }
+
+    public void updateSettings(Long userId, Boolean dailyNotifyEnabled) {
+        UserEntity user = userMapper.selectById(userId);
+        user.setDailyNotifyEnabled(dailyNotifyEnabled);
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+    }
+
+    public String uploadAvatar(Long userId, MultipartFile file) {
+        if (file.isEmpty() || file.getSize() > 512 * 1024) {
+            throw new ResponseStatusException(BAD_REQUEST, "文件大小不能超过512KB");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || (!contentType.equals("image/jpeg") && !contentType.equals("image/png") && !contentType.equals("image/webp"))) {
+            throw new ResponseStatusException(BAD_REQUEST, "仅支持 JPEG/PNG/WebP 格式");
+        }
+        String ext = contentType.equals("image/png") ? "png" : contentType.equals("image/webp") ? "webp" : "jpg";
+        String filename = userId + "." + ext;
+        Path uploadDir = Path.of("uploads/avatars");
+        try {
+            Files.createDirectories(uploadDir);
+            Files.write(uploadDir.resolve(filename), file.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "头像上传失败");
+        }
+        String avatarUrl = "/uploads/avatars/" + filename;
+        UserEntity user = userMapper.selectById(userId);
+        user.setAvatar(avatarUrl);
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+        return avatarUrl;
     }
 }

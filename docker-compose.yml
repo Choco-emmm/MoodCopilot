@@ -8,6 +8,16 @@ services:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped
+    command: >
+      --innodb-buffer-pool-size=128M
+      --max-connections=50
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -17,6 +27,11 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -36,6 +51,15 @@ services:
       REDIS_HOST: redis
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       JWT_SECRET: ${JWT_SECRET}
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 768M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
@@ -46,6 +70,7 @@ services:
     build: ./frontend
     ports:
       - "80:80"
+    restart: unless-stopped
     depends_on:
       - backend
 

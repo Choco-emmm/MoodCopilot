@@ -16,6 +16,8 @@ public class UserEntity {
     private String passwordHash;
     private Integer status;
     private Boolean isVip;
+    private String avatar;
+    private Boolean dailyNotifyEnabled;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -36,6 +38,12 @@ public class UserEntity {
 
     public Boolean getIsVip() { return isVip; }
     public void setIsVip(Boolean isVip) { this.isVip = isVip; }
+
+    public String getAvatar() { return avatar; }
+    public void setAvatar(String avatar) { this.avatar = avatar; }
+
+    public Boolean getDailyNotifyEnabled() { return dailyNotifyEnabled; }
+    public void setDailyNotifyEnabled(Boolean dailyNotifyEnabled) { this.dailyNotifyEnabled = dailyNotifyEnabled; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

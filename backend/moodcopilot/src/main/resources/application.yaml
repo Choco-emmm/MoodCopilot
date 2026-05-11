@@ -9,10 +9,10 @@ spring:
       password: ${REDIS_PASSWORD:}
       lettuce:
         pool:
-          max-active: 10
-          max-idle: 10
-          min-idle: 1
-          time-between-eviction-runs: 10s
+          max-active: 30
+          max-idle: 20
+          min-idle: 5
+          time-between-eviction-runs: 30s
   #数据库的连接信息
   datasource:
     #    url: jdbc:mysql://localhost:3306/dems
@@ -20,6 +20,13 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 5
+      connection-timeout: 5000
+      idle-timeout: 300000
+      max-lifetime: 600000
+      leak-detection-threshold: 10000
   flyway:
     enabled: true
     clean-disabled: true

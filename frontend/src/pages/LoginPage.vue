@@ -2,7 +2,6 @@
   <div class="auth-page">
     <div class="auth-card">
       <h1 class="auth-title">MoodCopilot</h1>
-      <div class="auth-seal">印</div>
       <p class="auth-sub">登录你的情绪日记</p>
       <n-alert v-if="errorMsg" type="error" :title="errorMsg" style="margin-bottom: 16px" />
       <n-form ref="formRef" :model="form" :rules="rules" size="large">

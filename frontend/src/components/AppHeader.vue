@@ -1,10 +1,15 @@
 <template>
   <header class="masthead">
     <div class="masthead-top">
-      <router-link to="/" class="brand-mark">MoodCopilot</router-link>
+      <router-link to="/" class="brand-mark">
+        <svg class="brand-mark-icon" width="20" height="16" viewBox="0 0 20 16" fill="none">
+          <path d="M2 14 L6 2 L10 10 L14 2 L18 14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        MoodCopilot
+      </router-link>
       <nav class="masthead-nav">
         <template v-if="auth.isAuthenticated">
-          <div class="nav-links">
+          <div class="nav-links desktop-only">
             <router-link
               v-for="item in navItems"
               :key="item.path"
@@ -12,7 +17,7 @@
               :class="['nav-link', item.cls, { active: route.path === item.path }]"
             >{{ item.label }}</router-link>
           </div>
-          <div class="nav-sep" />
+          <div class="nav-sep desktop-only" />
           <n-popover trigger="click" placement="bottom-end" @update:show="onPopoverShow">
             <template #trigger>
               <n-badge :value="notif.unreadCount" :max="99" :show="notif.unreadCount > 0">
@@ -37,8 +42,12 @@
               </div>
             </div>
           </n-popover>
-          <span class="masthead-user">{{ auth.displayName }}</span>
-          <n-button text size="small" class="nav-logout" @click="handleLogout">退出</n-button>
+          <router-link to="/settings" class="masthead-user-link">
+            <span class="avatar-sm-nav">{{ auth.displayName?.charAt(0) }}</span>
+            {{ auth.displayName }}
+            <span class="user-link-arrow">›</span>
+          </router-link>
+          <n-button text size="small" class="nav-logout desktop-only" @click="handleLogout">退出</n-button>
         </template>
         <template v-else>
           <n-button text type="primary" @click="router.push('/login')">登录</n-button>
@@ -46,8 +55,8 @@
         </template>
       </nav>
     </div>
-    <h1>写下今天，慢慢理解自己。</h1>
-    <p class="subtitle">MoodCopilot 先帮你看见情绪；当你愿意时，再把你温和地连接给相似心情的人。</p>
+    <h1 class="desktop-only">写下今天，慢慢理解自己。</h1>
+    <p class="subtitle desktop-only">MoodCopilot 先帮你看见情绪；当你愿意时，再把你温和地连接给相似心情的人。</p>
   </header>
 
   <nav v-if="auth.isAuthenticated" class="mobile-bottom-nav" aria-label="主要导航">
@@ -95,7 +104,11 @@ function onPopoverShow(show: boolean) {
 
 function handleNotifClick(item: Notification) {
   if (!item.isRead) notif.markRead(item.id)
-  if (item.diaryId) router.push(`/diary/${item.diaryId}`)
+  if (item.type === 'SYSTEM' && !item.diaryId) {
+    router.push('/')
+  } else if (item.diaryId) {
+    router.push(`/diary/${item.diaryId}`)
+  }
 }
 
 function formatTime(value: string) {

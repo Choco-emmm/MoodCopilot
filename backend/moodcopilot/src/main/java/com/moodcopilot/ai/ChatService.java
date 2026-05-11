@@ -117,6 +117,7 @@ public class ChatService {
 
     private ChatRequest prepareChatRequest(Long conversationId, String message, List<String> refs) {
         UserEntity user = currentUser();
+        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.CHAT);
         ChatConversationEntity conv = conversationMapper.selectById(conversationId);
         if (conv == null || !conv.getUserId().equals(user.getId())) {
             throw new ResponseStatusException(BAD_REQUEST, "会话不存在");
