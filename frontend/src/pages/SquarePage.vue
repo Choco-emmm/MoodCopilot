@@ -18,7 +18,7 @@
           <span class="today-side-snippet">写下今天后，MoodCopilot 会帮你找相似处境的人。</span>
         </router-link>
       </div>
-    </section>
+
 
     <div class="chat-tease">
       <router-link to="/chat" class="chat-tease-link">

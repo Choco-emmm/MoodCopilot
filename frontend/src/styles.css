@@ -1920,3 +1920,41 @@ h2 {
     padding-left: 48px;
   }
 }
+
+
+@media (max-width: 600px) {
+  .desktop-only { display: none !important; }
+
+  /* Mobile chat sticky input layout */
+  .chat-page {
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .chat-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 20px;
+  }
+  .chat-input-row {
+    position: sticky;
+    bottom: 0;
+    padding: 12px;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+  }
+}
+
+/* ReferenceBar mobile polish */
+.ref-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 12px;
+  -webkit-overflow-scrolling: touch;
+}
+.ref-chip {
+  flex-shrink: 0;
+}
