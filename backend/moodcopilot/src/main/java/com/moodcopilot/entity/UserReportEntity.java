@@ -16,6 +16,9 @@ public class UserReportEntity {
     private Long targetId;
     private String reason;
     private String status;
+    private Long handledByUserId;
+    private LocalDateTime handledAt;
+    private String handleNote;
     private LocalDateTime createdAt;
 
     public Long getId() { return id; }
@@ -35,6 +38,15 @@ public class UserReportEntity {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public Long getHandledByUserId() { return handledByUserId; }
+    public void setHandledByUserId(Long handledByUserId) { this.handledByUserId = handledByUserId; }
+
+    public LocalDateTime getHandledAt() { return handledAt; }
+    public void setHandledAt(LocalDateTime handledAt) { this.handledAt = handledAt; }
+
+    public String getHandleNote() { return handleNote; }
+    public void setHandleNote(String handleNote) { this.handleNote = handleNote; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

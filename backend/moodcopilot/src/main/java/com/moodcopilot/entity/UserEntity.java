@@ -15,6 +15,7 @@ public class UserEntity {
     private String email;
     private String passwordHash;
     private Integer status;
+    private String role;
     private Boolean isVip;
     private String avatar;
     private Boolean dailyNotifyEnabled;
@@ -35,6 +36,9 @@ public class UserEntity {
 
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 
     public Boolean getIsVip() { return isVip; }
     public void setIsVip(Boolean isVip) { this.isVip = isVip; }

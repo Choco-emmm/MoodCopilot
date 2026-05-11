@@ -1064,6 +1064,80 @@ h2 {
   padding: 16px 0;
 }
 
+/* ── Admin reports ── */
+.admin-page {
+  max-width: 920px;
+  display: grid;
+  gap: 16px;
+  padding-bottom: 48px;
+}
+
+.admin-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-page-head h2 {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.admin-status-select {
+  width: 140px;
+}
+
+.admin-report-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-report-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: start;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.admin-report-main {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-report-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text);
+}
+
+.admin-report-reason {
+  margin: 0;
+  color: var(--color-text);
+  line-height: 1.7;
+}
+
+.admin-report-meta,
+.admin-report-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.admin-report-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 /* ── Summary ── */
 .summary-page {
   max-width: 760px;

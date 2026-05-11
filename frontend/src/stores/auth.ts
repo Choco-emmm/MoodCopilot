@@ -8,8 +8,10 @@ export const useAuthStore = defineStore('auth', () => {
   const displayName = ref<string | null>(null)
   const avatar = ref<string | null>(null)
   const dailyNotifyEnabled = ref<boolean>(true)
+  const role = ref<string>(localStorage.getItem('role') || 'USER')
 
   const isAuthenticated = computed(() => !!token.value)
+  const isAdmin = computed(() => role.value === 'ADMIN')
 
   async function fetchProfile() {
     try {
@@ -19,6 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
       displayName.value = data.displayName
       avatar.value = data.avatar
       dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
+      saveRole(data.role)
     } catch { /* ignore */ }
   }
 
@@ -27,6 +30,7 @@ export const useAuthStore = defineStore('auth', () => {
     const data = res.data.data
     displayName.value = data.displayName
     avatar.value = data.avatar
+    saveRole(data.role)
   }
 
   async function uploadAvatar(file: File) {
@@ -47,6 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
     displayName.value = data.displayName
     avatar.value = data.avatar
     dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
+    saveRole(data.role)
     localStorage.setItem('token', data.token)
   }
 
@@ -58,6 +63,7 @@ export const useAuthStore = defineStore('auth', () => {
     displayName.value = data.displayName
     avatar.value = data.avatar
     dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
+    saveRole(data.role)
     localStorage.setItem('token', data.token)
   }
 
@@ -67,9 +73,16 @@ export const useAuthStore = defineStore('auth', () => {
     displayName.value = null
     avatar.value = null
     dailyNotifyEnabled.value = true
+    role.value = 'USER'
     localStorage.removeItem('token')
+    localStorage.removeItem('role')
   }
 
-  return { token, userId, displayName, avatar, dailyNotifyEnabled, isAuthenticated,
+  function saveRole(value?: string) {
+    role.value = value || 'USER'
+    localStorage.setItem('role', role.value)
+  }
+
+  return { token, userId, displayName, avatar, dailyNotifyEnabled, role, isAuthenticated, isAdmin,
     fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout }
 })

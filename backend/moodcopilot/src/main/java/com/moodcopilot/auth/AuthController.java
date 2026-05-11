@@ -39,7 +39,8 @@ public class AuthController {
 
     @GetMapping("/me")
     public ApiResponse<AuthResponse> me(@AuthenticationPrincipal UserEntity user) {
-        return ApiResponse.ok(new AuthResponse(null, user.getId(), user.getDisplayName(), user.getAvatar(), user.getDailyNotifyEnabled()));
+        String role = user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole();
+        return ApiResponse.ok(new AuthResponse(null, user.getId(), user.getDisplayName(), user.getAvatar(), user.getDailyNotifyEnabled(), role));
     }
 
     @PostMapping("/update-profile")

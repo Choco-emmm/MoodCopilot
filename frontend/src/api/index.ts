@@ -13,8 +13,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
+    if (error.response?.status === 401) {
       localStorage.removeItem('token')
+      localStorage.removeItem('role')
       const path = window.location.pathname
       if (path !== '/login' && path !== '/register') {
         window.location.href = '/login'
@@ -50,6 +51,17 @@ export const diaryApi = {
 export const reportApi = {
   create: (data: { targetType: 'DIARY' | 'COMMENT'; targetId: number; reason: string }) =>
     api.post('/reports', data),
+}
+
+export const adminApi = {
+  reports: (status = 'PENDING', page = 1, size = 20) =>
+    api.get('/admin/reports', { params: { status, page, size } }),
+  resolveReport: (id: number, note?: string) =>
+    api.post(`/admin/reports/${id}/resolve`, { note: note ?? '' }),
+  rejectReport: (id: number, note?: string) =>
+    api.post(`/admin/reports/${id}/reject`, { note: note ?? '' }),
+  hideTarget: (id: number, note?: string) =>
+    api.post(`/admin/reports/${id}/hide-target`, { note: note ?? '' }),
 }
 
 export const notificationApi = {

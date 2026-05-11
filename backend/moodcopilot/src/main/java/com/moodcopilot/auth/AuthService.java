@@ -55,12 +55,13 @@ public class AuthService {
         user.setEmail(request.email().trim().toLowerCase());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setStatus(1);
+        user.setRole("USER");
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.insert(user);
 
         String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail());
-        return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getAvatar(), user.getDailyNotifyEnabled());
+        return response(token, user);
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -81,7 +82,7 @@ public class AuthService {
         }
 
         String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail());
-        return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getAvatar(), user.getDailyNotifyEnabled());
+        return response(token, user);
     }
 
     public AuthResponse updateProfile(Long userId, String displayName, String avatar) {
@@ -94,7 +95,7 @@ public class AuthService {
         }
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
-        return new AuthResponse(null, user.getId(), user.getDisplayName(), user.getAvatar(), user.getDailyNotifyEnabled());
+        return response(null, user);
     }
 
     public void updateSettings(Long userId, Boolean dailyNotifyEnabled) {
@@ -127,5 +128,10 @@ public class AuthService {
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
         return avatarUrl;
+    }
+
+    private AuthResponse response(String token, UserEntity user) {
+        String role = user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole();
+        return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getAvatar(), user.getDailyNotifyEnabled(), role);
     }
 }

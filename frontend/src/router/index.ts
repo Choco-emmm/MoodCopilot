@@ -55,6 +55,12 @@ const router = createRouter({
       component: () => import('../pages/SettingsPage.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/admin/reports',
+      name: 'admin-reports',
+      component: () => import('../pages/AdminReportsPage.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
   ],
 })
 
@@ -62,6 +68,8 @@ router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token')
   if (to.meta.requiresAuth && !token) {
     next('/login')
+  } else if (to.meta.requiresAdmin && localStorage.getItem('role') !== 'ADMIN') {
+    next('/')
   } else {
     next()
   }
