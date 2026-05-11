@@ -50,6 +50,15 @@ npx vite preview --host --port 4173  # 生产预览
 
 邮箱：`test@test.com`  密码：`123456`
 
+如果页面提示无法登录，先直连后端确认账号链路：
+
+```powershell
+$body = @{ email='test@test.com'; password='123456' } | ConvertTo-Json
+Invoke-RestMethod -Uri http://127.0.0.1:18080/api/auth/login -Method Post -ContentType 'application/json' -Body $body
+```
+
+当前本地开发库中该账号存在且密码哈希非空；2026-05-11 已验证直连登录返回 200。
+
 ## 架构
 
 ### 后端：按功能分包
@@ -224,6 +233,26 @@ cloudflared tunnel --config ~/.cloudflared/moodcopilot-config.yaml run moodcopil
 
 **cloudflared 配置**：`/api` → `:18080`（避免 SSE 缓冲），其余 → `:4173`。`protocol: http2`。
 
+### 登录和公网可用性排障
+
+登录失败不要先假设是前端表单或密码校验 bug。先按链路排查：
+
+```powershell
+Test-NetConnection 127.0.0.1 -Port 18080
+Test-NetConnection 127.0.0.1 -Port 4173
+Invoke-WebRequest http://127.0.0.1:18080/api/health -UseBasicParsing
+Invoke-WebRequest https://moodcopilot.dpdns.org/api/health -UseBasicParsing
+Get-Process | Where-Object { $_.ProcessName -like '*cloudflared*' }
+```
+
+若公网 `/api/health` 返回 `530`，而本地后端和前端预览可用，通常是 `cloudflared` 没运行。启动：
+
+```powershell
+cloudflared tunnel --config C:\Users\renpe\.cloudflared\moodcopilot-config.yaml run moodcopilot
+```
+
+2026-05-11 排障结论：当 `18080`、`4173`、`cloudflared` 都在线时，本地和公网登录页均可用，`POST /api/auth/login` 返回 200，随后 `/api/diaries/public`、`/api/diaries/today-match`、`/api/notifications/unread-count` 也返回 200。
+
 ## 重要踩坑记录
 
 - **绝不要在 Filter 类上加 `@Component`。** 用 `SecurityConfig` 中 `@Bean` 创建 + `FilterRegistrationBean.setEnabled(false)`。
@@ -239,6 +268,7 @@ cloudflared tunnel --config ~/.cloudflared/moodcopilot-config.yaml run moodcopil
 - **`fetch` + `ReadableStream` 在 Vite 代理下 `reader.read()` 永不 `done`** → 改用 `XMLHttpRequest`。
 - **`allowCredentials(true)` 不能用 `allowedOrigins("*")`** → 用 `allowedOriginPatterns("*")`。
 - **工作树中 `.env` 路径**：从 `backend/moodcopilot` 到仓库根的 `.env` 是 `/d/Code/MoodCopilot/.env`。
+- **公网登录 530 不是登录代码 bug。** 先查 `cloudflared`、`18080` 和 `4173`。只要公网 health 不是 200，登录页通常无法正常调用 `/api/auth/login`。
 
 ## E2E 测试
 

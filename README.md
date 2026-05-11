@@ -136,7 +136,7 @@ AI：今天你的主要情绪是“疲惫 + 委屈”，主题集中在“人际
 
 - **App 化基础准备** — 保持 Web/API 路径稳定，补齐关键 E2E 冒烟测试
 - **审核后台** — 在举报数据积累后补处理状态、隐藏范围和管理视图
-- **推荐质量优化** — 曝光去重、同一作者去重、推荐原因说明
+- **推荐质量优化** — 曝光去重、同一作者去重；不做推荐理由展示
 - **限时匿名贴** — 匿名鼓励已满足匿名互动需求，暂不做
 
 ---
@@ -219,3 +219,43 @@ npm run dev
 cd frontend
 npm run build
 ```
+
+## 登录与公网排障
+
+登录失败时先判断是账号问题还是链路问题。`test@test.com / 123456` 在当前本地开发库中可用；如果后端接口直连可登录，但公网登录失败，优先检查本机服务和 Cloudflare Tunnel。
+
+本地基础检查：
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:18080/api/health -UseBasicParsing
+Invoke-WebRequest http://127.0.0.1:4173/ -UseBasicParsing
+```
+
+直接验证登录接口：
+
+```powershell
+$body = @{ email='test@test.com'; password='123456' } | ConvertTo-Json
+Invoke-RestMethod -Uri http://127.0.0.1:18080/api/auth/login -Method Post -ContentType 'application/json' -Body $body
+```
+
+公网依赖三段链路同时可用：
+
+1. 后端监听 `18080`。
+2. 前端生产预览监听 `4173`。
+3. `cloudflared` 使用 `C:\Users\renpe\.cloudflared\moodcopilot-config.yaml` 运行。
+
+启动前端预览：
+
+```powershell
+cd D:\Code\MoodCopilot\frontend
+npm.cmd run build
+npx.cmd vite preview --host 127.0.0.1 --port 4173
+```
+
+启动隧道：
+
+```powershell
+cloudflared tunnel --config C:\Users\renpe\.cloudflared\moodcopilot-config.yaml run moodcopilot
+```
+
+如果公网 `https://moodcopilot.dpdns.org/api/health` 返回 `530`，通常是 `cloudflared` 未运行或 4173/18080 没有监听，不要先改登录代码。2026-05-11 已验证：本地 `/api/auth/login`、公网 `/api/auth/login` 均返回 200，并能跳转到广场。
