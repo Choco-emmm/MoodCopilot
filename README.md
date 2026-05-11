@@ -220,6 +220,19 @@ cd frontend
 npm run build
 ```
 
+## App 化前冒烟验证
+
+前置条件：后端运行在 `18080`，前端生产预览运行在 `4173`。公网验证还需要 `cloudflared` 隧道在线。
+
+```powershell
+cd D:\Code\MoodCopilot\frontend
+npm.cmd run build
+npx.cmd vite preview --host 127.0.0.1 --port 4173
+
+cd D:\Code\MoodCopilot
+npm.cmd run e2e:smoke
+```
+
 ## 登录与公网排障
 
 登录失败时先判断是账号问题还是链路问题。`test@test.com / 123456` 在当前本地开发库中可用；如果后端接口直连可登录，但公网登录失败，优先检查本机服务和 Cloudflare Tunnel。

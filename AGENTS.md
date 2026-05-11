@@ -37,6 +37,16 @@ cmd /c mvn.cmd test
 
 本次验证结果：`cmd /c mvn.cmd compile`、`cmd /c mvn.cmd test` 均可通过。
 
+### E2E
+
+前置条件：后端 `18080` 和前端预览 `4173` 均已启动。公网验证还需要 `cloudflared` 隧道在线。
+
+```powershell
+cd D:\Code\MoodCopilot
+npm.cmd run e2e:smoke
+npm.cmd run e2e:visual-polish
+```
+
 ## 公开访问恢复流程
 
 `https://moodcopilot.dpdns.org/` 依赖本机三件事同时可用：
@@ -97,7 +107,7 @@ C:\Users\renpe\AppData\Local\Microsoft\WinGet\Packages\Cloudflare.cloudflared_Mi
 
 - App 化基础准备：保持 Web/API 路径稳定，补齐关键 E2E 冒烟测试。
 - 审核后台：基于现有举报数据，补处理状态、隐藏范围和管理视图。
-- 推荐质量优化：曝光去重、同一作者去重、推荐原因说明。
+- 推荐质量优化：曝光去重、同一作者去重；不做推荐理由展示。
 - 公开社区卡片保持轻量正文流：不要展示 AI 主题/分类标签，不提供“看分析”入口；鼓励功能暂不作为广场主操作展示。
 
 ## 已知踩坑

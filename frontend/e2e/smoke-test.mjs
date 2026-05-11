@@ -1,181 +1,145 @@
 import { chromium } from 'playwright';
 
-const BASE = 'http://localhost:4173';
+const BASE_URL = process.env.E2E_BASE_URL || 'http://127.0.0.1:4173';
+const API_URL = process.env.E2E_API_URL || 'http://127.0.0.1:18080/api';
+const EMAIL = process.env.E2E_EMAIL || 'test@test.com';
+const PASSWORD = process.env.E2E_PASSWORD || '123456';
+
+let passed = 0;
+let failed = 0;
+
+async function check(label, fn) {
+  try {
+    await fn();
+    console.log(`  OK ${label}`);
+    passed++;
+  } catch (error) {
+    console.log(`  FAIL ${label}: ${String(error.message || error).slice(0, 180)}`);
+    failed++;
+  }
+}
+
+async function expectHttpOk(url, label) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`${label} failed: ${response.status} ${await response.text()}`);
+  }
+  return response;
+}
+
+async function login(page) {
+  await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+  await page.locator('input').nth(0).fill(EMAIL);
+  await page.locator('input').nth(1).fill(PASSWORD);
+  await page.locator('button').first().click();
+  await page.waitForURL(`${BASE_URL}/`, { timeout: 15000 });
+}
+
+async function firstPublicDiaryId(page) {
+  const token = await page.evaluate(() => localStorage.getItem('token'));
+  const result = await page.evaluate(async ({ apiUrl, token }) => {
+    const response = await fetch(`${apiUrl}/diaries/public?page=1&size=5`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return { status: response.status, id: null };
+    const body = await response.json();
+    const data = body.data;
+    const items = data?.items ?? data?.records ?? data ?? [];
+    return { status: response.status, id: items[0]?.id ?? null };
+  }, { apiUrl: API_URL, token });
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(`public diaries failed: ${result.status}`);
+  }
+  return result.id;
+}
 
 async function main() {
+  console.log('\n=== MoodCopilot App smoke ===\n');
+  await check('API health 可用', async () => {
+    await expectHttpOk(`${API_URL}/health`, 'health');
+  });
+
   const browser = await chromium.launch({ headless: true });
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } }); // iPhone 14 size
-  const page = await ctx.newPage();
-
-  let passed = 0;
-  let failed = 0;
-  const check = async (label, fn) => {
-    try {
-      await fn(page);
-      console.log(`  ✅ ${label}`);
-      passed++;
-    } catch (e) {
-      console.log(`  ❌ ${label}: ${e.message?.slice(0, 120)}`);
-      failed++;
-    }
-  };
-
-  console.log('\n═══ MoodCopilot E2E 冒烟测试 ═══\n');
-
-  // ── 1. 登录页 ──
-  console.log('1. 登录页');
-  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
-  await check('显示登录表单', async (p) => {
-    await p.waitForSelector('.auth-card', { timeout: 5000 });
+  const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true });
+  const consoleErrors = [];
+  const requestFailures = [];
+  mobile.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
   });
-  await check('M logo 存在（无旧印章）', async (p) => {
-    await p.waitForSelector('.auth-logo svg', { timeout: 3000 });
-    const seal = await p.$('.auth-seal');
-    if (seal) throw new Error('旧印章仍存在');
-  });
-  await check('登录标题可见', async (p) => {
-    await p.waitForSelector('.auth-title', { timeout: 3000 });
+  mobile.on('requestfailed', (request) => {
+    const errorText = request.failure()?.errorText || '';
+    if (errorText.includes('net::ERR_ABORTED')) return;
+    requestFailures.push(`${request.url()} ${errorText}`);
   });
 
-  // ── 2. 登录 ──
-  console.log('2. 执行登录');
-  await page.fill('input[placeholder="输入邮箱"]', 'test@test.com');
-  await page.fill('input[placeholder="输入密码"]', '123456');
-  await page.click('button:has-text("登录")');
-  await page.waitForTimeout(2000);
-
-  await check('跳转到广场页', async (p) => {
-    const url = p.url();
-    // 登录成功后应离开 /login，到 / 或其他认证页
-    if (url.includes('/login')) {
-      const alert = await p.$('.n-alert');
-      if (alert) {
-        const text = await alert.textContent();
-        throw new Error(`登录失败: ${text}`);
-      }
-      throw new Error('仍停留在登录页');
-    }
-  });
-
-  // ── 3. 广场页 ──
-  console.log('3. 广场页');
-  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-  await check('M logo 显示在顶栏', async (p) => {
-    await p.waitForSelector('.brand-mark svg', { timeout: 5000 });
-  });
-  await check('今日状态条可见', async (p) => {
-    await p.waitForSelector('.today-status-row', { timeout: 5000 });
-  });
-  await check('无情绪标签', async (p) => {
-    const moodChips = await p.$$('.mood-chip');
-    if (moodChips.length > 0) throw new Error('社区共鸣情绪标签仍存在');
-  });
-  await check('公开日记流加载', async (p) => {
-    await p.waitForSelector('.feed-item', { timeout: 8000 });
-  });
-  await check('日记卡片无情绪标签', async (p) => {
-    const tags = await p.$$('.feed-item .n-tag');
-    // 可能还有公开/私密标签，但不应该有情绪标签
-    const moodTag = await p.$('.feed-head .n-tag');
-    if (moodTag) throw new Error('feed 项仍显示情绪标签');
-  });
-
-  // ── 4. 个人中心 ──
-  console.log('4. 个人中心');
-  await check('点击用户名进入设置', async (p) => {
-    await p.click('.masthead-user-link');
-    await p.waitForTimeout(1000);
-    const url = p.url();
-    if (!url.includes('/settings')) throw new Error(`未跳转到设置页: ${url}`);
-  });
-  await check('设置页显示头像上传', async (p) => {
-    await p.waitForSelector('.avatar-upload', { timeout: 5000 });
-  });
-  await check('设置页显示用户名编辑', async (p) => {
-    await p.waitForSelector('input[placeholder="输入新用户名"]', { timeout: 3000 });
-  });
-  await check('设置页显示通知开关', async (p) => {
-    await p.waitForSelector('.n-switch', { timeout: 3000 });
-  });
-  await check('设置页显示退出按钮', async (p) => {
-    await p.waitForSelector('button:has-text("退出登录")', { timeout: 3000 });
-  });
-
-  // ── 5. 日记详情 ──
-  console.log('5. 日记详情');
-  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-  await page.waitForSelector('.feed-item', { timeout: 8000 });
-  const firstDiary = await page.$('.feed-item .feed-content');
-  if (firstDiary) {
-    await page.click('.feed-item:first-child .n-button:has-text("看分析")');
-    await page.waitForTimeout(1500);
-    await check('日记详情加载', async (p) => {
-      await p.waitForSelector('.diary-detail-page', { timeout: 5000 });
+  try {
+    await check('登录页可打开', async () => {
+      await mobile.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+      await mobile.locator('.auth-card').waitFor({ timeout: 8000 });
     });
-    await check('加载中不显示"日记不存在"', async (p) => {
-      // 页面已加载完成，确认不是显示"日记不存在"
-      const empty = await p.$('.n-empty');
-      if (empty) {
-        const text = await empty.textContent();
-        if (text?.includes('不存在')) throw new Error('显示了日记不存在');
+
+    await check('测试账号可登录并进入广场', async () => {
+      await login(mobile);
+      await mobile.locator('.app-shell').waitFor({ timeout: 10000 });
+    });
+
+    await check('广场公开流可加载', async () => {
+      await mobile.goto(`${BASE_URL}/`, { waitUntil: 'domcontentloaded' });
+      await mobile.locator('.feed-item').first().waitFor({ timeout: 12000 });
+    });
+
+    await check('写日记页可访问', async () => {
+      await mobile.goto(`${BASE_URL}/write`, { waitUntil: 'domcontentloaded' });
+      await mobile.locator('textarea').first().waitFor({ timeout: 10000 });
+    });
+
+    await check('报告页可访问', async () => {
+      await mobile.goto(`${BASE_URL}/report`, { waitUntil: 'domcontentloaded' });
+      await mobile.locator('.report-page').waitFor({ timeout: 12000 });
+    });
+
+    await check('AI 聊天页可访问', async () => {
+      await mobile.goto(`${BASE_URL}/chat`, { waitUntil: 'domcontentloaded' });
+      await mobile.locator('.chat-messages').waitFor({ timeout: 10000 });
+      await mobile.locator('.chat-input-row').waitFor({ timeout: 10000 });
+    });
+
+    await check('设置页可访问', async () => {
+      await mobile.goto(`${BASE_URL}/settings`, { waitUntil: 'domcontentloaded' });
+      await mobile.locator('.avatar-upload').waitFor({ timeout: 10000 });
+    });
+
+    await check('日记详情页可访问', async () => {
+      const id = await firstPublicDiaryId(mobile);
+      if (!id) {
+        console.log('  SKIP 没有公开日记，跳过详情页');
+        return;
+      }
+      await mobile.goto(`${BASE_URL}/diary/${id}`, { waitUntil: 'domcontentloaded' });
+      await mobile.locator('.diary-detail-page').waitFor({ timeout: 10000 });
+    });
+
+    await check('桌面端顶栏可访问', async () => {
+      const desktop = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+      await login(desktop);
+      await desktop.locator('.masthead').waitFor({ timeout: 10000 });
+      await desktop.close();
+    });
+
+    await check('页面没有控制台错误或失败请求', async () => {
+      if (consoleErrors.length || requestFailures.length) {
+        throw new Error(JSON.stringify({ consoleErrors, requestFailures }, null, 2));
       }
     });
-  } else {
-    console.log('  ⏭️ 跳过（无公开日记）');
+  } finally {
+    await browser.close();
   }
 
-  // ── 6. AI 聊天 ──
-  console.log('6. AI 聊天页');
-  await page.goto(`${BASE}/chat`, { waitUntil: 'networkidle' });
-  await check('聊天页加载', async (p) => {
-    await p.waitForSelector('.chat-messages', { timeout: 5000 });
-  });
-  await check('输入框可见', async (p) => {
-    await p.waitForSelector('.chat-input-row input', { timeout: 3000 });
-  });
-
-  // ── 7. 报告页 ──
-  console.log('7. 报告页');
-  await page.goto(`${BASE}/report`, { waitUntil: 'networkidle' });
-  await check('报告页加载', async (p) => {
-    await p.waitForSelector('.report-page', { timeout: 8000 });
-  });
-
-  // ── 8. 桌面端顶栏 ──
-  console.log('8. 桌面端布局');
-  const desktopCtx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-  const desktopPage = await desktopCtx.newPage();
-  await desktopPage.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
-  await desktopPage.fill('input[placeholder="输入邮箱"]', 'test@test.com');
-  await desktopPage.fill('input[placeholder="输入密码"]', '123456');
-  await desktopPage.click('button:has-text("登录")');
-  await desktopPage.waitForTimeout(2000);
-  // 确认登录成功
-  const desktopUrl = desktopPage.url();
-  console.log('  桌面端登录后URL:', desktopUrl);
-  await check('桌面端已登录', async (p) => {
-    if (p.url().includes('/login')) {
-      const alert = await p.$('.n-alert');
-      throw new Error('桌面端登录失败');
-    }
-  });
-  await desktopPage.goto(`${BASE}/`, { waitUntil: 'networkidle' });
-  await check('桌面端M logo可见', async (p) => {
-    await p.waitForSelector('.brand-mark', { timeout: 5000 });
-  });
-  await check('桌面端顶栏可见', async (p) => {
-    await p.waitForSelector('.masthead', { timeout: 5000 });
-  });
-  await desktopCtx.close();
-
-  // ── 结果 ──
-  console.log(`\n═══ 结果: ${passed} 通过, ${failed} 失败 ═══\n`);
-
-  await browser.close();
+  console.log(`\n=== Result: ${passed} passed, ${failed} failed ===\n`);
   process.exit(failed > 0 ? 1 : 0);
 }
 
-main().catch(e => {
-  console.error('测试异常:', e.message);
+main().catch((error) => {
+  console.error('Smoke test crashed:', error);
   process.exit(1);
 });

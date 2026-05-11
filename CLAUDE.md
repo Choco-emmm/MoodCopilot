@@ -88,7 +88,7 @@ src/main/java/com/moodcopilot/
 public/
 │   manifest.json、sw.js、icon-192.svg（M logo）    PWA 支持
 e2e/
-│   smoke-test.mjs    Playwright E2E 冒烟测试（22 项）
+│   smoke-test.mjs、visual-polish-smoke.mjs    Playwright E2E 冒烟测试
 src/
 ├── api/index.ts         拦截器 + diaryApi/authApi/notificationApi/followApi/summaryApi/chatApi
 ├── components/          10 个：AppHeader、BottomNav（6 Tab）、DiaryComposer、AiAnalysisCard、
@@ -272,8 +272,10 @@ cloudflared tunnel --config C:\Users\renpe\.cloudflared\moodcopilot-config.yaml 
 
 ## E2E 测试
 
-```bash
-cd frontend
-npm install --save-dev playwright
-node e2e/smoke-test.mjs    # 22 项冒烟测试（登录/广场/设置/日记/AI/报告/桌面端）
+前置条件：后端 `18080` 和前端生产预览 `4173` 均已启动。公网验证还需要 `cloudflared` 隧道在线。
+
+```powershell
+cd D:\Code\MoodCopilot
+npm.cmd run e2e:smoke
+npm.cmd run e2e:visual-polish
 ```
