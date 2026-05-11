@@ -1,5 +1,7 @@
 {
   "scripts": {
+    "public:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-public.ps1",
+    "public:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-public.ps1 -Restart",
     "e2e:smoke": "node frontend/e2e/smoke-test.mjs",
     "e2e:visual-polish": "node frontend/e2e/visual-polish-smoke.mjs"
   },

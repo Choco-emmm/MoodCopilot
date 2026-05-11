@@ -233,6 +233,14 @@ cloudflared tunnel --config ~/.cloudflared/moodcopilot-config.yaml run moodcopil
 
 **cloudflared 配置**：`/api` → `:18080`（避免 SSE 缓冲），其余 → `:4173`。`protocol: http2`。
 
+公网优先使用一键脚本，避免重复排障：
+
+```powershell
+cd D:\Code\MoodCopilot
+npm.cmd run public:start
+npm.cmd run public:restart
+```
+
 ### 登录和公网可用性排障
 
 登录失败不要先假设是前端表单或密码校验 bug。先按链路排查：

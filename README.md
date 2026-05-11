@@ -257,6 +257,16 @@ Invoke-RestMethod -Uri http://127.0.0.1:18080/api/auth/login -Method Post -Conte
 2. 前端生产预览监听 `4173`。
 3. `cloudflared` 使用 `C:\Users\renpe\.cloudflared\moodcopilot-config.yaml` 运行。
 
+推荐直接一键启动：
+
+```powershell
+cd D:\Code\MoodCopilot
+npm.cmd run public:start
+
+# 强制重启后端、前端预览和隧道：
+npm.cmd run public:restart
+```
+
 启动前端预览：
 
 ```powershell

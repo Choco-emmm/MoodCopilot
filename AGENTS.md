@@ -55,6 +55,16 @@ npm.cmd run e2e:visual-polish
 2. 前端生产预览监听 `4173`。
 3. `cloudflared` 隧道使用 `C:\Users\renpe\.cloudflared\moodcopilot-config.yaml` 运行。
 
+优先使用一键脚本，不要每次手动查一整圈：
+
+```powershell
+cd D:\Code\MoodCopilot
+npm.cmd run public:start
+
+# 如果要强制重启三段链路：
+npm.cmd run public:restart
+```
+
 本地检查：
 
 ```powershell
