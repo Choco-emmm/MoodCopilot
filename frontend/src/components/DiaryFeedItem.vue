@@ -19,47 +19,18 @@
           <span>{{ formatTime(diary.createdAt) }}</span>
         </div>
       </div>
-      <n-tag v-if="diary.analysis?.moodLabel" round>{{ diary.analysis.moodLabel }}</n-tag>
     </div>
 
     <p class="feed-content">{{ diary.content }}</p>
-
-    <div class="tag-row">
-      <n-tag
-        v-for="topic in (diary.analysis?.topicLabels ?? [])"
-        :key="`${diary.id}-${topic}`"
-        size="small"
-        type="info"
-        round
-      >
-        {{ topic }}
-      </n-tag>
-    </div>
 
     <div class="feed-actions">
       <n-button size="small" tertiary @click="$emit('resonate', diary)">
         共鸣 {{ diary.resonanceCount }}
       </n-button>
-      <n-button size="small" tertiary type="primary" @click="openEncourage">
-        鼓励
-      </n-button>
-      <n-button size="small" text @click="$emit('select', diary)">看分析</n-button>
-      <n-button v-if="diary.authorUserId !== auth.userId" size="small" text @click="reportDiary">举报</n-button>
-      <n-button v-if="diary.authorUserId !== auth.userId" size="small" text @click="hideDiary">隐藏</n-button>
-    </div>
-
-    <div v-if="showEncourage" class="encourage-panel">
-      <n-spin v-if="encouraging" size="small" />
-      <template v-else-if="encourageCandidates.length">
-        <p class="encourage-prompt">选一句匿名发送：</p>
-        <button
-          v-for="(msg, i) in encourageCandidates"
-          :key="i"
-          class="encourage-option"
-          @click="sendEncourage(msg)"
-        >{{ msg }}</button>
-      </template>
-      <p v-if="encourageSent" class="encourage-sent">已匿名发送</p>
+      <div v-if="diary.authorUserId !== auth.userId" class="feed-safety-actions">
+        <n-button size="small" text @click="reportDiary">举报</n-button>
+        <n-button size="small" text @click="hideDiary">隐藏</n-button>
+      </div>
     </div>
 
     <div v-if="(diary.comments ?? []).length" class="comments">
@@ -130,7 +101,6 @@ import { diaryApi, reportApi } from '../api'
 
 const props = defineProps<{ diary: Diary }>()
 const emit = defineEmits<{
-  select: [diary: Diary]
   resonate: [diary: Diary]
   comment: [diary: Diary, content: string, parentCommentId?: number]
 }>()
@@ -186,31 +156,6 @@ async function reportComment(commentId: number) {
   const reason = window.prompt('请简单说明举报原因')
   if (!reason?.trim()) return
   await reportApi.create({ targetType: 'COMMENT', targetId: commentId, reason: reason.trim() })
-}
-
-// ── 匿名鼓励 ──
-const showEncourage = ref(false)
-const encouraging = ref(false)
-const encourageCandidates = ref<string[]>([])
-const encourageSent = ref(false)
-
-async function openEncourage() {
-  if (encourageSent.value) return
-  showEncourage.value = !showEncourage.value
-  if (showEncourage.value && encourageCandidates.value.length === 0) {
-    encouraging.value = true
-    try {
-      const res = await diaryApi.encourageCandidates(props.diary.id)
-      encourageCandidates.value = res.data.data ?? []
-    } catch { /* ignore */ }
-    encouraging.value = false
-  }
-}
-
-async function sendEncourage(message: string) {
-  await diaryStore.sendEncouragement(props.diary.id, message)
-  encourageSent.value = true
-  showEncourage.value = false
 }
 
 function submit() {

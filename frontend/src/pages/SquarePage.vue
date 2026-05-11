@@ -55,7 +55,6 @@
       :has-more="store.hasMore"
       @refresh="store.fetchDiaries()"
       @load-more="store.loadMorePublic()"
-      @select="selectDiary"
       @resonate="(d: Diary) => store.resonate(d.id)"
       @comment="(d: Diary, c: string, pid?: number) => store.addComment(d.id, c, pid)"
     />
@@ -84,10 +83,6 @@ onMounted(async () => {
   try { const res = await diaryApi.coaching(); coaching.value = res.data.data } catch { /* ignore */ }
   try { const res = await diaryApi.communityMood(); moods.value = res.data.data } catch { /* ignore */ }
 })
-
-function selectDiary(diary: Diary) {
-  router.push(`/diary/${diary.id}`)
-}
 
 function gotoChatWithCoaching() {
   router.push({

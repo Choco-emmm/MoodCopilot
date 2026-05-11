@@ -20,17 +20,25 @@
     />
 
     <div class="composer-actions">
-      <span class="privacy-copy">{{ visibilityCopy }}</span>
-      <span :class="['composer-count', { over: isOverLimit }]">{{ draft.length }}/1000</span>
-      <n-button
-        type="primary"
-        size="large"
-        :loading="store.saving"
-        :disabled="!draft.trim() || isOverLimit"
-        @click="handleSave"
-      >
-        保存并分析
-      </n-button>
+      <div class="composer-side-copy">
+        <span class="privacy-copy">{{ visibilityCopy }}</span>
+        <span v-if="draftNotice" class="draft-notice">
+          <span class="draft-dot" />
+          {{ draftNotice }}
+        </span>
+      </div>
+      <div class="composer-submit-row">
+        <span :class="['composer-count', { over: isOverLimit }]">{{ draft.length }}/1000</span>
+        <n-button
+          type="primary"
+          size="large"
+          :loading="store.saving"
+          :disabled="!draft.trim() || isOverLimit"
+          @click="handleSave"
+        >
+          保存并分析
+        </n-button>
+      </div>
     </div>
 
     <div v-if="store.analysisStatus !== 'idle'" class="composer-status">
@@ -54,6 +62,7 @@ import { useDiaryStore } from '../stores/diary'
 
 const store = useDiaryStore()
 const draft = ref('')
+const draftNotice = ref('')
 const visibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
 const DRAFT_KEY = 'moodcopilot:draft'
 
@@ -71,12 +80,23 @@ const visibilityCopy = computed(() =>
 const isOverLimit = computed(() => draft.value.length > 1000)
 
 onMounted(() => {
-  draft.value = localStorage.getItem(DRAFT_KEY) ?? ''
+  const savedDraft = localStorage.getItem(DRAFT_KEY)
+  if (savedDraft) {
+    draftNotice.value = '已恢复本机草稿'
+    draft.value = savedDraft
+  }
 })
 
-watch(draft, (value) => {
-  if (value) localStorage.setItem(DRAFT_KEY, value)
-  else localStorage.removeItem(DRAFT_KEY)
+watch(draft, (value, oldValue) => {
+  if (value) {
+    localStorage.setItem(DRAFT_KEY, value)
+    if (draftNotice.value !== '已恢复本机草稿' || oldValue) {
+      draftNotice.value = '草稿已自动保存到本机'
+    }
+  } else {
+    localStorage.removeItem(DRAFT_KEY)
+    draftNotice.value = ''
+  }
 })
 
 async function handleSave() {

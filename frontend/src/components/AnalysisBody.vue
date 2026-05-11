@@ -14,12 +14,6 @@
 
     <p class="summary">{{ diary.analysis.summary }}</p>
     <p class="feedback">{{ diary.analysis.feedback }}</p>
-
-    <div class="tag-row">
-      <n-tag v-for="topic in diary.analysis.topicLabels" :key="topic" type="info" round>
-        {{ topic }}
-      </n-tag>
-    </div>
   </template>
 
   <template v-else>
@@ -41,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { NTag, NProgress } from 'naive-ui'
+import { NProgress } from 'naive-ui'
 import type { Diary } from '../stores/diary'
 
 defineProps<{ diary: Diary }>()

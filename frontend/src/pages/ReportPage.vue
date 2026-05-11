@@ -62,11 +62,6 @@
               </div>
             </div>
 
-            <h4>本周话题</h4>
-            <div class="topic-cloud">
-              <n-tag v-for="(count, topic) in report.topicCounts" :key="topic" type="info" round>{{ topic }} × {{ count }}</n-tag>
-            </div>
-
             <h4>AI 周总结</h4>
             <p class="ai-summary">{{ report.aiSummary }}</p>
 
@@ -150,11 +145,6 @@
               </div>
             </div>
 
-            <h4>本月话题</h4>
-            <div class="topic-cloud">
-              <n-tag v-for="(count, topic) in monthReport.topicCounts" :key="topic" type="info" round>{{ topic }} × {{ count }}</n-tag>
-            </div>
-
             <h4>AI 月总结</h4>
             <p class="ai-summary">{{ monthReport.aiSummary }}</p>
 
@@ -206,9 +196,6 @@
                   </div>
                   <n-tag :color="{ color: moodColor(day.moodLabel), textColor: '#fff' }" size="small" round>{{ day.moodLabel }}</n-tag>
                 </div>
-              </div>
-              <div class="topic-cloud">
-                <n-tag v-for="(count, topic) in s.topicCounts" :key="topic" type="info" round size="small">{{ topic }} × {{ count }}</n-tag>
               </div>
             </div>
             <p class="summary-body">{{ s.aiSummary }}</p>

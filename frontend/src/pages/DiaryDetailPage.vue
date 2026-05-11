@@ -12,9 +12,6 @@
             <n-tag :type="diary.visibility === 'PUBLIC' ? 'success' : 'default'" round size="small">
               {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
             </n-tag>
-            <span v-if="!isOwner && diary.analysis?.moodLabel" class="diary-mood-badge">
-              {{ diary.analysis.moodLabel }}
-            </span>
             <n-button v-if="!isOwner" size="tiny" text @click="reportDiary">举报</n-button>
             <n-button v-if="!isOwner" size="tiny" text @click="hideDiary">隐藏</n-button>
           </div>
@@ -26,13 +23,6 @@
           <div class="section-divider" />
           <AiAnalysisCard :diary="diary" :compact="true" />
         </template>
-
-        <!-- 别人的日记：仅显示主题标签 -->
-        <div v-else-if="diary.analysis?.topicLabels?.length" class="tag-row">
-          <n-tag v-for="topic in diary.analysis.topicLabels" :key="topic" type="info" round size="small">
-            {{ topic }}
-          </n-tag>
-        </div>
       </article>
 
       <!-- 评论区域 -->

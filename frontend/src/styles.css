@@ -286,10 +286,40 @@ h2 {
   gap: 14px;
 }
 
+.composer-side-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.composer-submit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
 .privacy-copy {
   color: var(--color-text-secondary);
   font-size: 14px;
   line-height: 1.5;
+}
+
+.draft-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-jade);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.draft-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-jade);
+  box-shadow: 0 0 0 3px var(--color-jade-light);
 }
 
 .analysis-grid,
@@ -393,12 +423,6 @@ h2 {
   margin: 0;
   color: var(--color-text-secondary);
   line-height: 1.75;
-}
-
-.tag-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 /* ── Lists & Feeds ── */
@@ -556,9 +580,13 @@ h2 {
 
 .feed-item .feed-actions {
   justify-content: flex-start;
+  padding-top: 2px;
 }
 
-.feed-item .feed-actions .n-button:last-child {
+.feed-safety-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-left: auto;
 }
 
@@ -570,6 +598,8 @@ h2 {
   margin: 0;
   color: var(--color-text);
   line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* ── Comments ── */
@@ -639,44 +669,6 @@ h2 {
 }
 
 .comment-box .n-input { flex: 1; }
-
-/* ── Encourage panel ── */
-.encourage-panel {
-  display: grid;
-  gap: 6px;
-  padding: 10px;
-  background: var(--color-jade-light);
-  border-radius: var(--radius-md);
-}
-
-.encourage-prompt {
-  margin: 0;
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
-
-.encourage-option {
-  padding: 8px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  font-size: 14px;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-  line-height: 1.5;
-}
-.encourage-option:hover {
-  border-color: var(--color-jade);
-  background: #fff;
-}
-
-.encourage-sent {
-  margin: 0;
-  font-size: 13px;
-  color: var(--color-jade);
-  text-align: center;
-}
 
 /* ── Notifications ── */
 .notif-popover {
@@ -1012,12 +1004,6 @@ h2 {
   white-space: nowrap;
 }
 
-.topic-cloud {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .ai-summary {
   margin: 0;
   color: var(--color-text);
@@ -1339,15 +1325,6 @@ h2 {
   display: grid;
   gap: 16px;
   padding-bottom: 48px;
-}
-
-.diary-mood-badge {
-  padding: 1px 8px;
-  border-radius: 10px;
-  background: var(--color-jade-light);
-  color: var(--color-jade);
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .comment-section-title {
@@ -1804,6 +1781,12 @@ h2 {
     width: 100%;
   }
 
+  .composer-submit-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
   .content-grid {
     gap: 14px;
   }
@@ -1868,7 +1851,10 @@ h2 {
     gap: 8px;
   }
 
-  .feed-item .feed-actions .n-button:last-child {
+  .feed-safety-actions {
+    justify-self: end;
+    justify-content: flex-end;
+    flex-wrap: wrap;
     margin-left: 0;
   }
 

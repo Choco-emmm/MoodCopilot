@@ -13,9 +13,8 @@
         v-for="diary in diaries"
         :key="diary.id"
         :diary="diary"
-        @select="$emit('select', $event)"
         @resonate="$emit('resonate', $event)"
-        @comment="(d, c) => $emit('comment', d, c)"
+        @comment="(d, c, pid) => $emit('comment', d, c, pid)"
       />
       <div v-if="hasMore" ref="sentinel" class="scroll-sentinel" />
       <n-spin v-if="loading && diaries.length" size="small" />
@@ -35,7 +34,6 @@ import type { Diary } from '../stores/diary'
 const props = defineProps<{ diaries: Diary[]; loading: boolean; hasMore?: boolean }>()
 const emit = defineEmits<{
   refresh: []
-  select: [diary: Diary]
   resonate: [diary: Diary]
   comment: [diary: Diary, content: string, parentCommentId?: number]
   loadMore: []

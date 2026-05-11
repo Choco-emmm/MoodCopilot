@@ -15,7 +15,6 @@
           v-for="diary in diaries"
           :key="diary.id"
           :diary="diary"
-          @select="(d: Diary) => router.push(`/diary/${d.id}`)"
           @resonate="(d: Diary) => store.resonate(d.id)"
           @comment="(d: Diary, c: string, pid?: number) => store.addComment(d.id, c, pid)"
         />
