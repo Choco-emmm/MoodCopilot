@@ -11,12 +11,14 @@ import com.moodcopilot.follow.FollowService;
 import com.moodcopilot.entity.DiaryCommentEntity;
 import com.moodcopilot.entity.DiaryEntity;
 import com.moodcopilot.entity.DiaryHideEntity;
+import com.moodcopilot.entity.DiaryRecommendationExposureEntity;
 import com.moodcopilot.entity.DiaryResonanceEntity;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.DiaryCommentMapper;
 import com.moodcopilot.mapper.DiaryHideMapper;
 import com.moodcopilot.mapper.DiaryMapper;
+import com.moodcopilot.mapper.DiaryRecommendationExposureMapper;
 import com.moodcopilot.mapper.DiaryResonanceMapper;
 import com.moodcopilot.notification.NotificationService;
 import org.slf4j.Logger;
@@ -56,6 +58,7 @@ public class DiaryService {
     private final DiaryCommentMapper diaryCommentMapper;
     private final DiaryResonanceMapper diaryResonanceMapper;
     private final DiaryHideMapper diaryHideMapper;
+    private final DiaryRecommendationExposureMapper exposureMapper;
     private static final Logger log = LoggerFactory.getLogger(DiaryService.class);
 
     private final AiAnalysisService aiAnalysisService;
@@ -69,6 +72,7 @@ public class DiaryService {
                         DiaryCommentMapper diaryCommentMapper,
                         DiaryResonanceMapper diaryResonanceMapper,
                         DiaryHideMapper diaryHideMapper,
+                        DiaryRecommendationExposureMapper exposureMapper,
                         AiAnalysisService aiAnalysisService,
                         NotificationService notificationService,
                         FollowService followService,
@@ -79,6 +83,7 @@ public class DiaryService {
         this.diaryCommentMapper = diaryCommentMapper;
         this.diaryResonanceMapper = diaryResonanceMapper;
         this.diaryHideMapper = diaryHideMapper;
+        this.exposureMapper = exposureMapper;
         this.aiAnalysisService = aiAnalysisService;
         this.notificationService = notificationService;
         this.followService = followService;
@@ -195,17 +200,24 @@ public class DiaryService {
                         .ne(DiaryEntity::getId, id)
                         .orderByDesc(DiaryEntity::getCreatedAt)
         );
-        List<DiaryEntity> publicDiaries = filterHidden(candidatePage.getRecords(), currentUser().getId());
+        UserEntity user = currentUser();
+        List<DiaryEntity> publicDiaries = filterHidden(candidatePage.getRecords(), user.getId()).stream()
+                .filter(diary -> !user.getId().equals(diary.getAuthorUserId()))
+                .toList();
         Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
                 publicDiaries.stream().map(DiaryEntity::getId).toList());
 
         int cappedLimit = Math.max(1, Math.min(limit, 10));
 
-        return publicDiaries.stream()
+        List<DiaryEntity> recommended = dedupeByAuthor(publicDiaries.stream()
                 .sorted(Comparator
                         .comparingInt((DiaryEntity d) -> similarityScore(sourceAnalysis, analysisMap.get(d.getId()))).reversed()
                         .thenComparing(DiaryEntity::getCreatedAt, Comparator.reverseOrder()))
+                .toList()).stream()
                 .limit(cappedLimit)
+                .toList();
+        recordExposures(user.getId(), "SIMILAR_DIARIES", recommended);
+        return recommended.stream()
                 .map(d -> buildDiaryView(d, true, analysisMap, Map.of()))
                 .toList();
     }
@@ -580,6 +592,36 @@ public class DiaryService {
         return hides.stream().map(DiaryHideEntity::getDiaryId).collect(Collectors.toSet());
     }
 
+    private Set<Long> recentExposureIds(long userId, String scene) {
+        List<DiaryRecommendationExposureEntity> exposures = exposureMapper.selectList(
+                new LambdaQueryWrapper<DiaryRecommendationExposureEntity>()
+                        .eq(DiaryRecommendationExposureEntity::getUserId, userId)
+                        .eq(DiaryRecommendationExposureEntity::getScene, scene)
+                        .ge(DiaryRecommendationExposureEntity::getCreatedAt, LocalDateTime.now().minusDays(7))
+        );
+        return exposures.stream()
+                .map(DiaryRecommendationExposureEntity::getDiaryId)
+                .collect(Collectors.toSet());
+    }
+
+    private List<DiaryEntity> dedupeByAuthor(List<DiaryEntity> diaries) {
+        Set<Long> seenAuthors = new java.util.HashSet<>();
+        return diaries.stream()
+                .filter(diary -> seenAuthors.add(diary.getAuthorUserId()))
+                .toList();
+    }
+
+    private void recordExposures(long userId, String scene, List<DiaryEntity> diaries) {
+        for (DiaryEntity diary : diaries) {
+            DiaryRecommendationExposureEntity exposure = new DiaryRecommendationExposureEntity();
+            exposure.setUserId(userId);
+            exposure.setDiaryId(diary.getId());
+            exposure.setScene(scene);
+            exposure.setCreatedAt(LocalDateTime.now());
+            exposureMapper.insert(exposure);
+        }
+    }
+
     private DiaryEntity findDiary(long id) {
         DiaryEntity diary = diaryMapper.selectById(id);
         if (diary == null) {
@@ -740,11 +782,21 @@ public class DiaryService {
         matches = filterHidden(matches, user.getId());
         Map<Long, DiaryAnalysisEntity> matchAnalysisMap = batchLoadAnalyses(
                 matches.stream().map(DiaryEntity::getId).toList());
+        List<DiaryEntity> moodMatches = new ArrayList<>();
         for (DiaryEntity d : matches) {
             DiaryAnalysisEntity a = matchAnalysisMap.get(d.getId());
             if (a != null && targetMood.equals(a.getMoodLabel())) {
-                return buildDiaryView(d, true, matchAnalysisMap, Map.of());
+                moodMatches.add(d);
             }
+        }
+        Set<Long> recentExposureIds = recentExposureIds(user.getId(), "TODAY_MATCH");
+        DiaryEntity selected = moodMatches.stream()
+                .filter(diary -> !recentExposureIds.contains(diary.getId()))
+                .findFirst()
+                .orElseGet(() -> moodMatches.stream().findFirst().orElse(null));
+        if (selected != null) {
+            recordExposures(user.getId(), "TODAY_MATCH", List.of(selected));
+            return buildDiaryView(selected, true, matchAnalysisMap, Map.of());
         }
         return null;
     }
