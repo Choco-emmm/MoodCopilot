@@ -13,5 +13,8 @@ export default defineConfig(({ mode }) => {
         '/api': apiTarget,
       },
     },
+    preview: {
+      allowedHosts: ['moodcopilot.dpdns.org'],
+    },
   }
 })

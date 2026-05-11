@@ -26,7 +26,7 @@ api.interceptors.response.use(
 
 export const diaryApi = {
   create: (data: { content: string; visibility: string }) => api.post('/diaries', data),
-  mine: () => api.get('/diaries/mine'),
+  mine: (page = 1, size = 20) => api.get('/diaries/mine', { params: { page, size } }),
   public: (page = 1, size = 20) => api.get('/diaries/public', { params: { page, size } }),
   get: (id: number) => api.get(`/diaries/${id}`),
   similar: (id: number, limit = 3) => api.get(`/diaries/${id}/similar`, { params: { limit } }),
@@ -39,11 +39,17 @@ export const diaryApi = {
   communityMood: () => api.get('/diaries/community-mood'),
   encourageCandidates: (id: number) => api.get(`/diaries/${id}/encourage-candidates`),
   sendEncouragement: (id: number, message: string) => api.post(`/diaries/${id}/resonance`, { message }),
+  hide: (id: number) => api.post(`/diaries/${id}/hide`),
   weeklyReport: (weekOffset = 0) => api.get('/diaries/weekly-report', { params: { weekOffset } }),
   monthlyReport: (monthOffset = 0) => api.get('/diaries/monthly-report', { params: { monthOffset } }),
   following: (page = 1, size = 20) => api.get('/diaries/following', { params: { page, size } }),
   delete: (id: number) => api.delete(`/diaries/${id}`),
   deleteComment: (diaryId: number, commentId: number) => api.delete(`/diaries/${diaryId}/comments/${commentId}`),
+}
+
+export const reportApi = {
+  create: (data: { targetType: 'DIARY' | 'COMMENT'; targetId: number; reason: string }) =>
+    api.post('/reports', data),
 }
 
 export const notificationApi = {
@@ -77,4 +83,6 @@ export const chatApi = {
   deleteConversation: (id: number) => api.delete(`/chat/conversations/${id}`),
   getHistory: (id: number) => api.get(`/chat/conversations/${id}/history`),
   saveHistory: (id: number, messages: any[]) => api.put(`/chat/conversations/${id}/history`, { messages }),
+  reply: (id: number, message: string, references: string[]) =>
+    api.post(`/chat/conversations/${id}/reply`, { message, references }),
 }

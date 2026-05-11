@@ -15,6 +15,8 @@
             <span v-if="!isOwner && diary.analysis?.moodLabel" class="diary-mood-badge">
               {{ diary.analysis.moodLabel }}
             </span>
+            <n-button v-if="!isOwner" size="tiny" text @click="reportDiary">举报</n-button>
+            <n-button v-if="!isOwner" size="tiny" text @click="hideDiary">隐藏</n-button>
           </div>
           <p class="diary-content">{{ diary.content }}</p>
         </div>
@@ -63,6 +65,7 @@
               <p class="comment-body">{{ c.content }}</p>
               <div class="comment-foot">
                 <n-button size="tiny" text @click="replyTo = replyTo === c.id ? null : c.id">回复</n-button>
+                <n-button size="tiny" text @click="reportComment(c.id)">举报</n-button>
               </div>
             </div>
 
@@ -75,6 +78,7 @@
                   <span class="comment-time">{{ formatTime(r.createdAt) }}</span>
                 </div>
                 <p class="comment-body">{{ r.content }}</p>
+                <n-button size="tiny" text @click="reportComment(r.id)">举报</n-button>
               </div>
             </div>
 
@@ -105,7 +109,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NInput, NTag, NEmpty } from 'naive-ui'
-import { diaryApi } from '../api'
+import { diaryApi, reportApi } from '../api'
 import { useAuthStore } from '../stores/auth'
 import AppHeader from '../components/AppHeader.vue'
 import AiAnalysisCard from '../components/AiAnalysisCard.vue'
@@ -147,6 +151,25 @@ async function submitComment(parentId: number | null) {
     replyTo.value = null
   } catch { /* ignore */ }
   sending.value = false
+}
+
+async function hideDiary() {
+  if (!diary.value) return
+  await store.hideDiary(diary.value.id)
+  router.push('/')
+}
+
+async function reportDiary() {
+  if (!diary.value) return
+  const reason = window.prompt('请简单说明举报原因')
+  if (!reason?.trim()) return
+  await reportApi.create({ targetType: 'DIARY', targetId: diary.value.id, reason: reason.trim() })
+}
+
+async function reportComment(commentId: number) {
+  const reason = window.prompt('请简单说明举报原因')
+  if (!reason?.trim()) return
+  await reportApi.create({ targetType: 'COMMENT', targetId: commentId, reason: reason.trim() })
 }
 
 function selectDiary(d: Diary) {

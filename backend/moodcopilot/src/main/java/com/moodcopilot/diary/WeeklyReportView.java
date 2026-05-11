@@ -9,7 +9,10 @@ public record WeeklyReportView(
         int diaryCount,
         List<DailyMood> dailyMoods,
         Map<String, Integer> topicCounts,
-        String aiSummary
+        String aiSummary,
+        List<String> insights,
+        List<String> suggestions,
+        String followUpPrompt
 ) {
     public record DailyMood(
             LocalDate date,

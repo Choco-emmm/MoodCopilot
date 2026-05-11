@@ -1,5 +1,5 @@
 <template>
-  <article class="panel">
+  <article class="panel feed-panel">
     <div class="section-title compact">
       <div>
         <p class="eyebrow">公开日记流</p>
@@ -19,6 +19,9 @@
       />
       <div v-if="hasMore" ref="sentinel" class="scroll-sentinel" />
       <n-spin v-if="loading && diaries.length" size="small" />
+      <n-button v-if="hasMore && !loading" block secondary class="load-more-fallback" @click="$emit('loadMore')">
+        加载更多
+      </n-button>
     </div>
     <n-empty v-else-if="!loading" description="暂无公开日记" />
   </article>
@@ -29,7 +32,7 @@ import { ref, watch, onMounted, onUnmounted } from 'vue'
 import DiaryFeedItem from './DiaryFeedItem.vue'
 import type { Diary } from '../stores/diary'
 
-defineProps<{ diaries: Diary[]; loading: boolean; hasMore?: boolean }>()
+const props = defineProps<{ diaries: Diary[]; loading: boolean; hasMore?: boolean }>()
 const emit = defineEmits<{
   refresh: []
   select: [diary: Diary]
@@ -44,7 +47,7 @@ let observer: IntersectionObserver | null = null
 onMounted(() => {
   if (typeof IntersectionObserver === 'undefined') return
   observer = new IntersectionObserver((entries) => {
-    if (entries[0].isIntersecting) {
+    if (entries[0].isIntersecting && props.hasMore && !props.loading) {
       emit('loadMore')
     }
   }, { rootMargin: '200px' })

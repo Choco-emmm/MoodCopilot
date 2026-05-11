@@ -10,10 +10,12 @@ import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.follow.FollowService;
 import com.moodcopilot.entity.DiaryCommentEntity;
 import com.moodcopilot.entity.DiaryEntity;
+import com.moodcopilot.entity.DiaryHideEntity;
 import com.moodcopilot.entity.DiaryResonanceEntity;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.DiaryCommentMapper;
+import com.moodcopilot.mapper.DiaryHideMapper;
 import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.mapper.DiaryResonanceMapper;
 import com.moodcopilot.notification.NotificationService;
@@ -39,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -52,6 +55,7 @@ public class DiaryService {
     private final DiaryAnalysisMapper diaryAnalysisMapper;
     private final DiaryCommentMapper diaryCommentMapper;
     private final DiaryResonanceMapper diaryResonanceMapper;
+    private final DiaryHideMapper diaryHideMapper;
     private static final Logger log = LoggerFactory.getLogger(DiaryService.class);
 
     private final AiAnalysisService aiAnalysisService;
@@ -64,6 +68,7 @@ public class DiaryService {
                         DiaryAnalysisMapper diaryAnalysisMapper,
                         DiaryCommentMapper diaryCommentMapper,
                         DiaryResonanceMapper diaryResonanceMapper,
+                        DiaryHideMapper diaryHideMapper,
                         AiAnalysisService aiAnalysisService,
                         NotificationService notificationService,
                         FollowService followService,
@@ -73,6 +78,7 @@ public class DiaryService {
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
         this.diaryResonanceMapper = diaryResonanceMapper;
+        this.diaryHideMapper = diaryHideMapper;
         this.aiAnalysisService = aiAnalysisService;
         this.notificationService = notificationService;
         this.followService = followService;
@@ -119,23 +125,33 @@ public class DiaryService {
         diaryAnalysisMapper.insert(analysisEntity);
     }
 
-    public List<DiaryView> myDiaries() {
-        List<DiaryEntity> diaries = diaryMapper.selectList(
+    public Page<DiaryView> myDiaries(int page, int size) {
+        int cappedPage = Math.max(1, page);
+        int cappedSize = Math.min(50, Math.max(1, size));
+        Page<DiaryEntity> entityPage = diaryMapper.selectPage(
+                Page.of(cappedPage, cappedSize),
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getAuthorUserId, currentUser().getId())
                         .orderByDesc(DiaryEntity::getCreatedAt)
         );
-        return diaries.stream().map(this::toOwnDiaryView).toList();
+        List<DiaryView> views = buildDiaryViews(entityPage.getRecords(), false);
+        Page<DiaryView> viewPage = new Page<>(cappedPage, cappedSize, entityPage.getTotal());
+        viewPage.setRecords(views);
+        return viewPage;
     }
 
     public Page<DiaryView> publicDiaries(int page, int size) {
         int cappedPage = Math.max(1, page);
         int cappedSize = Math.min(50, Math.max(1, size));
+        Long userId = currentUser().getId();
         String cacheKey = "public:diaries:%d:%d".formatted(cappedPage, cappedSize);
 
         try {
             String cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null) return objectMapper.readValue(cached, new TypeReference<Page<DiaryView>>() {});
+            if (cached != null) {
+                Page<DiaryView> cachedPage = objectMapper.readValue(cached, new TypeReference<Page<DiaryView>>() {});
+                return filterHiddenViews(cachedPage, userId);
+            }
         } catch (Exception e) { log.debug("Cache miss {}", cacheKey); }
 
         Page<DiaryView> result = queryPublicDiaries(cappedPage, cappedSize);
@@ -143,7 +159,7 @@ public class DiaryService {
         try {
             redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(result), Duration.ofMinutes(5));
         } catch (Exception e) { log.debug("Cache write failed"); }
-        return result;
+        return filterHiddenViews(result, userId);
     }
 
     private Page<DiaryView> queryPublicDiaries(int page, int size) {
@@ -153,7 +169,7 @@ public class DiaryService {
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
                         .orderByDesc(DiaryEntity::getCreatedAt)
         );
-        List<DiaryView> views = entityPage.getRecords().stream().map(this::toDiaryView).toList();
+        List<DiaryView> views = buildDiaryViews(entityPage.getRecords(), true);
         Page<DiaryView> viewPage = new Page<>(page, size, entityPage.getTotal());
         viewPage.setRecords(views);
         return viewPage;
@@ -172,20 +188,25 @@ public class DiaryService {
         DiaryEntity source = findDiary(id);
         DiaryAnalysisEntity sourceAnalysis = findAnalysis(id);
 
-        List<DiaryEntity> publicDiaries = diaryMapper.selectList(
+        Page<DiaryEntity> candidatePage = diaryMapper.selectPage(
+                Page.of(1, 200),
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
                         .ne(DiaryEntity::getId, id)
+                        .orderByDesc(DiaryEntity::getCreatedAt)
         );
+        List<DiaryEntity> publicDiaries = filterHidden(candidatePage.getRecords(), currentUser().getId());
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
+                publicDiaries.stream().map(DiaryEntity::getId).toList());
 
         int cappedLimit = Math.max(1, Math.min(limit, 10));
 
         return publicDiaries.stream()
                 .sorted(Comparator
-                        .comparingInt((DiaryEntity d) -> similarityScore(sourceAnalysis, d)).reversed()
+                        .comparingInt((DiaryEntity d) -> similarityScore(sourceAnalysis, analysisMap.get(d.getId()))).reversed()
                         .thenComparing(DiaryEntity::getCreatedAt, Comparator.reverseOrder()))
                 .limit(cappedLimit)
-                .map(this::toDiaryView)
+                .map(d -> buildDiaryView(d, true, analysisMap, Map.of()))
                 .toList();
     }
 
@@ -222,7 +243,8 @@ public class DiaryService {
                         .in(DiaryEntity::getAuthorUserId, followingIds)
                         .orderByDesc(DiaryEntity::getCreatedAt)
         );
-        List<DiaryView> views = entityPage.getRecords().stream().map(this::toDiaryView).toList();
+        List<DiaryEntity> visibleDiaries = filterHidden(entityPage.getRecords(), userId);
+        List<DiaryView> views = buildDiaryViews(visibleDiaries, true);
         Page<DiaryView> viewPage = new Page<>(page, size, entityPage.getTotal());
         viewPage.setRecords(views);
         return viewPage;
@@ -271,10 +293,12 @@ public class DiaryService {
         Map<String, Integer> topicCounts = new LinkedHashMap<>();
         List<String> contents = new ArrayList<>();
         List<DiaryAnalysis> analyses = new ArrayList<>();
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
+                diaries.stream().map(DiaryEntity::getId).toList());
 
         for (DiaryEntity diary : diaries) {
             contents.add(diary.getContent());
-            DiaryAnalysisEntity analysisEntity = findAnalysis(diary.getId());
+            DiaryAnalysisEntity analysisEntity = analysisMap.get(diary.getId());
             if (analysisEntity != null) {
                 DiaryAnalysis analysis = new DiaryAnalysis(
                         analysisEntity.getMoodLabel(),
@@ -308,13 +332,17 @@ public class DiaryService {
         String monthLabel = firstOfMonth.format(fmt);
 
         String aiSummary = aiAnalysisService.generateMonthlySummary(contents, analyses);
+        AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateMonthlyGuidance(contents, analyses);
 
         return new WeeklyReportView(
                 monthLabel,
                 diaries.size(),
                 dailyMoods,
                 sortedTopics,
-                aiSummary
+                aiSummary,
+                guidance.insights(),
+                guidance.suggestions(),
+                guidance.followUpPrompt()
         );
     }
 
@@ -361,10 +389,12 @@ public class DiaryService {
         Map<String, Integer> topicCounts = new LinkedHashMap<>();
         List<String> contents = new ArrayList<>();
         List<DiaryAnalysis> analyses = new ArrayList<>();
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
+                diaries.stream().map(DiaryEntity::getId).toList());
 
         for (DiaryEntity diary : diaries) {
             contents.add(diary.getContent());
-            DiaryAnalysisEntity analysisEntity = findAnalysis(diary.getId());
+            DiaryAnalysisEntity analysisEntity = analysisMap.get(diary.getId());
             if (analysisEntity != null) {
                 DiaryAnalysis analysis = new DiaryAnalysis(
                         analysisEntity.getMoodLabel(),
@@ -398,13 +428,17 @@ public class DiaryService {
         String weekLabel = monday.format(fmt) + " - " + sunday.format(fmt);
 
         String aiSummary = aiAnalysisService.generateWeeklySummary(contents, analyses);
+        AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateWeeklyGuidance(contents, analyses);
 
         return new WeeklyReportView(
                 weekLabel,
                 diaries.size(),
                 dailyMoods,
                 sortedTopics,
-                aiSummary
+                aiSummary,
+                guidance.insights(),
+                guidance.suggestions(),
+                guidance.followUpPrompt()
         );
     }
 
@@ -476,15 +510,74 @@ public class DiaryService {
         return buildDiaryView(diary, false);
     }
 
+    private List<DiaryView> buildDiaryViews(List<DiaryEntity> diaries, boolean isPublic) {
+        List<Long> ids = diaries.stream().map(DiaryEntity::getId).toList();
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(ids);
+        Map<Long, List<DiaryCommentEntity>> commentMap = batchLoadComments(ids);
+        return diaries.stream()
+                .map(diary -> buildDiaryView(diary, isPublic, analysisMap, commentMap))
+                .toList();
+    }
+
     private DiaryView buildDiaryView(DiaryEntity diary, boolean isPublic) {
-        DiaryAnalysisEntity analysis = diaryAnalysisMapper.selectById(diary.getId());
-        List<DiaryCommentEntity> comments = diaryCommentMapper.selectList(
-                new LambdaQueryWrapper<DiaryCommentEntity>()
-                        .eq(DiaryCommentEntity::getDiaryId, diary.getId())
-                        .orderByAsc(DiaryCommentEntity::getCreatedAt)
-        );
+        DiaryAnalysisEntity analysis = findAnalysis(diary.getId());
+        List<DiaryCommentEntity> comments = findComments(diary.getId());
+        return buildDiaryView(diary, isPublic,
+                analysis != null ? Map.of(diary.getId(), analysis) : Map.of(),
+                Map.of(diary.getId(), comments));
+    }
+
+    private DiaryView buildDiaryView(DiaryEntity diary,
+                                     boolean isPublic,
+                                     Map<Long, DiaryAnalysisEntity> analysisMap,
+                                     Map<Long, List<DiaryCommentEntity>> commentMap) {
+        DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
+        List<DiaryCommentEntity> comments = commentMap.getOrDefault(diary.getId(), List.of());
         return isPublic ? DiaryView.fromPublic(diary, analysis, comments)
                         : DiaryView.from(diary, analysis, comments);
+    }
+
+    private Map<Long, DiaryAnalysisEntity> batchLoadAnalyses(List<Long> diaryIds) {
+        if (diaryIds.isEmpty()) return Map.of();
+        return diaryAnalysisMapper.selectBatchIds(diaryIds).stream()
+                .collect(Collectors.toMap(DiaryAnalysisEntity::getDiaryId, analysis -> analysis));
+    }
+
+    private Map<Long, List<DiaryCommentEntity>> batchLoadComments(List<Long> diaryIds) {
+        if (diaryIds.isEmpty()) return Map.of();
+        List<DiaryCommentEntity> comments = diaryCommentMapper.selectList(
+                new LambdaQueryWrapper<DiaryCommentEntity>()
+                        .in(DiaryCommentEntity::getDiaryId, diaryIds)
+                        .orderByAsc(DiaryCommentEntity::getCreatedAt)
+        );
+        return comments.stream().collect(Collectors.groupingBy(DiaryCommentEntity::getDiaryId));
+    }
+
+    private List<DiaryEntity> filterHidden(List<DiaryEntity> diaries, long userId) {
+        if (diaries.isEmpty()) return diaries;
+        Set<Long> hiddenIds = hiddenDiaryIds(userId);
+        if (hiddenIds.isEmpty()) return diaries;
+        return diaries.stream().filter(diary -> !hiddenIds.contains(diary.getId())).toList();
+    }
+
+    private Page<DiaryView> filterHiddenViews(Page<DiaryView> page, long userId) {
+        List<DiaryView> records = page.getRecords();
+        if (records == null || records.isEmpty()) return page;
+        Set<Long> hiddenIds = hiddenDiaryIds(userId);
+        if (hiddenIds.isEmpty()) return page;
+        Page<DiaryView> filtered = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
+        filtered.setRecords(records.stream()
+                .filter(diary -> !hiddenIds.contains(diary.id()))
+                .toList());
+        return filtered;
+    }
+
+    private Set<Long> hiddenDiaryIds(long userId) {
+        List<DiaryHideEntity> hides = diaryHideMapper.selectList(
+                new LambdaQueryWrapper<DiaryHideEntity>()
+                        .eq(DiaryHideEntity::getUserId, userId)
+        );
+        return hides.stream().map(DiaryHideEntity::getDiaryId).collect(Collectors.toSet());
     }
 
     private DiaryEntity findDiary(long id) {
@@ -526,6 +619,25 @@ public class DiaryService {
         }
         diaryMapper.deleteById(diaryId);
         evictUserCache(currentUser().getId());
+    }
+
+    @Transactional
+    public void hideDiary(long diaryId) {
+        DiaryEntity diary = findPublicDiary(diaryId);
+        Long userId = currentUser().getId();
+        boolean exists = diaryHideMapper.exists(
+                new LambdaQueryWrapper<DiaryHideEntity>()
+                        .eq(DiaryHideEntity::getUserId, userId)
+                        .eq(DiaryHideEntity::getDiaryId, diary.getId())
+        );
+        if (!exists) {
+            DiaryHideEntity hide = new DiaryHideEntity();
+            hide.setUserId(userId);
+            hide.setDiaryId(diary.getId());
+            hide.setCreatedAt(LocalDateTime.now());
+            diaryHideMapper.insert(hide);
+        }
+        evictUserCache(userId);
     }
 
     @Transactional
@@ -609,8 +721,10 @@ public class DiaryService {
                         .last("LIMIT 3")
         );
         String targetMood = null;
+        Map<Long, DiaryAnalysisEntity> recentAnalysisMap = batchLoadAnalyses(
+                recent.stream().map(DiaryEntity::getId).toList());
         for (DiaryEntity d : recent) {
-            DiaryAnalysisEntity a = findAnalysis(d.getId());
+            DiaryAnalysisEntity a = recentAnalysisMap.get(d.getId());
             if (a != null) { targetMood = a.getMoodLabel(); break; }
         }
         if (targetMood == null) return null;
@@ -623,10 +737,13 @@ public class DiaryService {
                         .orderByDesc(DiaryEntity::getCreatedAt)
                         .last("LIMIT 50")
         );
+        matches = filterHidden(matches, user.getId());
+        Map<Long, DiaryAnalysisEntity> matchAnalysisMap = batchLoadAnalyses(
+                matches.stream().map(DiaryEntity::getId).toList());
         for (DiaryEntity d : matches) {
-            DiaryAnalysisEntity a = findAnalysis(d.getId());
+            DiaryAnalysisEntity a = matchAnalysisMap.get(d.getId());
             if (a != null && targetMood.equals(a.getMoodLabel())) {
-                return toDiaryView(d);
+                return buildDiaryView(d, true, matchAnalysisMap, Map.of());
             }
         }
         return null;
@@ -651,9 +768,11 @@ public class DiaryService {
         );
         List<String> contents = new ArrayList<>();
         List<DiaryAnalysis> analyses = new ArrayList<>();
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
+                recent.stream().map(DiaryEntity::getId).toList());
         for (DiaryEntity d : recent) {
             contents.add(d.getContent());
-            DiaryAnalysisEntity a = findAnalysis(d.getId());
+            DiaryAnalysisEntity a = analysisMap.get(d.getId());
             if (a != null) analyses.add(new DiaryAnalysis(a.getMoodLabel(), a.getMoodIntensity(),
                     a.getTopicLabelsJson(), a.getSummary(), a.getFeedback()));
             else analyses.add(null);
@@ -675,9 +794,12 @@ public class DiaryService {
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
                         .ge(DiaryEntity::getCreatedAt, LocalDate.now().atStartOfDay())
         );
+        todayPublic = filterHidden(todayPublic, currentUser().getId());
         List<String> moods = new ArrayList<>();
+        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
+                todayPublic.stream().map(DiaryEntity::getId).toList());
         for (DiaryEntity d : todayPublic) {
-            DiaryAnalysisEntity a = findAnalysis(d.getId());
+            DiaryAnalysisEntity a = analysisMap.get(d.getId());
             if (a != null) moods.add(a.getMoodLabel());
         }
         return aiAnalysisService.communityMood(moods);
@@ -753,24 +875,24 @@ public class DiaryService {
 
     private void evictUserCache(long userId) {
         try {
-            var keys = redisTemplate.keys("report:%d:*".formatted(userId));
-            if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
-            keys = redisTemplate.keys("report:monthly:%d:*".formatted(userId));
-            if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
-            keys = redisTemplate.keys("following:%d:*".formatted(userId));
-            if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
+            for (int offset = -4; offset <= 0; offset++) {
+                redisTemplate.delete("report:%d:%d".formatted(userId, offset));
+                redisTemplate.delete("report:monthly:%d:%d".formatted(userId, offset));
+            }
+            for (int page = 1; page <= 5; page++) {
+                for (int size : List.of(10, 20, 50)) {
+                    redisTemplate.delete("following:%d:%d:%d".formatted(userId, page, size));
+                    redisTemplate.delete("public:diaries:%d:%d".formatted(page, size));
+                }
+            }
             redisTemplate.delete("coaching:" + userId);
-            keys = redisTemplate.keys("public:diaries:*");
-            if (keys != null && !keys.isEmpty()) redisTemplate.delete(keys);
         } catch (Exception e) {
             log.debug("Cache evict failed", e);
         }
     }
 
-    private int similarityScore(DiaryAnalysisEntity sourceAnalysis, DiaryEntity target) {
-        if (sourceAnalysis == null) return 0;
-        DiaryAnalysisEntity targetAnalysis = diaryAnalysisMapper.selectById(target.getId());
-        if (targetAnalysis == null) return 0;
+    private int similarityScore(DiaryAnalysisEntity sourceAnalysis, DiaryAnalysisEntity targetAnalysis) {
+        if (sourceAnalysis == null || targetAnalysis == null) return 0;
         int score = 0;
         if (sourceAnalysis.getMoodLabel().equals(targetAnalysis.getMoodLabel())) {
             score += 10;

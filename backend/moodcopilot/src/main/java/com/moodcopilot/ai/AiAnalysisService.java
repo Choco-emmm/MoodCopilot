@@ -100,6 +100,10 @@ public class AiAnalysisService {
         }
     }
 
+    public ReportGuidance generateWeeklyGuidance(List<String> diaryContents, List<DiaryAnalysis> analyses) {
+        return generateReportGuidance("本周", diaryContents, analyses);
+    }
+
     // ── Monthly report ──
 
     private static final String MONTHLY_SYSTEM_PROMPT = """
@@ -137,6 +141,120 @@ public class AiAnalysisService {
             log.warn("AI monthly summary failed, falling back: {}", e.getMessage());
             return fallbackMonthlySummary(diaryContents.size(), analyses);
         }
+    }
+
+    public ReportGuidance generateMonthlyGuidance(List<String> diaryContents, List<DiaryAnalysis> analyses) {
+        return generateReportGuidance("本月", diaryContents, analyses);
+    }
+
+    private static final String REPORT_GUIDANCE_SYSTEM_PROMPT = """
+            You are MoodCopilot. Based on the user's diary patterns, return ONLY valid JSON with:
+            - insights: array of 2-3 concise Chinese observations about emotional patterns
+            - suggestions: array of 2-3 small, concrete Chinese actions the user can try
+            - followUpPrompt: one Chinese sentence the user could ask MoodCopilot to explore further
+            Be warm and specific. Do not diagnose. Do not use markdown. Do not use emoji.""";
+
+    @SuppressWarnings("unchecked")
+    private ReportGuidance generateReportGuidance(String period, List<String> diaryContents, List<DiaryAnalysis> analyses) {
+        if (diaryContents.isEmpty()) {
+            return new ReportGuidance(List.of(), List.of(), "等你多记录几天，我们再一起看看变化。");
+        }
+        StringBuilder prompt = new StringBuilder(period).append("日记模式：\n");
+        for (int i = 0; i < diaryContents.size(); i++) {
+            DiaryAnalysis analysis = i < analyses.size() ? analyses.get(i) : null;
+            prompt.append("- ");
+            if (analysis != null) {
+                prompt.append("情绪：").append(analysis.moodLabel())
+                        .append("，强度：").append(analysis.moodIntensity())
+                        .append("，主题：").append(String.join("、", analysis.topicLabels()))
+                        .append("，摘要：").append(analysis.summary());
+            } else {
+                String content = diaryContents.get(i);
+                prompt.append(content.length() > 80 ? content.substring(0, 80) + "..." : content);
+            }
+            prompt.append("\n");
+        }
+        try {
+            String json = analysisChatClient.prompt()
+                    .system(REPORT_GUIDANCE_SYSTEM_PROMPT)
+                    .user(prompt.toString())
+                    .call()
+                    .content();
+            Map<String, Object> map = objectMapper.readValue(json, Map.class);
+            return new ReportGuidance(
+                    sanitizeStringList((List<Object>) map.get("insights"), fallbackInsights(analyses)),
+                    sanitizeStringList((List<Object>) map.get("suggestions"), fallbackSuggestions(analyses)),
+                    sanitizeString((String) map.get("followUpPrompt"), fallbackFollowUp(analyses))
+            );
+        } catch (Exception e) {
+            log.warn("AI report guidance failed, falling back: {}", e.getMessage());
+            return fallbackGuidance(analyses);
+        }
+    }
+
+    private ReportGuidance fallbackGuidance(List<DiaryAnalysis> analyses) {
+        return new ReportGuidance(fallbackInsights(analyses), fallbackSuggestions(analyses), fallbackFollowUp(analyses));
+    }
+
+    private List<String> fallbackInsights(List<DiaryAnalysis> analyses) {
+        String topMood = topMood(analyses);
+        String topTopic = topTopic(analyses);
+        return List.of(
+                "最近比较常出现的情绪是「" + topMood + "」。",
+                "情绪内容更多和「" + topTopic + "」有关。"
+        );
+    }
+
+    private List<String> fallbackSuggestions(List<DiaryAnalysis> analyses) {
+        return List.of(
+                "今天先给自己 10 分钟不被打扰的时间，慢慢把状态放下来。",
+                "下次记录时，可以多写一句「这件事真正影响我的地方是？」"
+        );
+    }
+
+    private String fallbackFollowUp(List<DiaryAnalysis> analyses) {
+        return "我想继续聊聊最近的「" + topMood(analyses) + "」从哪里来。";
+    }
+
+    private String topMood(List<DiaryAnalysis> analyses) {
+        return analyses.stream()
+                .filter(a -> a != null && a.moodLabel() != null)
+                .collect(Collectors.groupingBy(DiaryAnalysis::moodLabel, Collectors.counting()))
+                .entrySet().stream().max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey).orElse("复杂");
+    }
+
+    private String topTopic(List<DiaryAnalysis> analyses) {
+        return analyses.stream()
+                .filter(a -> a != null && a.topicLabels() != null)
+                .flatMap(a -> a.topicLabels().stream())
+                .collect(Collectors.groupingBy(topic -> topic, Collectors.counting()))
+                .entrySet().stream().max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey).orElse("日常情绪");
+    }
+
+    private List<String> sanitizeStringList(List<Object> values, List<String> fallback) {
+        if (values == null || values.isEmpty()) return fallback;
+        List<String> result = values.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .limit(3)
+                .toList();
+        return result.isEmpty() ? fallback : result;
+    }
+
+    private String sanitizeString(String value, String fallback) {
+        if (value == null || value.isBlank()) return fallback;
+        return value.trim();
+    }
+
+    public record ReportGuidance(
+            List<String> insights,
+            List<String> suggestions,
+            String followUpPrompt
+    ) {
     }
 
     private String fallbackMonthlySummary(int count, List<DiaryAnalysis> analyses) {
@@ -223,6 +341,7 @@ public class AiAnalysisService {
         if (count == 0) return "本周还没有记录日记，去写一篇吧～";
 
         var moodCounts = analyses.stream()
+                .filter(a -> a != null && a.moodLabel() != null)
                 .collect(Collectors.groupingBy(
                         DiaryAnalysis::moodLabel,
                         Collectors.counting()

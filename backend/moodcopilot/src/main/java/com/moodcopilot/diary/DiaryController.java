@@ -31,8 +31,16 @@ public class DiaryController {
     }
 
     @GetMapping("/mine")
-    public ApiResponse<List<DiaryView>> myDiaries() {
-        return ApiResponse.ok(diaryService.myDiaries());
+    public ApiResponse<Map<String, Object>> myDiaries(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        var result = diaryService.myDiaries(page, size);
+        return ApiResponse.ok(Map.of(
+                "items", result.getRecords(),
+                "total", result.getTotal(),
+                "page", result.getCurrent(),
+                "size", result.getSize()
+        ));
     }
 
     @GetMapping("/following")
@@ -127,6 +135,12 @@ public class DiaryController {
             return ApiResponse.ok(diaryService.sendEncouragement(id, body.get("message")));
         }
         return ApiResponse.ok(diaryService.resonate(id));
+    }
+
+    @PostMapping("/{id}/hide")
+    public ApiResponse<Void> hideDiary(@PathVariable long id) {
+        diaryService.hideDiary(id);
+        return ApiResponse.ok(null);
     }
 
     @DeleteMapping("/{id}")

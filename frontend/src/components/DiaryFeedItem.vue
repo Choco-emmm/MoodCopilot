@@ -44,6 +44,8 @@
         鼓励
       </n-button>
       <n-button size="small" text @click="$emit('select', diary)">看分析</n-button>
+      <n-button v-if="diary.authorUserId !== auth.userId" size="small" text @click="reportDiary">举报</n-button>
+      <n-button v-if="diary.authorUserId !== auth.userId" size="small" text @click="hideDiary">隐藏</n-button>
     </div>
 
     <div v-if="showEncourage" class="encourage-panel">
@@ -77,6 +79,7 @@
               @click="deleteComment(comment.id)"
             >删除</n-button>
             <n-button size="tiny" text @click="replyTo = replyTo === comment.id ? null : comment.id">回复</n-button>
+            <n-button size="tiny" text @click="reportComment(comment.id)">举报</n-button>
           </div>
         </div>
         <div v-if="replyTo === comment.id" class="comment-box">
@@ -123,7 +126,7 @@ import type { Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
 import { useAuthStore } from '../stores/auth'
 import { useDiaryStore } from '../stores/diary'
-import { diaryApi } from '../api'
+import { diaryApi, reportApi } from '../api'
 
 const props = defineProps<{ diary: Diary }>()
 const emit = defineEmits<{
@@ -167,6 +170,22 @@ async function deleteComment(commentId: number) {
     await diaryApi.deleteComment(props.diary.id, commentId)
     emit('comment', props.diary, '') // 触发父组件刷新
   } catch { /* ignore */ }
+}
+
+async function hideDiary() {
+  await diaryStore.hideDiary(props.diary.id)
+}
+
+async function reportDiary() {
+  const reason = window.prompt('请简单说明举报原因')
+  if (!reason?.trim()) return
+  await reportApi.create({ targetType: 'DIARY', targetId: props.diary.id, reason: reason.trim() })
+}
+
+async function reportComment(commentId: number) {
+  const reason = window.prompt('请简单说明举报原因')
+  if (!reason?.trim()) return
+  await reportApi.create({ targetType: 'COMMENT', targetId: commentId, reason: reason.trim() })
 }
 
 // ── 匿名鼓励 ──

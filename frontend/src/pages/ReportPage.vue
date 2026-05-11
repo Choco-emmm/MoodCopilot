@@ -32,6 +32,11 @@
           <p>本周还没有记录，去写一篇吧～</p>
         </div>
 
+        <div v-else-if="store.reportError" class="empty-state compact">
+          <p>{{ store.reportError }}</p>
+          <n-button size="small" text type="primary" @click="store.fetchWeeklyReport(weekOffset)">重新加载</n-button>
+        </div>
+
         <template v-if="report && report.diaryCount > 0">
           <div class="report-detail">
             <h4>情绪趋势</h4>
@@ -64,6 +69,22 @@
 
             <h4>AI 周总结</h4>
             <p class="ai-summary">{{ report.aiSummary }}</p>
+
+            <div v-if="hasGuidance(report)" class="report-guidance">
+              <div v-if="report.insights?.length">
+                <h4>MoodCopilot 看见了</h4>
+                <ul class="guidance-list">
+                  <li v-for="item in report.insights" :key="item">{{ item }}</li>
+                </ul>
+              </div>
+              <div v-if="report.suggestions?.length">
+                <h4>可以试试</h4>
+                <ul class="guidance-list">
+                  <li v-for="item in report.suggestions" :key="item">{{ item }}</li>
+                </ul>
+              </div>
+              <button class="report-chat-link" @click="continueReportChat(report)">和 MoodCopilot 继续聊</button>
+            </div>
           </div>
         </template>
       </section>
@@ -81,6 +102,11 @@
 
         <div v-if="monthReport && monthReport.diaryCount === 0" class="empty-state">
           <p>本月还没有记录，去写一篇吧～</p>
+        </div>
+
+        <div v-else-if="store.monthError" class="empty-state compact">
+          <p>{{ store.monthError }}</p>
+          <n-button size="small" text type="primary" @click="store.fetchMonthlyReport(monthOffset)">重新加载</n-button>
         </div>
 
         <template v-if="monthReport && monthReport.diaryCount > 0">
@@ -131,6 +157,22 @@
 
             <h4>AI 月总结</h4>
             <p class="ai-summary">{{ monthReport.aiSummary }}</p>
+
+            <div v-if="hasGuidance(monthReport)" class="report-guidance">
+              <div v-if="monthReport.insights?.length">
+                <h4>MoodCopilot 看见了</h4>
+                <ul class="guidance-list">
+                  <li v-for="item in monthReport.insights" :key="item">{{ item }}</li>
+                </ul>
+              </div>
+              <div v-if="monthReport.suggestions?.length">
+                <h4>可以试试</h4>
+                <ul class="guidance-list">
+                  <li v-for="item in monthReport.suggestions" :key="item">{{ item }}</li>
+                </ul>
+              </div>
+              <button class="report-chat-link" @click="continueReportChat(monthReport)">和 MoodCopilot 继续聊</button>
+            </div>
           </div>
         </template>
       </section>
@@ -211,14 +253,18 @@ const monthReport = computed(() => store.monthlyReport)
 
 onMounted(() => {
   store.fetchWeeklyReport(weekOffset.value)
-  store.fetchMonthlyReport(monthOffset.value)
   loadSummaries()
 })
 
 watch(weekOffset, (val) => { store.fetchWeeklyReport(val) })
 watch(monthOffset, (val) => { store.fetchMonthlyReport(val) })
 
-function switchMode(m: 'week' | 'month') { mode.value = m }
+function switchMode(m: 'week' | 'month') {
+  mode.value = m
+  if (m === 'month' && !store.monthlyReport && !store.monthLoading && !store.monthError) {
+    store.fetchMonthlyReport(monthOffset.value)
+  }
+}
 
 function prevWeek() { weekOffset.value-- }
 function nextWeek() { weekOffset.value++ }
@@ -294,6 +340,21 @@ function goDiary(ids?: number[]) {
     // 当天有多篇日记，跳转到第一篇，后续可优化为弹出选择
     router.push('/diary/' + ids[0])
   }
+}
+
+function hasGuidance(currentReport: any) {
+  return Boolean(currentReport?.insights?.length || currentReport?.suggestions?.length || currentReport?.followUpPrompt)
+}
+
+function continueReportChat(currentReport: any) {
+  const references = [
+    `报告：${currentReport.weekLabel}`,
+    currentReport.aiSummary ? `总结：${currentReport.aiSummary}` : '',
+    ...(currentReport.insights ?? []).map((item: string) => `洞察：${item}`),
+    ...(currentReport.suggestions ?? []).map((item: string) => `建议：${item}`),
+    currentReport.followUpPrompt ? `想继续聊：${currentReport.followUpPrompt}` : '',
+  ].filter(Boolean)
+  router.push({ path: '/chat', state: { references } })
 }
 
 function formatDay(dateStr: string) {

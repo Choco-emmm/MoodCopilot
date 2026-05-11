@@ -94,31 +94,49 @@ public class ChatService {
     // ---- 聊天 ----
 
     public Flux<String> chat(Long conversationId, String message, List<String> refs) {
-        UserEntity user = currentUser();
-        String context = buildContext(user.getId(), refs);
-
-        String memKey = user.getId() + ":" + conversationId;
-        ChatMemory memory = userChatMemories.computeIfAbsent(memKey, k -> new InMemoryChatMemory());
-
-        // 首次用户消息作为会话标题
-        ChatConversationEntity conv = conversationMapper.selectById(conversationId);
-        if (conv != null && "新对话".equals(conv.getTitle())) {
-            String title = message.length() > 20 ? message.substring(0, 20) : message;
-            conv.setTitle(title);
-            conv.setUpdatedAt(java.time.LocalDateTime.now());
-            conversationMapper.updateById(conv);
-        } else if (conv != null) {
-            conv.setUpdatedAt(java.time.LocalDateTime.now());
-            conversationMapper.updateById(conv);
-        }
+        ChatRequest request = prepareChatRequest(conversationId, message, refs);
 
         return chatChatClient.prompt()
                 .user(message)
-                .system(s -> s.text(context))
-                .advisors(new MessageChatMemoryAdvisor(memory))
+                .system(s -> s.text(request.context()))
+                .advisors(new MessageChatMemoryAdvisor(request.memory()))
                 .stream()
                 .content();
     }
+
+    public String reply(Long conversationId, String message, List<String> refs) {
+        ChatRequest request = prepareChatRequest(conversationId, message, refs);
+
+        return chatChatClient.prompt()
+                .user(message)
+                .system(s -> s.text(request.context()))
+                .advisors(new MessageChatMemoryAdvisor(request.memory()))
+                .call()
+                .content();
+    }
+
+    private ChatRequest prepareChatRequest(Long conversationId, String message, List<String> refs) {
+        UserEntity user = currentUser();
+        ChatConversationEntity conv = conversationMapper.selectById(conversationId);
+        if (conv == null || !conv.getUserId().equals(user.getId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "会话不存在");
+        }
+
+        String context = buildContext(user.getId(), refs);
+        String memKey = user.getId() + ":" + conversationId;
+        ChatMemory memory = userChatMemories.computeIfAbsent(memKey, k -> new InMemoryChatMemory());
+
+        if ("新对话".equals(conv.getTitle()) && message != null && !message.isBlank()) {
+            String title = message.length() > 20 ? message.substring(0, 20) : message;
+            conv.setTitle(title);
+        }
+        conv.setUpdatedAt(java.time.LocalDateTime.now());
+        conversationMapper.updateById(conv);
+
+        return new ChatRequest(context, memory);
+    }
+
+    private record ChatRequest(String context, ChatMemory memory) {}
 
     // ---- 消息历史（Redis） ----
 

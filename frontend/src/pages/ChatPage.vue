@@ -32,8 +32,8 @@
       <div class="chat-window">
         <div class="chat-top">
           <div>
-            <h2 class="chat-header-title">小情绪</h2>
-            <p class="chat-subtitle">你的 AI 情绪伙伴，可以聊聊最近的心情</p>
+            <h2 class="chat-header-title">MoodCopilot</h2>
+            <p class="chat-subtitle">可以聊聊最近的心情，也可以继续展开报告里的洞察</p>
           </div>
         </div>
 
@@ -85,7 +85,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton, NInput, NPopover } from 'naive-ui'
+import { NButton, NInput } from 'naive-ui'
 import { marked } from 'marked'
 import AppHeader from '../components/AppHeader.vue'
 import ReferenceBar from '../components/ReferenceBar.vue'
@@ -105,7 +105,7 @@ function renderMd(text: string) {
   return marked.parse(text, { async: false }) as string
 }
 
-const API = 'http://localhost:18080/api'
+const STREAM_API = resolveStreamApiBase()
 
 const router = useRouter()
 const conversations = ref<Conversation[]>([])
@@ -117,13 +117,14 @@ const streamingText = ref('')
 const msgBox = ref<HTMLElement | null>(null)
 const references = ref<{ label: string; content: string }[]>([])
 const recentDiaryOptions = ref<{ id: number; date: string; snippet: string }[]>([])
+const useStreamingChat = isLocalhost()
 
 onMounted(async () => {
-  // 读取广场陪跑传递的引用
+  // 读取广场、报告传递的引用
   const state = history.state as any
   if (state?.references?.length) {
     references.value = state.references.map((r: string) => ({
-      label: '陪跑建议',
+      label: 'MoodCopilot 引用',
       content: r
     }))
     // 清除 state 避免刷新后重复
@@ -189,20 +190,13 @@ async function deleteConversation(id: number) {
 }
 
 function saveToBackend(convId: number) {
-  fetch(API + `/chat/conversations/${convId}/history`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
-    body: JSON.stringify({ messages: messages.value }),
-  }).catch(() => {})
+  chatApi.saveHistory(convId, messages.value).catch(() => {})
 }
 
 async function loadFromBackend(convId: number): Promise<Message[]> {
   try {
-    const res = await fetch(API + `/chat/conversations/${convId}/history`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-    })
-    const data = await res.json()
-    return data.data ?? []
+    const res = await chatApi.getHistory(convId)
+    return res.data.data ?? []
   } catch { return [] }
 }
 
@@ -224,8 +218,14 @@ async function send() {
     return
   }
 
+  const refContents = references.value.map(r => r.content)
+  if (!useStreamingChat) {
+    await sendReply(convId, content, refContents)
+    return
+  }
+
   const xhr = new XMLHttpRequest()
-  xhr.open('POST', API + `/chat/conversations/${convId}`)
+  xhr.open('POST', STREAM_API + `/chat/conversations/${convId}`)
   xhr.setRequestHeader('Content-Type', 'application/json')
   xhr.setRequestHeader('Authorization', `Bearer ${token}`)
 
@@ -250,7 +250,7 @@ async function send() {
     if (displayText) {
       messages.value.push({ role: 'ai', content: displayText })
     } else {
-      messages.value.push({ role: 'ai', content: '抱歉，我暂时无法回复，请稍后再试。' })
+      messages.value.push({ role: 'ai', content: chatErrorMessage(xhr.status) })
     }
     finishSend(convId)
   }
@@ -258,8 +258,19 @@ async function send() {
   // onerror 只作标记，onloadend 统一处理（SSE 断连也会触发 onerror）
   xhr.onerror = () => { /* handled in onloadend */ }
 
-  const refContents = references.value.map(r => r.content)
   xhr.send(JSON.stringify({ message: content, references: refContents }))
+}
+
+async function sendReply(convId: number, content: string, refContents: string[]) {
+  try {
+    const res = await chatApi.reply(convId, content, refContents)
+    const reply = res.data.data || '我刚才没有组织好语言，你可以再说一遍吗？'
+    messages.value.push({ role: 'ai', content: reply })
+  } catch (e: any) {
+    messages.value.push({ role: 'ai', content: chatErrorMessage(e?.response?.status) })
+  } finally {
+    finishSend(convId)
+  }
 }
 
 function finishSend(convId: number) {
@@ -290,12 +301,30 @@ function addDiaryRef(diaryId: string) {
 async function loadRecentDiaryOptions() {
   try {
     const res = await diaryApi.mine()
-    const diaries = (res.data.data || []) as any[]
+    const data = res.data.data || []
+    const diaries = (Array.isArray(data) ? data : data.items ?? []) as any[]
     recentDiaryOptions.value = diaries.slice(0, 7).map((d: any) => ({
       id: d.id,
       date: d.createdAt?.split('T')[0] ?? '',
       snippet: d.content?.length > 30 ? d.content.slice(0, 30) : d.content ?? ''
     }))
   } catch { recentDiaryOptions.value = [] }
+}
+
+function resolveStreamApiBase() {
+  if (isLocalhost()) return 'http://localhost:18080/api'
+
+  return '/api'
+}
+
+function isLocalhost() {
+  const hostname = window.location.hostname
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]'
+}
+
+function chatErrorMessage(status?: number) {
+  if (status === 429) return '今天的 AI 聊天次数先用完了，明天再继续聊。'
+  if (status === 401 || status === 403) return '登录状态过期了，请重新登录后再试。'
+  return '抱歉，我暂时无法回复，请稍后再试。'
 }
 </script>

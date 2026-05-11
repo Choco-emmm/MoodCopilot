@@ -5,4 +5,26 @@ import App from './App.vue'
 import router from './router'
 import './styles.css'
 
+cleanupLegacyPwa()
+
 createApp(App).use(createPinia()).use(router).use(naive).mount('#app')
+
+function cleanupLegacyPwa() {
+  if (!('serviceWorker' in navigator)) return
+
+  window.addEventListener('load', () => {
+    void (async () => {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(registrations.map((registration) => registration.unregister()))
+
+        if ('caches' in window) {
+          const cacheNames = await caches.keys()
+          await Promise.all(cacheNames.map((name) => caches.delete(name)))
+        }
+      } catch {
+        // Ignore cleanup failures; the app should still load normally.
+      }
+    })()
+  }, { once: true })
+}

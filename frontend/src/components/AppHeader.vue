@@ -47,8 +47,20 @@
       </nav>
     </div>
     <h1>写下今天，慢慢理解自己。</h1>
-    <p class="subtitle">AI 先帮你看见情绪；当你愿意时，再把你温和地连接给相似心情的人。</p>
+    <p class="subtitle">MoodCopilot 先帮你看见情绪；当你愿意时，再把你温和地连接给相似心情的人。</p>
   </header>
+
+  <nav v-if="auth.isAuthenticated" class="mobile-bottom-nav" aria-label="主要导航">
+    <router-link
+      v-for="item in navItems"
+      :key="`mobile-${item.path}`"
+      :to="item.path"
+      :class="['mobile-nav-link', { active: route.path === item.path }]"
+    >
+      <span class="mobile-nav-icon" aria-hidden="true">{{ item.icon }}</span>
+      <span>{{ item.shortLabel }}</span>
+    </router-link>
+  </nav>
 </template>
 
 <script setup lang="ts">
@@ -63,11 +75,11 @@ const auth = useAuthStore()
 const notif = useNotificationStore()
 
 const navItems = [
-  { label: '广场', path: '/' },
-  { label: '写日记', path: '/write' },
-  { label: 'AI 小情绪', path: '/chat', cls: 'nav-link-ai' },
-  { label: '关注', path: '/following' },
-  { label: '报告', path: '/report' },
+  { label: '广场', shortLabel: '广场', icon: '⌂', path: '/' },
+  { label: '写日记', shortLabel: '写', icon: '✎', path: '/write' },
+  { label: 'MoodCopilot', shortLabel: 'AI', icon: '◌', path: '/chat', cls: 'nav-link-ai' },
+  { label: '关注', shortLabel: '关注', icon: '◎', path: '/following' },
+  { label: '报告', shortLabel: '报告', icon: '▥', path: '/report' },
 ]
 
 notif.fetchUnreadCount()

@@ -49,6 +49,14 @@ public class ChatController {
         return chatService.chat(id, message, references);
     }
 
+    @PostMapping("/conversations/{id}/reply")
+    public ApiResponse<String> reply(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        String message = (String) body.get("message");
+        @SuppressWarnings("unchecked")
+        List<String> references = (List<String>) body.get("references");
+        return ApiResponse.ok(chatService.reply(id, message, references));
+    }
+
     @GetMapping("/conversations/{id}/history")
     public ApiResponse<Object> loadHistory(@PathVariable Long id) {
         return ApiResponse.ok(chatService.loadHistory(id));

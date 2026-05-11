@@ -73,13 +73,19 @@ class DiaryControllerMockMvcTest {
     }
 
     @Test
-    void myDiariesReturnsList() throws Exception {
-        when(diaryService.myDiaries()).thenReturn(List.of(sampleDiary(1L), sampleDiary(2L)));
+    void myDiariesReturnsPagedItems() throws Exception {
+        when(diaryService.myDiaries(1, 20)).thenReturn(
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<DiaryView>(1, 20, 2)
+                        .setRecords(List.of(sampleDiary(1L), sampleDiary(2L)))
+        );
 
         mockMvc.perform(get("/api/diaries/mine"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.length()").value(2));
+                .andExpect(jsonPath("$.data.items.length()").value(2))
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.size").value(20));
     }
 
     @Test
@@ -122,6 +128,36 @@ class DiaryControllerMockMvcTest {
                 .andExpect(status().isOk());
 
         verify(diaryService).similar(1L, 3);
+    }
+
+    @Test
+    void weeklyReportReturnsInsightsAndSuggestions() throws Exception {
+        WeeklyReportView report = new WeeklyReportView(
+                "5/4 - 5/10",
+                1,
+                List.of(),
+                java.util.Map.of("工作学习", 1),
+                "这周你很努力。",
+                List.of("疲惫主要集中在工作学习之后"),
+                List.of("今晚给自己 20 分钟离线休息"),
+                "我想继续聊聊这周的疲惫从哪里来。"
+        );
+        when(diaryService.weeklyReport(0)).thenReturn(report);
+
+        mockMvc.perform(get("/api/diaries/weekly-report"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.insights[0]").value("疲惫主要集中在工作学习之后"))
+                .andExpect(jsonPath("$.data.suggestions[0]").value("今晚给自己 20 分钟离线休息"))
+                .andExpect(jsonPath("$.data.followUpPrompt").value("我想继续聊聊这周的疲惫从哪里来。"));
+    }
+
+    @Test
+    void hideDiaryDelegatesToService() throws Exception {
+        mockMvc.perform(post("/api/diaries/7/hide"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+
+        verify(diaryService).hideDiary(7L);
     }
 
     @Test

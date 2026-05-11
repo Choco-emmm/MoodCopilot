@@ -28,6 +28,9 @@ export interface WeeklyReport {
   dailyMoods: DailyMood[]
   topicCounts: Record<string, number>
   aiSummary: string
+  insights?: string[]
+  suggestions?: string[]
+  followUpPrompt?: string
 }
 
 export interface DailyMood {
@@ -56,22 +59,25 @@ export const useDiaryStore = defineStore('diary', () => {
   const loading = ref(false)
   const saving = ref(false)
   const errorMessage = ref<string | null>(null)
+  const analysisStatus = ref<'idle' | 'saved' | 'analyzing' | 'complete' | 'failed'>('idle')
   const publicPage = ref(1)
   const publicTotal = ref(0)
   const hasMore = ref(true)
   const weeklyReport = ref<WeeklyReport | null>(null)
   const reportLoading = ref(false)
+  const reportError = ref<string | null>(null)
 
   async function fetchDiaries() {
     loading.value = true
     try {
       publicPage.value = 1
-      const [mineRes, publicRes] = await Promise.all([diaryApi.mine(), diaryApi.public(1)])
-      myDiaries.value = mineRes.data.data.map(normalize)
+      const [mineRes, publicRes] = await Promise.all([diaryApi.mine(1, 20), diaryApi.public(1, 20)])
+      const mineData = normalizePageData(mineRes.data.data)
+      myDiaries.value = mineData.items.map(normalize)
       const pdata = publicRes.data.data
       publicDiaries.value = (pdata.items ?? pdata).map(normalize)
       publicTotal.value = pdata.total ?? 0
-      hasMore.value = (pdata.items ?? pdata).length >= 20
+      hasMore.value = hasNextPage(pdata, 1, 20)
     } finally {
       loading.value = false
     }
@@ -85,8 +91,9 @@ export const useDiaryStore = defineStore('diary', () => {
       const res = await diaryApi.public(publicPage.value)
       const pdata = res.data.data
       const items = (pdata.items ?? pdata).map(normalize)
-      publicDiaries.value.push(...items)
-      hasMore.value = items.length >= 20
+      const existing = new Set(publicDiaries.value.map(d => d.id))
+      publicDiaries.value.push(...items.filter((item: Diary) => !existing.has(item.id)))
+      hasMore.value = hasNextPage(pdata, publicPage.value, 20)
     } finally {
       loading.value = false
     }
@@ -99,6 +106,7 @@ export const useDiaryStore = defineStore('diary', () => {
       const res = await diaryApi.create({ content, visibility })
       const diary = normalize(res.data.data)
       activeDiary.value = diary
+      analysisStatus.value = diary.analysis == null ? 'analyzing' : 'complete'
       await fetchDiaries()
       if (diary.analysis == null) {
         pollAnalysis(diary.id)
@@ -124,12 +132,27 @@ export const useDiaryStore = defineStore('diary', () => {
             activeDiary.value = updated
           }
           mergeDiary(updated)
+          analysisStatus.value = 'complete'
           clearInterval(interval)
         }
       } catch {
+        analysisStatus.value = 'failed'
         clearInterval(interval)
       }
     }, 2000)
+  }
+
+  async function refreshAnalysis(diaryId: number) {
+    analysisStatus.value = 'analyzing'
+    try {
+      const res = await diaryApi.get(diaryId)
+      const updated = normalize(res.data.data)
+      activeDiary.value = updated
+      mergeDiary(updated)
+      analysisStatus.value = updated.analysis ? 'complete' : 'failed'
+    } catch {
+      analysisStatus.value = 'failed'
+    }
   }
 
   async function loadSimilar(diaryId: number) {
@@ -166,9 +189,13 @@ export const useDiaryStore = defineStore('diary', () => {
 
   async function fetchWeeklyReport(weekOffset = 0) {
     reportLoading.value = true
+    reportError.value = null
     try {
       const res = await diaryApi.weeklyReport(weekOffset)
       weeklyReport.value = res.data.data
+    } catch (e: any) {
+      weeklyReport.value = null
+      reportError.value = formatReportError(e)
     } finally {
       reportLoading.value = false
     }
@@ -176,12 +203,17 @@ export const useDiaryStore = defineStore('diary', () => {
 
   const monthlyReport = ref<WeeklyReport | null>(null)
   const monthLoading = ref(false)
+  const monthError = ref<string | null>(null)
 
   async function fetchMonthlyReport(monthOffset = 0) {
     monthLoading.value = true
+    monthError.value = null
     try {
       const res = await diaryApi.monthlyReport(monthOffset)
       monthlyReport.value = res.data.data
+    } catch (e: any) {
+      monthlyReport.value = null
+      monthError.value = formatReportError(e)
     } finally {
       monthLoading.value = false
     }
@@ -202,10 +234,17 @@ export const useDiaryStore = defineStore('diary', () => {
     if (activeDiary.value?.id === id) activeDiary.value = null
   }
 
+  async function hideDiary(id: number) {
+    await diaryApi.hide(id)
+    publicDiaries.value = publicDiaries.value.filter(d => d.id !== id)
+    similarDiaries.value = similarDiaries.value.filter(d => d.id !== id)
+  }
+
   return {
     myDiaries, publicDiaries, activeDiary, similarDiaries, loading, saving, errorMessage,
-    hasMore, weeklyReport, reportLoading, monthlyReport, monthLoading,
+    analysisStatus, hasMore, weeklyReport, reportLoading, reportError, monthlyReport, monthLoading, monthError,
     fetchDiaries, loadMorePublic, createDiary, loadSimilar, addComment, resonate, sendEncouragement, deleteDiary,
+    hideDiary, refreshAnalysis,
     fetchWeeklyReport, fetchMonthlyReport, normalize,
   }
 })
@@ -213,6 +252,29 @@ export const useDiaryStore = defineStore('diary', () => {
 function replaceIn(list: Ref<Diary[]>, updated: Diary) {
   const idx = list.value.findIndex((d) => d.id === updated.id)
   if (idx !== -1) list.value[idx] = updated
+}
+
+function normalizePageData(data: any) {
+  if (Array.isArray(data)) return { items: data, total: data.length, page: 1, size: data.length || 20 }
+  return {
+    items: data?.items ?? [],
+    total: data?.total ?? 0,
+    page: data?.page ?? 1,
+    size: data?.size ?? 20,
+  }
+}
+
+function hasNextPage(data: any, page: number, size: number) {
+  const items = data.items ?? data
+  if (typeof data.total === 'number') return page * size < data.total
+  return Array.isArray(items) && items.length >= size
+}
+
+function formatReportError(e: any) {
+  if (e?.response?.status === 429) {
+    return '报告生成太频繁了，稍等一会儿再试。'
+  }
+  return e?.response?.data?.message || '报告暂时加载失败，可以稍后重试。'
 }
 
 import type { Ref } from 'vue'
