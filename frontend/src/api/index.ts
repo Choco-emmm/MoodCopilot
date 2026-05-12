@@ -22,7 +22,9 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status
-    if (status === 401 || status === 403) {
+    const requestUrl = String(error.config?.url ?? '')
+    const isQuotaRequest = requestUrl.includes('/user/quota')
+    if (status === 401 && !isQuotaRequest) {
       localStorage.removeItem('token')
       localStorage.removeItem('role')
       const path = window.location.pathname
@@ -51,7 +53,9 @@ export const diaryApi = {
   sendEncouragement: (id: number, message: string) => api.post(`/diaries/${id}/resonance`, { message }),
   hide: (id: number) => api.post(`/diaries/${id}/hide`),
   weeklyReport: (weekOffset = 0) => api.get('/diaries/weekly-report', { params: { weekOffset } }),
+  generateWeeklyReport: (weekOffset = 0) => api.post('/diaries/weekly-report/generate', null, { params: { weekOffset } }),
   monthlyReport: (monthOffset = 0) => api.get('/diaries/monthly-report', { params: { monthOffset } }),
+  generateMonthlyReport: (monthOffset = 0) => api.post('/diaries/monthly-report/generate', null, { params: { monthOffset } }),
   following: (page = 1, size = 20) => api.get('/diaries/following', { params: { page, size } }),
   delete: (id: number) => api.delete(`/diaries/${id}`),
   deleteComment: (diaryId: number, commentId: number) => api.delete(`/diaries/${diaryId}/comments/${commentId}`),
@@ -93,7 +97,7 @@ export const authApi = {
   },
   updateSettings: (dailyNotifyEnabled: boolean) =>
     api.put('/auth/settings', { dailyNotifyEnabled }),
-  getQuota: () => api.get('/auth/quota'),
+  getQuota: () => api.get('/user/quota'),
 }
 
 export const followApi = {
@@ -114,6 +118,6 @@ export const chatApi = {
   deleteConversation: (id: number) => api.delete(`/chat/conversations/${id}`),
   getHistory: (id: number) => api.get(`/chat/conversations/${id}/history`),
   saveHistory: (id: number, messages: any[]) => api.put(`/chat/conversations/${id}/history`, { messages }),
-  reply: (id: number, message: string, references: string[]) =>
+  reply: (id: number, message: string, references: string[] = []) =>
     api.post(`/chat/conversations/${id}/reply`, { message, references }),
 }

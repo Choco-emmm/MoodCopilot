@@ -18,6 +18,23 @@
             >{{ item.label }}</router-link>
           </div>
           <div class="nav-sep desktop-only" />
+          <n-popover trigger="click" placement="bottom-end" @update:show="onQuotaPopoverShow">
+            <template #trigger>
+              <n-button text size="small" class="nav-bell" style="margin-right: 8px; font-weight: bold; color: #496c58">
+                额度
+              </n-button>
+            </template>
+            <div style="padding: 4px; min-width: 140px;">
+              <p style="margin: 0 0 8px; font-weight: bold; font-size: 13px; color: #2f2a24;">今日剩余 AI 额度</p>
+              <ul style="margin: 0; padding-left: 18px; font-size: 13px; color: #555;">
+                <li>聊天：{{ quotas.CHAT ?? '--' }} 次</li>
+                <li>分析（含陪跑）：{{ quotas.ANALYSIS ?? '--' }} 次</li>
+                <li>报告：{{ quotas.REPORT ?? '--' }} 次</li>
+              </ul>
+              <p style="margin: 8px 0 0; font-size: 11px; color: #888;">每日 0 点重置</p>
+              <p v-if="quotaError" style="margin: 6px 0 0; font-size: 11px; color: #b15454;">{{ quotaError }}</p>
+            </div>
+          </n-popover>
           <n-popover trigger="click" placement="bottom-end" @update:show="onPopoverShow">
             <template #trigger>
               <n-badge :value="notif.unreadCount" :max="99" :show="notif.unreadCount > 0">
@@ -43,8 +60,9 @@
             </div>
           </n-popover>
           <router-link to="/settings" class="masthead-user-link">
-            <span class="avatar-sm-nav">{{ auth.displayName?.charAt(0) }}</span>
-            {{ auth.displayName }}
+            <img v-if="auth.avatar" :src="auth.avatar" class="avatar-sm-nav avatar-sm-nav-img" />
+            <span v-else class="avatar-sm-nav">{{ auth.displayName?.charAt(0) }}</span>
+            <span class="masthead-user-name">{{ auth.displayName }}</span>
             <span class="user-link-arrow">›</span>
           </router-link>
           <n-button text size="small" class="nav-logout desktop-only" @click="handleLogout">退出</n-button>
@@ -73,16 +91,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { NButton, NBadge, NPopover } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore, type Notification } from '../stores/notification'
+import { authApi } from '../api'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const notif = useNotificationStore()
+
+const quotas = ref<Record<string, number>>({})
+const quotaError = ref('')
 
 const navItems = computed(() => {
   const items = [
@@ -113,6 +135,18 @@ function handleLogout() {
 
 function onPopoverShow(show: boolean) {
   if (show) notif.fetchNotifications()
+}
+
+async function onQuotaPopoverShow(show: boolean) {
+  if (show) {
+    quotaError.value = ''
+    try {
+      const res = await authApi.getQuota()
+      quotas.value = res.data.data ?? {}
+    } catch (e: any) {
+      quotaError.value = e?.response?.data?.message || '额度加载失败'
+    }
+  }
 }
 
 function handleNotifClick(item: Notification) {

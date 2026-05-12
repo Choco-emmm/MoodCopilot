@@ -2,8 +2,8 @@ package com.moodcopilot.auth;
 
 import com.moodcopilot.common.ApiResponse;
 import com.moodcopilot.entity.UserEntity;
-import com.moodcopilot.security.RateLimitService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -15,16 +15,16 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
+import static org.springframework.http.HttpStatus.UNAUTHORIZED;
+
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
     private final AuthService authService;
-    private final RateLimitService rateLimitService;
 
-    public AuthController(AuthService authService, RateLimitService rateLimitService) {
+    public AuthController(AuthService authService) {
         this.authService = authService;
-        this.rateLimitService = rateLimitService;
     }
 
     @PostMapping("/register")
@@ -39,35 +39,36 @@ public class AuthController {
 
     @GetMapping("/me")
     public ApiResponse<AuthResponse> me(@AuthenticationPrincipal UserEntity user) {
-        String role = user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole();
-        return ApiResponse.ok(new AuthResponse(null, user.getId(), user.getDisplayName(), user.getAvatar(), user.getDailyNotifyEnabled(), role));
+        return ApiResponse.ok(authService.me(requireUser(user).getId()));
     }
 
     @PostMapping("/update-profile")
     public ApiResponse<AuthResponse> updateProfile(@AuthenticationPrincipal UserEntity user,
-                                                    @RequestBody Map<String, String> body) {
+            @RequestBody Map<String, String> body) {
         String displayName = body.get("displayName");
         String avatar = body.get("avatar");
-        return ApiResponse.ok(authService.updateProfile(user.getId(), displayName, avatar));
+        return ApiResponse.ok(authService.updateProfile(requireUser(user).getId(), displayName, avatar));
     }
 
     @PostMapping("/avatar")
     public ApiResponse<Map<String, String>> uploadAvatar(@AuthenticationPrincipal UserEntity user,
-                                                          @RequestParam("file") MultipartFile file) {
-        String avatarUrl = authService.uploadAvatar(user.getId(), file);
+            @RequestParam("file") MultipartFile file) {
+        String avatarUrl = authService.uploadAvatar(requireUser(user).getId(), file);
         return ApiResponse.ok(Map.of("avatar", avatarUrl));
     }
 
     @PutMapping("/settings")
     public ApiResponse<Void> updateSettings(@AuthenticationPrincipal UserEntity user,
-                                             @RequestBody Map<String, Object> body) {
+            @RequestBody Map<String, Object> body) {
         Boolean dailyNotifyEnabled = (Boolean) body.get("dailyNotifyEnabled");
-        authService.updateSettings(user.getId(), dailyNotifyEnabled);
+        authService.updateSettings(requireUser(user).getId(), dailyNotifyEnabled);
         return ApiResponse.ok(null);
     }
 
-    @GetMapping("/quota")
-    public ApiResponse<Map<String, Long>> quota(@AuthenticationPrincipal UserEntity user) {
-        return ApiResponse.ok(rateLimitService.getAllRemaining(user.getId()));
+    private UserEntity requireUser(UserEntity user) {
+        if (user == null) {
+            throw new ResponseStatusException(UNAUTHORIZED, "登录状态已失效");
+        }
+        return user;
     }
 }

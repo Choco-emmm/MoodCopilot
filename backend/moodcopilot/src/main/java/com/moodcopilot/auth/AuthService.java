@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
@@ -23,7 +24,7 @@ import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 @Service
 public class AuthService {
 
-    private static final long MAX_AVATAR_SIZE = 2L * 1024 * 1024;
+    private static final long MAX_AVATAR_SIZE = 10L * 1024 * 1024;
 
     private final UserMapper userMapper;
     private final JwtTokenProvider jwtTokenProvider;
@@ -135,7 +136,7 @@ public class AuthService {
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "头像上传失败");
         }
-        String avatarUrl = "/uploads/avatars/" + filename;
+        String avatarUrl = "/api/uploads/avatars/" + filename;
         UserEntity user = userMapper.selectById(userId);
         user.setAvatar(avatarUrl);
         user.setUpdatedAt(LocalDateTime.now());
@@ -143,9 +144,38 @@ public class AuthService {
         return avatarUrl;
     }
 
+    public AuthResponse me(Long userId) {
+        UserEntity user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new ResponseStatusException(UNAUTHORIZED, "登录状态已失效");
+        }
+        return response(null, user);
+    }
+
     private AuthResponse response(String token, UserEntity user) {
         String role = user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole();
-        return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getAvatar(),
+        return new AuthResponse(token, user.getId(), user.getDisplayName(), normalizeAvatar(user.getAvatar()),
                 user.getDailyNotifyEnabled(), role);
+    }
+
+    private String normalizeAvatar(String avatar) {
+        if (avatar == null || avatar.isBlank()) {
+            return avatar;
+        }
+        String normalized = avatar.trim();
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("data:")) {
+            return normalized;
+        }
+        if (normalized.startsWith("/api/uploads/")) {
+            return normalized;
+        }
+        if (normalized.startsWith("/uploads/")) {
+            return "/api" + normalized;
+        }
+        if (normalized.startsWith("uploads/")) {
+            return "/api/" + normalized;
+        }
+        return normalized;
     }
 }

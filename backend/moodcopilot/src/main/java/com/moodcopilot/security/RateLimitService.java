@@ -23,15 +23,17 @@ public class RateLimitService {
     public enum AiApiType {
         CHAT(30),
         ANALYSIS(10),
-        REPORT(5),
-        COACHING(10),
-        ENCOURAGEMENT(15);
+        REPORT(5);
 
         private final int dailyLimit;
 
-        AiApiType(int dailyLimit) { this.dailyLimit = dailyLimit; }
+        AiApiType(int dailyLimit) {
+            this.dailyLimit = dailyLimit;
+        }
 
-        public int getDailyLimit() { return dailyLimit; }
+        public int getDailyLimit() {
+            return dailyLimit;
+        }
     }
 
     public void tryAcquire(Long userId, AiApiType type) {
@@ -43,15 +45,31 @@ public class RateLimitService {
             redis.expire(key, Duration.ofSeconds(secondsUntilMidnight));
         }
         if (count > type.getDailyLimit()) {
-            throw new RateLimitException(type.name(), "今日" + typeLabel(type) + "次数已用完（" + type.getDailyLimit() + "次/天），明天再来吧～");
+            throw new RateLimitException(type.name(),
+                    "今日" + typeLabel(type) + "次数已用完（" + type.getDailyLimit() + "次/天），明天再来吧～");
         }
     }
 
     public long getRemaining(Long userId, AiApiType type) {
-        String key = buildKey(userId, type);
-        String val = redis.opsForValue().get(key);
-        long used = val != null ? Long.parseLong(val) : 0;
-        return Math.max(0, type.getDailyLimit() - used);
+        try {
+            String key = buildKey(userId, type);
+            String val = redis.opsForValue().get(key);
+            long used = parseUsedCount(val);
+            return Math.max(0, type.getDailyLimit() - used);
+        } catch (Exception ignored) {
+            return type.getDailyLimit();
+        }
+    }
+
+    private long parseUsedCount(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return 0;
+        }
+        String value = raw.trim();
+        if (value.startsWith("\"") && value.endsWith("\"") && value.length() >= 2) {
+            value = value.substring(1, value.length() - 1);
+        }
+        return Long.parseLong(value);
     }
 
     public Map<String, Long> getAllRemaining(Long userId) {
@@ -71,8 +89,6 @@ public class RateLimitService {
             case CHAT -> "聊天";
             case ANALYSIS -> "日记分析";
             case REPORT -> "报告生成";
-            case COACHING -> "陪跑建议";
-            case ENCOURAGEMENT -> "鼓励语";
         };
     }
 }
