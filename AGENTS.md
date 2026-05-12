@@ -69,7 +69,19 @@ frontend/src/
 - 白名单：`/api/health`、`/api/auth/**`、`/uploads/**`、`/swagger-ui/**`、`/v3/api-docs/**`
 - 日记：`/api/diaries`、`/api/diaries/public`、`/api/diaries/following`、`/api/diaries/{id}`
 - 聊天：`/api/chat/conversations`、`/api/chat/conversations/{id}`（SSE）、`/api/chat/conversations/{id}/reply`（公网兜底）
+- 额度：`/api/user/quota`
 - 审核后台：`/api/admin/reports/**`，前端页面 `/admin/reports`
+
+## 近期核心变更（2026-05）
+
+- 鉴权与登录跳转：前端全局拦截器仅在 `401` 时清 token 并跳登录；`403`（如报告访问拒绝）不再强制跳登录，由页面自行提示错误。
+- 额度体系收敛：`ENCOURAGEMENT` 下线，`COACHING` 并入 `ANALYSIS`，当前仅保留 `CHAT / ANALYSIS / REPORT`。
+- 额度接口稳定化：补齐 `GET /api/user/quota`，并将该接口从“失败即登出”逻辑中排除。
+- Redis 计数修复：额度计数键改为字符串序列化并加解析兼容，修复“额度显示不扣减”。
+- 头像链路修复：上传后头像地址标准化，导航栏优先展示图片头像。
+- 报告页策略调整：取消“继续聊”入口；相关日记缺失片段支持按 `diaryId` 回填；月报趋势图增加情绪颜色点位与强度标注。
+- 聊天引用策略：保留引用能力（最多 2 条，单条限长），用于“围绕具体内容继续聊”。
+- 聊天上下文重构：不再在每次聊天请求中拼接最近 10 篇日记；改为日记分析完成后增量生成并更新用户专属上下文（Redis key: `chat:user-context:{userId}`），聊天时自动注入该背景。
 
 ## 运行与链路事实（Windows）
 
@@ -79,6 +91,17 @@ frontend/src/
 	1. 后端 `18080`
 	2. 前端预览 `4173`
 	3. `cloudflared` 隧道（配置：`C:\Users\renpe\.cloudflared\moodcopilot-config.yaml`）
+
+### 视觉冒烟验证
+
+前置条件：后端 `18080` 和前端预览 `4173` 已启动。
+
+```powershell
+cd D:\Code\MoodCopilot
+npm.cmd run e2e:visual-polish
+```
+
+验证范围：移动端写日记草稿恢复、公开流禁用文案检查、移动端聊天输入可见、桌面广场截图。
 
 ## 手机端聊天已验证结论
 
