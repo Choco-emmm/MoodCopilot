@@ -1,0 +1,78 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------< com.moodcopilot:moodcopilot-backend >-----------------
+[INFO] Building moodcopilot 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.5.14:run (default-cli) > test-compile @ moodcopilot-backend >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ moodcopilot-backend ---
+[INFO] Copying 2 resources from src\main\resources to target\classes
+[INFO] Copying 14 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.14.1:compile (default-compile) @ moodcopilot-backend ---
+[WARNING]  Parameter 'compilerVersion' (user property 'maven.compiler.compilerVersion') is deprecated: This parameter is no longer evaluated by the underlying compilers, instead the actual version of the javac binary is automatically retrieved.
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ moodcopilot-backend ---
+[INFO] Copying 1 resource from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ moodcopilot-backend ---
+[WARNING]  Parameter 'compilerVersion' (user property 'maven.compiler.compilerVersion') is deprecated: This parameter is no longer evaluated by the underlying compilers, instead the actual version of the javac binary is automatically retrieved.
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] <<< spring-boot:3.5.14:run (default-cli) < test-compile @ moodcopilot-backend <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.5.14:run (default-cli) @ moodcopilot-backend ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::               (v3.5.14)
+
+2026-05-12T13:15:44.007+08:00  INFO 86392 --- [moodcopilot] [           main] com.moodcopilot.MoodcopilotApplication   : Starting MoodcopilotApplication using Java 25.0.1 with PID 86392 (D:\Code\MoodCopilot\backend\moodcopilot\target\classes started by renpe in D:\Code\MoodCopilot\backend\moodcopilot)
+2026-05-12T13:15:44.008+08:00  INFO 86392 --- [moodcopilot] [           main] com.moodcopilot.MoodcopilotApplication   : The following 1 profile is active: "dev"
+2026-05-12T13:15:44.471+08:00  INFO 86392 --- [moodcopilot] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-05-12T13:15:44.472+08:00  INFO 86392 --- [moodcopilot] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-05-12T13:15:44.486+08:00  INFO 86392 --- [moodcopilot] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 8 ms. Found 0 Redis repository interfaces.
+2026-05-12T13:15:44.779+08:00  INFO 86392 --- [moodcopilot] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 18080 (http)
+2026-05-12T13:15:44.786+08:00  INFO 86392 --- [moodcopilot] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-05-12T13:15:44.786+08:00  INFO 86392 --- [moodcopilot] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.54]
+2026-05-12T13:15:44.819+08:00  INFO 86392 --- [moodcopilot] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-05-12T13:15:44.820+08:00  INFO 86392 --- [moodcopilot] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 710 ms
+2026-05-12T13:15:44.904+08:00  INFO 86392 --- [moodcopilot] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-05-12T13:15:45.083+08:00  INFO 86392 --- [moodcopilot] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@7878bbdb
+2026-05-12T13:15:45.084+08:00  INFO 86392 --- [moodcopilot] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-05-12T13:15:45.106+08:00  INFO 86392 --- [moodcopilot] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:mysql://localhost:3306/mood_copilot_db (MySQL 8.0)
+2026-05-12T13:15:45.140+08:00  INFO 86392 --- [moodcopilot] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 15 migrations (execution time 00:00.020s)
+2026-05-12T13:15:45.148+08:00  INFO 86392 --- [moodcopilot] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema `mood_copilot_db`: 1.13
+2026-05-12T13:15:45.157+08:00  INFO 86392 --- [moodcopilot] [           main] o.f.core.internal.command.DbMigrate      : Schema `mood_copilot_db` is up to date. No migration necessary.
+ _ _   |_  _ _|_. ___ _ |    _ 
+| | |\/|_)(_| | |_\  |_)||_|_\ 
+     /               |         
+                        3.5.10.1 
+2026-05-12T13:15:45.301+08:00  INFO 86392 --- [moodcopilot] [           main] o.s.boot.web.servlet.RegistrationBean    : Filter jwtFilterRegistration was not registered (disabled)
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::allocateMemory has been called by io.netty.util.internal.PlatformDependent0$2 (file:/D:/coding/apache-maven-3.9.12/mvn_repo/io/netty/netty-common/4.1.132.Final/netty-common-4.1.132.Final.jar)
+WARNING: Please consider reporting this to the maintainers of class io.netty.util.internal.PlatformDependent0$2
+WARNING: sun.misc.Unsafe::allocateMemory will be removed in a future release
+2026-05-12T13:15:45.731+08:00  INFO 86392 --- [moodcopilot] [           main] com.moodcopilot.config.AIConfiguration   : AI 异步线程池已初始化 (core=2, max=5, queue=50)
+2026-05-12T13:15:45.757+08:00  WARN 86392 --- [moodcopilot] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 33bd80ef-d186-47c8-98bf-f04fad50ea1b
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-05-12T13:15:45.761+08:00  INFO 86392 --- [moodcopilot] [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name inMemoryUserDetailsManager
+2026-05-12T13:15:46.025+08:00  INFO 86392 --- [moodcopilot] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 18080 (http) with context path '/'
+2026-05-12T13:15:46.032+08:00  INFO 86392 --- [moodcopilot] [           main] com.moodcopilot.MoodcopilotApplication   : Started MoodcopilotApplication in 2.239 seconds (process running for 2.454)
+2026-05-12T13:15:46.406+08:00  INFO 86392 --- [moodcopilot] [io-18080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-05-12T13:15:46.406+08:00  INFO 86392 --- [moodcopilot] [io-18080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-05-12T13:15:46.406+08:00  INFO 86392 --- [moodcopilot] [io-18080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 0 ms

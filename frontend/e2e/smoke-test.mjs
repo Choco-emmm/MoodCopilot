@@ -109,6 +109,19 @@ async function main() {
       await mobile.locator('.avatar-upload').waitFor({ timeout: 10000 });
     });
 
+    await check('普通用户访问管理页会被守卫拦截', async () => {
+      await mobile.goto(`${BASE_URL}/admin/reports`, { waitUntil: 'domcontentloaded' });
+      await mobile.waitForURL(`${BASE_URL}/`, { timeout: 10000 });
+      await mobile.locator('.app-shell').waitFor({ timeout: 10000 });
+    });
+
+    await check('ADMIN 角色标记可进入管理页路由', async () => {
+      await mobile.evaluate(() => localStorage.setItem('role', 'ADMIN'));
+      await mobile.goto(`${BASE_URL}/admin/reports`, { waitUntil: 'domcontentloaded' });
+      await mobile.waitForURL(`${BASE_URL}/admin/reports`, { timeout: 10000 });
+      await mobile.locator('.admin-page').waitFor({ timeout: 10000 });
+    });
+
     await check('日记详情页可访问', async () => {
       const id = await firstPublicDiaryId(mobile);
       if (!id) {

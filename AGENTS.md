@@ -96,8 +96,9 @@ C:\Users\renpe\AppData\Local\Microsoft\WinGet\Packages\Cloudflare.cloudflared_Mi
 
 - 如果公网打不开但本地能打开，先检查三段链路：`18080`、`4173`、`cloudflared`。任意一段掉线都会导致 `https://moodcopilot.dpdns.org/` 不可用。
 - MySQL 是 Windows 服务，普通 Codex shell 不能启动；需要用户用管理员权限或服务管理器先启动 `MySQL`。确认命令：`Test-NetConnection localhost -Port 3306`。
-- Flyway `V1_10` 版本冲突已整理：`V1_10__add_user_profile.sql` 保留头像/通知列迁移，举报/隐藏表放到 `V1_11__add_reports_and_hides.sql`。如果启动时仍提示两个 `V1_10`，通常是 `target/classes` 残留旧迁移，先跑 `cmd /c mvn.cmd clean compile`。
+- Flyway 已继续到 `V1_13`：`V1_12__add_admin_roles_and_report_handling.sql`（管理员角色/举报处理）和 `V1_13__add_diary_recommendation_exposures.sql`（推荐曝光去重）已启用。若启动仍提示重复版本，通常是 `target/classes` 残留旧迁移，先跑 `cmd /c mvn.cmd clean compile`。
 - 本地开发库曾缺少 `diary_hides` / `user_reports`，导致登录后 `/api/diaries/public`、`today-match`、`coaching`、`community-mood` 返回 403 并被前端拦截器踢回登录页。当前迁移已纳入 `V1_11`。
+- 审核后台链路已落地：后端 `backend/moodcopilot/src/main/java/com/moodcopilot/report/ReportController.java` + `backend/moodcopilot/src/main/java/com/moodcopilot/admin/AdminReportController.java`，前端 `frontend/src/pages/AdminReportsPage.vue`，管理页路由为 `/admin/reports`。
 - 当前已验证：`http://127.0.0.1:4173/`、`http://127.0.0.1:18080/api/health`、`https://moodcopilot.dpdns.org/`、`https://moodcopilot.dpdns.org/api/health` 均返回 200。
 
 ## 手机端 AI 聊天排障结论
@@ -116,8 +117,8 @@ C:\Users\renpe\AppData\Local\Microsoft\WinGet\Packages\Cloudflare.cloudflared_Mi
 `README.md` 已把大并发压测降级为暂不做，当前更适合继续做：
 
 - App 化基础准备：保持 Web/API 路径稳定，补齐关键 E2E 冒烟测试。
-- 审核后台：基于现有举报数据，补处理状态、隐藏范围和管理视图。
-- 推荐质量优化：曝光去重、同一作者去重；不做推荐理由展示。
+- 审核后台增量完善：在已上线举报链路基础上补处理状态筛选、隐藏范围细化和管理视图可读性。
+- 推荐质量继续微调：`DiaryService` 已有曝光去重（`diary_recommendation_exposures`）和同作者去重，后续主要做策略参数调优，不做推荐理由展示。
 - 公开社区卡片保持轻量正文流：不要展示 AI 主题/分类标签，不提供“看分析”入口；鼓励功能暂不作为广场主操作展示。
 
 ## 已知踩坑
@@ -129,3 +130,4 @@ C:\Users\renpe\AppData\Local\Microsoft\WinGet\Packages\Cloudflare.cloudflared_Mi
 - 旧版本曾按 PWA/Service Worker 方式缓存页面壳时，访问过旧版的浏览器可能继续被旧 SW 控制，新版本即使移除了注册代码也不会自动卸载旧 SW。当前仓库通过 `frontend/public/sw.js` 提供同路径清退脚本，并在 `frontend/src/main.ts` 启动时注销同源旧 SW、清理 Cache Storage。验证 `/sw.js` 必须返回 `text/javascript`，不能回退成 `index.html`。
 - 公开流缓存不要按用户缓存完整结果。应缓存全局公开页，再按当前用户过滤隐藏日记，避免用户发布新公开日记后其他用户缓存不刷新。
 - 报告页会消耗 `REPORT` 限额。前端不要一进页面同时拉周报和月报；当前月报采用切换到月报时懒加载，429 时展示可重试提示，避免未处理 Promise 错误。
+- 管理页 `/admin/reports` 受前端路由守卫 `requiresAdmin` 和 `localStorage.role` 双重控制；仅替换 token 不同步 role 时会被重定向到 `/`（见 `frontend/src/router/index.ts`、`frontend/src/stores/auth.ts`）。

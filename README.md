@@ -237,11 +237,16 @@ npm.cmd run e2e:smoke
 
 登录失败时先判断是账号问题还是链路问题。`test@test.com / 123456` 在当前本地开发库中可用；如果后端接口直连可登录，但公网登录失败，优先检查本机服务和 Cloudflare Tunnel。
 
-本地基础检查：
+推荐先跑统一诊断（固定输出本地端口、本地健康、公网健康、隧道状态）：
 
 ```powershell
-Invoke-WebRequest http://127.0.0.1:18080/api/health -UseBasicParsing
-Invoke-WebRequest http://127.0.0.1:4173/ -UseBasicParsing
+cd D:\Code\MoodCopilot
+
+# 本地链路诊断（不检查隧道/公网）
+npm.cmd run app:doctor
+
+# 公网链路诊断（含 cloudflared + 公网 health）
+npm.cmd run public:doctor
 ```
 
 直接验证登录接口：
@@ -261,11 +266,25 @@ Invoke-RestMethod -Uri http://127.0.0.1:18080/api/auth/login -Method Post -Conte
 
 ```powershell
 cd D:\Code\MoodCopilot
+npm.cmd run app:start
+
+# 强制重启本地后端+前端预览（不启动隧道）：
+npm.cmd run app:restart
+
+# 本地链路诊断：
+npm.cmd run app:doctor
+
+# 需要公网访问时再启动隧道链路：
 npm.cmd run public:start
 
 # 强制重启后端、前端预览和隧道：
 npm.cmd run public:restart
+
+# 公网链路诊断：
+npm.cmd run public:doctor
 ```
+
+说明：不要长期使用前台 `cmd /c mvn.cmd spring-boot:run -Dspring-boot.run.profiles=dev` 作为常驻启动方式；该方式在终端关闭或被中断时容易出现 `exit code -1`，造成“启动失败”的误判。`app:start/app:restart` 与 `public:start/public:restart` 都使用后台常驻进程启动。
 
 启动前端预览：
 

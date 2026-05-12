@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.security.JwtTokenProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.http.HttpStatus;
@@ -22,15 +23,25 @@ import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 @Service
 public class AuthService {
 
+    private static final long MAX_AVATAR_SIZE = 2L * 1024 * 1024;
+
     private final UserMapper userMapper;
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
+    private final Path uploadRoot;
 
+    @Autowired
     public AuthService(UserMapper userMapper, JwtTokenProvider jwtTokenProvider,
-                       PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder) {
+        this(userMapper, jwtTokenProvider, passwordEncoder, Path.of("uploads"));
+    }
+
+    AuthService(UserMapper userMapper, JwtTokenProvider jwtTokenProvider,
+            PasswordEncoder passwordEncoder, Path uploadRoot) {
         this.userMapper = userMapper;
         this.jwtTokenProvider = jwtTokenProvider;
         this.passwordEncoder = passwordEncoder;
+        this.uploadRoot = uploadRoot;
     }
 
     public AuthResponse register(RegisterRequest request) {
@@ -106,19 +117,21 @@ public class AuthService {
     }
 
     public String uploadAvatar(Long userId, MultipartFile file) {
-        if (file.isEmpty() || file.getSize() > 512 * 1024) {
-            throw new ResponseStatusException(BAD_REQUEST, "文件大小不能超过512KB");
+        if (file.isEmpty() || file.getSize() > MAX_AVATAR_SIZE) {
+            throw new ResponseStatusException(BAD_REQUEST, "文件大小不能超过 2MB");
         }
         String contentType = file.getContentType();
-        if (contentType == null || (!contentType.equals("image/jpeg") && !contentType.equals("image/png") && !contentType.equals("image/webp"))) {
+        if (contentType == null || (!contentType.equals("image/jpeg") && !contentType.equals("image/png")
+                && !contentType.equals("image/webp"))) {
             throw new ResponseStatusException(BAD_REQUEST, "仅支持 JPEG/PNG/WebP 格式");
         }
         String ext = contentType.equals("image/png") ? "png" : contentType.equals("image/webp") ? "webp" : "jpg";
-        String filename = userId + "." + ext;
-        Path uploadDir = Path.of("uploads/avatars");
+        String filename = userId + "-" + System.currentTimeMillis() + "." + ext;
+        Path uploadDir = uploadRoot.resolve("avatars");
         try {
             Files.createDirectories(uploadDir);
-            Files.write(uploadDir.resolve(filename), file.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            Files.write(uploadDir.resolve(filename), file.getBytes(), StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING);
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "头像上传失败");
         }
@@ -132,6 +145,7 @@ public class AuthService {
 
     private AuthResponse response(String token, UserEntity user) {
         String role = user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole();
-        return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getAvatar(), user.getDailyNotifyEnabled(), role);
+        return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getAvatar(),
+                user.getDailyNotifyEnabled(), role);
     }
 }
