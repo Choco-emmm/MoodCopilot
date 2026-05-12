@@ -71,7 +71,8 @@ public class AiAnalysisService {
     // ── Weekly report ──
 
     public String generateWeeklySummary(List<String> diaryContents, List<DiaryAnalysis> analyses) {
-        if (diaryContents.isEmpty()) return "本周还没有记录日记，去写一篇吧～";
+        if (diaryContents.isEmpty())
+            return "本周还没有记录日记，去写一篇吧～";
 
         StringBuilder prompt = new StringBuilder("本周日记摘要：\n");
         for (int i = 0; i < diaryContents.size(); i++) {
@@ -114,7 +115,8 @@ public class AiAnalysisService {
             Return ONLY the Chinese text, no markdown, no JSON, no explanation.""";
 
     public String generateMonthlySummary(List<String> diaryContents, List<DiaryAnalysis> analyses) {
-        if (diaryContents.isEmpty()) return "本月还没有记录日记，去写一篇吧～";
+        if (diaryContents.isEmpty())
+            return "本月还没有记录日记，去写一篇吧～";
 
         StringBuilder prompt = new StringBuilder("本月日记摘要：\n");
         for (int i = 0; i < diaryContents.size(); i++) {
@@ -155,7 +157,8 @@ public class AiAnalysisService {
             Be warm and specific. Do not diagnose. Do not use markdown. Do not use emoji.""";
 
     @SuppressWarnings("unchecked")
-    private ReportGuidance generateReportGuidance(String period, List<String> diaryContents, List<DiaryAnalysis> analyses) {
+    private ReportGuidance generateReportGuidance(String period, List<String> diaryContents,
+            List<DiaryAnalysis> analyses) {
         if (diaryContents.isEmpty()) {
             return new ReportGuidance(List.of(), List.of(), "等你多记录几天，我们再一起看看变化。");
         }
@@ -184,8 +187,7 @@ public class AiAnalysisService {
             return new ReportGuidance(
                     sanitizeStringList((List<Object>) map.get("insights"), fallbackInsights(analyses)),
                     sanitizeStringList((List<Object>) map.get("suggestions"), fallbackSuggestions(analyses)),
-                    sanitizeString((String) map.get("followUpPrompt"), fallbackFollowUp(analyses))
-            );
+                    sanitizeString((String) map.get("followUpPrompt"), fallbackFollowUp(analyses)));
         } catch (Exception e) {
             log.warn("AI report guidance failed, falling back: {}", e.getMessage());
             return fallbackGuidance(analyses);
@@ -193,7 +195,8 @@ public class AiAnalysisService {
     }
 
     private ReportGuidance fallbackGuidance(List<DiaryAnalysis> analyses) {
-        return new ReportGuidance(fallbackInsights(analyses), fallbackSuggestions(analyses), fallbackFollowUp(analyses));
+        return new ReportGuidance(fallbackInsights(analyses), fallbackSuggestions(analyses),
+                fallbackFollowUp(analyses));
     }
 
     private List<String> fallbackInsights(List<DiaryAnalysis> analyses) {
@@ -201,15 +204,13 @@ public class AiAnalysisService {
         String topTopic = topTopic(analyses);
         return List.of(
                 "最近比较常出现的情绪是「" + topMood + "」。",
-                "情绪内容更多和「" + topTopic + "」有关。"
-        );
+                "情绪内容更多和「" + topTopic + "」有关。");
     }
 
     private List<String> fallbackSuggestions(List<DiaryAnalysis> analyses) {
         return List.of(
                 "今天先给自己 10 分钟不被打扰的时间，慢慢把状态放下来。",
-                "下次记录时，可以多写一句「这件事真正影响我的地方是？」"
-        );
+                "下次记录时，可以多写一句「这件事真正影响我的地方是？」");
     }
 
     private String fallbackFollowUp(List<DiaryAnalysis> analyses) {
@@ -234,7 +235,8 @@ public class AiAnalysisService {
     }
 
     private List<String> sanitizeStringList(List<Object> values, List<String> fallback) {
-        if (values == null || values.isEmpty()) return fallback;
+        if (values == null || values.isEmpty())
+            return fallback;
         List<String> result = values.stream()
                 .filter(String.class::isInstance)
                 .map(String.class::cast)
@@ -246,19 +248,20 @@ public class AiAnalysisService {
     }
 
     private String sanitizeString(String value, String fallback) {
-        if (value == null || value.isBlank()) return fallback;
+        if (value == null || value.isBlank())
+            return fallback;
         return value.trim();
     }
 
     public record ReportGuidance(
             List<String> insights,
             List<String> suggestions,
-            String followUpPrompt
-    ) {
+            String followUpPrompt) {
     }
 
     private String fallbackMonthlySummary(int count, List<DiaryAnalysis> analyses) {
-        if (count == 0) return "本月还没有记录日记，去写一篇吧～";
+        if (count == 0)
+            return "本月还没有记录日记，去写一篇吧～";
         String topMood = analyses.stream()
                 .filter(a -> a != null)
                 .collect(Collectors.groupingBy(DiaryAnalysis::moodLabel, Collectors.counting()))
@@ -277,13 +280,14 @@ public class AiAnalysisService {
             Return ONLY the Chinese text, no markdown, no JSON, no explanation.""";
 
     public String generateCoaching(List<String> contents, List<DiaryAnalysis> analyses) {
-        if (contents.isEmpty()) return "还没有足够的日记数据，多记录几天后我会为你生成陪跑建议。";
+        if (contents.isEmpty())
+            return "还没有足够的日记数据，多记录几天后我会为你生成陪跑建议。";
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < contents.size(); i++) {
             DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
             if (a != null) {
                 sb.append("情绪：").append(a.moodLabel())
-                  .append("，主题：").append(String.join("、", a.topicLabels())).append("\n");
+                        .append("，主题：").append(String.join("、", a.topicLabels())).append("\n");
             }
         }
         try {
@@ -295,10 +299,75 @@ public class AiAnalysisService {
         } catch (Exception e) {
             log.warn("AI coaching failed: {}", e.getMessage());
             String topMood = analyses.stream().filter(a -> a != null)
-                    .collect(java.util.stream.Collectors.groupingBy(DiaryAnalysis::moodLabel, java.util.stream.Collectors.counting()))
+                    .collect(java.util.stream.Collectors.groupingBy(DiaryAnalysis::moodLabel,
+                            java.util.stream.Collectors.counting()))
                     .entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse("复杂");
             return "你最近的情绪以「" + topMood + "」为主。试着每天给自己5分钟安静时间，不用想任何事，只是呼吸。";
         }
+    }
+
+    // ── User chat context ──
+
+    private static final String USER_CONTEXT_SYSTEM_PROMPT = """
+            你是用户长期背景总结助手。请将“已有用户背景”和“本次新日记”融合成新的用户专属背景，用于后续聊天。
+            要求：
+            1) 中文，120-220字；
+            2) 只保留稳定、可帮助理解用户的关键信息（常见情绪、触发主题、近期变化、偏好表达方式）；
+            3) 不要复述过多细节，不要逐条罗列历史日记，不要输出建议清单；
+            4) 输出纯文本，不要 markdown、不要 JSON。
+            """;
+
+    public String generateUserContext(String previousContext, String diaryContent, DiaryAnalysis analysis) {
+        String oldContext = previousContext == null ? "" : previousContext.trim();
+        if (oldContext.length() > 400) {
+            oldContext = oldContext.substring(0, 400);
+        }
+        String content = diaryContent == null ? "" : diaryContent.trim();
+        if (content.length() > 280) {
+            content = content.substring(0, 280);
+        }
+
+        String analysisLine = "";
+        if (analysis != null) {
+            String topics = (analysis.topicLabels() == null || analysis.topicLabels().isEmpty())
+                    ? "日常情绪"
+                    : String.join("、", analysis.topicLabels());
+            analysisLine = "情绪=" + analysis.moodLabel() +
+                    "；强度=" + analysis.moodIntensity() +
+                    "；主题=" + topics;
+        }
+
+        String prompt = "已有用户背景：\n" + (oldContext.isBlank() ? "（空）" : oldContext)
+                + "\n\n本次新日记：\n" + content
+                + (analysisLine.isBlank() ? "" : "\n结构化分析：" + analysisLine);
+
+        try {
+            String merged = analysisChatClient.prompt()
+                    .system(USER_CONTEXT_SYSTEM_PROMPT)
+                    .user(prompt)
+                    .call()
+                    .content();
+            if (merged == null || merged.isBlank()) {
+                return fallbackUserContext(oldContext, content, analysis);
+            }
+            String normalized = merged.trim();
+            return normalized.length() > 240 ? normalized.substring(0, 240) : normalized;
+        } catch (Exception e) {
+            log.warn("AI user context generation failed: {}", e.getMessage());
+            return fallbackUserContext(oldContext, content, analysis);
+        }
+    }
+
+    private String fallbackUserContext(String previousContext, String content, DiaryAnalysis analysis) {
+        String mood = analysis != null && analysis.moodLabel() != null ? analysis.moodLabel() : "复杂";
+        String topics = analysis != null && analysis.topicLabels() != null && !analysis.topicLabels().isEmpty()
+                ? String.join("、", analysis.topicLabels())
+                : "日常情绪";
+        String snippet = content.isBlank() ? "" : (content.length() > 60 ? content.substring(0, 60) + "..." : content);
+        String merged = (previousContext == null || previousContext.isBlank() ? "" : previousContext + " ")
+                + "近期主要情绪偏向「" + mood + "」，高频主题是「" + topics + "」。"
+                + (snippet.isBlank() ? "" : "最新记录提到：" + snippet);
+        return merged.length() > 240 ? merged.substring(0, 240) : merged;
     }
 
     // ── Community mood ──
@@ -306,7 +375,8 @@ public class AiAnalysisService {
     public Map<String, Integer> communityMood(List<String> moodLabels) {
         return moodLabels.stream()
                 .filter(m -> m != null)
-                .collect(java.util.stream.Collectors.groupingBy(m -> m, java.util.stream.Collectors.summingInt(m -> 1)));
+                .collect(
+                        java.util.stream.Collectors.groupingBy(m -> m, java.util.stream.Collectors.summingInt(m -> 1)));
     }
 
     // ── Encouragement generation ──
@@ -322,7 +392,8 @@ public class AiAnalysisService {
                     .user(diaryContent)
                     .call()
                     .content();
-            return objectMapper.readValue(response, new TypeReference<List<String>>() {});
+            return objectMapper.readValue(response, new TypeReference<List<String>>() {
+            });
         } catch (Exception e) {
             log.warn("AI encouragement generation failed: {}", e.getMessage());
             return fallbackEncouragements();
@@ -333,19 +404,18 @@ public class AiAnalysisService {
         return List.of(
                 "看到你了，今天辛苦了",
                 "你的感受很重要，谢谢你的分享",
-                "你不是一个人，有我在听"
-        );
+                "你不是一个人，有我在听");
     }
 
     private String fallbackWeeklySummary(int count, List<DiaryAnalysis> analyses) {
-        if (count == 0) return "本周还没有记录日记，去写一篇吧～";
+        if (count == 0)
+            return "本周还没有记录日记，去写一篇吧～";
 
         var moodCounts = analyses.stream()
                 .filter(a -> a != null && a.moodLabel() != null)
                 .collect(Collectors.groupingBy(
                         DiaryAnalysis::moodLabel,
-                        Collectors.counting()
-                ));
+                        Collectors.counting()));
         String topMood = moodCounts.entrySet().stream()
                 .max(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey)
@@ -364,26 +434,35 @@ public class AiAnalysisService {
                 intensity(content, mood),
                 topics,
                 summarize(content),
-                feedbackFor(mood, topics)
-        );
+                feedbackFor(mood, topics));
     }
 
     private String pickMood(String content) {
-        if (containsAny(content, "焦虑", "担心", "紧张", "害怕", "慌")) return "焦虑";
-        if (containsAny(content, "委屈", "难过", "想哭", "失落", "孤单")) return "委屈";
-        if (containsAny(content, "生气", "烦", "愤怒", "讨厌")) return "烦躁";
-        if (containsAny(content, "累", "疲惫", "困", "撑", "压力", "崩溃")) return "疲惫";
-        if (containsAny(content, "开心", "高兴", "舒服", "期待", "安心")) return "轻松";
+        if (containsAny(content, "焦虑", "担心", "紧张", "害怕", "慌"))
+            return "焦虑";
+        if (containsAny(content, "委屈", "难过", "想哭", "失落", "孤单"))
+            return "委屈";
+        if (containsAny(content, "生气", "烦", "愤怒", "讨厌"))
+            return "烦躁";
+        if (containsAny(content, "累", "疲惫", "困", "撑", "压力", "崩溃"))
+            return "疲惫";
+        if (containsAny(content, "开心", "高兴", "舒服", "期待", "安心"))
+            return "轻松";
         return "平静";
     }
 
     private List<String> pickTopics(String content) {
         List<String> topics = new ArrayList<>();
-        if (containsAny(content, "朋友", "同事", "家人", "关系", "聊天", "争吵", "误会")) topics.add("人际关系");
-        if (containsAny(content, "工作", "加班", "任务", "项目", "考试", "学习", "上课")) topics.add("工作学习");
-        if (containsAny(content, "睡", "失眠", "身体", "头痛", "胃", "运动")) topics.add("睡眠身体");
-        if (containsAny(content, "自己", "未来", "目标", "坚持", "改变")) topics.add("自我成长");
-        if (topics.isEmpty()) topics.add("日常情绪");
+        if (containsAny(content, "朋友", "同事", "家人", "关系", "聊天", "争吵", "误会"))
+            topics.add("人际关系");
+        if (containsAny(content, "工作", "加班", "任务", "项目", "考试", "学习", "上课"))
+            topics.add("工作学习");
+        if (containsAny(content, "睡", "失眠", "身体", "头痛", "胃", "运动"))
+            topics.add("睡眠身体");
+        if (containsAny(content, "自己", "未来", "目标", "坚持", "改变"))
+            topics.add("自我成长");
+        if (topics.isEmpty())
+            topics.add("日常情绪");
         return topics;
     }
 
@@ -399,7 +478,8 @@ public class AiAnalysisService {
 
     private String summarize(String content) {
         String compact = content.replaceAll("\\s+", " ");
-        if (compact.length() <= 48) return compact;
+        if (compact.length() <= 48)
+            return compact;
         return compact.substring(0, 48) + "...";
     }
 
@@ -417,7 +497,8 @@ public class AiAnalysisService {
 
     private boolean containsAny(String content, String... keywords) {
         for (String keyword : keywords) {
-            if (content.contains(keyword)) return true;
+            if (content.contains(keyword))
+                return true;
         }
         return false;
     }

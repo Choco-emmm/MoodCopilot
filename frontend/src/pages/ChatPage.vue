@@ -84,7 +84,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
 import { NButton, NInput } from 'naive-ui'
 import { marked } from 'marked'
 import AppHeader from '../components/AppHeader.vue'
@@ -107,7 +106,6 @@ function renderMd(text: string) {
 
 const STREAM_API = resolveStreamApiBase()
 
-const router = useRouter()
 const conversations = ref<Conversation[]>([])
 const activeConvId = ref<number | null>(null)
 const messages = ref<Message[]>([])
@@ -120,22 +118,31 @@ const recentDiaryOptions = ref<{ id: number; date: string; snippet: string }[]>(
 const useStreamingChat = isLocalhost()
 
 onMounted(async () => {
-  // 读取广场、报告传递的引用
   const state = history.state as any
+  let shouldAutoSend = false
   if (state?.references?.length) {
-    references.value = state.references.map((r: string) => ({
+    references.value = state.references.slice(0, 2).map((r: string) => ({
       label: 'MoodCopilot 引用',
-      content: r
+      content: String(r).slice(0, 120)
     }))
-    // 清除 state 避免刷新后重复
-    history.replaceState({ ...history.state, references: undefined }, '')
+    shouldAutoSend = !!state.autoSend
+    if (shouldAutoSend) {
+      draft.value = '来看看我最近的报告吧，我们继续聊聊'
+    }
+    history.replaceState({ ...history.state, references: undefined, autoSend: undefined }, '')
   }
+
   await loadConversations()
   await loadRecentDiaryOptions()
   if (conversations.value.length > 0) {
     await selectConversation(conversations.value[0].id)
   } else {
     await createConversation()
+  }
+
+  if (shouldAutoSend) {
+    await nextTick()
+    send()
   }
 })
 
@@ -218,7 +225,8 @@ async function send() {
     return
   }
 
-  const refContents = references.value.map(r => r.content)
+  const refContents = references.value.slice(0, 2).map(r => r.content.slice(0, 120))
+
   if (!useStreamingChat) {
     await sendReply(convId, content, refContents)
     return
@@ -233,13 +241,20 @@ async function send() {
   let displayText = ''
 
   function processSSE() {
-    const newText = xhr.responseText.substring(lastIndex)
-    lastIndex = xhr.responseText.length
-    const lines = newText.split('\n')
+    const text = xhr.responseText
+    const newText = text.substring(lastIndex)
+    const lastNewline = newText.lastIndexOf('\n')
+    if (lastNewline === -1) return
+    
+    const completeText = newText.substring(0, lastNewline)
+    lastIndex += lastNewline + 1
+    
+    const lines = completeText.split('\n')
     for (const line of lines) {
-      const trimmed = line.trim()
-      if (trimmed.startsWith('data:')) {
-        displayText += trimmed.slice(5).trimStart()
+      if (line.startsWith('data:')) {
+        const content = line.substring(5)
+        // Spring SSE 可能会在 data: 后加一个空格
+        displayText += content.startsWith(' ') ? content.substring(1) : content
       }
     }
   }
@@ -283,6 +298,7 @@ function finishSend(convId: number) {
   saveToBackend(convId)
   streaming.value = false
   streamingText.value = ''
+  references.value = []
   scrollBottom()
   loadConversations()
 }
@@ -300,7 +316,7 @@ function removeRef(index: number) {
 function addDiaryRef(diaryId: string) {
   const d = recentDiaryOptions.value.find(o => String(o.id) === diaryId)
   if (d && !references.value.some(r => r.label === '日记 · ' + d.date)) {
-    references.value.push({ label: '日记 · ' + d.date, content: d.snippet })
+    references.value.push({ label: '日记 · ' + d.date, content: d.snippet.slice(0, 120) })
   }
 }
 
@@ -314,7 +330,9 @@ async function loadRecentDiaryOptions() {
       date: d.createdAt?.split('T')[0] ?? '',
       snippet: d.content?.length > 30 ? d.content.slice(0, 30) : d.content ?? ''
     }))
-  } catch { recentDiaryOptions.value = [] }
+  } catch {
+    recentDiaryOptions.value = []
+  }
 }
 
 function resolveStreamApiBase() {

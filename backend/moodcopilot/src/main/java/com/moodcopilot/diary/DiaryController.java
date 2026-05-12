@@ -26,7 +26,7 @@ public class DiaryController {
     @PostMapping
     public ApiResponse<DiaryView> create(@RequestBody CreateDiaryRequest request) {
         DiaryView diary = diaryService.create(request);
-        diaryService.runAiAnalysis(diary.id(), diary.content());
+        diaryService.runAiAnalysis(diary.id(), diary.authorUserId(), diary.content());
         return ApiResponse.ok(diary);
     }
 
@@ -39,8 +39,7 @@ public class DiaryController {
                 "items", result.getRecords(),
                 "total", result.getTotal(),
                 "page", result.getCurrent(),
-                "size", result.getSize()
-        ));
+                "size", result.getSize()));
     }
 
     @GetMapping("/following")
@@ -52,8 +51,7 @@ public class DiaryController {
                 "items", result.getRecords(),
                 "total", result.getTotal(),
                 "page", page,
-                "size", size
-        ));
+                "size", size));
     }
 
     @GetMapping("/weekly-report")
@@ -62,10 +60,22 @@ public class DiaryController {
         return ApiResponse.ok(diaryService.weeklyReport(weekOffset));
     }
 
+    @PostMapping("/weekly-report/generate")
+    public ApiResponse<WeeklyReportView> generateWeeklyReport(
+            @RequestParam(defaultValue = "0") int weekOffset) {
+        return ApiResponse.ok(diaryService.generateWeeklyAiSummary(weekOffset));
+    }
+
     @GetMapping("/monthly-report")
     public ApiResponse<WeeklyReportView> monthlyReport(
             @RequestParam(defaultValue = "0") int monthOffset) {
         return ApiResponse.ok(diaryService.monthlyReport(monthOffset));
+    }
+
+    @PostMapping("/monthly-report/generate")
+    public ApiResponse<WeeklyReportView> generateMonthlyReport(
+            @RequestParam(defaultValue = "0") int monthOffset) {
+        return ApiResponse.ok(diaryService.generateMonthlyAiSummary(monthOffset));
     }
 
     @GetMapping("/public")
@@ -77,8 +87,7 @@ public class DiaryController {
                 "items", result.getRecords(),
                 "total", result.getTotal(),
                 "page", result.getCurrent(),
-                "size", result.getSize()
-        ));
+                "size", result.getSize()));
     }
 
     @GetMapping("/{id}")
@@ -89,16 +98,14 @@ public class DiaryController {
     @GetMapping("/{id}/similar")
     public ApiResponse<List<DiaryView>> similar(
             @PathVariable("id") long id,
-            @RequestParam(name = "limit", defaultValue = "3") int limit
-    ) {
+            @RequestParam(name = "limit", defaultValue = "3") int limit) {
         return ApiResponse.ok(diaryService.similar(id, limit));
     }
 
     @PostMapping("/{id}/comments")
     public ApiResponse<DiaryView> addComment(
             @PathVariable("id") long id,
-            @RequestBody CreateCommentRequest request
-    ) {
+            @RequestBody CreateCommentRequest request) {
         return ApiResponse.ok(diaryService.addComment(id, request));
     }
 

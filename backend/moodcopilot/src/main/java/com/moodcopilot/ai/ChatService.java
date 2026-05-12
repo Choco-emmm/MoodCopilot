@@ -4,8 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.*;
 import com.moodcopilot.mapper.ChatConversationMapper;
-import com.moodcopilot.mapper.DiaryAnalysisMapper;
-import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.security.RateLimitService;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -28,10 +26,9 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 public class ChatService {
 
     private static final String MSG_PREFIX = "chat:msgs:";
+    private static final String USER_CONTEXT_PREFIX = "chat:user-context:";
 
     private final ChatClient chatChatClient;
-    private final DiaryMapper diaryMapper;
-    private final DiaryAnalysisMapper diaryAnalysisMapper;
     private final ChatConversationMapper conversationMapper;
     private final Map<String, ChatMemory> userChatMemories;
     private final StringRedisTemplate redisTemplate;
@@ -39,16 +36,12 @@ public class ChatService {
     private final RateLimitService rateLimitService;
 
     public ChatService(ChatClient chatChatClient,
-                       DiaryMapper diaryMapper,
-                       DiaryAnalysisMapper diaryAnalysisMapper,
-                       ChatConversationMapper conversationMapper,
-                       Map<String, ChatMemory> userChatMemories,
-                       StringRedisTemplate redisTemplate,
-                       ObjectMapper objectMapper,
-                       RateLimitService rateLimitService) {
+            ChatConversationMapper conversationMapper,
+            Map<String, ChatMemory> userChatMemories,
+            StringRedisTemplate redisTemplate,
+            ObjectMapper objectMapper,
+            RateLimitService rateLimitService) {
         this.chatChatClient = chatChatClient;
-        this.diaryMapper = diaryMapper;
-        this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.conversationMapper = conversationMapper;
         this.userChatMemories = userChatMemories;
         this.redisTemplate = redisTemplate;
@@ -63,8 +56,7 @@ public class ChatService {
         return conversationMapper.selectList(
                 new LambdaQueryWrapper<ChatConversationEntity>()
                         .eq(ChatConversationEntity::getUserId, user.getId())
-                        .orderByDesc(ChatConversationEntity::getUpdatedAt)
-        );
+                        .orderByDesc(ChatConversationEntity::getUpdatedAt));
     }
 
     public ChatConversationEntity createConversation(String title) {
@@ -90,7 +82,8 @@ public class ChatService {
         // 清除 Redis 消息历史
         try {
             redisTemplate.delete(MSG_PREFIX + conversationId);
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         // 删除数据库记录
         conversationMapper.deleteById(conversationId);
     }
@@ -141,7 +134,8 @@ public class ChatService {
         return new ChatRequest(context, memory);
     }
 
-    private record ChatRequest(String context, ChatMemory memory) {}
+    private record ChatRequest(String context, ChatMemory memory) {
+    }
 
     // ---- 消息历史（Redis） ----
 
@@ -149,7 +143,8 @@ public class ChatService {
         try {
             String json = objectMapper.writeValueAsString(body.get("messages"));
             redisTemplate.opsForValue().set(MSG_PREFIX + conversationId, json, Duration.ofDays(7));
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
     public Object loadHistory(Long conversationId) {
@@ -161,44 +156,38 @@ public class ChatService {
         }
     }
 
-    // ---- 日记上下文 ----
+    // ---- 聊天上下文 ----
 
     private String buildContext(long userId, List<String> refs) {
         StringBuilder sb = new StringBuilder();
 
-        // 引用栏内容（广场陪跑跳转、引用日记等）
-        if (refs != null && !refs.isEmpty()) {
-            sb.append("以下内容是用户引用的话题或资料，你的回答应重点基于这些内容：\n");
-            for (int i = 0; i < refs.size(); i++) {
-                sb.append("[引用 #").append(i + 1).append("] ").append(refs.get(i)).append("\n");
+        String userContext = "";
+        try {
+            String raw = redisTemplate.opsForValue().get(USER_CONTEXT_PREFIX + userId);
+            if (raw != null) {
+                userContext = raw.trim();
             }
-            sb.append("\n");
+        } catch (Exception ignored) {
         }
 
-        List<DiaryEntity> recentDiaries = diaryMapper.selectList(
-                new LambdaQueryWrapper<DiaryEntity>()
-                        .eq(DiaryEntity::getAuthorUserId, userId)
-                        .orderByDesc(DiaryEntity::getCreatedAt)
-                        .last("LIMIT 10")
-        );
+        if (!userContext.isBlank()) {
+            sb.append("以下是用户长期背景（自动摘要）：\n")
+                    .append(userContext)
+                    .append("\n\n");
+        }
 
-        if (!recentDiaries.isEmpty()) {
-            sb.append("以下是你最近日记的内容（你可以引用它们来回复用户）：\n");
-            var sorted = recentDiaries.stream()
-                    .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()))
-                    .toList();
-            for (int i = 0; i < sorted.size(); i++) {
-                DiaryEntity diary = sorted.get(i);
-                DiaryAnalysisEntity analysis = diaryAnalysisMapper.selectById(diary.getId());
-                sb.append("[日记 #").append(i + 1).append(" · ").append(diary.getCreatedAt().toLocalDate()).append("] ");
-                if (analysis != null) {
-                    sb.append("情绪：").append(analysis.getMoodLabel())
-                            .append("，主题：").append(String.join("、", analysis.getTopicLabelsJson()))
-                            .append("\n内容：").append(diary.getContent()).append("\n");
-                } else {
-                    sb.append("内容：").append(diary.getContent()).append("\n");
+        if (refs != null && !refs.isEmpty()) {
+            sb.append("以下是用户提供的重点引用（请优先结合这些信息回答）：\n");
+            refs.stream().limit(2).forEach(ref -> {
+                String compact = ref == null ? "" : ref.trim();
+                if (compact.length() > 120) {
+                    compact = compact.substring(0, 120);
                 }
-            }
+                if (!compact.isEmpty()) {
+                    sb.append("- ").append(compact).append("\n");
+                }
+            });
+            sb.append("\n");
         }
 
         return sb.toString();
