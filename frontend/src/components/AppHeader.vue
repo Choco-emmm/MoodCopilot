@@ -61,7 +61,7 @@
 
   <nav v-if="auth.isAuthenticated" class="mobile-bottom-nav" aria-label="主要导航">
     <router-link
-      v-for="item in navItems"
+      v-for="item in mobileNavItems"
       :key="`mobile-${item.path}`"
       :to="item.path"
       :class="['mobile-nav-link', { active: route.path === item.path }]"
@@ -95,6 +95,12 @@ const navItems = computed(() => {
   if (auth.isAdmin) {
     items.push({ label: '审核', shortLabel: '审核', icon: '!', path: '/admin/reports' })
   }
+  return items
+})
+
+const mobileNavItems = computed(() => {
+  const items = [...navItems.value]
+  items.push({ label: '我的', shortLabel: '我的', icon: '◍', path: '/settings' })
   return items
 })
 

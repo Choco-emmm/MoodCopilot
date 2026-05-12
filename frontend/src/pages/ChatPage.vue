@@ -73,7 +73,7 @@
               @keyup.enter="send"
             />
             <n-button type="primary" :disabled="!draft.trim() || streaming || !activeConvId" @click="send">
-              发送
+              {{ streaming ? '发送中' : '发送' }}
             </n-button>
           </div>
         </div>

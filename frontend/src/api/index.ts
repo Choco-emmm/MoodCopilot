@@ -2,10 +2,18 @@ import axios from 'axios'
 
 const api = axios.create({ baseURL: '/api' })
 
+function isUsableToken(token: string | null) {
+  if (!token) return false
+  const normalized = token.trim().toLowerCase()
+  return normalized !== '' && normalized !== 'null' && normalized !== 'undefined'
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
-  if (token) {
+  if (isUsableToken(token)) {
     config.headers.Authorization = `Bearer ${token}`
+  } else {
+    localStorage.removeItem('token')
   }
   return config
 })
@@ -13,7 +21,8 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status
+    if (status === 401 || status === 403) {
       localStorage.removeItem('token')
       localStorage.removeItem('role')
       const path = window.location.pathname

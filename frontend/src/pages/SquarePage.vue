@@ -2,22 +2,17 @@
   <main class="app-shell">
     <AppHeader />
 
-      <!-- 极简概览面板（已移除由于查询过慢的社区共鸣和陪跑请求） -->
-      <!-- 右侧：同频 -->
-      <div class="today-side">
-        <router-link v-if="matchDiary" :to="'/diary/' + matchDiary.id" class="today-match-mini">
-          <span class="today-side-label">有人和你感同身受</span>
-          <div class="today-match-author">
-            <span class="avatar-xs">{{ matchDiary.authorName?.charAt(0) }}</span>
-            <span class="author-name-xs">{{ matchDiary.authorName }}</span>
-          </div>
-          <span class="today-side-snippet">「{{ matchDiary.content?.length > 30 ? matchDiary.content.slice(0, 30) + '...' : matchDiary.content }}」</span>
-        </router-link>
-        <router-link v-else to="/write" class="today-match-mini">
-          <span class="today-side-label">今日同频</span>
-          <span class="today-side-snippet">写下今天后，MoodCopilot 会帮你找相似处境的人。</span>
-        </router-link>
-      </div>
+    <div class="today-side">
+      <router-link v-if="matchDiary" :to="'/diary/' + matchDiary.id" class="today-match-mini">
+        <span class="today-side-label">今日同频</span>
+        <span class="today-side-snippet">「{{ matchDiary.content?.length > 42 ? matchDiary.content.slice(0, 42) + '...' : matchDiary.content }}」</span>
+      </router-link>
+
+      <router-link v-else to="/write" class="today-match-mini">
+        <span class="today-side-label">今日同频</span>
+        <span class="today-side-snippet">写下今天后，MoodCopilot 会帮你找相似处境的人。</span>
+      </router-link>
+    </div>
 
 
     <div class="chat-tease">
@@ -42,13 +37,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
 import PublicFeed from '../components/PublicFeed.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { diaryApi } from '../api'
 
-const router = useRouter()
 const store = useDiaryStore()
 const matchDiary = ref<any>(null)
 

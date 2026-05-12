@@ -24,7 +24,7 @@
         <span class="privacy-copy">{{ visibilityCopy }}</span>
         <span v-if="draftNotice" class="draft-notice">
           <span class="draft-dot" />
-          {{ draftNotice }}
+          {{ draftNotice }}<template v-if="draftSavedAt"> · {{ draftSavedAt }}</template>
         </span>
       </div>
       <div class="composer-submit-row">
@@ -63,8 +63,16 @@ import { useDiaryStore } from '../stores/diary'
 const store = useDiaryStore()
 const draft = ref('')
 const draftNotice = ref('')
+const draftSavedAt = ref('')
 const visibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
 const DRAFT_KEY = 'moodcopilot:draft'
+
+function updateDraftSavedAt() {
+  draftSavedAt.value = new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date())
+}
 
 const visibilityOptions = [
   { label: '仅自己看', value: 'PRIVATE' },
@@ -84,18 +92,21 @@ onMounted(() => {
   if (savedDraft) {
     draftNotice.value = '已恢复本机草稿'
     draft.value = savedDraft
+    updateDraftSavedAt()
   }
 })
 
 watch(draft, (value, oldValue) => {
   if (value) {
     localStorage.setItem(DRAFT_KEY, value)
+    updateDraftSavedAt()
     if (draftNotice.value !== '已恢复本机草稿' || oldValue) {
       draftNotice.value = '草稿已自动保存到本机'
     }
   } else {
     localStorage.removeItem(DRAFT_KEY)
     draftNotice.value = ''
+    draftSavedAt.value = ''
   }
 })
 

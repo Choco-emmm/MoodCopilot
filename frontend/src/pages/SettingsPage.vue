@@ -16,6 +16,24 @@
         <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" hidden @change="onFileChange" />
       </section>
 
+      <section class="settings-shortcuts">
+        <router-link to="/write" class="shortcut-card">
+          <span class="shortcut-kicker">记录</span>
+          <strong>继续写日记</strong>
+          <span>把今天的状态轻轻放下。</span>
+        </router-link>
+        <router-link to="/chat" class="shortcut-card">
+          <span class="shortcut-kicker">陪伴</span>
+          <strong>继续和 AI 聊聊</strong>
+          <span>围绕最近情绪继续展开。</span>
+        </router-link>
+        <router-link to="/report" class="shortcut-card">
+          <span class="shortcut-kicker">回顾</span>
+          <strong>查看本周报告</strong>
+          <span>看看趋势和关键变化。</span>
+        </router-link>
+      </section>
+
       <section class="settings-section">
         <div class="section-head">
           <p class="settings-label">头像设置</p>
@@ -240,6 +258,51 @@ function handleLogout() {
   box-shadow: 0 10px 24px rgba(94, 70, 50, 0.08);
 }
 
+.settings-shortcuts {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.shortcut-card {
+  display: grid;
+  gap: 6px;
+  padding: 13px 12px;
+  border-radius: 14px;
+  text-decoration: none;
+  color: #3d443d;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0%, rgba(246, 249, 245, 0.86) 100%);
+  border: 1px solid rgba(122, 144, 128, 0.24);
+  box-shadow: 0 8px 20px rgba(70, 88, 75, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.shortcut-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(63, 92, 74, 0.14);
+  border-color: rgba(72, 114, 89, 0.4);
+}
+
+.shortcut-kicker {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #62806e;
+  font-weight: 700;
+}
+
+.shortcut-card strong {
+  font-size: 14px;
+  color: #2d4034;
+}
+
+.shortcut-card span:last-child {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6b726a;
+}
+
 .section-head {
   display: flex;
   justify-content: space-between;
@@ -331,6 +394,11 @@ function handleLogout() {
   .settings-hero {
     padding: 12px;
     gap: 12px;
+  }
+
+  .settings-shortcuts {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .hero-avatar {

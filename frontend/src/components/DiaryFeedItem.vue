@@ -21,7 +21,10 @@
       </div>
     </div>
 
-    <p class="feed-content">{{ diary.content }}</p>
+    <p class="feed-content">{{ visibleContent }}</p>
+    <button v-if="isLongContent" class="feed-expand" type="button" @click="expanded = !expanded">
+      {{ expanded ? '收起' : '展开' }}
+    </button>
 
     <div class="feed-actions">
       <n-button size="small" tertiary @click="$emit('resonate', diary)">
@@ -92,7 +95,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import type { Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
 import { useAuthStore } from '../stores/auth'
@@ -113,6 +116,14 @@ const hoveringId = ref<number | null>(null)
 const draft = ref('')
 const replyDraft = ref('')
 const replyTo = ref<number | null>(null)
+const expanded = ref(false)
+
+const isLongContent = computed(() => (props.diary.content ?? '').length > 180)
+const visibleContent = computed(() => {
+  const content = props.diary.content ?? ''
+  if (expanded.value || !isLongContent.value) return content
+  return content.slice(0, 180) + '...'
+})
 
 onMounted(() => {
   if (props.diary.authorUserId !== auth.userId) {

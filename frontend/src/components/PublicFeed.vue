@@ -2,8 +2,8 @@
   <article class="panel feed-panel">
     <div class="section-title compact">
       <div>
-        <p class="eyebrow">公开日记流</p>
-        <h2>温和回应</h2>
+        <p class="eyebrow">公开日记</p>
+        <h2>最近的心情</h2>
       </div>
       <n-button quaternary size="small" :loading="loading" @click="$emit('refresh')">刷新</n-button>
     </div>

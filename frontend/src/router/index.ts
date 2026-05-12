@@ -1,5 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+function isUsableToken(token: string | null) {
+  if (!token) return false
+  const normalized = token.trim().toLowerCase()
+  return normalized !== '' && normalized !== 'null' && normalized !== 'undefined'
+}
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -66,7 +72,9 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token')
-  if (to.meta.requiresAuth && !token) {
+  if (to.meta.requiresAuth && !isUsableToken(token)) {
+    localStorage.removeItem('token')
+    localStorage.removeItem('role')
     next('/login')
   } else if (to.meta.requiresAdmin && localStorage.getItem('role') !== 'ADMIN') {
     next('/')

@@ -69,6 +69,7 @@ export const useDiaryStore = defineStore('diary', () => {
 
   async function fetchDiaries() {
     loading.value = true
+    errorMessage.value = null
     try {
       publicPage.value = 1
       const [mineRes, publicRes] = await Promise.all([diaryApi.mine(1, 20), diaryApi.public(1, 20)])
@@ -78,6 +79,11 @@ export const useDiaryStore = defineStore('diary', () => {
       publicDiaries.value = (pdata.items ?? pdata).map(normalize)
       publicTotal.value = pdata.total ?? 0
       hasMore.value = hasNextPage(pdata, 1, 20)
+    } catch (e: any) {
+      myDiaries.value = []
+      publicDiaries.value = []
+      hasMore.value = false
+      errorMessage.value = e?.response?.data?.message || '加载失败，请重新登录后重试'
     } finally {
       loading.value = false
     }
@@ -94,6 +100,9 @@ export const useDiaryStore = defineStore('diary', () => {
       const existing = new Set(publicDiaries.value.map(d => d.id))
       publicDiaries.value.push(...items.filter((item: Diary) => !existing.has(item.id)))
       hasMore.value = hasNextPage(pdata, publicPage.value, 20)
+    } catch {
+      publicPage.value = Math.max(1, publicPage.value - 1)
+      hasMore.value = false
     } finally {
       loading.value = false
     }

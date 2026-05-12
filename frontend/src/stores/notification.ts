@@ -34,6 +34,8 @@ export const useNotificationStore = defineStore('notification', () => {
       items.value = res.data.data
         .filter((n: Notification) => n.createdAt !== 'null')
         .map((n: Notification) => ({ ...n, isRead: n.isRead ?? false }))
+    } catch {
+      items.value = []
     } finally {
       loading.value = false
     }

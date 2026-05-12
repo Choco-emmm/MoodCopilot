@@ -2,8 +2,19 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { authApi } from '../api'
 
+function getInitialToken() {
+  const token = localStorage.getItem('token')
+  if (!token) return null
+  const normalized = token.trim().toLowerCase()
+  if (normalized === '' || normalized === 'null' || normalized === 'undefined') {
+    localStorage.removeItem('token')
+    return null
+  }
+  return token
+}
+
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(localStorage.getItem('token'))
+  const token = ref<string | null>(getInitialToken())
   const userId = ref<number | null>(null)
   const displayName = ref<string | null>(null)
   const avatar = ref<string | null>(null)

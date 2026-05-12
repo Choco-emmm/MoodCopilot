@@ -9,9 +9,8 @@
       <SimilarDiariesPanel :diaries="store.similarDiaries" @select="selectDiary" />
     </section>
 
-    <section class="content-grid write-history-grid">
+    <section class="write-history-section">
       <MyDiaryList :diaries="store.myDiaries" @select="selectDiary" @delete="handleDelete" />
-      <div />
     </section>
   </main>
 </template>
