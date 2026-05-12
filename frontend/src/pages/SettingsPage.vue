@@ -16,6 +16,28 @@
         <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" hidden @change="onFileChange" />
       </section>
 
+      <!-- 裁切弹窗 -->
+      <n-modal v-model:show="showCropModal" preset="card" title="裁切头像" style="width: 90%; max-width: 420px;" :mask-closable="false">
+        <div class="crop-area" ref="cropAreaRef"
+          @mousedown="onDragStart" @mousemove="onDragMove" @mouseup="onDragEnd" @mouseleave="onDragEnd"
+          @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove" @touchend="onDragEnd"
+          @wheel.prevent="onWheel"
+        >
+          <canvas ref="cropCanvas" class="crop-canvas"></canvas>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 10px;">
+          <n-button size="small" @click="cropScale = Math.max(0.2, cropScale - 0.1); drawCrop()">−</n-button>
+          <span style="font-size: 13px; color: #666;">缩放</span>
+          <n-button size="small" @click="cropScale = Math.min(5, cropScale + 0.1); drawCrop()">＋</n-button>
+        </div>
+        <template #action>
+          <div style="display: flex; justify-content: flex-end; gap: 12px;">
+            <n-button @click="showCropModal = false">取消</n-button>
+            <n-button type="primary" :loading="uploading" @click="handleCrop">确定</n-button>
+          </div>
+        </template>
+      </n-modal>
+
       <section class="settings-shortcuts">
         <router-link to="/write" class="shortcut-card">
           <span class="shortcut-kicker">记录</span>
@@ -39,7 +61,7 @@
           <p class="settings-label">头像设置</p>
           <span class="section-tag">Profile</span>
         </div>
-        <div class="settings-inline-tip">点击上方头像即可更换，支持 JPG/PNG/WEBP，最大 512KB。</div>
+        <div class="settings-inline-tip">点击上方头像即可更换，支持 JPG/PNG/WEBP，最大 10MB。上传后可自定义裁切。</div>
         <p v-if="uploadMsg" class="settings-hint">{{ uploadMsg }}</p>
       </section>
 
@@ -88,9 +110,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { NInput, NButton, NSwitch } from 'naive-ui'
+import { NInput, NButton, NSwitch, NModal } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import { useAuthStore } from '../stores/auth'
 
@@ -101,7 +123,23 @@ const editingName = ref('')
 const savingName = ref(false)
 const nameMsg = ref('')
 const uploadMsg = ref('')
+const uploading = ref(false)
 const toggling = ref(false)
+
+const showCropModal = ref(false)
+const cropImageSrc = ref('')
+const cropCanvas = ref<HTMLCanvasElement | null>(null)
+const cropAreaRef = ref<HTMLElement | null>(null)
+
+let cropImg: HTMLImageElement | null = null
+let cropScale = 1
+let cropOffsetX = 0
+let cropOffsetY = 0
+let dragging = false
+let dragStartX = 0
+let dragStartY = 0
+let lastOffsetX = 0
+let lastOffsetY = 0
 
 onMounted(async () => {
   await auth.fetchProfile()
@@ -115,17 +153,149 @@ function triggerUpload() {
 async function onFileChange(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
-  if (file.size > 512 * 1024) {
-    uploadMsg.value = '文件大小不能超过 512KB'
+  if (file.size > 10 * 1024 * 1024) {
+    uploadMsg.value = '\u6587\u4ef6\u5927\u5c0f\u4e0d\u80fd\u8d85\u8fc7 10MB'
     return
   }
   uploadMsg.value = ''
-  try {
-    const res = await auth.uploadAvatar(file)
-    uploadMsg.value = '头像已更新'
-  } catch {
-    uploadMsg.value = '上传失败'
+
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    cropImageSrc.value = ev.target?.result as string
+    showCropModal.value = true
+    nextTick(() => loadCropImage())
   }
+  reader.readAsDataURL(file)
+  if (fileInput.value) fileInput.value.value = ''
+}
+
+function loadCropImage() {
+  const img = new Image()
+  img.onload = () => {
+    cropImg = img
+    cropScale = 1
+    cropOffsetX = 0
+    cropOffsetY = 0
+    setTimeout(() => drawCrop(), 120)
+  }
+  img.src = cropImageSrc.value
+}
+
+watch(showCropModal, (val) => {
+  if (val && cropImg) {
+    setTimeout(() => drawCrop(), 150)
+  }
+})
+
+function drawCrop() {
+  const canvas = cropCanvas.value
+  const area = cropAreaRef.value
+  if (!canvas || !area || !cropImg) return
+
+  const size = Math.min(area.clientWidth || 320, 320)
+  canvas.width = size
+  canvas.height = size
+  canvas.style.width = size + 'px'
+  canvas.style.height = size + 'px'
+
+  const ctx = canvas.getContext('2d')!
+  ctx.clearRect(0, 0, size, size)
+
+  ctx.fillStyle = '#e8e8e8'
+  ctx.fillRect(0, 0, size, size)
+
+  const imgW = cropImg.naturalWidth
+  const imgH = cropImg.naturalHeight
+  const fitScale = size / Math.min(imgW, imgH)
+  const drawW = imgW * fitScale * cropScale
+  const drawH = imgH * fitScale * cropScale
+  const drawX = (size - drawW) / 2 + cropOffsetX
+  const drawY = (size - drawH) / 2 + cropOffsetY
+
+  ctx.drawImage(cropImg, drawX, drawY, drawW, drawH)
+
+  ctx.save()
+  ctx.strokeStyle = 'rgba(255,255,255,0.8)'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(size / 2, size / 2, size / 2 - 4, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.restore()
+}
+
+function onDragStart(e: MouseEvent) {
+  dragging = true
+  dragStartX = e.clientX
+  dragStartY = e.clientY
+  lastOffsetX = cropOffsetX
+  lastOffsetY = cropOffsetY
+}
+function onDragMove(e: MouseEvent) {
+  if (!dragging) return
+  cropOffsetX = lastOffsetX + (e.clientX - dragStartX)
+  cropOffsetY = lastOffsetY + (e.clientY - dragStartY)
+  drawCrop()
+}
+function onDragEnd() { dragging = false }
+
+function onTouchStart(e: TouchEvent) {
+  if (e.touches.length === 1) {
+    dragging = true
+    dragStartX = e.touches[0].clientX
+    dragStartY = e.touches[0].clientY
+    lastOffsetX = cropOffsetX
+    lastOffsetY = cropOffsetY
+  }
+}
+function onTouchMove(e: TouchEvent) {
+  if (!dragging || e.touches.length !== 1) return
+  cropOffsetX = lastOffsetX + (e.touches[0].clientX - dragStartX)
+  cropOffsetY = lastOffsetY + (e.touches[0].clientY - dragStartY)
+  drawCrop()
+}
+
+function onWheel(e: WheelEvent) {
+  cropScale = Math.max(0.2, Math.min(5, cropScale + (e.deltaY > 0 ? -0.1 : 0.1)))
+  drawCrop()
+}
+
+function handleCrop() {
+  if (!cropImg) return
+  uploading.value = true
+
+  const outSize = 400
+  const offscreen = document.createElement('canvas')
+  offscreen.width = outSize
+  offscreen.height = outSize
+  const ctx = offscreen.getContext('2d')!
+
+  const canvas = cropCanvas.value!
+  const displaySize = canvas.width
+  const scale = outSize / displaySize
+
+  const imgW = cropImg.naturalWidth
+  const imgH = cropImg.naturalHeight
+  const fitScale = displaySize / Math.min(imgW, imgH)
+  const drawW = imgW * fitScale * cropScale * scale
+  const drawH = imgH * fitScale * cropScale * scale
+  const drawX = (outSize - drawW) / 2 + cropOffsetX * scale
+  const drawY = (outSize - drawH) / 2 + cropOffsetY * scale
+
+  ctx.drawImage(cropImg, drawX, drawY, drawW, drawH)
+
+  offscreen.toBlob(async (blob) => {
+    if (!blob) { uploading.value = false; return }
+    const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
+    try {
+      await auth.uploadAvatar(file)
+      uploadMsg.value = '\u5934\u50cf\u5df2\u66f4\u65b0'
+      showCropModal.value = false
+    } catch {
+      uploadMsg.value = '\u4e0a\u4f20\u5931\u8d25'
+    } finally {
+      uploading.value = false
+    }
+  }, 'image/jpeg', 0.92)
 }
 
 async function saveName() {
@@ -435,5 +605,22 @@ function handleLogout() {
   .settings-section {
     padding: 14px;
   }
+}
+
+.crop-area {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #2a2a2a;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.crop-area:active { cursor: grabbing; }
+.crop-canvas {
+  display: block;
+  border-radius: 4px;
 }
 </style>

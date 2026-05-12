@@ -28,7 +28,7 @@
 
     <div class="feed-actions">
       <n-button size="small" tertiary @click="$emit('resonate', diary)">
-        共鸣 {{ diary.resonanceCount }}
+        👍 {{ diary.resonanceCount || '' }}
       </n-button>
       <div v-if="diary.authorUserId !== auth.userId" class="feed-safety-actions">
         <n-button size="small" text @click="reportDiary">举报</n-button>

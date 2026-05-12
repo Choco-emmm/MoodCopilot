@@ -9,8 +9,10 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
+    "@types/cropperjs": "^1.1.5",
     "@vitejs/plugin-vue": "^5.1.4",
     "axios": "^1.7.7",
+    "cropperjs": "^1.6.2",
     "marked": "^18.0.3",
     "naive-ui": "^2.41.0",
     "pinia": "^2.2.4",

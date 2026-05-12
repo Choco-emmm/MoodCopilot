@@ -23,13 +23,17 @@
           <h3>本周报告</h3>
           <div class="week-nav">
             <n-button text circle @click="prevWeek">&larr;</n-button>
-            <span class="week-label">{{ report?.weekLabel ?? '' }}</span>
+            <span class="week-label">{{ computedWeekLabelStr }}</span>
             <n-button text circle :disabled="weekOffset === 0" @click="nextWeek">&rarr;</n-button>
           </div>
         </div>
 
-        <div v-if="report && report.diaryCount === 0" class="empty-state">
-          <p>本周还没有记录，去写一篇吧～</p>
+        <div v-if="store.reportLoading" class="empty-state">
+          <n-spin size="medium">加载中...</n-spin>
+        </div>
+
+        <div v-else-if="report && report.diaryCount === 0" class="empty-state">
+          <p>本周暂无记录</p>
         </div>
 
         <div v-else-if="store.reportError" class="empty-state compact">
@@ -63,7 +67,11 @@
             </div>
 
             <h4>AI 周总结</h4>
-            <p class="ai-summary">{{ report.aiSummary }}</p>
+            <div v-if="!report.aiSummary" class="empty-state compact">
+              <p>暂无总结，可使用 AI 限额提前生成</p>
+              <n-button type="primary" @click="store.generateWeeklyAiSummary(weekOffset)">生成 AI 总结</n-button>
+            </div>
+            <p v-else class="ai-summary">{{ report.aiSummary }}</p>
 
             <div v-if="hasGuidance(report)" class="report-guidance">
               <div v-if="report.insights?.length">
@@ -78,7 +86,6 @@
                   <li v-for="item in report.suggestions" :key="item">{{ item }}</li>
                 </ul>
               </div>
-              <button class="report-chat-link" @click="continueReportChat(report)">和 MoodCopilot 继续聊</button>
             </div>
           </div>
         </template>
@@ -90,13 +97,17 @@
           <h3>本月报告</h3>
           <div class="week-nav">
             <n-button text circle @click="prevMonth">&larr;</n-button>
-            <span class="week-label">{{ monthReport?.weekLabel ?? '' }}</span>
+            <span class="week-label">{{ computedMonthLabelStr }}</span>
             <n-button text circle :disabled="monthOffset === 0" @click="nextMonth">&rarr;</n-button>
           </div>
         </div>
 
-        <div v-if="monthReport && monthReport.diaryCount === 0" class="empty-state">
-          <p>本月还没有记录，去写一篇吧～</p>
+        <div v-if="store.monthLoading" class="empty-state">
+          <n-spin size="medium">加载中...</n-spin>
+        </div>
+
+        <div v-else-if="monthReport && monthReport.diaryCount === 0" class="empty-state">
+          <p>本月暂无记录</p>
         </div>
 
         <div v-else-if="store.monthError" class="empty-state compact">
@@ -106,7 +117,7 @@
 
         <template v-if="monthReport && monthReport.diaryCount > 0">
           <div class="report-detail">
-            <h4>情绪走向</h4>
+            <h4>情绪走向（纵轴=强度 1-5，越高表示情绪更强）</h4>
             <svg class="sparkline" :viewBox="'0 0 ' + sparklineW + ' 60'" preserveAspectRatio="none">
               <polyline
                 :points="sparklinePoints"
@@ -126,7 +137,16 @@
                   <stop offset="100%" stop-color="#4a7c62" stop-opacity="0.02" />
                 </linearGradient>
               </defs>
+              <g v-for="p in sparklinePointMeta" :key="'p-' + p.date + '-' + p.diaryId">
+                <circle :cx="p.x" :cy="p.y" r="3.2" :fill="p.color" />
+              </g>
             </svg>
+            <div class="trend-legend">
+              <span class="legend-item"><i class="legend-dot" style="background:#4f8f7c"></i>平静</span>
+              <span class="legend-item"><i class="legend-dot" style="background:#7db89a"></i>轻松</span>
+              <span class="legend-item"><i class="legend-dot" style="background:#e08d72"></i>焦虑</span>
+              <span class="legend-item"><i class="legend-dot" style="background:#e09f5c"></i>烦躁</span>
+            </div>
             <div class="sparkline-labels">
               <span>{{ sparklineFirst }}</span>
               <span>{{ sparklineLast }}</span>
@@ -141,12 +161,17 @@
               >
                 <span class="mood-snippet-date">{{ formatDay(day.date) }}</span>
                 <span class="mood-snippet-tag" :style="{ color: moodColor(day.moodLabel) }">{{ day.moodLabel }}</span>
+                <span class="mood-snippet-intensity">强度 {{ day.moodIntensity }}/5</span>
                 <span v-if="day.contentSnippet" class="mood-snippet-text">「{{ day.contentSnippet }}{{ day.contentSnippet.length >= 30 ? '...' : '' }}」</span>
               </div>
             </div>
 
             <h4>AI 月总结</h4>
-            <p class="ai-summary">{{ monthReport.aiSummary }}</p>
+            <div v-if="!monthReport.aiSummary" class="empty-state compact">
+              <p>暂无总结，可使用 AI 限额提前生成</p>
+              <n-button type="primary" @click="store.generateMonthlyAiSummary(monthOffset)">生成 AI 总结</n-button>
+            </div>
+            <p v-else class="ai-summary">{{ monthReport.aiSummary }}</p>
 
             <div v-if="hasGuidance(monthReport)" class="report-guidance">
               <div v-if="monthReport.insights?.length">
@@ -161,7 +186,6 @@
                   <li v-for="item in monthReport.suggestions" :key="item">{{ item }}</li>
                 </ul>
               </div>
-              <button class="report-chat-link" @click="continueReportChat(monthReport)">和 MoodCopilot 继续聊</button>
             </div>
           </div>
         </template>
@@ -205,9 +229,9 @@
                 v-for="day in s.dailyMoods"
                 :key="day.diaryIds?.[0]"
                 class="diary-link-btn"
-                :title="day.contentSnippet"
+                :title="summaryDiarySnippet(day)"
                 @click="router.push('/diary/' + day.diaryIds?.[0])"
-              >「{{ day.contentSnippet || '...' }}{{ (day.contentSnippet?.length || 0) >= 30 ? '...' : '' }}」</button>
+              >「{{ summaryDiarySnippet(day) }}{{ summaryDiarySnippet(day).length >= 30 ? '...' : '' }}」</button>
             </div>
           </article>
         </div>
@@ -219,10 +243,10 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton, NTag, NDatePicker } from 'naive-ui'
+import { NButton, NTag, NDatePicker, NSpin } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import { useDiaryStore } from '../stores/diary'
-import { summaryApi } from '../api'
+import { diaryApi, summaryApi } from '../api'
 
 const router = useRouter()
 const store = useDiaryStore()
@@ -234,6 +258,7 @@ const creating = ref(false)
 const startDate = ref<number | null>(null)
 const endDate = ref<number | null>(null)
 const summaries = ref<any[]>([])
+const diarySnippetMap = ref<Record<number, string>>({})
 
 const report = computed(() => store.weeklyReport)
 const monthReport = computed(() => store.monthlyReport)
@@ -258,6 +283,24 @@ function nextWeek() { weekOffset.value++ }
 function prevMonth() { monthOffset.value-- }
 function nextMonth() { monthOffset.value++ }
 
+const computedWeekLabelStr = computed(() => {
+  if (report.value?.weekLabel) return report.value.weekLabel
+  const today = new Date()
+  const offsetMs = weekOffset.value * 7 * 24 * 60 * 60 * 1000
+  const targetDate = new Date(today.getTime() + offsetMs)
+  const d = targetDate.getDay() || 7
+  const monday = new Date(targetDate.getTime() - (d - 1) * 24 * 60 * 60 * 1000)
+  const sunday = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000)
+  return `${monday.getMonth()+1}/${monday.getDate()} - ${sunday.getMonth()+1}/${sunday.getDate()}`
+})
+
+const computedMonthLabelStr = computed(() => {
+  if (monthReport.value?.weekLabel) return monthReport.value.weekLabel
+  const targetDate = new Date()
+  targetDate.setMonth(targetDate.getMonth() + monthOffset.value)
+  return `${targetDate.getFullYear()}年${targetDate.getMonth()+1}月`
+})
+
 // ── SVG sparkline ──
 const sparklineW = 300
 
@@ -270,6 +313,19 @@ const sparklinePoints = computed(() => {
     const y = Math.round(54 - (d.moodIntensity / 5) * 48)
     return `${x},${y}`
   }).join(' ')
+})
+
+const sparklinePointMeta = computed(() => {
+  const moods = monthReport.value?.dailyMoods ?? []
+  if (moods.length === 0) return []
+  const step = sparklineW / Math.max(moods.length - 1, 1)
+  return moods.map((d: any, i: number) => ({
+    x: Math.round(i * step),
+    y: Math.round(54 - (d.moodIntensity / 5) * 48),
+    color: moodColor(d.moodLabel),
+    date: d.date,
+    diaryId: d.diaryIds?.[0] ?? i,
+  }))
 })
 
 const sparklineArea = computed(() => {
@@ -303,7 +359,40 @@ async function loadSummaries() {
   try {
     const res = await summaryApi.list()
     summaries.value = res.data.data ?? []
+    await backfillSummarySnippets()
   } catch { /* ignore */ }
+}
+
+function summaryDiarySnippet(day: any) {
+  const raw = day?.contentSnippet?.trim?.() || diarySnippetMap.value[day?.diaryIds?.[0]] || ''
+  if (!raw) return formatDay(day?.date || '') + '日记'
+  return raw.length > 30 ? raw.slice(0, 30) : raw
+}
+
+async function backfillSummarySnippets() {
+  const ids = Array.from(new Set(
+    summaries.value
+      .flatMap((s: any) => s.dailyMoods ?? [])
+      .filter((day: any) => !day?.contentSnippet && day?.diaryIds?.length)
+      .map((day: any) => day.diaryIds[0])
+      .filter((id: any) => Number.isFinite(id) && !diarySnippetMap.value[id])
+  )) as number[]
+
+  if (ids.length === 0) return
+
+  const pairs = await Promise.all(ids.map(async (id) => {
+    try {
+      const res = await diaryApi.get(id)
+      const content = res?.data?.data?.content ?? ''
+      return [id, content.length > 30 ? content.slice(0, 30) : content] as const
+    } catch {
+      return [id, ''] as const
+    }
+  }))
+
+  for (const [id, snippet] of pairs) {
+    if (snippet) diarySnippetMap.value[id] = snippet
+  }
 }
 
 async function remove(id: number) {
@@ -331,17 +420,6 @@ function goDiary(ids?: number[]) {
 
 function hasGuidance(currentReport: any) {
   return Boolean(currentReport?.insights?.length || currentReport?.suggestions?.length || currentReport?.followUpPrompt)
-}
-
-function continueReportChat(currentReport: any) {
-  const references = [
-    `报告：${currentReport.weekLabel}`,
-    currentReport.aiSummary ? `总结：${currentReport.aiSummary}` : '',
-    ...(currentReport.insights ?? []).map((item: string) => `洞察：${item}`),
-    ...(currentReport.suggestions ?? []).map((item: string) => `建议：${item}`),
-    currentReport.followUpPrompt ? `想继续聊：${currentReport.followUpPrompt}` : '',
-  ].filter(Boolean)
-  router.push({ path: '/chat', state: { references } })
 }
 
 function formatDay(dateStr: string) {

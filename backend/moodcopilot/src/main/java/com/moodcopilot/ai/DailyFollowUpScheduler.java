@@ -32,11 +32,11 @@ public class DailyFollowUpScheduler {
     private final RateLimitService rateLimitService;
 
     public DailyFollowUpScheduler(UserMapper userMapper,
-                                   DiaryMapper diaryMapper,
-                                   DiaryAnalysisMapper diaryAnalysisMapper,
-                                   AiAnalysisService aiAnalysisService,
-                                   NotificationService notificationService,
-                                   RateLimitService rateLimitService) {
+            DiaryMapper diaryMapper,
+            DiaryAnalysisMapper diaryAnalysisMapper,
+            AiAnalysisService aiAnalysisService,
+            NotificationService notificationService,
+            RateLimitService rateLimitService) {
         this.userMapper = userMapper;
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
@@ -61,7 +61,7 @@ public class DailyFollowUpScheduler {
             try {
                 // 检查 AI 额度
                 try {
-                    rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.COACHING);
+                    rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.ANALYSIS);
                 } catch (RateLimitException e) {
                     skipped++;
                     continue;
@@ -99,7 +99,8 @@ public class DailyFollowUpScheduler {
 
                 // 昨日情绪
                 String yesterdayMood = analyses.isEmpty() || analyses.get(0) == null
-                        ? "复杂" : analyses.get(0).moodLabel();
+                        ? "复杂"
+                        : analyses.get(0).moodLabel();
 
                 // 调用 AI 陪跑
                 String coaching = aiAnalysisService.generateCoaching(contents, analyses);
@@ -126,7 +127,8 @@ public class DailyFollowUpScheduler {
                             .eq(DiaryEntity::getAuthorUserId, userId)
                             .ge(DiaryEntity::getCreatedAt, date.atStartOfDay())
                             .lt(DiaryEntity::getCreatedAt, date.plusDays(1).atStartOfDay()));
-            if (count == 0) break;
+            if (count == 0)
+                break;
             streak++;
             date = date.minusDays(1);
         }

@@ -210,6 +210,19 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
+  async function generateWeeklyAiSummary(weekOffset = 0) {
+    reportLoading.value = true
+    reportError.value = null
+    try {
+      const res = await diaryApi.generateWeeklyReport(weekOffset)
+      weeklyReport.value = res.data.data
+    } catch (e: any) {
+      reportError.value = formatReportError(e)
+    } finally {
+      reportLoading.value = false
+    }
+  }
+
   const monthlyReport = ref<WeeklyReport | null>(null)
   const monthLoading = ref(false)
   const monthError = ref<string | null>(null)
@@ -222,6 +235,19 @@ export const useDiaryStore = defineStore('diary', () => {
       monthlyReport.value = res.data.data
     } catch (e: any) {
       monthlyReport.value = null
+      monthError.value = formatReportError(e)
+    } finally {
+      monthLoading.value = false
+    }
+  }
+
+  async function generateMonthlyAiSummary(monthOffset = 0) {
+    monthLoading.value = true
+    monthError.value = null
+    try {
+      const res = await diaryApi.generateMonthlyReport(monthOffset)
+      monthlyReport.value = res.data.data
+    } catch (e: any) {
       monthError.value = formatReportError(e)
     } finally {
       monthLoading.value = false
@@ -254,7 +280,7 @@ export const useDiaryStore = defineStore('diary', () => {
     analysisStatus, hasMore, weeklyReport, reportLoading, reportError, monthlyReport, monthLoading, monthError,
     fetchDiaries, loadMorePublic, createDiary, loadSimilar, addComment, resonate, sendEncouragement, deleteDiary,
     hideDiary, refreshAnalysis,
-    fetchWeeklyReport, fetchMonthlyReport, normalize,
+    fetchWeeklyReport, fetchMonthlyReport, generateWeeklyAiSummary, generateMonthlyAiSummary, normalize,
   }
 })
 
