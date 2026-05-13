@@ -276,14 +276,61 @@ function addDiaryRef(diaryId: string) {
 
 async function loadRecentDiaryOptions() {
   try {
-    const res = await diaryApi.mine()
-    const data = res.data.data || []
-    const diaries = (Array.isArray(data) ? data : data.items ?? []) as any[]
-    recentDiaryOptions.value = diaries.slice(0, 7).map((d: any) => ({
-      id: d.id,
-      date: d.createdAt?.split('T')[0] ?? '',
-      snippet: d.content?.length > 30 ? d.content.slice(0, 30) : d.content ?? ''
-    }))
+    const options: { id: number; date: string; snippet: string }[] = []
+    
+    // 加载最近的日记
+    try {
+      const res = await diaryApi.mine()
+      const data = res.data.data || []
+      const diaries = (Array.isArray(data) ? data : data.items ?? []) as any[]
+      diaries.slice(0, 20).forEach((d: any) => {
+        options.push({
+          id: d.id,
+          date: d.createdAt?.split('T')[0] ?? '',
+          snippet: d.content?.length > 30 ? d.content.slice(0, 30) : d.content ?? ''
+        })
+      })
+    } catch (e) {
+      // 忽略日记加载失败
+    }
+    
+    // 加载周报洞察
+    try {
+      const res = await diaryApi.weeklyReport(0)
+      const report = res.data.data as any
+      if (report?.insights?.length > 0) {
+        const snippet = report.insights[0]?.substring(0, 30) || ''
+        if (snippet) {
+          options.push({
+            id: 1000000 + 1,
+            date: '本周报告',
+            snippet
+          })
+        }
+      }
+    } catch (e) {
+      // 忽略周报加载失败
+    }
+    
+    // 加载月报洞察
+    try {
+      const res = await diaryApi.monthlyReport(0)
+      const report = res.data.data as any
+      if (report?.insights?.length > 0) {
+        const snippet = report.insights[0]?.substring(0, 30) || ''
+        if (snippet) {
+          options.push({
+            id: 2000000 + 1,
+            date: '本月报告',
+            snippet
+          })
+        }
+      }
+    } catch (e) {
+      // 忽略月报加载失败
+    }
+    
+    recentDiaryOptions.value = options
   } catch {
     recentDiaryOptions.value = []
   }
