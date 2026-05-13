@@ -21,6 +21,7 @@ import com.moodcopilot.mapper.DiaryHideMapper;
 import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.mapper.DiaryRecommendationExposureMapper;
 import com.moodcopilot.mapper.DiaryResonanceMapper;
+import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.notification.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -60,6 +62,7 @@ public class DiaryService {
     private final DiaryResonanceMapper diaryResonanceMapper;
     private final DiaryHideMapper diaryHideMapper;
     private final DiaryRecommendationExposureMapper exposureMapper;
+    private final UserMapper userMapper;
     private static final Logger log = LoggerFactory.getLogger(DiaryService.class);
 
     private final AiAnalysisService aiAnalysisService;
@@ -75,6 +78,7 @@ public class DiaryService {
                         DiaryResonanceMapper diaryResonanceMapper,
                         DiaryHideMapper diaryHideMapper,
                         DiaryRecommendationExposureMapper exposureMapper,
+                        UserMapper userMapper,
                         AiAnalysisService aiAnalysisService,
                         MemoryExtractionService memoryExtractionService,
                         NotificationService notificationService,
@@ -87,6 +91,7 @@ public class DiaryService {
         this.diaryResonanceMapper = diaryResonanceMapper;
         this.diaryHideMapper = diaryHideMapper;
         this.exposureMapper = exposureMapper;
+        this.userMapper = userMapper;
         this.aiAnalysisService = aiAnalysisService;
         this.memoryExtractionService = memoryExtractionService;
         this.notificationService = notificationService;
@@ -114,7 +119,7 @@ public class DiaryService {
 
         evictUserCache(user.getId());
 
-        return DiaryView.from(diary, List.of());
+        return DiaryView.from(diary, List.of(), normalizeAvatar(user.getAvatar()));
     }
 
     @Async
@@ -133,6 +138,7 @@ public class DiaryService {
         analysisEntity.setUpdatedAt(LocalDateTime.now());
         diaryAnalysisMapper.insert(analysisEntity);
         memoryExtractionService.extractAndSyncMemory(userId, content);
+        evictUserCache(userId);
     }
 
     public Page<DiaryView> myDiaries(int page, int size) {
@@ -237,8 +243,9 @@ public class DiaryService {
         DiaryAnalysisEntity analysis = findAnalysis(id);
         List<DiaryCommentEntity> comments = findComments(id);
         boolean isOwner = diary.getAuthorUserId().equals(currentUser().getId());
-        return isOwner ? DiaryView.from(diary, analysis, comments)
-                       : DiaryView.fromPublic(diary, analysis, comments);
+        String authorAvatar = resolveAuthorAvatar(diary.getAuthorUserId());
+        return isOwner ? DiaryView.from(diary, analysis, comments, authorAvatar)
+                       : DiaryView.fromPublic(diary, analysis, comments, authorAvatar);
     }
 
     public List<DiaryView> similar(long id, int limit) {
@@ -337,6 +344,19 @@ public class DiaryService {
         return report;
     }
 
+    public WeeklyReportView generateMonthlyAiSummary(int monthOffset) {
+        Long userId = currentUser().getId();
+        String cacheKey = "report:monthly:%d:%d".formatted(userId, monthOffset);
+
+        WeeklyReportView report = computeMonthlyReport(monthOffset, userId);
+        try {
+            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), Duration.ofMinutes(30));
+        } catch (Exception e) {
+            log.debug("Cache write failed for {}", cacheKey, e);
+        }
+        return report;
+    }
+
     private WeeklyReportView computeMonthlyReport(int monthOffset, long userId) {
         LocalDate today = LocalDate.now();
         LocalDate firstOfMonth = today.withDayOfMonth(1).plusMonths(monthOffset);
@@ -425,6 +445,19 @@ public class DiaryService {
 
         WeeklyReportView report = computeWeeklyReport(weekOffset, userId);
 
+        try {
+            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), Duration.ofMinutes(30));
+        } catch (Exception e) {
+            log.debug("Cache write failed for {}", cacheKey, e);
+        }
+        return report;
+    }
+
+    public WeeklyReportView generateWeeklyAiSummary(int weekOffset) {
+        Long userId = currentUser().getId();
+        String cacheKey = "report:%d:%d".formatted(userId, weekOffset);
+
+        WeeklyReportView report = computeWeeklyReport(weekOffset, userId);
         try {
             redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), Duration.ofMinutes(30));
         } catch (Exception e) {
@@ -532,7 +565,8 @@ public class DiaryService {
 
         DiaryAnalysisEntity analysis = findAnalysis(diaryId);
         List<DiaryCommentEntity> comments = findComments(diaryId);
-        return DiaryView.fromPublic(diary, analysis, comments);
+        evictRelatedUserCaches(commenter.getId(), diary.getAuthorUserId());
+        return DiaryView.fromPublic(diary, analysis, comments, resolveAuthorAvatar(diary.getAuthorUserId()));
     }
 
     @Transactional
@@ -563,7 +597,8 @@ public class DiaryService {
 
         DiaryAnalysisEntity analysis = findAnalysis(diaryId);
         List<DiaryCommentEntity> comments = findComments(diaryId);
-        return DiaryView.fromPublic(diary, analysis, comments);
+        evictRelatedUserCaches(actor.getId(), diary.getAuthorUserId());
+        return DiaryView.fromPublic(diary, analysis, comments, resolveAuthorAvatar(diary.getAuthorUserId()));
     }
 
     private DiaryView toDiaryView(DiaryEntity diary) {
@@ -578,8 +613,9 @@ public class DiaryService {
         List<Long> ids = diaries.stream().map(DiaryEntity::getId).toList();
         Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(ids);
         Map<Long, List<DiaryCommentEntity>> commentMap = batchLoadComments(ids);
+        Map<Long, String> authorAvatarMap = batchLoadAuthorAvatars(diaries);
         return diaries.stream()
-                .map(diary -> buildDiaryView(diary, isPublic, analysisMap, commentMap))
+                .map(diary -> buildDiaryView(diary, isPublic, analysisMap, commentMap, authorAvatarMap))
                 .toList();
     }
 
@@ -595,10 +631,20 @@ public class DiaryService {
                                      boolean isPublic,
                                      Map<Long, DiaryAnalysisEntity> analysisMap,
                                      Map<Long, List<DiaryCommentEntity>> commentMap) {
+        return buildDiaryView(diary, isPublic, analysisMap, commentMap,
+                Map.of(diary.getAuthorUserId(), resolveAuthorAvatar(diary.getAuthorUserId())));
+    }
+
+    private DiaryView buildDiaryView(DiaryEntity diary,
+                                     boolean isPublic,
+                                     Map<Long, DiaryAnalysisEntity> analysisMap,
+                                     Map<Long, List<DiaryCommentEntity>> commentMap,
+                                     Map<Long, String> authorAvatarMap) {
         DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
         List<DiaryCommentEntity> comments = commentMap.getOrDefault(diary.getId(), List.of());
-        return isPublic ? DiaryView.fromPublic(diary, analysis, comments)
-                        : DiaryView.from(diary, analysis, comments);
+        String authorAvatar = authorAvatarMap.getOrDefault(diary.getAuthorUserId(), resolveAuthorAvatar(diary.getAuthorUserId()));
+        return isPublic ? DiaryView.fromPublic(diary, analysis, comments, authorAvatar)
+                        : DiaryView.from(diary, analysis, comments, authorAvatar);
     }
 
     private Map<Long, DiaryAnalysisEntity> batchLoadAnalyses(List<Long> diaryIds) {
@@ -615,6 +661,45 @@ public class DiaryService {
                         .orderByAsc(DiaryCommentEntity::getCreatedAt)
         );
         return comments.stream().collect(Collectors.groupingBy(DiaryCommentEntity::getDiaryId));
+    }
+
+    private Map<Long, String> batchLoadAuthorAvatars(List<DiaryEntity> diaries) {
+        if (diaries.isEmpty()) return Map.of();
+        List<Long> authorIds = diaries.stream()
+                .map(DiaryEntity::getAuthorUserId)
+                .distinct()
+                .toList();
+        if (authorIds.isEmpty()) return Map.of();
+        return userMapper.selectBatchIds(authorIds).stream()
+                .collect(Collectors.toMap(UserEntity::getId,
+                        user -> normalizeAvatar(user.getAvatar()),
+                        (a, b) -> a));
+    }
+
+    private String resolveAuthorAvatar(Long authorUserId) {
+        if (authorUserId == null) return null;
+        UserEntity author = userMapper.selectById(authorUserId);
+        if (author == null) return null;
+        return normalizeAvatar(author.getAvatar());
+    }
+
+    private String normalizeAvatar(String avatar) {
+        if (avatar == null || avatar.isBlank()) return avatar;
+        String normalized = avatar.trim();
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("data:")) {
+            return normalized;
+        }
+        if (normalized.startsWith("/api/uploads/")) {
+            return normalized;
+        }
+        if (normalized.startsWith("/uploads/")) {
+            return "/api" + normalized;
+        }
+        if (normalized.startsWith("uploads/")) {
+            return "/api/" + normalized;
+        }
+        return normalized;
     }
 
     private List<DiaryEntity> filterHidden(List<DiaryEntity> diaries, long userId) {
@@ -746,6 +831,7 @@ public class DiaryService {
             throw new ResponseStatusException(FORBIDDEN, "只能删除自己的评论");
         }
         diaryCommentMapper.deleteById(commentId);
+        evictRelatedUserCaches(comment.getAuthorUserId(), diary.getAuthorUserId());
     }
 
     public static String snippet(String content) {
@@ -935,6 +1021,7 @@ public class DiaryService {
             notificationService.notifyEncouragement(diaryId, diary.getAuthorUserId(), message);
         }
 
+        evictRelatedUserCaches(actor.getId(), diary.getAuthorUserId());
         return toDiaryView(diary);
     }
 
@@ -974,6 +1061,15 @@ public class DiaryService {
             return DiaryVisibility.valueOf(visibility.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(BAD_REQUEST, "日记权限只能是 PRIVATE 或 PUBLIC");
+        }
+    }
+
+    private void evictRelatedUserCaches(Long primaryUserId, Long secondaryUserId) {
+        if (primaryUserId != null) {
+            evictUserCache(primaryUserId);
+        }
+        if (secondaryUserId != null && !secondaryUserId.equals(primaryUserId)) {
+            evictUserCache(secondaryUserId);
         }
     }
 

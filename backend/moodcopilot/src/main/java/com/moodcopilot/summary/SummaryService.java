@@ -70,11 +70,15 @@ public class SummaryService {
         List<DailyMood> dailyMoods = new ArrayList<>();
         List<Long> diaryIds = new ArrayList<>();
         Map<String, Integer> topicCounts = new LinkedHashMap<>();
+        Map<Long, DiaryAnalysisEntity> analysisMap = diaryAnalysisMapper
+                .selectBatchIds(diaries.stream().map(DiaryEntity::getId).toList())
+                .stream()
+                .collect(Collectors.toMap(DiaryAnalysisEntity::getDiaryId, analysis -> analysis));
 
         for (DiaryEntity diary : diaries) {
             contents.add(diary.getContent());
             diaryIds.add(diary.getId());
-            DiaryAnalysisEntity analysisEntity = diaryAnalysisMapper.selectById(diary.getId());
+            DiaryAnalysisEntity analysisEntity = analysisMap.get(diary.getId());
             if (analysisEntity != null) {
                 DiaryAnalysis a = new DiaryAnalysis(
                         analysisEntity.getMoodLabel(),

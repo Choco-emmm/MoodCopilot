@@ -12,12 +12,16 @@ import com.moodcopilot.notification.NotificationService;
 import com.moodcopilot.security.RateLimitService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Component
 public class DailyFollowUpScheduler {
@@ -30,19 +34,22 @@ public class DailyFollowUpScheduler {
     private final AiAnalysisService aiAnalysisService;
     private final NotificationService notificationService;
     private final RateLimitService rateLimitService;
+    private final StringRedisTemplate redisTemplate;
 
     public DailyFollowUpScheduler(UserMapper userMapper,
             DiaryMapper diaryMapper,
             DiaryAnalysisMapper diaryAnalysisMapper,
             AiAnalysisService aiAnalysisService,
             NotificationService notificationService,
-            RateLimitService rateLimitService) {
+            RateLimitService rateLimitService,
+            StringRedisTemplate redisTemplate) {
         this.userMapper = userMapper;
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.aiAnalysisService = aiAnalysisService;
         this.notificationService = notificationService;
         this.rateLimitService = rateLimitService;
+        this.redisTemplate = redisTemplate;
     }
 
     @Scheduled(cron = "0 0 6 * * *")
@@ -79,13 +86,18 @@ public class DailyFollowUpScheduler {
                 List<DiaryAnalysisEntity> analysisEntities = ids.isEmpty()
                         ? List.of()
                         : diaryAnalysisMapper.selectBatchIds(ids);
+                Map<Long, DiaryAnalysisEntity> analysisMap = analysisEntities.stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                        DiaryAnalysisEntity::getDiaryId,
+                        analysis -> analysis,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
 
                 List<String> contents = new ArrayList<>();
                 List<DiaryAnalysis> analyses = new ArrayList<>();
                 for (DiaryEntity d : recent) {
                     contents.add(d.getContent());
-                    DiaryAnalysisEntity a = analysisEntities.stream()
-                            .filter(ae -> ae.getDiaryId().equals(d.getId())).findFirst().orElse(null);
+                    DiaryAnalysisEntity a = analysisMap.get(d.getId());
                     if (a != null) {
                         analyses.add(new DiaryAnalysis(a.getMoodLabel(), a.getMoodIntensity(),
                                 a.getTopicLabelsJson(), a.getSummary(), a.getFeedback()));
@@ -119,6 +131,16 @@ public class DailyFollowUpScheduler {
     }
 
     private int calcStreak(Long userId) {
+        String cacheKey = "streak:%d:%s".formatted(userId, LocalDate.now());
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                return Integer.parseInt(cached);
+            }
+        } catch (Exception e) {
+            log.debug("连续天数缓存读取失败, userId={}", userId, e);
+        }
+
         int streak = 0;
         LocalDate date = LocalDate.now();
         while (true) {
@@ -131,6 +153,12 @@ public class DailyFollowUpScheduler {
                 break;
             streak++;
             date = date.minusDays(1);
+        }
+
+        try {
+            redisTemplate.opsForValue().set(cacheKey, String.valueOf(streak), Duration.ofHours(6));
+        } catch (Exception e) {
+            log.debug("连续天数缓存写入失败, userId={}", userId, e);
         }
         return streak;
     }
