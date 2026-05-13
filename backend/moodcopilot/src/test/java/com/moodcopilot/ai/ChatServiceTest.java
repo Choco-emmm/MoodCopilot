@@ -22,10 +22,10 @@ import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -89,7 +89,7 @@ class ChatServiceTest {
                 diaryMapper,
                 diaryAnalysisMapper,
                 conversationMapper,
-                Map.of("1:7", mock(ChatMemory.class), "1:9", mock(ChatMemory.class)),
+                new ConcurrentHashMap<>(Map.of("1:7", mock(ChatMemory.class), "1:9", mock(ChatMemory.class))),
                 redisTemplate,
                 new ObjectMapper(),
                 rateLimitService
