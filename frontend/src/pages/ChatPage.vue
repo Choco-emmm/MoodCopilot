@@ -33,7 +33,7 @@
         <div class="chat-top">
           <div>
             <h2 class="chat-header-title">MoodCopilot</h2>
-            <p class="chat-subtitle">可以聊聊最近的心情，也可以继续展开报告里的洞察</p>
+            <p class="chat-subtitle">可以聊聊最近的心情，分享你的故事和想法</p>
           </div>
         </div>
 
