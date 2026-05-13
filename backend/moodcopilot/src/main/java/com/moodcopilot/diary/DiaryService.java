@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -125,6 +124,7 @@ public class DiaryService {
     @Async
     @Transactional
     public void runAiAnalysis(long diaryId, long userId, String content) {
+        log.info("开始执行日记 AI 分析，diaryId={}，userId={}，contentLength={}", diaryId, userId, content == null ? 0 : content.length());
         DiaryAnalysis analysis = aiAnalysisService.analyze(content);
 
         DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
@@ -137,8 +137,10 @@ public class DiaryService {
         analysisEntity.setCreatedAt(LocalDateTime.now());
         analysisEntity.setUpdatedAt(LocalDateTime.now());
         diaryAnalysisMapper.insert(analysisEntity);
+        log.info("日记 AI 分析已落库，diaryId={}，mood={}，topics={}", diaryId, analysis.moodLabel(), analysis.topicLabels());
         memoryExtractionService.extractAndSyncMemory(userId, content);
         evictUserCache(userId);
+        log.info("日记分析后续任务已触发，diaryId={}，userId={}，动作=extractMemory+evictUserCache", diaryId, userId);
     }
 
     public Page<DiaryView> myDiaries(int page, int size) {
@@ -162,8 +164,10 @@ public class DiaryService {
         keyword = keyword != null && !keyword.isBlank() ? keyword : null;
         LocalDate startDate = request != null ? request.startDate() : null;
         LocalDate endDate = request != null ? request.endDate() : null;
+        log.info("执行历史日记检索，userId={}，keyword={}，startDate={}，endDate={}", user.getId(), keyword, startDate, endDate);
 
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            log.info("历史日记检索参数非法，userId={}，startDate={}，endDate={}", user.getId(), startDate, endDate);
             return new DiarySearchResult(
                     keyword,
                     startDate,
@@ -199,6 +203,8 @@ public class DiaryService {
         String note = diaries.isEmpty()
                 ? "未找到符合条件的历史日记"
                 : "已返回最多 20 条按时间倒序排列的历史日记摘要";
+
+        log.info("历史日记检索完成，userId={}，resultCount={}", user.getId(), diaries.size());
 
         return new DiarySearchResult(keyword, startDate, endDate, diaries.size(), diaries, note);
     }
@@ -347,6 +353,7 @@ public class DiaryService {
     public WeeklyReportView generateMonthlyAiSummary(int monthOffset) {
         Long userId = currentUser().getId();
         String cacheKey = "report:monthly:%d:%d".formatted(userId, monthOffset);
+        log.info("强制生成月报摘要，userId={}，monthOffset={}", userId, monthOffset);
 
         WeeklyReportView report = computeMonthlyReport(monthOffset, userId);
         try {
@@ -456,6 +463,7 @@ public class DiaryService {
     public WeeklyReportView generateWeeklyAiSummary(int weekOffset) {
         Long userId = currentUser().getId();
         String cacheKey = "report:%d:%d".formatted(userId, weekOffset);
+        log.info("强制生成周报摘要，userId={}，weekOffset={}", userId, weekOffset);
 
         WeeklyReportView report = computeWeeklyReport(weekOffset, userId);
         try {
@@ -799,13 +807,16 @@ public class DiaryService {
 
     @Transactional
     public void deleteDiary(long diaryId) {
+        UserEntity user = currentUser();
         DiaryEntity diary = diaryMapper.selectById(diaryId);
         if (diary == null) throw new ResponseStatusException(NOT_FOUND, "日记不存在");
-        if (!diary.getAuthorUserId().equals(currentUser().getId())) {
+        if (!diary.getAuthorUserId().equals(user.getId())) {
             throw new ResponseStatusException(FORBIDDEN, "只能删除自己的日记");
         }
         diaryMapper.deleteById(diaryId);
-        evictUserCache(currentUser().getId());
+        evictUserCache(user.getId());
+        log.info("日记删除成功，diaryId={}，userId={}，准备触发长期画像重建", diaryId, user.getId());
+        memoryExtractionService.rebuildUserMemoryAfterDiaryDeletion(user.getId(), diaryId);
     }
 
     @Transactional

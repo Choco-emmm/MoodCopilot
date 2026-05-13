@@ -2,7 +2,8 @@
   <article v-if="!compact" class="panel analysis-panel">
     <div class="diary-content-section">
       <div class="diary-author-row">
-        <span class="avatar">{{ diary.authorName.charAt(0) }}</span>
+        <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-img" />
+        <span v-else class="avatar">{{ diary.authorName.charAt(0) }}</span>
         <span class="author-name">{{ diary.authorName }}</span>
         <span class="diary-time">{{ formatTime(diary.createdAt) }}</span>
         <n-tag :type="diary.visibility === 'PUBLIC' ? 'success' : 'default'" round size="small">

@@ -1,5 +1,5 @@
 <template>
-  <article class="panel">
+  <article class="panel my-diary-panel">
     <div class="section-title compact">
       <div>
         <p class="eyebrow">我的日记</p>
@@ -8,33 +8,44 @@
     </div>
 
     <div v-if="diaries.length" class="diary-list">
-      <button
-        v-for="diary in diaries"
-        :key="diary.id"
-        class="my-diary"
-        type="button"
-        @click="$emit('select', diary)"
-      >
-        <span class="avatar avatar-sm">{{ diary.authorName.charAt(0) }}</span>
-        <span class="my-diary-info">
-          <strong class="my-diary-content">{{ diary.content }}</strong>
-          <small>{{ formatTime(diary.createdAt) }} · {{ diary.analysis?.moodLabel || '分析中...' }}</small>
-        </span>
-        <button
-          class="diary-delete-btn"
-          title="删除日记"
-          @click.stop="$emit('delete', diary)"
-        >&times;</button>
-      </button>
+      <template v-for="diary in diaries" :key="diary.id">
+        <div :class="['my-diary-entry', { 'my-diary-entry-active': activeDiaryId === diary.id }]">
+          <button
+            :class="['my-diary', { 'my-diary-active': activeDiaryId === diary.id }]"
+            type="button"
+            @click="$emit('select', diary)"
+          >
+            <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-sm avatar-img" />
+            <span v-else class="avatar avatar-sm">{{ diary.authorName.charAt(0) }}</span>
+            <span class="my-diary-info">
+              <strong class="my-diary-content">{{ diary.content }}</strong>
+              <span class="my-diary-meta">
+                <small>{{ formatTime(diary.createdAt) }}</small>
+                <small>{{ diary.analysis?.moodLabel || '分析中...' }}</small>
+              </span>
+            </span>
+            <button
+              class="diary-delete-btn"
+              title="删除日记"
+              @click.stop="$emit('delete', diary)"
+            >&times;</button>
+          </button>
+
+          <div v-if="activeDiaryId === diary.id" class="my-diary-expanded">
+            <AnalysisBody :diary="diary" />
+          </div>
+        </div>
+      </template>
     </div>
     <n-empty v-else description="还没有写过日记" />
   </article>
 </template>
 
 <script setup lang="ts">
+import AnalysisBody from './AnalysisBody.vue'
 import type { Diary } from '../stores/diary'
 
-defineProps<{ diaries: Diary[] }>()
+defineProps<{ diaries: Diary[]; activeDiaryId?: number | null }>()
 defineEmits<{ select: [diary: Diary]; delete: [diary: Diary] }>()
 
 function formatTime(value: string) {

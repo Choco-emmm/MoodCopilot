@@ -12,6 +12,7 @@ import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.model.function.FunctionCallback;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.Map;
@@ -53,7 +54,8 @@ public class AIConfiguration {
     }
 
     @Bean(name = DiarySearchFunctionSupport.NAME)
-    public FunctionCallback diarySearchFunction(DiaryService diaryService) {
+    public FunctionCallback diarySearchFunction(@Lazy DiaryService diaryService) {
+        log.info("注册 Function Calling 工具：{}", DiarySearchFunctionSupport.NAME);
         return FunctionCallback.builder()
                 .function(DiarySearchFunctionSupport.NAME, diaryService::searchOwnDiarySummaries)
                 .description("检索当前登录用户自己的历史日记摘要。keyword、startDate、endDate 都可选，日期格式为 YYYY-MM-DD。返回日期和内容片段，适合回答“上周为什么不开心”之类的历史问题。")

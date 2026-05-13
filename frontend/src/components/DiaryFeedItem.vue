@@ -2,7 +2,8 @@
   <article class="feed-item">
     <div class="feed-head">
       <div class="feed-head-left">
-        <span class="avatar">{{ diary.authorName.charAt(0) }}</span>
+        <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-img" />
+        <span v-else class="avatar">{{ diary.authorName.charAt(0) }}</span>
         <div>
           <div class="author-row">
             <strong>{{ diary.authorName }}</strong>
@@ -100,12 +101,13 @@ import type { Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
 import { useAuthStore } from '../stores/auth'
 import { useDiaryStore } from '../stores/diary'
-import { diaryApi, reportApi } from '../api'
+import { reportApi } from '../api'
 
 const props = defineProps<{ diary: Diary }>()
 const emit = defineEmits<{
   resonate: [diary: Diary]
   comment: [diary: Diary, content: string, parentCommentId?: number]
+  'delete-comment': [diary: Diary, commentId: number]
 }>()
 
 const followStore = useFollowStore()
@@ -148,8 +150,7 @@ function followBtnLabel(userId: number) {
 
 async function deleteComment(commentId: number) {
   try {
-    await diaryApi.deleteComment(props.diary.id, commentId)
-    emit('comment', props.diary, '') // 触发父组件刷新
+    emit('delete-comment', props.diary, commentId)
   } catch { /* ignore */ }
 }
 

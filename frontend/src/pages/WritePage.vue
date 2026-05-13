@@ -4,13 +4,13 @@
 
     <DiaryComposer />
 
-    <section v-if="store.activeDiary" class="analysis-grid">
-      <AiAnalysisCard :diary="store.activeDiary" />
-      <SimilarDiariesPanel :diaries="store.similarDiaries" @select="selectDiary" />
-    </section>
-
     <section class="write-history-section">
-      <MyDiaryList :diaries="store.myDiaries" @select="selectDiary" @delete="handleDelete" />
+      <MyDiaryList
+        :diaries="store.myDiaries"
+        :active-diary-id="store.activeDiary?.id ?? null"
+        @select="selectDiary"
+        @delete="handleDelete"
+      />
     </section>
   </main>
 </template>
@@ -19,8 +19,6 @@
 import { onMounted } from 'vue'
 import AppHeader from '../components/AppHeader.vue'
 import DiaryComposer from '../components/DiaryComposer.vue'
-import AiAnalysisCard from '../components/AiAnalysisCard.vue'
-import SimilarDiariesPanel from '../components/SimilarDiariesPanel.vue'
 import MyDiaryList from '../components/MyDiaryList.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
 
@@ -29,9 +27,7 @@ const store = useDiaryStore()
 onMounted(() => store.fetchDiaries())
 
 function selectDiary(diary: Diary) {
-  store.activeDiary = diary
-  store.loadSimilar(diary.id)
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  store.activeDiary = store.activeDiary?.id === diary.id ? null : diary
 }
 
 async function handleDelete(diary: Diary) {

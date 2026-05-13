@@ -7,6 +7,8 @@ import com.moodcopilot.mapper.ChatConversationMapper;
 import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.security.RateLimitService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -28,6 +30,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 @Service
 public class ChatService {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatService.class);
     private static final String MSG_PREFIX = "chat:msgs:";
 
     private final ChatClient chatChatClient;
@@ -85,6 +88,7 @@ public class ChatService {
         if (conv == null || !conv.getUserId().equals(user.getId())) {
             throw new ResponseStatusException(BAD_REQUEST, "会话不存在");
         }
+        log.info("删除聊天会话，userId={}，conversationId={}", user.getId(), conversationId);
         // 清除 ChatMemory
         String memKey = user.getId() + ":" + conversationId;
         userChatMemories.remove(memKey);
@@ -122,6 +126,13 @@ public class ChatService {
                 .content();
     }
 
+    /**
+     * 统一准备聊天请求所需的三类上下文：
+     * 1. 当前用户的长期画像背景；
+     * 2. 用户主动引用的资料；
+     * 3. 最近日记及其分析结果。
+     * 同时在这里完成会话归属校验、限额校验和内存会话装配。
+     */
     private ChatRequest prepareChatRequest(Long conversationId, String message, List<String> refs, String memoryBackground) {
         UserEntity user = currentUser();
         rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.CHAT);
@@ -130,6 +141,9 @@ public class ChatService {
         String context = buildContext(user.getId(), refs, memoryBackground);
         String memKey = user.getId() + ":" + conversationId;
         ChatMemory memory = userChatMemories.computeIfAbsent(memKey, k -> new InMemoryChatMemory());
+        log.info("准备聊天请求，userId={}，conversationId={}，messageLength={}，referenceCount={}，hasMemoryBackground={}",
+                user.getId(), conversationId, message == null ? 0 : message.length(), refs == null ? 0 : refs.size(),
+                memoryBackground != null && !memoryBackground.isBlank());
 
         if ("新对话".equals(conv.getTitle()) && message != null && !message.isBlank()) {
             String title = message.length() > 20 ? message.substring(0, 20) : message;
@@ -146,17 +160,21 @@ public class ChatService {
     // ---- 消息历史（Redis） ----
 
     public void saveHistory(Long conversationId, Map<String, Object> body) {
-        requireOwnedConversation(conversationId, currentUser());
+        UserEntity user = currentUser();
+        requireOwnedConversation(conversationId, user);
         try {
             String json = objectMapper.writeValueAsString(body.get("messages"));
             redisTemplate.opsForValue().set(MSG_PREFIX + conversationId, json, Duration.ofDays(7));
+            log.info("保存聊天历史成功，userId={}，conversationId={}，payloadLength={}", user.getId(), conversationId, json.length());
         } catch (Exception ignored) {}
     }
 
     public Object loadHistory(Long conversationId) {
-        requireOwnedConversation(conversationId, currentUser());
+        UserEntity user = currentUser();
+        requireOwnedConversation(conversationId, user);
         try {
             String json = redisTemplate.opsForValue().get(MSG_PREFIX + conversationId);
+            log.info("读取聊天历史，userId={}，conversationId={}，hit={}", user.getId(), conversationId, json != null);
             return json != null ? objectMapper.readValue(json, Object.class) : List.of();
         } catch (Exception e) {
             return List.of();
@@ -165,6 +183,11 @@ public class ChatService {
 
     // ---- 日记上下文 ----
 
+    /**
+     * 组装给大模型的 system context。
+     * 顺序固定为：长期画像 -> 引用资料 -> 最近日记与分析。
+     * 这样模型会先拿到稳定的长期背景，再参考当前提问显式引用的内容，最后用近期日记补足上下文。
+     */
     private String buildContext(long userId, List<String> refs, String memoryBackground) {
         StringBuilder sb = new StringBuilder();
 
@@ -187,6 +210,7 @@ public class ChatService {
                         .orderByDesc(DiaryEntity::getCreatedAt)
                         .last("LIMIT 10")
         );
+        log.info("构建聊天上下文，userId={}，referenceCount={}，recentDiaryCount={}", userId, refs == null ? 0 : refs.size(), recentDiaries.size());
 
         if (!recentDiaries.isEmpty()) {
             Map<Long, DiaryAnalysisEntity> analysisMap = diaryAnalysisMapper.selectBatchIds(
@@ -216,6 +240,7 @@ public class ChatService {
     private ChatConversationEntity requireOwnedConversation(Long conversationId, UserEntity user) {
         ChatConversationEntity conv = conversationMapper.selectById(conversationId);
         if (conv == null || !conv.getUserId().equals(user.getId())) {
+            log.info("聊天会话归属校验失败，userId={}，conversationId={}", user.getId(), conversationId);
             throw new ResponseStatusException(BAD_REQUEST, "会话不存在");
         }
         return conv;
