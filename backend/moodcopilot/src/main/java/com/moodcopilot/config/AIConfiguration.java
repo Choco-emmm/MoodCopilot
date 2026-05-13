@@ -1,5 +1,6 @@
 package com.moodcopilot.config;
 
+import com.moodcopilot.ai.DiarySearchFunctionSupport;
 import com.moodcopilot.diary.DiarySearchRequest;
 import com.moodcopilot.diary.DiaryService;
 import org.slf4j.Logger;
@@ -48,10 +49,10 @@ public class AIConfiguration {
                 .build();
     }
 
-    @Bean(name = "diarySearchFunction")
+    @Bean(name = DiarySearchFunctionSupport.NAME)
     public FunctionCallback diarySearchFunction(DiaryService diaryService) {
         return FunctionCallback.builder()
-                .function("diarySearchFunction", diaryService::searchOwnDiarySummaries)
+                .function(DiarySearchFunctionSupport.NAME, diaryService::searchOwnDiarySummaries)
                 .description("检索当前登录用户自己的历史日记摘要。keyword、startDate、endDate 都可选，日期格式为 YYYY-MM-DD。返回日期和内容片段，适合回答“上周为什么不开心”之类的历史问题。")
                 .inputType(DiarySearchRequest.class)
                 .build();
