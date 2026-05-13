@@ -21,6 +21,7 @@ import reactor.core.publisher.Flux;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -124,10 +125,7 @@ public class ChatService {
     private ChatRequest prepareChatRequest(Long conversationId, String message, List<String> refs, String memoryBackground) {
         UserEntity user = currentUser();
         rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.CHAT);
-        ChatConversationEntity conv = conversationMapper.selectById(conversationId);
-        if (conv == null || !conv.getUserId().equals(user.getId())) {
-            throw new ResponseStatusException(BAD_REQUEST, "会话不存在");
-        }
+        ChatConversationEntity conv = requireOwnedConversation(conversationId, user);
 
         String context = buildContext(user.getId(), refs, memoryBackground);
         String memKey = user.getId() + ":" + conversationId;
@@ -148,6 +146,7 @@ public class ChatService {
     // ---- 消息历史（Redis） ----
 
     public void saveHistory(Long conversationId, Map<String, Object> body) {
+        requireOwnedConversation(conversationId, currentUser());
         try {
             String json = objectMapper.writeValueAsString(body.get("messages"));
             redisTemplate.opsForValue().set(MSG_PREFIX + conversationId, json, Duration.ofDays(7));
@@ -155,6 +154,7 @@ public class ChatService {
     }
 
     public Object loadHistory(Long conversationId) {
+        requireOwnedConversation(conversationId, currentUser());
         try {
             String json = redisTemplate.opsForValue().get(MSG_PREFIX + conversationId);
             return json != null ? objectMapper.readValue(json, Object.class) : List.of();
@@ -189,13 +189,16 @@ public class ChatService {
         );
 
         if (!recentDiaries.isEmpty()) {
+            Map<Long, DiaryAnalysisEntity> analysisMap = diaryAnalysisMapper.selectBatchIds(
+                recentDiaries.stream().map(DiaryEntity::getId).toList()).stream()
+                .collect(Collectors.toMap(DiaryAnalysisEntity::getDiaryId, analysis -> analysis));
             sb.append("以下是你最近日记的内容（你可以引用它们来回复用户）：\n");
             var sorted = recentDiaries.stream()
                     .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()))
                     .toList();
             for (int i = 0; i < sorted.size(); i++) {
                 DiaryEntity diary = sorted.get(i);
-                DiaryAnalysisEntity analysis = diaryAnalysisMapper.selectById(diary.getId());
+            DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
                 sb.append("[日记 #").append(i + 1).append(" · ").append(diary.getCreatedAt().toLocalDate()).append("] ");
                 if (analysis != null) {
                     sb.append("情绪：").append(analysis.getMoodLabel())
@@ -208,6 +211,14 @@ public class ChatService {
         }
 
         return sb.toString();
+    }
+
+    private ChatConversationEntity requireOwnedConversation(Long conversationId, UserEntity user) {
+        ChatConversationEntity conv = conversationMapper.selectById(conversationId);
+        if (conv == null || !conv.getUserId().equals(user.getId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "会话不存在");
+        }
+        return conv;
     }
 
     private UserEntity currentUser() {
