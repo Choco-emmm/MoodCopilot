@@ -97,8 +97,8 @@ public class ChatService {
 
     // ---- 聊天 ----
 
-    public Flux<String> chat(Long conversationId, String message, List<String> refs) {
-        ChatRequest request = prepareChatRequest(conversationId, message, refs);
+    public Flux<String> chat(Long conversationId, String message, List<String> refs, String memoryBackground) {
+        ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
 
         return chatChatClient.prompt()
                 .user(message)
@@ -108,8 +108,8 @@ public class ChatService {
                 .content();
     }
 
-    public String reply(Long conversationId, String message, List<String> refs) {
-        ChatRequest request = prepareChatRequest(conversationId, message, refs);
+    public String reply(Long conversationId, String message, List<String> refs, String memoryBackground) {
+        ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
 
         return chatChatClient.prompt()
                 .user(message)
@@ -119,7 +119,7 @@ public class ChatService {
                 .content();
     }
 
-    private ChatRequest prepareChatRequest(Long conversationId, String message, List<String> refs) {
+    private ChatRequest prepareChatRequest(Long conversationId, String message, List<String> refs, String memoryBackground) {
         UserEntity user = currentUser();
         rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.CHAT);
         ChatConversationEntity conv = conversationMapper.selectById(conversationId);
@@ -127,7 +127,7 @@ public class ChatService {
             throw new ResponseStatusException(BAD_REQUEST, "会话不存在");
         }
 
-        String context = buildContext(user.getId(), refs);
+        String context = buildContext(user.getId(), refs, memoryBackground);
         String memKey = user.getId() + ":" + conversationId;
         ChatMemory memory = userChatMemories.computeIfAbsent(memKey, k -> new InMemoryChatMemory());
 
@@ -163,8 +163,12 @@ public class ChatService {
 
     // ---- 日记上下文 ----
 
-    private String buildContext(long userId, List<String> refs) {
+    private String buildContext(long userId, List<String> refs, String memoryBackground) {
         StringBuilder sb = new StringBuilder();
+
+        if (memoryBackground != null && !memoryBackground.isBlank()) {
+            sb.append(memoryBackground).append("\n");
+        }
 
         // 引用栏内容（广场陪跑跳转、引用日记等）
         if (refs != null && !refs.isEmpty()) {

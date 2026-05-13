@@ -26,7 +26,7 @@ public class DiaryController {
     @PostMapping
     public ApiResponse<DiaryView> create(@RequestBody CreateDiaryRequest request) {
         DiaryView diary = diaryService.create(request);
-        diaryService.runAiAnalysis(diary.id(), diary.content());
+        diaryService.runAiAnalysis(diary.id(), diary.authorUserId(), diary.content());
         return ApiResponse.ok(diary);
     }
 

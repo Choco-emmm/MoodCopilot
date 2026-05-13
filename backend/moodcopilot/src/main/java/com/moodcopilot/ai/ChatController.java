@@ -1,10 +1,7 @@
 package com.moodcopilot.ai;
 
 import com.moodcopilot.common.ApiResponse;
-import com.moodcopilot.entity.UserEntity;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
@@ -16,9 +13,11 @@ import java.util.Map;
 public class ChatController {
 
     private final ChatService chatService;
+    private final MemoryExtractionService memoryExtractionService;
 
-    public ChatController(ChatService chatService) {
+    public ChatController(ChatService chatService, MemoryExtractionService memoryExtractionService) {
         this.chatService = chatService;
+        this.memoryExtractionService = memoryExtractionService;
     }
 
     // ---- 会话管理 ----
@@ -46,7 +45,8 @@ public class ChatController {
         String message = (String) body.get("message");
         @SuppressWarnings("unchecked")
         List<String> references = (List<String>) body.get("references");
-        return chatService.chat(id, message, references);
+        String memoryBackground = memoryExtractionService.buildUserMemoryPrompt();
+        return chatService.chat(id, message, references, memoryBackground);
     }
 
     @PostMapping("/conversations/{id}/reply")
@@ -54,7 +54,8 @@ public class ChatController {
         String message = (String) body.get("message");
         @SuppressWarnings("unchecked")
         List<String> references = (List<String>) body.get("references");
-        return ApiResponse.ok(chatService.reply(id, message, references));
+        String memoryBackground = memoryExtractionService.buildUserMemoryPrompt();
+        return ApiResponse.ok(chatService.reply(id, message, references, memoryBackground));
     }
 
     @GetMapping("/conversations/{id}/history")

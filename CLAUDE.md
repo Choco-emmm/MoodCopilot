@@ -65,7 +65,7 @@ Invoke-RestMethod -Uri http://127.0.0.1:18080/api/auth/login -Method Post -Conte
 
 ```
 src/main/java/com/moodcopilot/
-├── ai/              ChatService、ChatController、AiAnalysisService、DailyFollowUpScheduler
+├── ai/              ChatService、ChatController、AiAnalysisService、MemoryExtractionService、DailyFollowUpScheduler
 ├── config/           SecurityConfig、MybatisPlusConfig、RedisConfig、AIConfiguration、
 │                    SchedulingConfig（@EnableScheduling）、WebMvcConfig（静态资源映射）
 ├── auth/            AuthController、AuthService、RegisterRequest/LoginRequest/AuthResponse
@@ -75,7 +75,7 @@ src/main/java/com/moodcopilot/
 ├── summary/          SummaryController、SummaryService、SummaryView
 ├── entity/          UserEntity（含 avatar、dailyNotifyEnabled）、DiaryEntity（@TableLogic）、DiaryAnalysisEntity、
 │                    DiaryCommentEntity、DiaryResonanceEntity、NotificationEntity、FollowEntity、
-│                    DiarySummaryEntity、ChatConversationEntity
+│                    DiarySummaryEntity、ChatConversationEntity、UserProfileMemoryEntity
 ├── health/          HealthController
 ├── mapper/          MyBatis-Plus BaseMapper 接口（共 8 个）
 ├── notification/    NotificationService、NotificationController
@@ -137,14 +137,15 @@ src/
 
 ### 数据库
 
-MySQL 8，Flyway 迁移脚本位于 `src/main/resources/db/migration/`（当前最新 V1_10）。表：`users`（含 avatar、daily_notify_enabled）、`diaries`、`diary_analysis`、`diary_comments`、`diary_resonances`、`notifications`（message 列 TEXT 类型）、`follows`、`diary_summaries`、`chat_conversations`。
+MySQL 8，Flyway 迁移脚本位于 `src/main/resources/db/migration/`（当前最新 V1_14）。表：`users`（含 avatar、daily_notify_enabled）、`diaries`、`diary_analysis`、`diary_comments`、`diary_resonances`、`notifications`（message 列 TEXT 类型）、`follows`、`diary_summaries`、`chat_conversations`、`user_profile_memory`。
 
 ### AI 分析流程
 
 1. `POST /api/diaries` → 保存日记，返回 `analysis: null`
 2. `@Async runAiAnalysis()` 后台调 DeepSeek API，结果写入 `diary_analysis`（消耗 ANALYSIS 额度）
-3. 前端每 2 秒轮询 `GET /api/diaries/{id}`，直到 `analysis != null`
-4. DeepSeek 失败 → 回退关键词匹配（6 种情绪、5 个主题）
+3. 分析成功后继续触发 `MemoryExtractionService`，结合新日记和旧属性刷新 `user_profile_memory`
+4. 前端每 2 秒轮询 `GET /api/diaries/{id}`，直到 `analysis != null`
+5. DeepSeek 失败 → 回退关键词匹配（6 种情绪、5 个主题）
 
 ### AI 调用限流
 
@@ -178,6 +179,7 @@ Key 格式：`ratelimit:{userId}:{yyyy-MM-dd}:{type}`，TTL 到次日凌晨。
 - **SSE 流式**：后端 `Flux<String>` → 前端 `XMLHttpRequest` + `onprogress` + `onloadend`
 - **ChatMemory**：`ConcurrentHashMap` 按 `userId:conversationId` 隔离
 - **历史持久化**：Redis `chat:msgs:{convId}`，TTL 7 天
+- **长记忆注入**：`ChatController` 会先读取 `user_profile_memory`，再把“性格 / 长期目标 / 关键人物”等背景知识拼进 system prompt
 - **上下文**：引用内容 + 最近 10 篇原始日记（不读总结防止幻觉）
 - **AI 回复简短化**：system prompt 限制 2-3 句
 
