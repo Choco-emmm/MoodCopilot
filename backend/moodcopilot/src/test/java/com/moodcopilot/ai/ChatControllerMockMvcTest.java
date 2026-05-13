@@ -35,6 +35,9 @@ class ChatControllerMockMvcTest {
     private ChatService chatService;
 
     @MockBean
+    private MemoryExtractionService memoryExtractionService;
+
+    @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @MockBean
@@ -42,7 +45,8 @@ class ChatControllerMockMvcTest {
 
     @Test
     void chatReturnsStream() throws Exception {
-        when(chatService.chat(eq(7L), eq("hello"), eq(List.of("ref"))))
+        when(memoryExtractionService.buildUserMemoryPrompt()).thenReturn("长期记忆：重视稳定关系");
+        when(chatService.chat(eq(7L), eq("hello"), eq(List.of("ref")), eq("长期记忆：重视稳定关系")))
                 .thenReturn(Flux.just("hello"));
 
         mockMvc.perform(post("/api/chat/conversations/7")
@@ -57,7 +61,8 @@ class ChatControllerMockMvcTest {
 
     @Test
     void replyReturnsPlainApiResponseForMobileFallback() throws Exception {
-        when(chatService.reply(eq(7L), eq("hello"), eq(List.of("ref"))))
+        when(memoryExtractionService.buildUserMemoryPrompt()).thenReturn("长期记忆：长期目标是读研");
+        when(chatService.reply(eq(7L), eq("hello"), eq(List.of("ref")), eq("长期记忆：长期目标是读研")))
                 .thenReturn("hello");
 
         mockMvc.perform(post("/api/chat/conversations/7/reply")
