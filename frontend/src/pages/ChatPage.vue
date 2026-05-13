@@ -86,6 +86,7 @@
 import { ref, onMounted, nextTick } from 'vue'
 import { NButton, NInput } from 'naive-ui'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import AppHeader from '../components/AppHeader.vue'
 import ReferenceBar from '../components/ReferenceBar.vue'
 import { chatApi, diaryApi } from '../api'
@@ -101,10 +102,17 @@ interface Conversation {
 }
 
 function renderMd(text: string) {
-  return marked.parse(text, { async: false }) as string
+  const html = marked.parse(text, { async: false }) as string
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    ALLOWED_TAGS: [
+      'p', 'br', 'strong', 'em', 'b', 'i', 'u',
+      'ul', 'ol', 'li', 'blockquote', 'code', 'pre',
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a',
+    ],
+    ALLOWED_ATTR: ['href', 'target', 'rel'],
+  })
 }
-
-const STREAM_API = resolveStreamApiBase()
 
 const conversations = ref<Conversation[]>([])
 const activeConvId = ref<number | null>(null)
@@ -115,7 +123,6 @@ const streamingText = ref('')
 const msgBox = ref<HTMLElement | null>(null)
 const references = ref<{ label: string; content: string }[]>([])
 const recentDiaryOptions = ref<{ id: number; date: string; snippet: string }[]>([])
-const useStreamingChat = isLocalhost()
 
 onMounted(async () => {
   const state = history.state as any
@@ -226,60 +233,7 @@ async function send() {
   }
 
   const refContents = references.value.slice(0, 2).map(r => r.content.slice(0, 120))
-
-  if (!useStreamingChat) {
-    await sendReply(convId, content, refContents)
-    return
-  }
-
-  const xhr = new XMLHttpRequest()
-  xhr.open('POST', STREAM_API + `/chat/conversations/${convId}`)
-  xhr.setRequestHeader('Content-Type', 'application/json')
-  xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-
-  let lastIndex = 0
-  let displayText = ''
-
-  function processSSE() {
-    const text = xhr.responseText
-    const newText = text.substring(lastIndex)
-    const lastNewline = newText.lastIndexOf('\n')
-    if (lastNewline === -1) return
-    
-    const completeText = newText.substring(0, lastNewline)
-    lastIndex += lastNewline + 1
-    
-    const lines = completeText.split('\n')
-    for (const line of lines) {
-      if (line.startsWith('data:')) {
-        const content = line.substring(5)
-        // Spring SSE 可能会在 data: 后加一个空格
-        displayText += content.startsWith(' ') ? content.substring(1) : content
-      }
-    }
-  }
-
-  xhr.onprogress = () => {
-    processSSE()
-    streamingText.value = displayText
-    scrollBottom()
-  }
-
-  xhr.onloadend = () => {
-    // 处理 onloadend 可能在最后一次 onprogress 之前触发的残余数据
-    processSSE()
-    streamingText.value = displayText
-    if (displayText) {
-      messages.value.push({ role: 'ai', content: displayText })
-    } else {
-      messages.value.push({ role: 'ai', content: chatErrorMessage(xhr.status) })
-    }
-    finishSend(convId)
-  }
-
-  xhr.onerror = () => { /* handled in onloadend */ }
-
-  xhr.send(JSON.stringify({ message: content, references: refContents }))
+  await sendReply(convId, content, refContents)
 }
 
 async function sendReply(convId: number, content: string, refContents: string[]) {
@@ -333,17 +287,6 @@ async function loadRecentDiaryOptions() {
   } catch {
     recentDiaryOptions.value = []
   }
-}
-
-function resolveStreamApiBase() {
-  if (isLocalhost()) return 'http://localhost:18080/api'
-
-  return '/api'
-}
-
-function isLocalhost() {
-  const hostname = window.location.hostname
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]'
 }
 
 function chatErrorMessage(status?: number) {

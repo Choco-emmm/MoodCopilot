@@ -15,6 +15,7 @@
         :diary="diary"
         @resonate="$emit('resonate', $event)"
         @comment="(d, c, pid) => $emit('comment', d, c, pid)"
+        @delete-comment="(d, commentId) => $emit('delete-comment', d, commentId)"
       />
       <div v-if="hasMore" ref="sentinel" class="scroll-sentinel" />
       <n-spin v-if="loading && diaries.length" size="small" />
@@ -36,6 +37,7 @@ const emit = defineEmits<{
   refresh: []
   resonate: [diary: Diary]
   comment: [diary: Diary, content: string, parentCommentId?: number]
+  'delete-comment': [diary: Diary, commentId: number]
   loadMore: []
 }>()
 

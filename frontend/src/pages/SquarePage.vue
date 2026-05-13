@@ -31,6 +31,7 @@
       @load-more="store.loadMorePublic()"
       @resonate="(d: Diary) => store.resonate(d.id)"
       @comment="(d: Diary, c: string, pid?: number) => store.addComment(d.id, c, pid)"
+      @delete-comment="(d: Diary, commentId: number) => store.deleteComment(d.id, commentId)"
     />
   </main>
 </template>

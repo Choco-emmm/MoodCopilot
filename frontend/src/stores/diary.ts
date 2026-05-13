@@ -6,6 +6,7 @@ export interface Diary {
   id: number
   authorUserId: number
   authorName: string
+  authorAvatar?: string | null
   content: string
   visibility: string
   analysis: DiaryAnalysis | null
@@ -66,6 +67,7 @@ export const useDiaryStore = defineStore('diary', () => {
   const weeklyReport = ref<WeeklyReport | null>(null)
   const reportLoading = ref(false)
   const reportError = ref<string | null>(null)
+  let analysisPollTimer: ReturnType<typeof setInterval> | null = null
 
   async function fetchDiaries() {
     loading.value = true
@@ -132,7 +134,8 @@ export const useDiaryStore = defineStore('diary', () => {
   }
 
   function pollAnalysis(diaryId: number) {
-    const interval = setInterval(async () => {
+    clearAnalysisPollTimer()
+    analysisPollTimer = setInterval(async () => {
       try {
         const res = await diaryApi.get(diaryId)
         const updated = normalize(res.data.data)
@@ -142,13 +145,19 @@ export const useDiaryStore = defineStore('diary', () => {
           }
           mergeDiary(updated)
           analysisStatus.value = 'complete'
-          clearInterval(interval)
+          clearAnalysisPollTimer()
         }
       } catch {
         analysisStatus.value = 'failed'
-        clearInterval(interval)
+        clearAnalysisPollTimer()
       }
     }, 2000)
+  }
+
+  function clearAnalysisPollTimer() {
+    if (!analysisPollTimer) return
+    clearInterval(analysisPollTimer)
+    analysisPollTimer = null
   }
 
   async function refreshAnalysis(diaryId: number) {
@@ -175,6 +184,28 @@ export const useDiaryStore = defineStore('diary', () => {
     mergeDiary(updated)
     if (activeDiary.value?.id === diaryId) {
       activeDiary.value = updated
+    }
+  }
+
+  async function deleteComment(diaryId: number, commentId: number) {
+    const res = await diaryApi.deleteComment(diaryId, commentId)
+    const updated = res?.data?.data ? normalize(res.data.data) : null
+
+    if (updated) {
+      mergeDiary(updated)
+      if (activeDiary.value?.id === diaryId) {
+        activeDiary.value = updated
+      }
+      return
+    }
+
+    removeCommentIn(myDiaries, diaryId, commentId)
+    removeCommentIn(publicDiaries, diaryId, commentId)
+    if (activeDiary.value?.id === diaryId) {
+      activeDiary.value = {
+        ...activeDiary.value,
+        comments: removeCommentFromTree(activeDiary.value.comments || [], commentId),
+      }
     }
   }
 
@@ -279,7 +310,7 @@ export const useDiaryStore = defineStore('diary', () => {
     myDiaries, publicDiaries, activeDiary, similarDiaries, loading, saving, errorMessage,
     analysisStatus, hasMore, weeklyReport, reportLoading, reportError, monthlyReport, monthLoading, monthError,
     fetchDiaries, loadMorePublic, createDiary, loadSimilar, addComment, resonate, sendEncouragement, deleteDiary,
-    hideDiary, refreshAnalysis,
+    hideDiary, refreshAnalysis, deleteComment,
     fetchWeeklyReport, fetchMonthlyReport, generateWeeklyAiSummary, generateMonthlyAiSummary, normalize,
   }
 })
@@ -310,6 +341,21 @@ function formatReportError(e: any) {
     return '报告生成太频繁了，稍等一会儿再试。'
   }
   return e?.response?.data?.message || '报告暂时加载失败，可以稍后重试。'
+}
+
+function removeCommentIn(list: Ref<Diary[]>, diaryId: number, commentId: number) {
+  const target = list.value.find((d) => d.id === diaryId)
+  if (!target) return
+  target.comments = removeCommentFromTree(target.comments || [], commentId)
+}
+
+function removeCommentFromTree(comments: DiaryComment[], commentId: number): DiaryComment[] {
+  return comments
+    .filter((comment) => comment.id !== commentId)
+    .map((comment) => ({
+      ...comment,
+      replies: removeCommentFromTree(comment.replies || [], commentId),
+    }))
 }
 
 import type { Ref } from 'vue'

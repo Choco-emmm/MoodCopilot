@@ -13,6 +13,7 @@ public record DiaryView(
         long id,
         long authorUserId,
         String authorName,
+        String authorAvatar,
         String content,
         DiaryVisibility visibility,
         DiaryAnalysis analysis,
@@ -20,17 +21,17 @@ public record DiaryView(
         int resonanceCount,
         List<DiaryComment> comments
 ) {
-    static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments) {
-        return build(diary, analysis, comments, false);
+    static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments, String authorAvatar) {
+        return build(diary, analysis, comments, authorAvatar, false);
     }
 
     /** 公开视图：仅暴露情绪标签和主题，不暴露强度、摘要、反馈 */
-    static DiaryView fromPublic(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments) {
-        return build(diary, analysis, comments, true);
+    static DiaryView fromPublic(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments, String authorAvatar) {
+        return build(diary, analysis, comments, authorAvatar, true);
     }
 
     private static DiaryView build(DiaryEntity diary, DiaryAnalysisEntity analysis,
-                                    List<DiaryCommentEntity> comments, boolean isPublic) {
+                                    List<DiaryCommentEntity> comments, String authorAvatar, boolean isPublic) {
         DiaryAnalysis viewAnalysis = null;
         if (analysis != null) {
             if (isPublic) {
@@ -55,6 +56,7 @@ public record DiaryView(
                 diary.getId(),
                 diary.getAuthorUserId(),
                 diary.getAuthorName(),
+                authorAvatar,
                 diary.getContent(),
                 DiaryVisibility.valueOf(diary.getVisibility()),
                 viewAnalysis,
@@ -64,8 +66,8 @@ public record DiaryView(
         );
     }
 
-    static DiaryView from(DiaryEntity diary, List<DiaryCommentEntity> comments) {
-        return from(diary, null, comments);
+    static DiaryView from(DiaryEntity diary, List<DiaryCommentEntity> comments, String authorAvatar) {
+        return from(diary, null, comments, authorAvatar);
     }
 
     private static List<DiaryComment> buildCommentTree(List<DiaryCommentEntity> entities) {
