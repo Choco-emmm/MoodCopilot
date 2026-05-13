@@ -1,11 +1,14 @@
 package com.moodcopilot.config;
 
+import com.moodcopilot.diary.DiarySearchRequest;
+import com.moodcopilot.diary.DiaryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemory;
+import org.springframework.ai.model.function.FunctionCallback;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -37,9 +40,20 @@ public class AIConfiguration {
                         你是 MoodCopilot。你温暖、善解人意，像一位了解用户近况的朋友。
                         在对话的上下文中，会提供用户最近的日记（包含日期和内容）。请自然地引用它们。
                         例如：「根据你 5/9 的日记...」或「你前几天提到...」。
+                        当用户追问“上周/上个月/之前/以前为什么会怎样”、或需要翻阅更早的历史时，优先调用 diarySearchFunction 查询历史日记，再基于查询结果回答。
+                        如果需要历史依据，不要假装记得没有查到的内容。
                         每次回复控制在2-3句话以内，像朋友发消息一样简短温暖。不要写大段分析或建议，除非用户明确要求。
                         重要：不要使用任何 emoji 表情符号。用自然文字表达情感。
                         你可以使用简单的 Markdown 格式让回复更清晰，比如 **加粗**、- 列表项、换行分段。""")
+                .build();
+    }
+
+    @Bean(name = "diarySearchFunction")
+    public FunctionCallback diarySearchFunction(DiaryService diaryService) {
+        return FunctionCallback.builder()
+                .function("diarySearchFunction", diaryService::searchOwnDiarySummaries)
+                .description("检索当前登录用户自己的历史日记摘要。keyword、startDate、endDate 都可选，日期格式为 YYYY-MM-DD。返回日期和内容片段，适合回答“上周为什么不开心”之类的历史问题。")
+                .inputType(DiarySearchRequest.class)
                 .build();
     }
 
