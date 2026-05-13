@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.AiAnalysisService;
+import com.moodcopilot.ai.MemoryExtractionService;
 import com.moodcopilot.common.ContentFilter;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.follow.FollowService;
@@ -62,6 +63,7 @@ public class DiaryService {
     private static final Logger log = LoggerFactory.getLogger(DiaryService.class);
 
     private final AiAnalysisService aiAnalysisService;
+    private final MemoryExtractionService memoryExtractionService;
     private final NotificationService notificationService;
     private final FollowService followService;
     private final StringRedisTemplate redisTemplate;
@@ -74,6 +76,7 @@ public class DiaryService {
                         DiaryHideMapper diaryHideMapper,
                         DiaryRecommendationExposureMapper exposureMapper,
                         AiAnalysisService aiAnalysisService,
+                        MemoryExtractionService memoryExtractionService,
                         NotificationService notificationService,
                         FollowService followService,
                         StringRedisTemplate redisTemplate,
@@ -85,6 +88,7 @@ public class DiaryService {
         this.diaryHideMapper = diaryHideMapper;
         this.exposureMapper = exposureMapper;
         this.aiAnalysisService = aiAnalysisService;
+        this.memoryExtractionService = memoryExtractionService;
         this.notificationService = notificationService;
         this.followService = followService;
         this.redisTemplate = redisTemplate;
@@ -115,7 +119,7 @@ public class DiaryService {
 
     @Async
     @Transactional
-    public void runAiAnalysis(long diaryId, String content) {
+    public void runAiAnalysis(long diaryId, long userId, String content) {
         DiaryAnalysis analysis = aiAnalysisService.analyze(content);
 
         DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
@@ -128,6 +132,7 @@ public class DiaryService {
         analysisEntity.setCreatedAt(LocalDateTime.now());
         analysisEntity.setUpdatedAt(LocalDateTime.now());
         diaryAnalysisMapper.insert(analysisEntity);
+        memoryExtractionService.extractAndSyncMemory(userId, content);
     }
 
     public Page<DiaryView> myDiaries(int page, int size) {

@@ -3,6 +3,7 @@ package com.moodcopilot.diary;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.AiAnalysisService;
+import com.moodcopilot.ai.MemoryExtractionService;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.entity.DiaryEntity;
 import com.moodcopilot.entity.DiaryRecommendationExposureEntity;
@@ -44,6 +45,7 @@ class DiaryRecommendationServiceTest {
     @Mock private DiaryHideMapper diaryHideMapper;
     @Mock private DiaryRecommendationExposureMapper exposureMapper;
     @Mock private AiAnalysisService aiAnalysisService;
+    @Mock private MemoryExtractionService memoryExtractionService;
     @Mock private NotificationService notificationService;
     @Mock private FollowService followService;
     @Mock private StringRedisTemplate redisTemplate;
@@ -126,6 +128,7 @@ class DiaryRecommendationServiceTest {
                 diaryHideMapper,
                 exposureMapper,
                 aiAnalysisService,
+                memoryExtractionService,
                 notificationService,
                 followService,
                 redisTemplate,
