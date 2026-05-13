@@ -82,6 +82,21 @@ frontend/src/
 - 报告页策略调整：取消“继续聊”入口；相关日记缺失片段支持按 `diaryId` 回填；月报趋势图增加情绪颜色点位与强度标注。
 - 聊天引用策略：保留引用能力（最多 2 条，单条限长），用于“围绕具体内容继续聊”。
 - 聊天上下文重构：不再在每次聊天请求中拼接最近 10 篇日记；改为日记分析完成后增量生成并更新用户专属上下文（Redis key: `chat:user-context:{userId}`），聊天时自动注入该背景。
+- 长期用户画像系统（2026-05-13，来自 PR #1 合并）：
+  - 新增 `user_profile_memory` 表（Flyway V1_14），按 `(user_id, attribute_key)` 唯一存储用户长期属性。
+  - `DiaryService.runAiAnalysis()` 分析完成后触发 `MemoryExtractionService.extractAndSyncMemory()`，调 AI 抽取属性并 upsert 落库。
+  - `ChatController` 聊天时读取画像注入 system prompt。
+  - `AIConfiguration.diarySearchFunction`：注册 Function Calling 工具，支持按关键词 / 日期检索用户历史日记摘要，触发 `DiaryService.searchOwnDiarySummaries()`。
+  - `POST /api/chat/admin/init-memory`：一次性批量初始化接口，为所有有日记但尚无画像的用户生成初始画像（初始化完成后可移除）。
+- Spring AI 循环依赖修复：`AIConfiguration.diarySearchFunction` 注入 `DiaryService` 时加 `@Lazy`，断开 Bean 初始化环。
+- `DiaryService` 补齐 `generateWeeklyAiSummary(int)` / `generateMonthlyAiSummary(int)` 方法（合并 PR #1 后缺失导致编译失败，已修复）。
+- 后端性能与安全专项优化（2026-05-13）：
+  - `ChatService.loadHistory/saveHistory` 补全会话所有权校验，跨用户访问返回 400，修复数据越权漏洞。
+  - `ChatService.buildContext` 从 N+1 改为 `selectBatchIds` 批量加载分析，SQL 从 10 条降至 2 条。
+  - `SummaryService.create` 同步改为批量加载分析，消除 N+1。
+  - `DiaryService` 在 `addComment`、`resonate`、`deleteComment`、`sendEncouragement`、`runAiAnalysis` 后补全 `evictUserCache`；提取 `evictRelatedUsersCache(actorId, ownerId)` 辅助方法统一跨用户缓存失效。
+  - `DailyFollowUpScheduler.calcStreak` 改为一次查询 + Redis 缓存（key: `streak:{userId}:{date}`，TTL 6h），分析加载改为批量 Map，消除每用户 O(N) SQL。
+  - `GlobalExceptionHandler` 补全 `ResponseStatusException`、`HttpMessageNotReadableException`、`MethodArgumentNotValidException`、兜底 `Exception` 处理器，所有异常均返回 `ApiResponse<Void>` 统一格式。
 
 ## 运行与链路事实（Windows）
 
@@ -125,3 +140,5 @@ npm.cmd run e2e:visual-polish
 - `preview.allowedHosts` 必须包含 `moodcopilot.dpdns.org`，否则公网首页会 403。
 - 旧版 Service Worker 可能残留，需通过 `frontend/public/sw.js` 和 `frontend/src/main.ts` 清退。
 - 报告页不要在首屏同时拉周报和月报，避免触发 `REPORT` 限额与未处理异常。
+- Spring AI `FunctionCallback` 若直接注入 `DiaryService`，会与 `AiAnalysisService -> analysisChatClient` 形成循环依赖；在 `AIConfiguration.diarySearchFunction` 使用 `@Lazy DiaryService` 可断环。
+- 合并外部 PR 后务必检查 `target/classes` 是否有旧字节码残留；启动时出现 `NoClassDefFoundError` 优先执行 `cmd /c mvn.cmd -DskipTests clean compile`。
