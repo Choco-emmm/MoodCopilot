@@ -59,6 +59,16 @@ Vue 3 SPA，api（拦截器+请求）、components（10+UI组件）、pages（10
   - `POST /api/chat/admin/init-memory`：批量初始化接口（已完成 25/25 用户覆盖）。
   - `@Lazy DiaryService` 断开 Spring AI Bean 循环依赖。
   - `DiaryService` 补齐 `generateWeeklyAiSummary/generateMonthlyAiSummary` 方法。
+- **删除场景的画像重建**（2026-05-14）：
+  - 删除日记后不再只做增量更新，改为基于"剩余日记证据"全量重建画像。
+  - 异步入口：`MemoryExtractionService.rebuildUserMemoryAfterDiaryDeletion(userId, deletedDiaryId)`，由 `DiaryService.deleteDiary()` 触发。
+  - 四层证据分层避免长期历史截断：
+    * 近期层（最近 15 篇）：原文，保留高粒度细节和最新状态。
+    * 中期层（最多 120 篇）：读取单篇分析结果（情绪/主题/摘要），覆盖较早历史而不爆炸 token。
+    * 长期层（最多 10 个周期）：复用 `diary_summaries` 表周期摘要，自动过滤掉包含被删日记的失效摘要。
+    * 更老层：对周期摘要未覆盖的更老历史做聚合统计（高频情绪/主题）。
+  - 幂等同步确保数据库最终与重建结果一致；用户无剩余日记时清空画像。
+  - 关键日志记录：重建开始、各层证据规模、同步结果，便于排错和监控。
 - **高可用性设计**（2026-05-13）：
   - 标准键映射：Redis key 遵循 `module:key:identifier` 格式，避免冲突。
   - 幂等 upsert：`user_profile_memory` 按 `(user_id, attribute_key)` UNIQUE，避免重复。

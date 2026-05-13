@@ -4,10 +4,12 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.entity.DiaryEntity;
+import com.moodcopilot.entity.DiarySummaryEntity;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.entity.UserProfileMemoryEntity;
 import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.DiaryMapper;
+import com.moodcopilot.mapper.DiarySummaryMapper;
 import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.mapper.UserProfileMemoryMapper;
 import org.slf4j.Logger;
@@ -23,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,7 +40,8 @@ public class MemoryExtractionService {
     private static final int ATTRIBUTE_KEY_MAX_LENGTH = 64;
     private static final int ATTRIBUTE_VALUE_MAX_LENGTH = 500;
     private static final int RECENT_RAW_DIARY_LIMIT = 15;
-    private static final int HISTORICAL_SUMMARY_LIMIT = 120;
+    private static final int HISTORICAL_SUMMARY_LIMIT = 60;
+    private static final int PERIOD_SUMMARY_LIMIT = 12;
 
     private static final String MEMORY_EXTRACTION_PROMPT = """
             你是用户长期画像提取助手。请根据“新日记”和“旧属性列表”，判断哪些长期特征应该新增、保留、修改或删除。
@@ -56,29 +60,30 @@ public class MemoryExtractionService {
             4. attributeKey 使用简洁中文，例如：性格、长期目标、关键人物、长期压力源、重要关系。
             5. attributeValue 使用一句简洁中文，避免重复和空话。""";
 
-        private static final String MEMORY_REBUILD_PROMPT = """
-                        你是用户长期画像重建助手。下面提供的是用户在删除某篇日记后的“剩余证据”。
-                        你的任务是只根据这些剩余证据，重建当前仍然成立的长期画像。
-                        只输出合法 JSON，不要输出 markdown，不要解释。
-                        JSON 格式必须是：
-                        {
-                            "attributes": [
-                                {"attributeKey": "性格", "attributeValue": "...."},
-                                {"attributeKey": "长期目标", "attributeValue": "...."}
-                            ]
-                        }
-                        规则：
-                        1. 被删除的日记已经失效，绝对不能继续作为依据。
-                        2. 只保留有当前证据支持、跨时间相对稳定的特征，不要记录一次性的当天状态。
-                        3. 如果某条旧特征不再能被剩余证据支持，就不要输出。
-                        4. attributeKey 使用简洁中文，例如：性格、长期目标、关键人物、长期压力源、重要关系。
-                        5. attributeValue 使用一句简洁中文，避免重复和空话。""";
+    private static final String MEMORY_REBUILD_PROMPT = """
+            你是用户长期画像重建助手。下面提供的是用户在删除某篇日记后的“剩余证据”。
+            你的任务是只根据这些剩余证据，重建当前仍然成立的长期画像。
+            只输出合法 JSON，不要输出 markdown，不要解释。
+            JSON 格式必须是：
+            {
+              "attributes": [
+                {"attributeKey": "性格", "attributeValue": "...."},
+                {"attributeKey": "长期目标", "attributeValue": "...."}
+              ]
+            }
+            规则：
+            1. 被删除的日记已经失效，绝对不能继续作为依据。
+            2. 只保留有当前证据支持、跨时间相对稳定的特征，不要记录一次性的当天状态。
+            3. 如果某条旧特征不再能被剩余证据支持，就不要输出。
+            4. attributeKey 使用简洁中文，例如：性格、长期目标、关键人物、长期压力源、重要关系。
+            5. attributeValue 使用一句简洁中文，避免重复和空话。""";
 
     private final ChatClient analysisChatClient;
     private final UserProfileMemoryMapper userProfileMemoryMapper;
     private final ObjectMapper objectMapper;
     private final TransactionOperations transactionOperations;
-        private final DiaryAnalysisMapper diaryAnalysisMapper;
+    private final DiaryAnalysisMapper diaryAnalysisMapper;
+    private final DiarySummaryMapper diarySummaryMapper;
     private final DiaryMapper diaryMapper;
     private final UserMapper userMapper;
 
@@ -86,14 +91,16 @@ public class MemoryExtractionService {
                                    UserProfileMemoryMapper userProfileMemoryMapper,
                                    ObjectMapper objectMapper,
                                    TransactionOperations transactionOperations,
-                                                                     DiaryAnalysisMapper diaryAnalysisMapper,
+                                   DiaryAnalysisMapper diaryAnalysisMapper,
+                                   DiarySummaryMapper diarySummaryMapper,
                                    DiaryMapper diaryMapper,
                                    UserMapper userMapper) {
         this.analysisChatClient = analysisChatClient;
         this.userProfileMemoryMapper = userProfileMemoryMapper;
         this.objectMapper = objectMapper;
         this.transactionOperations = transactionOperations;
-                this.diaryAnalysisMapper = diaryAnalysisMapper;
+        this.diaryAnalysisMapper = diaryAnalysisMapper;
+        this.diarySummaryMapper = diarySummaryMapper;
         this.diaryMapper = diaryMapper;
         this.userMapper = userMapper;
     }
@@ -188,11 +195,10 @@ public class MemoryExtractionService {
                 return;
             }
 
-            Map<Long, DiaryAnalysisEntity> analysisMap = loadAnalysisMap(diaries);
-            String prompt = buildRebuildUserPrompt(diaries, analysisMap, deletedDiaryId);
+            EvidenceBundle evidence = buildEvidenceBundle(diaries, deletedDiaryId);
             String json = analysisChatClient.prompt()
                     .system(MEMORY_REBUILD_PROMPT)
-                    .user(prompt)
+                    .user(evidence.prompt())
                     .call()
                     .content();
             MemoryExtractionResponse response = objectMapper.readValue(json, MemoryExtractionResponse.class);
@@ -251,23 +257,28 @@ public class MemoryExtractionService {
         return sb.toString();
     }
 
-    private String buildRebuildUserPrompt(List<DiaryEntity> diaries,
-                                          Map<Long, DiaryAnalysisEntity> analysisMap,
-                                          Long deletedDiaryId) {
+    private EvidenceBundle buildEvidenceBundle(List<DiaryEntity> diaries, Long deletedDiaryId) {
         int recentRawCount = Math.min(RECENT_RAW_DIARY_LIMIT, diaries.size());
         int remainingHistoricalCount = Math.max(0, diaries.size() - recentRawCount);
         int detailedHistoricalCount = Math.min(HISTORICAL_SUMMARY_LIMIT, remainingHistoricalCount);
-        int aggregatedHistoricalCount = Math.max(0, remainingHistoricalCount - detailedHistoricalCount);
+        int olderHistoricalCount = Math.max(0, remainingHistoricalCount - detailedHistoricalCount);
 
-        log.info("构建删除后画像重建证据，deletedDiaryId={}，recentRawCount={}，historicalSummaryCount={}，aggregatedHistoricalCount={}",
-                deletedDiaryId, recentRawCount, detailedHistoricalCount, aggregatedHistoricalCount);
+        List<DiaryEntity> recentDiaries = diaries.subList(0, recentRawCount);
+        List<DiaryEntity> historicalDiaries = diaries.subList(recentRawCount, diaries.size());
+        List<DiaryEntity> detailedHistorical = historicalDiaries.subList(0, detailedHistoricalCount);
+        List<DiaryEntity> olderHistorical = historicalDiaries.subList(detailedHistoricalCount, historicalDiaries.size());
+        Map<Long, DiaryAnalysisEntity> analysisMap = loadAnalysisMap(detailedHistorical);
+        List<DiarySummaryEntity> periodSummaries = loadReusablePeriodSummaries(diaries, olderHistorical, deletedDiaryId);
+        int uncoveredOlderCount = Math.max(0, olderHistoricalCount - coveredDiaryCount(periodSummaries));
+
+        log.info("构建删除后画像重建证据，deletedDiaryId={}，recentRawCount={}，historicalSummaryCount={}，periodSummaryCount={}，uncoveredOlderCount={}",
+                deletedDiaryId, recentRawCount, detailedHistoricalCount, periodSummaries.size(), uncoveredOlderCount);
 
         StringBuilder sb = new StringBuilder()
                 .append("删除的日记 ID：").append(deletedDiaryId).append("\n")
                 .append("以下都是删除该日记后仍然有效的剩余证据，请只基于这些证据重建长期画像。\n\n")
                 .append("一、近期高粒度原文证据（更能体现最近仍在延续的状态与关系）\n");
 
-        List<DiaryEntity> recentDiaries = diaries.subList(0, recentRawCount);
         for (DiaryEntity diary : recentDiaries) {
             sb.append("- ")
                     .append(diary.getCreatedAt().toLocalDate())
@@ -278,8 +289,6 @@ public class MemoryExtractionService {
 
         if (remainingHistoricalCount > 0) {
             sb.append("\n二、较早历史摘要证据（覆盖长期历史，不只看最近几篇）\n");
-            List<DiaryEntity> historicalDiaries = diaries.subList(recentRawCount, diaries.size());
-            List<DiaryEntity> detailedHistorical = historicalDiaries.subList(0, detailedHistoricalCount);
             for (DiaryEntity diary : detailedHistorical) {
                 DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
                 sb.append("- ").append(diary.getCreatedAt().toLocalDate()).append("：");
@@ -293,14 +302,18 @@ public class MemoryExtractionService {
                 sb.append("\n");
             }
 
-            if (aggregatedHistoricalCount > 0) {
-                List<DiaryEntity> aggregatedHistorical = historicalDiaries.subList(detailedHistoricalCount, historicalDiaries.size());
-                sb.append("\n三、更早历史聚合证据（为了控制长度，对更老的历史做聚合而不是丢弃）\n")
-                        .append(buildAggregatedHistoricalEvidence(aggregatedHistorical, analysisMap));
+            if (!periodSummaries.isEmpty()) {
+                sb.append("\n三、更早周期摘要证据（复用历史周报/月报，覆盖长期趋势）\n")
+                        .append(buildPeriodSummaryEvidence(periodSummaries));
+            }
+
+            if (uncoveredOlderCount > 0) {
+                sb.append("\n四、更早历史聚合证据（摘要未覆盖的更老历史，继续保留聚合趋势）\n")
+                        .append(buildAggregatedHistoricalEvidence(olderHistorical));
             }
         }
 
-        return sb.toString();
+        return new EvidenceBundle(sb.toString());
     }
 
     private Map<Long, DiaryAnalysisEntity> loadAnalysisMap(List<DiaryEntity> diaries) {
@@ -312,12 +325,89 @@ public class MemoryExtractionService {
                 .collect(Collectors.toMap(DiaryAnalysisEntity::getDiaryId, analysis -> analysis));
     }
 
-    private String buildAggregatedHistoricalEvidence(List<DiaryEntity> diaries,
-                                                     Map<Long, DiaryAnalysisEntity> analysisMap) {
+    private List<DiarySummaryEntity> loadReusablePeriodSummaries(List<DiaryEntity> allRemainingDiaries,
+                                                                 List<DiaryEntity> olderHistorical,
+                                                                 Long deletedDiaryId) {
+        if (olderHistorical.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> olderHistoricalIds = olderHistorical.stream()
+                .map(DiaryEntity::getId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<Long> remainingDiaryIds = allRemainingDiaries.stream()
+                .map(DiaryEntity::getId)
+                .collect(Collectors.toSet());
+
+        return diarySummaryMapper.selectList(
+                        new LambdaQueryWrapper<DiarySummaryEntity>()
+                                .eq(DiarySummaryEntity::getUserId, allRemainingDiaries.get(0).getAuthorUserId())
+                                .orderByDesc(DiarySummaryEntity::getEndDate)
+                                .last("LIMIT " + (PERIOD_SUMMARY_LIMIT * 3)))
+                .stream()
+                .filter(summary -> isReusableSummary(summary, olderHistoricalIds, remainingDiaryIds, deletedDiaryId))
+                .limit(PERIOD_SUMMARY_LIMIT)
+                .toList();
+    }
+
+    private boolean isReusableSummary(DiarySummaryEntity summary,
+                                      Set<Long> olderHistoricalIds,
+                                      Set<Long> remainingDiaryIds,
+                                      Long deletedDiaryId) {
+        List<Long> summaryDiaryIds = parseDiaryIds(summary.getDiaryIds());
+        if (summaryDiaryIds.isEmpty()) {
+            return false;
+        }
+        if (deletedDiaryId != null && summaryDiaryIds.contains(deletedDiaryId)) {
+            return false;
+        }
+        return summaryDiaryIds.stream().allMatch(id -> olderHistoricalIds.contains(id) && remainingDiaryIds.contains(id));
+    }
+
+    private List<Long> parseDiaryIds(String diaryIdsJson) {
+        if (diaryIdsJson == null || diaryIdsJson.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(
+                    diaryIdsJson,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, Long.class));
+        } catch (Exception e) {
+            log.debug("解析周期摘要 diaryIds 失败: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private int coveredDiaryCount(List<DiarySummaryEntity> summaries) {
+        return summaries.stream()
+                .map(DiarySummaryEntity::getDiaryIds)
+                .map(this::parseDiaryIds)
+                .mapToInt(List::size)
+                .sum();
+    }
+
+    private String buildPeriodSummaryEvidence(List<DiarySummaryEntity> summaries) {
+        StringBuilder sb = new StringBuilder();
+        for (DiarySummaryEntity summary : summaries) {
+            sb.append("- ")
+                    .append(summary.getTitle() == null || summary.getTitle().isBlank()
+                            ? summary.getStartDate() + " - " + summary.getEndDate()
+                            : summary.getTitle())
+                    .append("：覆盖 ")
+                    .append(summary.getDiaryCount() == null ? parseDiaryIds(summary.getDiaryIds()).size() : summary.getDiaryCount())
+                    .append(" 篇日记；摘要=")
+                    .append(truncate(normalizeWhitespace(summary.getAiSummary()), 180))
+                    .append("\n");
+        }
+        return sb.toString();
+    }
+
+    private String buildAggregatedHistoricalEvidence(List<DiaryEntity> diaries) {
         if (diaries.isEmpty()) {
             return "- 无\n";
         }
 
+        Map<Long, DiaryAnalysisEntity> analysisMap = loadAnalysisMap(diaries);
         Map<String, Long> moodCounts = new LinkedHashMap<>();
         Map<String, Long> topicCounts = new LinkedHashMap<>();
         int analyzedCount = 0;
@@ -509,6 +599,8 @@ public class MemoryExtractionService {
                 .replace("\\", "\\\\")
                 .replace("\"", "\\\"");
     }
+
+    private record EvidenceBundle(String prompt) {}
 
     record MemoryExtractionResponse(List<MemoryAttribute> attributes) {}
 
