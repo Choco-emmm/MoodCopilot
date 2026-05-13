@@ -269,7 +269,7 @@ function removeRef(index: number) {
 
 function addDiaryRef(diaryId: string) {
   const d = recentDiaryOptions.value.find(o => String(o.id) === diaryId)
-  if (d && !references.value.some(r => r.label === '日记 · ' + d.date)) {
+  if (d && !references.value.some(r => r.content === d.snippet.slice(0, 120))) {
     references.value.push({ label: '日记 · ' + d.date, content: d.snippet.slice(0, 120) })
   }
 }

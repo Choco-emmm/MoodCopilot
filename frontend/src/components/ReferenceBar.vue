@@ -1,7 +1,7 @@
 <template>
   <div class="ref-bar">
     <div v-for="(item, i) in items" :key="i" class="ref-chip">
-      <span class="ref-chip-label">{{ item.label }}</span>
+      <span class="ref-chip-label">{{ item.content }}</span>
       <button class="ref-chip-remove" @click="$emit('remove', i)">×</button>
     </div>
     <n-popover trigger="click" placement="top-start">
