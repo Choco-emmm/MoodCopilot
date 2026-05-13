@@ -294,42 +294,6 @@ async function loadRecentDiaryOptions() {
       // 忽略日记加载失败
     }
     
-    // 加载周报洞察
-    try {
-      const res = await diaryApi.weeklyReport(0)
-      const report = res.data.data as any
-      if (report?.insights?.length > 0) {
-        const snippet = report.insights[0]?.substring(0, 30) || ''
-        if (snippet) {
-          options.push({
-            id: 1000000 + 1,
-            date: '本周报告',
-            snippet
-          })
-        }
-      }
-    } catch (e) {
-      // 忽略周报加载失败
-    }
-    
-    // 加载月报洞察
-    try {
-      const res = await diaryApi.monthlyReport(0)
-      const report = res.data.data as any
-      if (report?.insights?.length > 0) {
-        const snippet = report.insights[0]?.substring(0, 30) || ''
-        if (snippet) {
-          options.push({
-            id: 2000000 + 1,
-            date: '本月报告',
-            snippet
-          })
-        }
-      }
-    } catch (e) {
-      // 忽略月报加载失败
-    }
-    
     recentDiaryOptions.value = options
   } catch {
     recentDiaryOptions.value = []
