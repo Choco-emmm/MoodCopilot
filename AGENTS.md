@@ -34,43 +34,13 @@ MoodCopilot 是一个 AI 情绪日记 + 陌生人互助社区。用户写日记�
 
 ## 架构
 
-### 后端分包
+### 后端核心包
 
-```
-src/main/java/com/moodcopilot/
-├── ai/              ChatService、ChatController、AiAnalysisService、DailyFollowUpScheduler
-├── config/          SecurityConfig、MybatisPlusConfig、RedisConfig、AIConfiguration、SchedulingConfig、WebMvcConfig
-├── auth/            AuthController、AuthService、RegisterRequest/LoginRequest/AuthResponse
-├── common/          ApiResponse<T>、RateLimitException、GlobalExceptionHandler
-├── follow/          FollowController、FollowService
-├── diary/           DiaryController、DiaryService、DiaryView、DiaryComment、WeeklyReportView、CreateDiaryRequest
-├── summary/         SummaryController、SummaryService、SummaryView
-├── entity/          UserEntity、DiaryEntity、DiaryAnalysisEntity、DiaryCommentEntity、DiaryResonanceEntity 等
-├── health/          HealthController
-├── mapper/          MyBatis-Plus BaseMapper 接口
-├── notification/    NotificationService、NotificationController
-└── security/        JwtTokenProvider、JwtAuthenticationFilter、RateLimitService
-```
+ai（聊天、分析、长期画像）、config（配置）、auth（鉴权）、diary（日记）、summary（报告）、entity（实体）、mapper（持久化）、security（JWT、限流）、follow、notification、common（异常、响应）。
 
-### 前端结构
+### 前端
 
-```
-frontend/src/
-├── api/index.ts
-├── components/      AppHeader、BottomNav、DiaryComposer、PublicFeed 等
-├── pages/           SquarePage、WritePage、ChatPage、AdminReportsPage、SettingsPage 等
-├── router/index.ts
-├── stores/          auth.ts、diary.ts、notification.ts、follow.ts
-└── styles.css
-```
-
-## API 要点
-
-- 白名单：`/api/health`、`/api/auth/**`、`/uploads/**`、`/swagger-ui/**`、`/v3/api-docs/**`
-- 日记：`/api/diaries`、`/api/diaries/public`、`/api/diaries/following`、`/api/diaries/{id}`
-- 聊天：`/api/chat/conversations`、`/api/chat/conversations/{id}`（SSE）、`/api/chat/conversations/{id}/reply`（公网兜底）
-- 额度：`/api/user/quota`
-- 审核后台：`/api/admin/reports/**`，前端页面 `/admin/reports`
+Vue 3 SPA，api（拦截器+请求）、components（10+UI组件）、pages（10+业务页）、router、stores、styles.css。
 
 ## 近期核心变更（2026-05）
 
@@ -81,16 +51,21 @@ frontend/src/
 - 头像链路修复：上传后头像地址标准化，导航栏优先展示图片头像。
 - 报告页策略调整：取消“继续聊”入口；相关日记缺失片段支持按 `diaryId` 回填；月报趋势图增加情绪颜色点位与强度标注。
 - 聊天引用策略：保留引用能力（最多 2 条，单条限长），用于“围绕具体内容继续聊”。
-- 聊天上下文重构：不再在每次聊天请求中拼接最近 10 篇日记；改为日记分析完成后增量生成并更新用户专属上下文（Redis key: `chat:user-context:{userId}`），聊天时自动注入该背景。
-- 长期用户画像系统（2026-05-13，来自 PR #1 合并）：
-  - 新增 `user_profile_memory` 表（Flyway V1_14），按 `(user_id, attribute_key)` 唯一存储用户长期属性。
-  - `DiaryService.runAiAnalysis()` 分析完成后触发 `MemoryExtractionService.extractAndSyncMemory()`，调 AI 抽取属性并 upsert 落库。
-  - `ChatController` 聊天时读取画像注入 system prompt。
-  - `AIConfiguration.diarySearchFunction`：注册 Function Calling 工具，支持按关键词 / 日期检索用户历史日记摘要，触发 `DiaryService.searchOwnDiarySummaries()`。
-  - `POST /api/chat/admin/init-memory`：一次性批量初始化接口，为所有有日记但尚无画像的用户生成初始画像（初始化完成后可移除）。
-- Spring AI 循环依赖修复：`AIConfiguration.diarySearchFunction` 注入 `DiaryService` 时加 `@Lazy`，断开 Bean 初始化环。
-- `DiaryService` 补齐 `generateWeeklyAiSummary(int)` / `generateMonthlyAiSummary(int)` 方法（合并 PR #1 后缺失导致编译失败，已修复）。
-- 后端性能与安全专项优化（2026-05-13）：
+- **长期用户画像系统**（2026-05-13）：
+  - 新表 `user_profile_memory`（V1_14 Flyway），按 `(user_id, attribute_key)` 唯一存储属性（性格、目标、关键人物、压力源等）。
+  - `MemoryExtractionService`：日记分析完成后异步提取属性、幂等 upsert 落库；支持批量初始化。
+  - `ChatController` 聊天请求时读取画像，注入 system prompt 作为背景知识。
+  - `diarySearchFunction`（Function Calling）：支持按关键词/日期检索历史日记摘要。
+  - `POST /api/chat/admin/init-memory`：批量初始化接口（已完成 25/25 用户覆盖）。
+  - `@Lazy DiaryService` 断开 Spring AI Bean 循环依赖。
+  - `DiaryService` 补齐 `generateWeeklyAiSummary/generateMonthlyAiSummary` 方法。
+- **高可用性设计**（2026-05-13）：
+  - 标准键映射：Redis key 遵循 `module:key:identifier` 格式，避免冲突。
+  - 幂等 upsert：`user_profile_memory` 按 `(user_id, attribute_key)` UNIQUE，避免重复。
+  - 读降级：历史检索失败自动回退关键词匹配；AI 分析失败用简单情绪推测。
+  - 重试补偿：异步任务失败记入日志，支持手动重跑 init-memory。
+  - 缓存失效：`evictUserCache()` 精确删除，不扫描全量 key。
+- **后端性能与安全专项优化**（2026-05-13）：
   - `ChatService.loadHistory/saveHistory` 补全会话所有权校验，跨用户访问返回 400，修复数据越权漏洞。
   - `ChatService.buildContext` 从 N+1 改为 `selectBatchIds` 批量加载分析，SQL 从 10 条降至 2 条。
   - `SummaryService.create` 同步改为批量加载分析，消除 N+1。
