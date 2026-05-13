@@ -3,6 +3,7 @@ package com.moodcopilot.diary;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.AiAnalysisService;
+import com.moodcopilot.ai.MemoryExtractionService;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.entity.DiaryEntity;
 import com.moodcopilot.entity.DiaryRecommendationExposureEntity;
@@ -25,6 +26,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -44,6 +46,7 @@ class DiaryRecommendationServiceTest {
     @Mock private DiaryHideMapper diaryHideMapper;
     @Mock private DiaryRecommendationExposureMapper exposureMapper;
     @Mock private AiAnalysisService aiAnalysisService;
+    @Mock private MemoryExtractionService memoryExtractionService;
     @Mock private NotificationService notificationService;
     @Mock private FollowService followService;
     @Mock private StringRedisTemplate redisTemplate;
@@ -117,6 +120,43 @@ class DiaryRecommendationServiceTest {
         assertThat(captor.getAllValues()).allMatch(e -> "SIMILAR_DIARIES".equals(e.getScene()));
     }
 
+    @Test
+    void searchOwnDiarySummariesReturnsDateAndSnippet() {
+        loginAs(1L);
+        DiaryService service = service();
+        DiaryEntity first = diary(31L, 1L, "自己", "PRIVATE", 1);
+        first.setContent("上周开会后一直很压抑，回家路上也提不起劲，晚上还失眠了。");
+        DiaryEntity second = diary(32L, 1L, "自己", "PRIVATE", 2);
+        second.setContent("周末稍微缓过来一点，但还是会想起那次争执。");
+        when(diaryMapper.selectList(any())).thenReturn(List.of(first, second));
+
+        DiarySearchResult result = service.searchOwnDiarySummaries(
+                new DiarySearchRequest("上周", LocalDate.now().minusDays(7), LocalDate.now())
+        );
+
+        assertThat(result.total()).isEqualTo(2);
+        assertThat(result.diaries()).extracting(DiarySearchResult.DiarySummary::date)
+                .containsExactly(first.getCreatedAt().toLocalDate(), second.getCreatedAt().toLocalDate());
+        assertThat(result.diaries()).extracting(DiarySearchResult.DiarySummary::snippet)
+                .containsExactly(
+                        "上周开会后一直很压抑，回家路上也提不起劲，晚上还失眠了。",
+                        "周末稍微缓过来一点，但还是会想起那次争执。"
+                );
+    }
+
+    @Test
+    void searchOwnDiarySummariesRejectsReversedDates() {
+        loginAs(1L);
+        DiaryService service = service();
+
+        DiarySearchResult result = service.searchOwnDiarySummaries(
+                new DiarySearchRequest(null, LocalDate.now(), LocalDate.now().minusDays(7))
+        );
+
+        assertThat(result.total()).isZero();
+        assertThat(result.note()).isEqualTo("起始日期不能晚于结束日期");
+    }
+
     private DiaryService service() {
         return new DiaryService(
                 diaryMapper,
@@ -126,6 +166,7 @@ class DiaryRecommendationServiceTest {
                 diaryHideMapper,
                 exposureMapper,
                 aiAnalysisService,
+                memoryExtractionService,
                 notificationService,
                 followService,
                 redisTemplate,

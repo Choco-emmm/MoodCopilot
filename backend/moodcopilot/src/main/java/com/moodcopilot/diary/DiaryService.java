@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.AiAnalysisService;
+import com.moodcopilot.ai.MemoryExtractionService;
 import com.moodcopilot.common.ContentFilter;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.follow.FollowService;
@@ -30,7 +31,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import com.moodcopilot.security.RateLimitService;
 
 import java.time.DayOfWeek;
 import java.time.Duration;
@@ -54,8 +54,6 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class DiaryService {
 
-    private static final String USER_CHAT_CONTEXT_PREFIX = "chat:user-context:";
-
     private final DiaryMapper diaryMapper;
     private final DiaryAnalysisMapper diaryAnalysisMapper;
     private final DiaryCommentMapper diaryCommentMapper;
@@ -65,24 +63,24 @@ public class DiaryService {
     private static final Logger log = LoggerFactory.getLogger(DiaryService.class);
 
     private final AiAnalysisService aiAnalysisService;
+    private final MemoryExtractionService memoryExtractionService;
     private final NotificationService notificationService;
     private final FollowService followService;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
-    private final RateLimitService rateLimitService;
 
     public DiaryService(DiaryMapper diaryMapper,
-            DiaryAnalysisMapper diaryAnalysisMapper,
-            DiaryCommentMapper diaryCommentMapper,
-            DiaryResonanceMapper diaryResonanceMapper,
-            DiaryHideMapper diaryHideMapper,
-            DiaryRecommendationExposureMapper exposureMapper,
-            AiAnalysisService aiAnalysisService,
-            NotificationService notificationService,
-            FollowService followService,
-            StringRedisTemplate redisTemplate,
-            ObjectMapper objectMapper,
-            RateLimitService rateLimitService) {
+                        DiaryAnalysisMapper diaryAnalysisMapper,
+                        DiaryCommentMapper diaryCommentMapper,
+                        DiaryResonanceMapper diaryResonanceMapper,
+                        DiaryHideMapper diaryHideMapper,
+                        DiaryRecommendationExposureMapper exposureMapper,
+                        AiAnalysisService aiAnalysisService,
+                        MemoryExtractionService memoryExtractionService,
+                        NotificationService notificationService,
+                        FollowService followService,
+                        StringRedisTemplate redisTemplate,
+                        ObjectMapper objectMapper) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
@@ -90,11 +88,11 @@ public class DiaryService {
         this.diaryHideMapper = diaryHideMapper;
         this.exposureMapper = exposureMapper;
         this.aiAnalysisService = aiAnalysisService;
+        this.memoryExtractionService = memoryExtractionService;
         this.notificationService = notificationService;
         this.followService = followService;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
-        this.rateLimitService = rateLimitService;
     }
 
     @Transactional
@@ -134,15 +132,7 @@ public class DiaryService {
         analysisEntity.setCreatedAt(LocalDateTime.now());
         analysisEntity.setUpdatedAt(LocalDateTime.now());
         diaryAnalysisMapper.insert(analysisEntity);
-
-        try {
-            String key = USER_CHAT_CONTEXT_PREFIX + userId;
-            String previous = redisTemplate.opsForValue().get(key);
-            String updated = aiAnalysisService.generateUserContext(previous, content, analysis);
-            redisTemplate.opsForValue().set(key, updated, Duration.ofDays(30));
-        } catch (Exception e) {
-            log.debug("User chat context update failed for user {}", userId, e);
-        }
+        memoryExtractionService.extractAndSyncMemory(userId, content);
     }
 
     public Page<DiaryView> myDiaries(int page, int size) {
@@ -152,11 +142,59 @@ public class DiaryService {
                 Page.of(cappedPage, cappedSize),
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getAuthorUserId, currentUser().getId())
-                        .orderByDesc(DiaryEntity::getCreatedAt));
+                        .orderByDesc(DiaryEntity::getCreatedAt)
+        );
         List<DiaryView> views = buildDiaryViews(entityPage.getRecords(), false);
         Page<DiaryView> viewPage = new Page<>(cappedPage, cappedSize, entityPage.getTotal());
         viewPage.setRecords(views);
         return viewPage;
+    }
+
+    public DiarySearchResult searchOwnDiarySummaries(DiarySearchRequest request) {
+        UserEntity user = currentUser();
+        String keyword = request != null && request.keyword() != null ? request.keyword().trim() : null;
+        keyword = keyword != null && !keyword.isBlank() ? keyword : null;
+        LocalDate startDate = request != null ? request.startDate() : null;
+        LocalDate endDate = request != null ? request.endDate() : null;
+
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            return new DiarySearchResult(
+                    keyword,
+                    startDate,
+                    endDate,
+                    0,
+                    List.of(),
+                    "起始日期不能晚于结束日期"
+            );
+        }
+
+        LambdaQueryWrapper<DiaryEntity> query = new LambdaQueryWrapper<DiaryEntity>()
+                .eq(DiaryEntity::getAuthorUserId, user.getId())
+                .orderByDesc(DiaryEntity::getCreatedAt)
+                .last("LIMIT 20");
+
+        if (keyword != null) {
+            query.like(DiaryEntity::getContent, keyword);
+        }
+        if (startDate != null) {
+            query.ge(DiaryEntity::getCreatedAt, startDate.atStartOfDay());
+        }
+        if (endDate != null) {
+            query.le(DiaryEntity::getCreatedAt, endDate.atTime(LocalTime.MAX));
+        }
+
+        List<DiarySearchResult.DiarySummary> diaries = diaryMapper.selectList(query).stream()
+                .map(diary -> new DiarySearchResult.DiarySummary(
+                        diary.getCreatedAt().toLocalDate(),
+                        snippet(diary.getContent())
+                ))
+                .toList();
+
+        String note = diaries.isEmpty()
+                ? "未找到符合条件的历史日记"
+                : "已返回最多 20 条按时间倒序排列的历史日记摘要";
+
+        return new DiarySearchResult(keyword, startDate, endDate, diaries.size(), diaries, note);
     }
 
     public Page<DiaryView> publicDiaries(int page, int size) {
@@ -168,21 +206,16 @@ public class DiaryService {
         try {
             String cached = redisTemplate.opsForValue().get(cacheKey);
             if (cached != null) {
-                Page<DiaryView> cachedPage = objectMapper.readValue(cached, new TypeReference<Page<DiaryView>>() {
-                });
+                Page<DiaryView> cachedPage = objectMapper.readValue(cached, new TypeReference<Page<DiaryView>>() {});
                 return filterHiddenViews(cachedPage, userId);
             }
-        } catch (Exception e) {
-            log.debug("Cache miss {}", cacheKey);
-        }
+        } catch (Exception e) { log.debug("Cache miss {}", cacheKey); }
 
         Page<DiaryView> result = queryPublicDiaries(cappedPage, cappedSize);
 
         try {
             redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(result), Duration.ofMinutes(5));
-        } catch (Exception e) {
-            log.debug("Cache write failed");
-        }
+        } catch (Exception e) { log.debug("Cache write failed"); }
         return filterHiddenViews(result, userId);
     }
 
@@ -191,7 +224,8 @@ public class DiaryService {
                 Page.of(page, size),
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
-                        .orderByDesc(DiaryEntity::getCreatedAt));
+                        .orderByDesc(DiaryEntity::getCreatedAt)
+        );
         List<DiaryView> views = buildDiaryViews(entityPage.getRecords(), true);
         Page<DiaryView> viewPage = new Page<>(page, size, entityPage.getTotal());
         viewPage.setRecords(views);
@@ -204,7 +238,7 @@ public class DiaryService {
         List<DiaryCommentEntity> comments = findComments(id);
         boolean isOwner = diary.getAuthorUserId().equals(currentUser().getId());
         return isOwner ? DiaryView.from(diary, analysis, comments)
-                : DiaryView.fromPublic(diary, analysis, comments);
+                       : DiaryView.fromPublic(diary, analysis, comments);
     }
 
     public List<DiaryView> similar(long id, int limit) {
@@ -216,7 +250,8 @@ public class DiaryService {
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
                         .ne(DiaryEntity::getId, id)
-                        .orderByDesc(DiaryEntity::getCreatedAt));
+                        .orderByDesc(DiaryEntity::getCreatedAt)
+        );
         UserEntity user = currentUser();
         List<DiaryEntity> publicDiaries = filterHidden(candidatePage.getRecords(), user.getId()).stream()
                 .filter(diary -> !user.getId().equals(diary.getAuthorUserId()))
@@ -228,8 +263,7 @@ public class DiaryService {
 
         List<DiaryEntity> recommended = dedupeByAuthor(publicDiaries.stream()
                 .sorted(Comparator
-                        .comparingInt((DiaryEntity d) -> similarityScore(sourceAnalysis, analysisMap.get(d.getId())))
-                        .reversed()
+                        .comparingInt((DiaryEntity d) -> similarityScore(sourceAnalysis, analysisMap.get(d.getId()))).reversed()
                         .thenComparing(DiaryEntity::getCreatedAt, Comparator.reverseOrder()))
                 .toList()).stream()
                 .limit(cappedLimit)
@@ -248,20 +282,14 @@ public class DiaryService {
 
         try {
             String cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null)
-                return objectMapper.readValue(cached, new TypeReference<Page<DiaryView>>() {
-                });
-        } catch (Exception e) {
-            log.debug("Cache miss {}", cacheKey);
-        }
+            if (cached != null) return objectMapper.readValue(cached, new TypeReference<Page<DiaryView>>() {});
+        } catch (Exception e) { log.debug("Cache miss {}", cacheKey); }
 
         Page<DiaryView> result = queryFollowingDiaries(userId, cappedPage, cappedSize);
 
         try {
             redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(result), Duration.ofMinutes(5));
-        } catch (Exception e) {
-            log.debug("Cache write failed");
-        }
+        } catch (Exception e) { log.debug("Cache write failed"); }
         return result;
     }
 
@@ -277,7 +305,8 @@ public class DiaryService {
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
                         .in(DiaryEntity::getAuthorUserId, followingIds)
-                        .orderByDesc(DiaryEntity::getCreatedAt));
+                        .orderByDesc(DiaryEntity::getCreatedAt)
+        );
         List<DiaryEntity> visibleDiaries = filterHidden(entityPage.getRecords(), userId);
         List<DiaryView> views = buildDiaryViews(visibleDiaries, true);
         Page<DiaryView> viewPage = new Page<>(page, size, entityPage.getTotal());
@@ -293,8 +322,7 @@ public class DiaryService {
 
         try {
             String cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null)
-                return objectMapper.readValue(cached, WeeklyReportView.class);
+            if (cached != null) return objectMapper.readValue(cached, WeeklyReportView.class);
         } catch (Exception e) {
             log.debug("Cache read failed for {}", cacheKey, e);
         }
@@ -322,7 +350,8 @@ public class DiaryService {
                         .eq(DiaryEntity::getAuthorUserId, userId)
                         .ge(DiaryEntity::getCreatedAt, start)
                         .le(DiaryEntity::getCreatedAt, end)
-                        .orderByAsc(DiaryEntity::getCreatedAt));
+                        .orderByAsc(DiaryEntity::getCreatedAt)
+        );
 
         List<WeeklyReportView.DailyMood> dailyMoods = new ArrayList<>();
         Map<String, Integer> topicCounts = new LinkedHashMap<>();
@@ -340,14 +369,16 @@ public class DiaryService {
                         analysisEntity.getMoodIntensity(),
                         analysisEntity.getTopicLabelsJson(),
                         analysisEntity.getSummary(),
-                        analysisEntity.getFeedback());
+                        analysisEntity.getFeedback()
+                );
                 analyses.add(analysis);
                 dailyMoods.add(new WeeklyReportView.DailyMood(
                         diary.getCreatedAt().toLocalDate(),
                         analysis.moodLabel(),
                         analysis.moodIntensity(),
                         List.of(diary.getId()),
-                        snippet(diary.getContent())));
+                        snippet(diary.getContent())
+                ));
                 for (String topic : analysis.topicLabels()) {
                     topicCounts.merge(topic, 1, Integer::sum);
                 }
@@ -364,7 +395,19 @@ public class DiaryService {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy年M月");
         String monthLabel = firstOfMonth.format(fmt);
 
-        return new WeeklyReportView(monthLabel, diaries.size(), dailyMoods, sortedTopics, null, null, null, null);
+        String aiSummary = aiAnalysisService.generateMonthlySummary(contents, analyses);
+        AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateMonthlyGuidance(contents, analyses);
+
+        return new WeeklyReportView(
+                monthLabel,
+                diaries.size(),
+                dailyMoods,
+                sortedTopics,
+                aiSummary,
+                guidance.insights(),
+                guidance.suggestions(),
+                guidance.followUpPrompt()
+        );
     }
 
     // ── Weekly report ──
@@ -375,8 +418,7 @@ public class DiaryService {
 
         try {
             String cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null)
-                return objectMapper.readValue(cached, WeeklyReportView.class);
+            if (cached != null) return objectMapper.readValue(cached, WeeklyReportView.class);
         } catch (Exception e) {
             log.debug("Cache read failed for {}", cacheKey, e);
         }
@@ -404,7 +446,8 @@ public class DiaryService {
                         .eq(DiaryEntity::getAuthorUserId, userId)
                         .ge(DiaryEntity::getCreatedAt, start)
                         .le(DiaryEntity::getCreatedAt, end)
-                        .orderByAsc(DiaryEntity::getCreatedAt));
+                        .orderByAsc(DiaryEntity::getCreatedAt)
+        );
 
         List<WeeklyReportView.DailyMood> dailyMoods = new ArrayList<>();
         Map<String, Integer> topicCounts = new LinkedHashMap<>();
@@ -422,14 +465,16 @@ public class DiaryService {
                         analysisEntity.getMoodIntensity(),
                         analysisEntity.getTopicLabelsJson(),
                         analysisEntity.getSummary(),
-                        analysisEntity.getFeedback());
+                        analysisEntity.getFeedback()
+                );
                 analyses.add(analysis);
                 dailyMoods.add(new WeeklyReportView.DailyMood(
                         diary.getCreatedAt().toLocalDate(),
                         analysis.moodLabel(),
                         analysis.moodIntensity(),
                         List.of(diary.getId()),
-                        snippet(diary.getContent())));
+                        snippet(diary.getContent())
+                ));
                 for (String topic : analysis.topicLabels()) {
                     topicCounts.merge(topic, 1, Integer::sum);
                 }
@@ -446,131 +491,19 @@ public class DiaryService {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("M/d");
         String weekLabel = monday.format(fmt) + " - " + sunday.format(fmt);
 
-        return new WeeklyReportView(weekLabel, diaries.size(), dailyMoods, sortedTopics, null, null, null, null);
-    }
-
-    public WeeklyReportView generateWeeklyAiSummary(int weekOffset) {
-        Long userId = currentUser().getId();
-        rateLimitService.tryAcquire(userId, com.moodcopilot.security.RateLimitService.AiApiType.REPORT);
-
-        WeeklyReportView baseReport = computeWeeklyReport(weekOffset, userId);
-        if (baseReport.diaryCount() == 0) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.BAD_REQUEST, "本周没有日记，无法生成总结");
-        }
-
-        LocalDate today = LocalDate.now();
-        LocalDate monday = today.with(DayOfWeek.MONDAY).plusWeeks(weekOffset);
-        LocalDate sunday = monday.plusDays(6);
-        LocalDateTime start = monday.atStartOfDay();
-        LocalDateTime end = sunday.atTime(LocalTime.MAX);
-
-        List<DiaryEntity> diaries = diaryMapper.selectList(
-                new LambdaQueryWrapper<DiaryEntity>()
-                        .eq(DiaryEntity::getAuthorUserId, userId)
-                        .ge(DiaryEntity::getCreatedAt, start)
-                        .le(DiaryEntity::getCreatedAt, end)
-                        .orderByAsc(DiaryEntity::getCreatedAt));
-
-        List<String> contents = new ArrayList<>();
-        List<DiaryAnalysis> analyses = new ArrayList<>();
-        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
-                diaries.stream().map(DiaryEntity::getId).toList());
-
-        for (DiaryEntity diary : diaries) {
-            contents.add(diary.getContent());
-            DiaryAnalysisEntity entity = analysisMap.get(diary.getId());
-            if (entity != null) {
-                analyses.add(new DiaryAnalysis(entity.getMoodLabel(), entity.getMoodIntensity(),
-                        entity.getTopicLabelsJson(), entity.getSummary(), entity.getFeedback()));
-            } else {
-                analyses.add(null);
-            }
-        }
-
         String aiSummary = aiAnalysisService.generateWeeklySummary(contents, analyses);
         AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateWeeklyGuidance(contents, analyses);
 
-        WeeklyReportView updatedReport = new WeeklyReportView(
-                baseReport.weekLabel(),
-                baseReport.diaryCount(),
-                baseReport.dailyMoods(),
-                baseReport.topicCounts(),
+        return new WeeklyReportView(
+                weekLabel,
+                diaries.size(),
+                dailyMoods,
+                sortedTopics,
                 aiSummary,
                 guidance.insights(),
                 guidance.suggestions(),
-                guidance.followUpPrompt());
-
-        String cacheKey = "report:%d:%d".formatted(userId, weekOffset);
-        try {
-            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(updatedReport),
-                    Duration.ofMinutes(30));
-        } catch (Exception ignored) {
-        }
-
-        return updatedReport;
-    }
-
-    public WeeklyReportView generateMonthlyAiSummary(int monthOffset) {
-        Long userId = currentUser().getId();
-        rateLimitService.tryAcquire(userId, com.moodcopilot.security.RateLimitService.AiApiType.REPORT);
-
-        WeeklyReportView baseReport = computeMonthlyReport(monthOffset, userId);
-        if (baseReport.diaryCount() == 0) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.BAD_REQUEST, "本月没有日记，无法生成总结");
-        }
-
-        LocalDate today = LocalDate.now();
-        LocalDate firstOfMonth = today.withDayOfMonth(1).plusMonths(monthOffset);
-        LocalDate lastOfMonth = firstOfMonth.withDayOfMonth(firstOfMonth.lengthOfMonth());
-        LocalDateTime start = firstOfMonth.atStartOfDay();
-        LocalDateTime end = lastOfMonth.atTime(LocalTime.MAX);
-
-        List<DiaryEntity> diaries = diaryMapper.selectList(
-                new LambdaQueryWrapper<DiaryEntity>()
-                        .eq(DiaryEntity::getAuthorUserId, userId)
-                        .ge(DiaryEntity::getCreatedAt, start)
-                        .le(DiaryEntity::getCreatedAt, end)
-                        .orderByAsc(DiaryEntity::getCreatedAt));
-
-        List<String> contents = new ArrayList<>();
-        List<DiaryAnalysis> analyses = new ArrayList<>();
-        Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
-                diaries.stream().map(DiaryEntity::getId).toList());
-
-        for (DiaryEntity diary : diaries) {
-            contents.add(diary.getContent());
-            DiaryAnalysisEntity entity = analysisMap.get(diary.getId());
-            if (entity != null) {
-                analyses.add(new DiaryAnalysis(entity.getMoodLabel(), entity.getMoodIntensity(),
-                        entity.getTopicLabelsJson(), entity.getSummary(), entity.getFeedback()));
-            } else {
-                analyses.add(null);
-            }
-        }
-
-        String aiSummary = aiAnalysisService.generateMonthlySummary(contents, analyses);
-        AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateMonthlyGuidance(contents, analyses);
-
-        WeeklyReportView updatedReport = new WeeklyReportView(
-                baseReport.weekLabel(),
-                baseReport.diaryCount(),
-                baseReport.dailyMoods(),
-                baseReport.topicCounts(),
-                aiSummary,
-                guidance.insights(),
-                guidance.suggestions(),
-                guidance.followUpPrompt());
-
-        String cacheKey = "report:monthly:%d:%d".formatted(userId, monthOffset);
-        try {
-            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(updatedReport),
-                    Duration.ofMinutes(30));
-        } catch (Exception ignored) {
-        }
-
-        return updatedReport;
+                guidance.followUpPrompt()
+        );
     }
 
     @Transactional
@@ -610,18 +543,9 @@ public class DiaryService {
         boolean exists = diaryResonanceMapper.exists(
                 new LambdaQueryWrapper<DiaryResonanceEntity>()
                         .eq(DiaryResonanceEntity::getDiaryId, diaryId)
-                        .eq(DiaryResonanceEntity::getUserId, actor.getId()));
-        if (exists) {
-            // 取消点赞
-            diaryResonanceMapper.delete(
-                    new LambdaQueryWrapper<DiaryResonanceEntity>()
-                            .eq(DiaryResonanceEntity::getDiaryId, diaryId)
-                            .eq(DiaryResonanceEntity::getUserId, actor.getId()));
-            diary.setResonanceCount(Math.max(0, diary.getResonanceCount() - 1));
-            diary.setUpdatedAt(LocalDateTime.now());
-            diaryMapper.updateById(diary);
-        } else {
-            // 点赞
+                        .eq(DiaryResonanceEntity::getUserId, actor.getId())
+        );
+        if (!exists) {
             DiaryResonanceEntity resonance = new DiaryResonanceEntity();
             resonance.setDiaryId(diaryId);
             resonance.setUserId(actor.getId());
@@ -668,48 +592,43 @@ public class DiaryService {
     }
 
     private DiaryView buildDiaryView(DiaryEntity diary,
-            boolean isPublic,
-            Map<Long, DiaryAnalysisEntity> analysisMap,
-            Map<Long, List<DiaryCommentEntity>> commentMap) {
+                                     boolean isPublic,
+                                     Map<Long, DiaryAnalysisEntity> analysisMap,
+                                     Map<Long, List<DiaryCommentEntity>> commentMap) {
         DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
         List<DiaryCommentEntity> comments = commentMap.getOrDefault(diary.getId(), List.of());
         return isPublic ? DiaryView.fromPublic(diary, analysis, comments)
-                : DiaryView.from(diary, analysis, comments);
+                        : DiaryView.from(diary, analysis, comments);
     }
 
     private Map<Long, DiaryAnalysisEntity> batchLoadAnalyses(List<Long> diaryIds) {
-        if (diaryIds.isEmpty())
-            return Map.of();
+        if (diaryIds.isEmpty()) return Map.of();
         return diaryAnalysisMapper.selectBatchIds(diaryIds).stream()
                 .collect(Collectors.toMap(DiaryAnalysisEntity::getDiaryId, analysis -> analysis));
     }
 
     private Map<Long, List<DiaryCommentEntity>> batchLoadComments(List<Long> diaryIds) {
-        if (diaryIds.isEmpty())
-            return Map.of();
+        if (diaryIds.isEmpty()) return Map.of();
         List<DiaryCommentEntity> comments = diaryCommentMapper.selectList(
                 new LambdaQueryWrapper<DiaryCommentEntity>()
                         .in(DiaryCommentEntity::getDiaryId, diaryIds)
-                        .orderByAsc(DiaryCommentEntity::getCreatedAt));
+                        .orderByAsc(DiaryCommentEntity::getCreatedAt)
+        );
         return comments.stream().collect(Collectors.groupingBy(DiaryCommentEntity::getDiaryId));
     }
 
     private List<DiaryEntity> filterHidden(List<DiaryEntity> diaries, long userId) {
-        if (diaries.isEmpty())
-            return diaries;
+        if (diaries.isEmpty()) return diaries;
         Set<Long> hiddenIds = hiddenDiaryIds(userId);
-        if (hiddenIds.isEmpty())
-            return diaries;
+        if (hiddenIds.isEmpty()) return diaries;
         return diaries.stream().filter(diary -> !hiddenIds.contains(diary.getId())).toList();
     }
 
     private Page<DiaryView> filterHiddenViews(Page<DiaryView> page, long userId) {
         List<DiaryView> records = page.getRecords();
-        if (records == null || records.isEmpty())
-            return page;
+        if (records == null || records.isEmpty()) return page;
         Set<Long> hiddenIds = hiddenDiaryIds(userId);
-        if (hiddenIds.isEmpty())
-            return page;
+        if (hiddenIds.isEmpty()) return page;
         Page<DiaryView> filtered = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
         filtered.setRecords(records.stream()
                 .filter(diary -> !hiddenIds.contains(diary.id()))
@@ -720,7 +639,8 @@ public class DiaryService {
     private Set<Long> hiddenDiaryIds(long userId) {
         List<DiaryHideEntity> hides = diaryHideMapper.selectList(
                 new LambdaQueryWrapper<DiaryHideEntity>()
-                        .eq(DiaryHideEntity::getUserId, userId));
+                        .eq(DiaryHideEntity::getUserId, userId)
+        );
         return hides.stream().map(DiaryHideEntity::getDiaryId).collect(Collectors.toSet());
     }
 
@@ -729,7 +649,8 @@ public class DiaryService {
                 new LambdaQueryWrapper<DiaryRecommendationExposureEntity>()
                         .eq(DiaryRecommendationExposureEntity::getUserId, userId)
                         .eq(DiaryRecommendationExposureEntity::getScene, scene)
-                        .ge(DiaryRecommendationExposureEntity::getCreatedAt, LocalDateTime.now().minusDays(7)));
+                        .ge(DiaryRecommendationExposureEntity::getCreatedAt, LocalDateTime.now().minusDays(7))
+        );
         return exposures.stream()
                 .map(DiaryRecommendationExposureEntity::getDiaryId)
                 .collect(Collectors.toSet());
@@ -777,7 +698,8 @@ public class DiaryService {
         return diaryCommentMapper.selectList(
                 new LambdaQueryWrapper<DiaryCommentEntity>()
                         .eq(DiaryCommentEntity::getDiaryId, diaryId)
-                        .orderByAsc(DiaryCommentEntity::getCreatedAt));
+                        .orderByAsc(DiaryCommentEntity::getCreatedAt)
+        );
     }
 
     // ── Current user ──
@@ -785,8 +707,7 @@ public class DiaryService {
     @Transactional
     public void deleteDiary(long diaryId) {
         DiaryEntity diary = diaryMapper.selectById(diaryId);
-        if (diary == null)
-            throw new ResponseStatusException(NOT_FOUND, "日记不存在");
+        if (diary == null) throw new ResponseStatusException(NOT_FOUND, "日记不存在");
         if (!diary.getAuthorUserId().equals(currentUser().getId())) {
             throw new ResponseStatusException(FORBIDDEN, "只能删除自己的日记");
         }
@@ -801,7 +722,8 @@ public class DiaryService {
         boolean exists = diaryHideMapper.exists(
                 new LambdaQueryWrapper<DiaryHideEntity>()
                         .eq(DiaryHideEntity::getUserId, userId)
-                        .eq(DiaryHideEntity::getDiaryId, diary.getId()));
+                        .eq(DiaryHideEntity::getDiaryId, diary.getId())
+        );
         if (!exists) {
             DiaryHideEntity hide = new DiaryHideEntity();
             hide.setUserId(userId);
@@ -815,8 +737,7 @@ public class DiaryService {
     @Transactional
     public void deleteComment(long diaryId, long commentId) {
         DiaryEntity diary = diaryMapper.selectById(diaryId);
-        if (diary == null)
-            throw new ResponseStatusException(NOT_FOUND, "日记不存在");
+        if (diary == null) throw new ResponseStatusException(NOT_FOUND, "日记不存在");
         DiaryCommentEntity comment = diaryCommentMapper.selectById(commentId);
         if (comment == null || !comment.getDiaryId().equals(diaryId)) {
             throw new ResponseStatusException(NOT_FOUND, "评论不存在");
@@ -828,8 +749,7 @@ public class DiaryService {
     }
 
     public static String snippet(String content) {
-        if (content == null || content.isEmpty())
-            return "";
+        if (content == null || content.isEmpty()) return "";
         return content.length() > 30 ? content.substring(0, 30) : content;
     }
 
@@ -844,7 +764,8 @@ public class DiaryService {
         boolean todayExists = diaryMapper.exists(
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getAuthorUserId, user.getId())
-                        .ge(DiaryEntity::getCreatedAt, todayStart));
+                        .ge(DiaryEntity::getCreatedAt, todayStart)
+        );
 
         // 连续天数
         int streak = 0;
@@ -854,12 +775,10 @@ public class DiaryService {
                     new LambdaQueryWrapper<DiaryEntity>()
                             .eq(DiaryEntity::getAuthorUserId, user.getId())
                             .ge(DiaryEntity::getCreatedAt, d.atStartOfDay())
-                            .lt(DiaryEntity::getCreatedAt, d.plusDays(1).atStartOfDay()));
-            if (has) {
-                streak++;
-                d = d.minusDays(1);
-            } else
-                break;
+                            .lt(DiaryEntity::getCreatedAt, d.plusDays(1).atStartOfDay())
+            );
+            if (has) { streak++; d = d.minusDays(1); }
+            else break;
         }
 
         // 昨天情绪
@@ -870,17 +789,18 @@ public class DiaryService {
                         .ge(DiaryEntity::getCreatedAt, today.minusDays(1).atStartOfDay())
                         .lt(DiaryEntity::getCreatedAt, today.atStartOfDay())
                         .orderByDesc(DiaryEntity::getCreatedAt)
-                        .last("LIMIT 1"));
+                        .last("LIMIT 1")
+        );
         if (!yesterdayDiaries.isEmpty()) {
             DiaryAnalysisEntity analysis = findAnalysis(yesterdayDiaries.get(0).getId());
-            if (analysis != null)
-                yesterdayMood = analysis.getMoodLabel();
+            if (analysis != null) yesterdayMood = analysis.getMoodLabel();
         }
 
         return Map.of(
                 "todayHasDiary", todayExists,
                 "streak", streak,
-                "yesterdayMood", yesterdayMood != null ? yesterdayMood : "");
+                "yesterdayMood", yesterdayMood != null ? yesterdayMood : ""
+        );
     }
 
     // ── Today match ──
@@ -892,19 +812,16 @@ public class DiaryService {
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getAuthorUserId, user.getId())
                         .orderByDesc(DiaryEntity::getCreatedAt)
-                        .last("LIMIT 3"));
+                        .last("LIMIT 3")
+        );
         String targetMood = null;
         Map<Long, DiaryAnalysisEntity> recentAnalysisMap = batchLoadAnalyses(
                 recent.stream().map(DiaryEntity::getId).toList());
         for (DiaryEntity d : recent) {
             DiaryAnalysisEntity a = recentAnalysisMap.get(d.getId());
-            if (a != null) {
-                targetMood = a.getMoodLabel();
-                break;
-            }
+            if (a != null) { targetMood = a.getMoodLabel(); break; }
         }
-        if (targetMood == null)
-            return null;
+        if (targetMood == null) return null;
 
         // 找公开的同情绪日记
         List<DiaryEntity> matches = diaryMapper.selectList(
@@ -912,7 +829,8 @@ public class DiaryService {
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
                         .ne(DiaryEntity::getAuthorUserId, user.getId())
                         .orderByDesc(DiaryEntity::getCreatedAt)
-                        .last("LIMIT 50"));
+                        .last("LIMIT 50")
+        );
         matches = filterHidden(matches, user.getId());
         Map<Long, DiaryAnalysisEntity> matchAnalysisMap = batchLoadAnalyses(
                 matches.stream().map(DiaryEntity::getId).toList());
@@ -943,19 +861,15 @@ public class DiaryService {
 
         try {
             String cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null)
-                return objectMapper.readValue(cached, Map.class);
-        } catch (Exception e) {
-            log.debug("Coaching cache miss");
-        }
-
-        rateLimitService.tryAcquire(user.getId(), com.moodcopilot.security.RateLimitService.AiApiType.ANALYSIS);
+            if (cached != null) return objectMapper.readValue(cached, Map.class);
+        } catch (Exception e) { log.debug("Coaching cache miss"); }
 
         List<DiaryEntity> recent = diaryMapper.selectList(
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getAuthorUserId, user.getId())
                         .orderByDesc(DiaryEntity::getCreatedAt)
-                        .last("LIMIT 7"));
+                        .last("LIMIT 7")
+        );
         List<String> contents = new ArrayList<>();
         List<DiaryAnalysis> analyses = new ArrayList<>();
         Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
@@ -963,20 +877,16 @@ public class DiaryService {
         for (DiaryEntity d : recent) {
             contents.add(d.getContent());
             DiaryAnalysisEntity a = analysisMap.get(d.getId());
-            if (a != null)
-                analyses.add(new DiaryAnalysis(a.getMoodLabel(), a.getMoodIntensity(),
-                        a.getTopicLabelsJson(), a.getSummary(), a.getFeedback()));
-            else
-                analyses.add(null);
+            if (a != null) analyses.add(new DiaryAnalysis(a.getMoodLabel(), a.getMoodIntensity(),
+                    a.getTopicLabelsJson(), a.getSummary(), a.getFeedback()));
+            else analyses.add(null);
         }
         String suggestion = aiAnalysisService.generateCoaching(contents, analyses);
         Map<String, Object> result = Map.of("suggestion", suggestion, "diaryCount", recent.size());
 
         try {
             redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(result), Duration.ofMinutes(15));
-        } catch (Exception e) {
-            log.debug("Coaching cache write failed");
-        }
+        } catch (Exception e) { log.debug("Coaching cache write failed"); }
         return result;
     }
 
@@ -986,15 +896,15 @@ public class DiaryService {
         List<DiaryEntity> todayPublic = diaryMapper.selectList(
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
-                        .ge(DiaryEntity::getCreatedAt, LocalDate.now().atStartOfDay()));
+                        .ge(DiaryEntity::getCreatedAt, LocalDate.now().atStartOfDay())
+        );
         todayPublic = filterHidden(todayPublic, currentUser().getId());
         List<String> moods = new ArrayList<>();
         Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
                 todayPublic.stream().map(DiaryEntity::getId).toList());
         for (DiaryEntity d : todayPublic) {
             DiaryAnalysisEntity a = analysisMap.get(d.getId());
-            if (a != null)
-                moods.add(a.getMoodLabel());
+            if (a != null) moods.add(a.getMoodLabel());
         }
         return aiAnalysisService.communityMood(moods);
     }
@@ -1015,8 +925,7 @@ public class DiaryService {
         r.setDiaryId(diaryId);
         r.setUserId(actor.getId());
         r.setMessage(message != null && message.length() > 200
-                ? message.substring(0, 200)
-                : message);
+                ? message.substring(0, 200) : message);
         diaryResonanceMapper.insert(r);
 
         diary.setResonanceCount(diary.getResonanceCount() + 1);
@@ -1038,11 +947,9 @@ public class DiaryService {
     }
 
     private Long resolveRootId(long diaryId, Long parentCommentId) {
-        if (parentCommentId == null)
-            return null;
+        if (parentCommentId == null) return null;
         DiaryCommentEntity parent = diaryCommentMapper.selectById(parentCommentId);
-        if (parent == null || !parent.getDiaryId().equals(diaryId))
-            return null;
+        if (parent == null || !parent.getDiaryId().equals(diaryId)) return null;
         return parent.getRootCommentId() != null ? parent.getRootCommentId() : parent.getId();
     }
 
@@ -1089,8 +996,7 @@ public class DiaryService {
     }
 
     private int similarityScore(DiaryAnalysisEntity sourceAnalysis, DiaryAnalysisEntity targetAnalysis) {
-        if (sourceAnalysis == null || targetAnalysis == null)
-            return 0;
+        if (sourceAnalysis == null || targetAnalysis == null) return 0;
         int score = 0;
         if (sourceAnalysis.getMoodLabel().equals(targetAnalysis.getMoodLabel())) {
             score += 10;

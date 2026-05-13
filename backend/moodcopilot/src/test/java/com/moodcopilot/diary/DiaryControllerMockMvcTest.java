@@ -17,6 +17,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -59,6 +60,7 @@ class DiaryControllerMockMvcTest {
                 .andExpect(jsonPath("$.data.analysis.moodLabel").value("疲惫"));
 
         verify(diaryService).create(any(CreateDiaryRequest.class));
+        verify(diaryService).runAiAnalysis(eq(1L), eq(1L), eq("今天很累"));
     }
 
     @Test
@@ -224,4 +226,3 @@ class DiaryControllerMockMvcTest {
         );
     }
 }
-
