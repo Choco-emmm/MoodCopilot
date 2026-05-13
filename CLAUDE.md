@@ -77,7 +77,7 @@ src/main/java/com/moodcopilot/
 │                    DiaryCommentEntity、DiaryResonanceEntity、NotificationEntity、FollowEntity、
 │                    DiarySummaryEntity、ChatConversationEntity、UserProfileMemoryEntity
 ├── health/          HealthController
-├── mapper/          MyBatis-Plus BaseMapper 接口（共 8 个）
+├── mapper/          MyBatis-Plus BaseMapper 接口（共 9 个）
 ├── notification/    NotificationService、NotificationController
 └── security/        JwtTokenProvider、JwtAuthenticationFilter、RateLimitService（AI 调用限流）
 ```
