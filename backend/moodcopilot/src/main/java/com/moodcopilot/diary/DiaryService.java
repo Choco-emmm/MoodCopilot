@@ -150,6 +150,53 @@ public class DiaryService {
         return viewPage;
     }
 
+    public DiarySearchResult searchOwnDiarySummaries(DiarySearchRequest request) {
+        UserEntity user = currentUser();
+        String keyword = request != null && request.keyword() != null ? request.keyword().trim() : null;
+        keyword = keyword != null && !keyword.isBlank() ? keyword : null;
+        LocalDate startDate = request != null ? request.startDate() : null;
+        LocalDate endDate = request != null ? request.endDate() : null;
+
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            return new DiarySearchResult(
+                    keyword,
+                    startDate,
+                    endDate,
+                    0,
+                    List.of(),
+                    "起始日期不能晚于结束日期"
+            );
+        }
+
+        LambdaQueryWrapper<DiaryEntity> query = new LambdaQueryWrapper<DiaryEntity>()
+                .eq(DiaryEntity::getAuthorUserId, user.getId())
+                .orderByDesc(DiaryEntity::getCreatedAt)
+                .last("LIMIT 20");
+
+        if (keyword != null) {
+            query.like(DiaryEntity::getContent, keyword);
+        }
+        if (startDate != null) {
+            query.ge(DiaryEntity::getCreatedAt, startDate.atStartOfDay());
+        }
+        if (endDate != null) {
+            query.le(DiaryEntity::getCreatedAt, endDate.atTime(LocalTime.MAX));
+        }
+
+        List<DiarySearchResult.DiarySummary> diaries = diaryMapper.selectList(query).stream()
+                .map(diary -> new DiarySearchResult.DiarySummary(
+                        diary.getCreatedAt().toLocalDate(),
+                        snippet(diary.getContent())
+                ))
+                .toList();
+
+        String note = diaries.isEmpty()
+                ? "未找到符合条件的历史日记"
+                : "已返回最多 20 条按时间倒序排列的历史日记摘要";
+
+        return new DiarySearchResult(keyword, startDate, endDate, diaries.size(), diaries, note);
+    }
+
     public Page<DiaryView> publicDiaries(int page, int size) {
         int cappedPage = Math.max(1, page);
         int cappedSize = Math.min(50, Math.max(1, size));

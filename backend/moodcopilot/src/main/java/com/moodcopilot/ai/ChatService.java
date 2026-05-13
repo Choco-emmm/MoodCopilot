@@ -104,6 +104,7 @@ public class ChatService {
                 .user(message)
                 .system(s -> s.text(request.context()))
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
+                .functions("diarySearchFunction")
                 .stream()
                 .content();
     }
@@ -115,6 +116,7 @@ public class ChatService {
                 .user(message)
                 .system(s -> s.text(request.context()))
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
+                .functions("diarySearchFunction")
                 .call()
                 .content();
     }
