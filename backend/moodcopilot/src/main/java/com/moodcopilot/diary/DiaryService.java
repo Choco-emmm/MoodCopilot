@@ -631,8 +631,12 @@ public class DiaryService {
                                      boolean isPublic,
                                      Map<Long, DiaryAnalysisEntity> analysisMap,
                                      Map<Long, List<DiaryCommentEntity>> commentMap) {
-        return buildDiaryView(diary, isPublic, analysisMap, commentMap,
-                Map.of(diary.getAuthorUserId(), resolveAuthorAvatar(diary.getAuthorUserId())));
+        String avatar = resolveAuthorAvatar(diary.getAuthorUserId());
+        Map<Long, String> avatarMap = new java.util.HashMap<>();
+        if (avatar != null && !avatar.isBlank()) {
+            avatarMap.put(diary.getAuthorUserId(), avatar);
+        }
+        return buildDiaryView(diary, isPublic, analysisMap, commentMap, avatarMap);
     }
 
     private DiaryView buildDiaryView(DiaryEntity diary,
@@ -670,10 +674,14 @@ public class DiaryService {
                 .distinct()
                 .toList();
         if (authorIds.isEmpty()) return Map.of();
-        return userMapper.selectBatchIds(authorIds).stream()
-                .collect(Collectors.toMap(UserEntity::getId,
-                        user -> normalizeAvatar(user.getAvatar()),
-                        (a, b) -> a));
+        Map<Long, String> result = new java.util.HashMap<>();
+        userMapper.selectBatchIds(authorIds).forEach(user -> {
+            String avatar = normalizeAvatar(user.getAvatar());
+            if (avatar != null && !avatar.isBlank()) {
+                result.put(user.getId(), avatar);
+            }
+        });
+        return result;
     }
 
     private String resolveAuthorAvatar(Long authorUserId) {
@@ -1079,7 +1087,7 @@ public class DiaryService {
                 redisTemplate.delete("report:%d:%d".formatted(userId, offset));
                 redisTemplate.delete("report:monthly:%d:%d".formatted(userId, offset));
             }
-            for (int page = 1; page <= 5; page++) {
+            for (int page = 0; page <= 5; page++) {
                 for (int size : List.of(10, 20, 50)) {
                     redisTemplate.delete("following:%d:%d:%d".formatted(userId, page, size));
                     redisTemplate.delete("public:diaries:%d:%d".formatted(page, size));
