@@ -177,7 +177,7 @@ public class MemoryExtractionService {
     }
 
     private String sanitizeAttributeKey(String raw) {
-        String normalized = normalizeWhitespace(raw).replaceAll("[^\\p{IsHan}\\p{L}\\p{N}_-]", "");
+        String normalized = normalizeWhitespace(raw).replaceAll("[^\\p{Script=Han}\\p{L}\\p{N}_-]", "");
         return truncate(normalized, ATTRIBUTE_KEY_MAX_LENGTH);
     }
 
@@ -211,10 +211,16 @@ public class MemoryExtractionService {
         } catch (Exception e) {
             log.debug("长记忆序列化失败，使用兜底格式: {}", e.getMessage());
             return "{\"attributeKey\":\"%s\",\"attributeValue\":\"%s\"}".formatted(
-                    sanitizeAttributeKey(memory.getAttributeKey()),
-                    sanitizeAttributeValue(memory.getAttributeValue())
+                    escapeJson(sanitizeAttributeKey(memory.getAttributeKey())),
+                    escapeJson(sanitizeAttributeValue(memory.getAttributeValue()))
             );
         }
+    }
+
+    private String escapeJson(String value) {
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"");
     }
 
     record MemoryExtractionResponse(List<MemoryAttribute> attributes) {}

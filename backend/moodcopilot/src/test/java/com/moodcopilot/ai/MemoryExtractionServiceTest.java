@@ -190,6 +190,29 @@ class MemoryExtractionServiceTest {
     }
 
     @Test
+    void buildUserMemoryPromptFallbackStillEscapesQuotes() throws Exception {
+        ObjectMapper brokenObjectMapper = org.mockito.Mockito.mock(ObjectMapper.class);
+        MemoryExtractionService memoryExtractionService = new MemoryExtractionService(
+                analysisChatClient,
+                userProfileMemoryMapper,
+                brokenObjectMapper,
+                DIRECT_TRANSACTION
+        );
+        com.moodcopilot.entity.UserEntity user = new com.moodcopilot.entity.UserEntity();
+        user.setId(9L);
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(user, null));
+        UserProfileMemoryEntity person = new UserProfileMemoryEntity();
+        person.setAttributeKey("关键人物");
+        person.setAttributeValue("他说\"要坚持\"");
+        when(userProfileMemoryMapper.selectList(any())).thenReturn(List.of(person));
+        when(brokenObjectMapper.writeValueAsString(any())).thenThrow(new RuntimeException("serialize fail"));
+
+        String prompt = memoryExtractionService.buildUserMemoryPrompt();
+
+        assertTrue(prompt.contains("\\\"要坚持\\\""));
+    }
+
+    @Test
     void buildUserMemoryPromptRejectsUnauthenticatedUserWithBadRequest() {
         MemoryExtractionService memoryExtractionService = new MemoryExtractionService(
                 analysisChatClient,
