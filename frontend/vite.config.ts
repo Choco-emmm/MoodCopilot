@@ -11,6 +11,10 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       proxy: {
         '/api': apiTarget,
+        '/ws': {
+          target: apiTarget,
+          ws: true,
+        },
       },
     },
     preview: {

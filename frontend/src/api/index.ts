@@ -51,7 +51,6 @@ export const diaryApi = {
   communityMood: () => api.get('/diaries/community-mood'),
   encourageCandidates: (id: number) => api.get(`/diaries/${id}/encourage-candidates`),
   sendEncouragement: (id: number, message: string) => api.post(`/diaries/${id}/resonance`, { message }),
-  hide: (id: number) => api.post(`/diaries/${id}/hide`),
   weeklyReport: (weekOffset = 0) => api.get('/diaries/weekly-report', { params: { weekOffset } }),
   generateWeeklyReport: (weekOffset = 0) => api.post('/diaries/weekly-report/generate', null, { params: { weekOffset } }),
   monthlyReport: (monthOffset = 0) => api.get('/diaries/monthly-report', { params: { monthOffset } }),
@@ -81,6 +80,28 @@ export const notificationApi = {
   list: (page = 1, size = 20) => api.get('/notifications', { params: { page, size } }),
   unreadCount: () => api.get('/notifications/unread-count'),
   markRead: (id: number) => api.put(`/notifications/${id}/read`),
+  wsUrl: (token: string) => {
+    const env = import.meta.env as Record<string, string | undefined>
+    const override = env.VITE_WS_BASE_URL?.trim()
+    if (override) {
+      return `${override.replace(/\/$/, '')}/ws/notifications?token=${encodeURIComponent(token)}`
+    }
+
+    const isLocalHost = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
+    const proxyTarget = env.VITE_API_PROXY_TARGET?.trim()
+    if (isLocalHost && proxyTarget) {
+      try {
+        const target = new URL(proxyTarget)
+        const wsProtocol = target.protocol === 'https:' ? 'wss:' : 'ws:'
+        return `${wsProtocol}//${target.host}/ws/notifications?token=${encodeURIComponent(token)}`
+      } catch {
+        // fallback to same-origin when env is malformed
+      }
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    return `${protocol}://${window.location.host}/ws/notifications?token=${encodeURIComponent(token)}`
+  },
 }
 
 export const authApi = {

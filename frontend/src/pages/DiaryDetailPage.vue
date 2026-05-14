@@ -14,9 +14,13 @@
               {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
             </n-tag>
             <n-button v-if="!isOwner" size="tiny" text @click="reportDiary">举报</n-button>
-            <n-button v-if="!isOwner" size="tiny" text @click="hideDiary">隐藏</n-button>
           </div>
           <p class="diary-content">{{ diary.content }}</p>
+          <div class="detail-actions">
+            <n-button size="small" tertiary :disabled="resonating" @click="resonateDiary">
+              👍 {{ diary.resonanceCount ?? 0 }}
+            </n-button>
+          </div>
         </div>
 
         <!-- 本人的 AI 分析 -->
@@ -97,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NInput, NTag, NEmpty } from 'naive-ui'
 import { diaryApi, reportApi } from '../api'
@@ -116,11 +120,17 @@ const commentDraft = ref('')
 const replyDraft = ref('')
 const replyTo = ref<number | null>(null)
 const sending = ref(false)
+const resonating = ref(false)
 
 const isOwner = computed(() => auth.userId != null && diary.value != null && auth.userId === diary.value.authorUserId)
 
-onMounted(async () => {
+async function loadDiaryByRoute() {
   const id = Number(route.params.id)
+  if (!Number.isFinite(id)) {
+    diary.value = null
+    return
+  }
+
   try {
     const res = await diaryApi.get(id)
     diary.value = store.normalize(res.data.data)
@@ -128,6 +138,14 @@ onMounted(async () => {
   } catch {
     diary.value = null
   }
+}
+
+onMounted(async () => {
+  await loadDiaryByRoute()
+})
+
+watch(() => route.params.id, async () => {
+  await loadDiaryByRoute()
 })
 
 async function submitComment(parentId: number | null) {
@@ -144,12 +162,6 @@ async function submitComment(parentId: number | null) {
   sending.value = false
 }
 
-async function hideDiary() {
-  if (!diary.value) return
-  await store.hideDiary(diary.value.id)
-  router.push('/')
-}
-
 async function reportDiary() {
   if (!diary.value) return
   const reason = window.prompt('请简单说明举报原因')
@@ -163,10 +175,19 @@ async function reportComment(commentId: number) {
   await reportApi.create({ targetType: 'COMMENT', targetId: commentId, reason: reason.trim() })
 }
 
+async function resonateDiary() {
+  if (!diary.value || resonating.value) return
+  resonating.value = true
+  try {
+    const res = await diaryApi.resonate(diary.value.id)
+    diary.value = store.normalize(res.data.data)
+  } finally {
+    resonating.value = false
+  }
+}
+
 function selectDiary(d: Diary) {
-  diary.value = store.normalize(d)
-  store.loadSimilar(d.id)
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  void router.push(`/diary/${d.id}`)
 }
 
 function formatTime(value: string) {

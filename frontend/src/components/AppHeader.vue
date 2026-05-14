@@ -129,10 +129,12 @@ const mobileNavItems = computed(() => {
 })
 
 onMounted(() => {
+  notif.connectRealtime()
   void notif.fetchUnreadCount()
 })
 
 function handleLogout() {
+  notif.disconnectRealtime()
   auth.logout()
   router.push('/login')
 }

@@ -300,17 +300,11 @@ export const useDiaryStore = defineStore('diary', () => {
     if (activeDiary.value?.id === id) activeDiary.value = null
   }
 
-  async function hideDiary(id: number) {
-    await diaryApi.hide(id)
-    publicDiaries.value = publicDiaries.value.filter(d => d.id !== id)
-    similarDiaries.value = similarDiaries.value.filter(d => d.id !== id)
-  }
-
   return {
     myDiaries, publicDiaries, activeDiary, similarDiaries, loading, saving, errorMessage,
     analysisStatus, hasMore, weeklyReport, reportLoading, reportError, monthlyReport, monthLoading, monthError,
     fetchDiaries, loadMorePublic, createDiary, loadSimilar, addComment, resonate, sendEncouragement, deleteDiary,
-    hideDiary, refreshAnalysis, deleteComment,
+    refreshAnalysis, deleteComment,
     fetchWeeklyReport, fetchMonthlyReport, generateWeeklyAiSummary, generateMonthlyAiSummary, normalize,
   }
 })

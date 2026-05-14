@@ -9,9 +9,9 @@
 
     <div v-if="diaries.length" class="diary-list">
       <template v-for="diary in diaries" :key="diary.id">
-        <div :class="['my-diary-entry', { 'my-diary-entry-active': activeDiaryId === diary.id }]">
+        <div class="my-diary-entry">
           <button
-            :class="['my-diary', { 'my-diary-active': activeDiaryId === diary.id }]"
+            class="my-diary"
             type="button"
             @click="$emit('select', diary)"
           >
@@ -30,10 +30,6 @@
               @click.stop="$emit('delete', diary)"
             >&times;</button>
           </button>
-
-          <div v-if="activeDiaryId === diary.id" class="my-diary-expanded">
-            <AnalysisBody :diary="diary" />
-          </div>
         </div>
       </template>
     </div>
@@ -42,10 +38,9 @@
 </template>
 
 <script setup lang="ts">
-import AnalysisBody from './AnalysisBody.vue'
 import type { Diary } from '../stores/diary'
 
-defineProps<{ diaries: Diary[]; activeDiaryId?: number | null }>()
+defineProps<{ diaries: Diary[] }>()
 defineEmits<{ select: [diary: Diary]; delete: [diary: Diary] }>()
 
 function formatTime(value: string) {

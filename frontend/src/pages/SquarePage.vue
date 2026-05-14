@@ -30,6 +30,7 @@
       @refresh="store.fetchDiaries()"
       @load-more="store.loadMorePublic()"
       @resonate="(d: Diary) => store.resonate(d.id)"
+      @open-detail="(d: Diary) => router.push(`/diary/${d.id}`)"
       @comment="(d: Diary, c: string, pid?: number) => store.addComment(d.id, c, pid)"
       @delete-comment="(d: Diary, commentId: number) => store.deleteComment(d.id, commentId)"
     />
@@ -38,11 +39,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
 import PublicFeed from '../components/PublicFeed.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { diaryApi } from '../api'
 
+const router = useRouter()
 const store = useDiaryStore()
 const matchDiary = ref<any>(null)
 

@@ -144,12 +144,6 @@ public class DiaryController {
         return ApiResponse.ok(diaryService.resonate(id));
     }
 
-    @PostMapping("/{id}/hide")
-    public ApiResponse<Void> hideDiary(@PathVariable long id) {
-        diaryService.hideDiary(id);
-        return ApiResponse.ok(null);
-    }
-
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteDiary(@PathVariable long id) {
         diaryService.deleteDiary(id);
