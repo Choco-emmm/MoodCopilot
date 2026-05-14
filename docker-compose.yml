@@ -1,4 +1,9 @@
 services:
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    restart: unless-stopped
+    command: tunnel run --token eyJhIjoiZTNkOTc2NmY5NmU3ZjU3NzAwYmY4ODU2NTViMWNhZjYiLCJ0IjoiMzI0ZGZlM2MtMGU2MS00MzA2LThkZGEtMjY3MjRiNjkyZTIwIiwicyI6Ik5UQTROMlpqTldNdFpEZzFaQzAwTUdZeUxUazBORFl0WVRCaU56SXlZV1JpTUdOaCJ9
   mysql:
     image: mysql:8.0
     environment:
