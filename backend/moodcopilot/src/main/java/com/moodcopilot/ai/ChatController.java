@@ -65,7 +65,25 @@ public class ChatController {
         String memoryBackground = memoryExtractionService.buildUserMemoryPrompt();
         log.info("收到流式聊天请求，conversationId={}，messageLength={}，referenceCount={}",
                 id, message == null ? 0 : message.length(), references == null ? 0 : references.size());
-        return chatService.chat(id, message, references, memoryBackground);
+        StringBuilder aiReplyBuffer = new StringBuilder();
+        return chatService.chat(id, message, references, memoryBackground)
+                .doOnNext(chunk -> {
+                    // 流式返回按 chunk 到达，这里先拼完整回复，完成时再统一更新画像。
+                    if (chunk != null && !chunk.isBlank()) {
+                        aiReplyBuffer.append(chunk);
+                    }
+                })
+                .doOnComplete(() -> {
+                    log.info("流式聊天完成，准备触发画像增量更新，conversationId={}，replyLength={}",
+                            id, aiReplyBuffer.length());
+                    try {
+                        memoryExtractionService.extractAndSyncMemoryFromChat(message, references,
+                                aiReplyBuffer.toString());
+                        log.info("流式聊天后画像增量更新已提交，conversationId={}", id);
+                    } catch (Exception e) {
+                        log.warn("聊天后触发长期画像更新失败，conversationId={}，reason={}", id, e.getMessage());
+                    }
+                });
     }
 
     /**
@@ -80,7 +98,16 @@ public class ChatController {
         String memoryBackground = memoryExtractionService.buildUserMemoryPrompt();
         log.info("收到非流式聊天请求，conversationId={}，messageLength={}，referenceCount={}",
                 id, message == null ? 0 : message.length(), references == null ? 0 : references.size());
-        return ApiResponse.ok(chatService.reply(id, message, references, memoryBackground));
+        String reply = chatService.reply(id, message, references, memoryBackground);
+        log.info("非流式聊天完成，准备触发画像增量更新，conversationId={}，replyLength={}",
+                id, reply == null ? 0 : reply.length());
+        try {
+            memoryExtractionService.extractAndSyncMemoryFromChat(message, references, reply);
+            log.info("非流式聊天后画像增量更新已提交，conversationId={}", id);
+        } catch (Exception e) {
+            log.warn("非流式聊天后触发长期画像更新失败，conversationId={}，reason={}", id, e.getMessage());
+        }
+        return ApiResponse.ok(reply);
     }
 
     @GetMapping("/conversations/{id}/history")

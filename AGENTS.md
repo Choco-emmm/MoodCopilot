@@ -15,6 +15,18 @@
 	- 绝对禁止修改系统环境变量或启动脚本。
 	- 如果你的 HTTP 测试请求失败，最多自行修改代码并重试 2 次，如果仍失败，请立即停止动作，直接向老板输出报错日志。
 
+## 代理执行优先级与适用边界（Rules Manifest）
+
+- P0（必须遵守）：直接改代码交付、禁止假设推演、禁止调查报告、禁止测试脚本、多步自我验证禁用、仅允许老板明确要求时做极简 HTTP 验证。
+- P1（默认遵守）：最小改动、中文说明/注释优先、不提交自动生成产物、不回滚无关改动。
+- P2（条件遵守）：当规则冲突时，优先 P0，再 P1，再 P2；无法同时满足时优先保证可运行与可回溯日志。
+
+### 适用边界
+
+- 允许：接口联调改造、前后端同仓修复、缓存/限流/观测性增强、Function Calling 扩展。
+- 不允许：在未获指令时运行 E2E、修改系统环境、重启底层中间件、输出纯分析不落地。
+- 例外：老板明确要求验证时，仅允许最小 HTTP 请求验证并附关键响应日志。
+
 ## 基本协作规则
 
 - 所有说明、提交信息、计划文档和代码注释优先使用中文。
@@ -82,6 +94,17 @@ Vue 3 SPA，api（拦截器+请求）、components（10+UI组件）、pages（10
   - `DiaryService` 在 `addComment`、`resonate`、`deleteComment`、`sendEncouragement`、`runAiAnalysis` 后补全 `evictUserCache`；提取 `evictRelatedUsersCache(actorId, ownerId)` 辅助方法统一跨用户缓存失效。
   - `DailyFollowUpScheduler.calcStreak` 改为一次查询 + Redis 缓存（key: `streak:{userId}:{date}`，TTL 6h），分析加载改为批量 Map，消除每用户 O(N) SQL。
   - `GlobalExceptionHandler` 补全 `ResponseStatusException`、`HttpMessageNotReadableException`、`MethodArgumentNotValidException`、兜底 `Exception` 处理器，所有异常均返回 `ApiResponse<Void>` 统一格式。
+- **聊天触发画像增量更新**（2026-05-15）：
+  - `ChatController` 在流式 `POST /api/chat/conversations/{id}` 完成后，基于拼接后的完整 AI 回复触发画像更新。
+  - `ChatController` 在非流式 `POST /api/chat/conversations/{id}/reply` 成功返回后触发画像更新。
+  - 新入口：`MemoryExtractionService.extractAndSyncMemoryFromChat(userMessage, refs, aiReply)`，复用既有异步提取链路，避免阻塞聊天响应。
+- **聊天画像阈值策略**（2026-05-15）：
+  - 四层阈值顺序：硬门槛 -> 信息量打分 -> 近似去重 -> 冷却窗口。
+  - 硬门槛：短消息/寒暄短句/短回复直接跳过，降低噪声写入。
+  - 打分阈值：长度、长期关键词、引用、回复长度综合打分，`score < 2` 跳过。
+  - 去重：`memory:chat:last-hash:{userId}`（TTL 2h）避免重复对话反复抽取。
+  - 冷却：`memory:chat:update:{userId}`（10 分钟）限制高频更新抖动。
+  - 可观测性：新增统一前缀日志 `memory-chat | skip/pass | reason=...`，便于检索。
 
 ## 运行与链路事实（Windows）
 
