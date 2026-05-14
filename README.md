@@ -30,6 +30,21 @@ docs/                   设计与计划文档
 
 ## 本地启动（Windows）
 
+### 一键启动（推荐）
+
+在仓库根目录执行：
+
+```powershell
+cd D:\Code\MoodCopilot
+npm.cmd run app:start
+```
+
+常用变体：
+
+- 重启：`npm.cmd run app:restart`
+- 诊断：`npm.cmd run app:doctor`
+- 含公网链路：`npm.cmd run public:start`
+
 ### 1. 后端
 
 ```powershell

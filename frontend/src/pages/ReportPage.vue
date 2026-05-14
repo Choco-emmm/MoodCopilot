@@ -213,7 +213,7 @@
             </div>
             <div v-if="s.dailyMoods?.length" class="summary-detail">
               <div class="mood-chart">
-                <div v-for="day in s.dailyMoods" :key="day.date" class="mood-bar-row">
+                <div v-for="(day, index) in s.dailyMoods" :key="day.date + '-' + index" class="mood-bar-row">
                   <span class="mood-date">{{ formatDay(day.date) }}</span>
                   <div class="mood-bar-track">
                     <div class="mood-bar" :style="{ width: (day.moodIntensity / 5) * 100 + '%', background: moodColor(day.moodLabel) }" />
@@ -226,12 +226,12 @@
             <div v-if="s.dailyMoods?.length" class="summary-diary-links">
               <span class="summary-diary-label">相关日记：</span>
               <button
-                v-for="day in s.dailyMoods"
-                :key="day.diaryIds?.[0]"
+                v-for="(day, index) in s.dailyMoods"
+                :key="summaryDiaryKey(day, s, index)"
                 class="diary-link-btn"
-                :title="summaryDiarySnippet(day)"
-                @click="router.push('/diary/' + day.diaryIds?.[0])"
-              >「{{ summaryDiarySnippet(day) }}{{ summaryDiarySnippet(day).length >= 30 ? '...' : '' }}」</button>
+                :title="summaryDiarySnippet(day, s, index)"
+                @click="openSummaryDiary(day, s, index)"
+              >「{{ summaryDiarySnippet(day, s, index) }}{{ summaryDiarySnippet(day, s, index).length >= 30 ? '...' : '' }}」</button>
             </div>
           </article>
         </div>
@@ -363,18 +363,87 @@ async function loadSummaries() {
   } catch { /* ignore */ }
 }
 
-function summaryDiarySnippet(day: any) {
-  const raw = day?.contentSnippet?.trim?.() || diarySnippetMap.value[day?.diaryIds?.[0]] || ''
-  if (!raw) return formatDay(day?.date || '') + '日记'
+function summaryDiarySnippet(day: any, summary?: any, index?: number) {
+  const diaryId = firstDiaryIdFromSummary(day, summary, index)
+  const raw = day?.contentSnippet?.trim?.() || (diaryId ? diarySnippetMap.value[diaryId] : '') || ''
+  if (!raw) return '这篇日记'
   return raw.length > 30 ? raw.slice(0, 30) : raw
+}
+
+function summaryDiaryKey(day: any, summary?: any, index?: number) {
+  const diaryId = firstDiaryIdFromSummary(day, summary, index)
+  return String(`${summary?.id ?? 'summary'}-${index ?? 0}-${diaryId ?? day?.date ?? 'day'}`)
+}
+
+function openSummaryDiary(day: any, summary?: any, index?: number) {
+  const diaryId = firstDiaryIdFromSummary(day, summary, index)
+  if (!diaryId) return
+  router.push('/diary/' + diaryId)
+}
+
+function firstDiaryId(day: any): number | null {
+  const raw = day?.diaryIds ?? day?.diaryId
+  if (Array.isArray(raw)) {
+    const n = Number(raw[0])
+    return Number.isFinite(n) ? n : null
+  }
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) ? raw : null
+  }
+  if (typeof raw === 'string') {
+    const text = raw.trim()
+    if (!text) return null
+    if (text.startsWith('[')) {
+      try {
+        const arr = JSON.parse(text)
+        if (Array.isArray(arr)) {
+          const n = Number(arr[0])
+          return Number.isFinite(n) ? n : null
+        }
+      } catch {
+        // ignore malformed json and continue fallback parse
+      }
+    }
+    const first = text.split(',')[0]
+    const n = Number(first)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+function firstDiaryIdFromSummary(day: any, summary?: any, index?: number): number | null {
+  const idFromDay = firstDiaryId(day)
+  if (idFromDay != null) return idFromDay
+  if (typeof index !== 'number') return null
+
+  const raw = summary?.diaryIds?.[index]
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+  if (typeof raw === 'string') {
+    const text = raw.trim()
+    if (!text) return null
+    if (text.startsWith('[')) {
+      try {
+        const arr = JSON.parse(text)
+        if (Array.isArray(arr)) {
+          const n = Number(arr[0])
+          return Number.isFinite(n) ? n : null
+        }
+      } catch {
+        // ignore malformed json and continue fallback parse
+      }
+    }
+    const n = Number(text.split(',')[0])
+    return Number.isFinite(n) ? n : null
+  }
+  return null
 }
 
 async function backfillSummarySnippets() {
   const ids = Array.from(new Set(
     summaries.value
-      .flatMap((s: any) => s.dailyMoods ?? [])
-      .filter((day: any) => !day?.contentSnippet && day?.diaryIds?.length)
-      .map((day: any) => day.diaryIds[0])
+      .flatMap((s: any) => (s.dailyMoods ?? []).map((day: any, index: number) => ({ s, day, index })))
+      .filter((item: any) => !item.day?.contentSnippet)
+      .map((item: any) => firstDiaryIdFromSummary(item.day, item.s, item.index))
       .filter((id: any) => Number.isFinite(id) && !diarySnippetMap.value[id])
   )) as number[]
 

@@ -3,10 +3,12 @@
     <AppHeader />
     <div class="settings-page mood-surface">
       <section class="settings-hero">
-        <div class="hero-avatar" @click="triggerUpload">
-          <img v-if="auth.avatar" :src="auth.avatar" class="avatar-img" />
-          <span v-else class="avatar-placeholder">{{ auth.displayName?.charAt(0) }}</span>
-          <span class="avatar-edit-tip">更换</span>
+        <div class="hero-avatar-wrap">
+          <button type="button" class="hero-avatar" @click="triggerUpload" aria-label="更换头像">
+            <img v-if="auth.avatar" :src="auth.avatar" class="avatar-img" decoding="async" />
+            <span v-else class="avatar-placeholder">{{ auth.displayName?.charAt(0) }}</span>
+          </button>
+          <button type="button" class="avatar-change-btn" @click="triggerUpload">更换头像</button>
         </div>
         <div class="hero-meta">
           <h2 class="settings-title">个人中心</h2>
@@ -25,13 +27,13 @@
         >
           <canvas ref="cropCanvas" class="crop-canvas"></canvas>
         </div>
-        <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 10px;">
-          <n-button size="small" @click="cropScale = Math.max(0.2, cropScale - 0.1); drawCrop()">−</n-button>
-          <span style="font-size: 13px; color: #666;">缩放</span>
-          <n-button size="small" @click="cropScale = Math.min(5, cropScale + 0.1); drawCrop()">＋</n-button>
+        <div class="crop-zoom-row">
+          <n-button size="small" @click="zoomOut">−</n-button>
+          <span class="crop-zoom-label">缩放</span>
+          <n-button size="small" @click="zoomIn">＋</n-button>
         </div>
         <template #action>
-          <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <div class="crop-action-row">
             <n-button @click="showCropModal = false">取消</n-button>
             <n-button type="primary" :loading="uploading" @click="handleCrop">确定</n-button>
           </div>
@@ -110,7 +112,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { NInput, NButton, NSwitch, NModal } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
@@ -140,6 +142,7 @@ let dragStartX = 0
 let dragStartY = 0
 let lastOffsetX = 0
 let lastOffsetY = 0
+let drawRafId: number | null = null
 
 onMounted(async () => {
   await auth.fetchProfile()
@@ -179,6 +182,24 @@ function loadCropImage() {
     setTimeout(() => drawCrop(), 120)
   }
   img.src = cropImageSrc.value
+}
+
+function scheduleDrawCrop() {
+  if (drawRafId != null) return
+  drawRafId = window.requestAnimationFrame(() => {
+    drawRafId = null
+    drawCrop()
+  })
+}
+
+function zoomOut() {
+  cropScale = Math.max(0.2, cropScale - 0.1)
+  scheduleDrawCrop()
+}
+
+function zoomIn() {
+  cropScale = Math.min(5, cropScale + 0.1)
+  scheduleDrawCrop()
 }
 
 watch(showCropModal, (val) => {
@@ -234,7 +255,7 @@ function onDragMove(e: MouseEvent) {
   if (!dragging) return
   cropOffsetX = lastOffsetX + (e.clientX - dragStartX)
   cropOffsetY = lastOffsetY + (e.clientY - dragStartY)
-  drawCrop()
+  scheduleDrawCrop()
 }
 function onDragEnd() { dragging = false }
 
@@ -251,13 +272,20 @@ function onTouchMove(e: TouchEvent) {
   if (!dragging || e.touches.length !== 1) return
   cropOffsetX = lastOffsetX + (e.touches[0].clientX - dragStartX)
   cropOffsetY = lastOffsetY + (e.touches[0].clientY - dragStartY)
-  drawCrop()
+  scheduleDrawCrop()
 }
 
 function onWheel(e: WheelEvent) {
   cropScale = Math.max(0.2, Math.min(5, cropScale + (e.deltaY > 0 ? -0.1 : 0.1)))
-  drawCrop()
+  scheduleDrawCrop()
 }
+
+onBeforeUnmount(() => {
+  if (drawRafId != null) {
+    window.cancelAnimationFrame(drawRafId)
+    drawRafId = null
+  }
+})
 
 function handleCrop() {
   if (!cropImg) return
@@ -349,10 +377,17 @@ function handleLogout() {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
+.hero-avatar-wrap {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
 .hero-avatar {
   position: relative;
   width: 84px;
   height: 84px;
+  padding: 0;
   border-radius: 999px;
   border: 2px solid rgba(67, 102, 76, 0.28);
   background: #eff3ec;
@@ -361,6 +396,12 @@ function handleLogout() {
   place-items: center;
   overflow: hidden;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hero-avatar:focus-visible,
+.avatar-change-btn:focus-visible {
+  outline: 2px solid #4a745c;
+  outline-offset: 2px;
 }
 
 .hero-avatar:hover {
@@ -380,18 +421,22 @@ function handleLogout() {
   color: #335444;
 }
 
-.avatar-edit-tip {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  transform: translate(8%, 14%);
+.avatar-change-btn {
+  border: 1px solid rgba(73, 108, 88, 0.35);
+  background: #f4faf6;
+  color: #3e6250;
   font-size: 12px;
   font-weight: 700;
-  color: #f5f7f5;
-  background: #496c58;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.64);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.avatar-change-btn:hover {
+  background: #ebf4ee;
+  border-color: rgba(73, 108, 88, 0.5);
+  color: #2f5442;
 }
 
 .hero-meta {
@@ -426,6 +471,8 @@ function handleLogout() {
   background: #ffffff;
   border: 1px solid rgba(162, 142, 123, 0.2);
   box-shadow: 0 10px 24px rgba(94, 70, 50, 0.08);
+  content-visibility: auto;
+  contain-intrinsic-size: 180px;
 }
 
 .settings-shortcuts {
@@ -446,6 +493,8 @@ function handleLogout() {
   border: 1px solid rgba(122, 144, 128, 0.24);
   box-shadow: 0 8px 20px rgba(70, 88, 75, 0.08);
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  content-visibility: auto;
+  contain-intrinsic-size: 120px;
 }
 
 .shortcut-card:hover {
@@ -576,6 +625,11 @@ function handleLogout() {
     height: 70px;
   }
 
+  .avatar-change-btn {
+    font-size: 11px;
+    padding: 2px 9px;
+  }
+
   .avatar-placeholder {
     font-size: 28px;
   }
@@ -622,5 +676,24 @@ function handleLogout() {
 .crop-canvas {
   display: block;
   border-radius: 4px;
+}
+
+.crop-zoom-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.crop-zoom-label {
+  font-size: 13px;
+  color: #666;
+}
+
+.crop-action-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 </style>

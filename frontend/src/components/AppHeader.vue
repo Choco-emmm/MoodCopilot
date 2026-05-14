@@ -62,7 +62,7 @@
             </div>
           </n-popover>
           <router-link to="/settings" class="masthead-user-link">
-            <img v-if="auth.avatar" :src="auth.avatar" class="avatar-sm-nav avatar-sm-nav-img" />
+            <img v-if="auth.avatar" :src="auth.avatar" class="avatar-sm-nav avatar-sm-nav-img" decoding="async" />
             <span v-else class="avatar-sm-nav">{{ auth.displayName?.charAt(0) }}</span>
             <span class="masthead-user-name">{{ auth.displayName }}</span>
             <span class="user-link-arrow">›</span>
