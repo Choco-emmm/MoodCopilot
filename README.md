@@ -64,6 +64,39 @@ docker compose ps
 docker compose logs -f backend
 ```
 
+### 一键更新（推荐）
+
+仓库已提供根目录脚本 `deploy.sh`，用于“拉代码 + 后端打包 + 容器重建 + 日志检查”。
+
+在云服务器执行：
+
+```bash
+cd /opt/moodcopilot
+chmod +x deploy.sh
+./deploy.sh
+```
+
+日常发布同步建议：
+
+1. 本地提交并推送：`git push`
+2. 云服务器进入项目目录并拉取：`git pull`
+3. 执行一键脚本：`./deploy.sh`
+
+仅更新前端时可用：
+
+```bash
+docker compose up -d --build frontend
+```
+
+仅更新后端时可用：
+
+```bash
+cd backend/moodcopilot
+./mvnw -DskipTests clean package
+cd ../../
+docker compose up -d --build backend
+```
+
 安全建议：
 
 - 云厂商安全组仅放行 `80/443`。
