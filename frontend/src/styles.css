@@ -775,6 +775,8 @@ h2 {
   border-radius: var(--radius-md);
   background: var(--color-surface);
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  content-visibility: auto;
+  contain-intrinsic-size: 320px;
 }
 
 .feed-item:hover {
@@ -864,6 +866,8 @@ h2 {
 /* ── Comments ── */
 .comments {
   padding-top: 2px;
+  display: grid;
+  gap: 8px;
 }
 
 .comment-text {
@@ -894,6 +898,19 @@ h2 {
 .comment-foot {
   display: flex;
   justify-content: flex-end;
+  gap: 6px;
+}
+
+.comment-foot .n-button {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  border-radius: 999px;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.comment-foot .n-button:hover {
+  background: rgba(73, 108, 88, 0.1);
+  color: var(--color-text);
 }
 
 .comments p {
@@ -909,7 +926,9 @@ h2 {
 
 .comment-thread {
   display: grid;
-  gap: 6px;
+  gap: 7px;
+  content-visibility: auto;
+  contain-intrinsic-size: 130px;
 }
 
 .comment-main {
@@ -918,6 +937,11 @@ h2 {
   padding: 9px 10px;
   border-radius: var(--radius-md);
   background: var(--color-jade-light);
+}
+
+.comment-main .comment-body,
+.reply-item .comment-body {
+  color: var(--color-text);
 }
 
 .comment-replies {
@@ -932,6 +956,7 @@ h2 {
   padding: 8px 10px;
   border-radius: var(--radius-md);
   background: var(--color-surface-hover);
+  border: 1px solid rgba(122, 144, 128, 0.16);
 }
 
 .reply-to {
@@ -941,6 +966,23 @@ h2 {
 
 .comment-box .n-input {
   flex: 1;
+}
+
+.comment-box .n-button,
+.comment-reply-box .n-button {
+  min-width: 72px;
+  height: 36px;
+  font-weight: 600;
+}
+
+.feed-item .comment-box-main {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.feed-item .comment-box-reply {
+  margin-top: 4px;
 }
 
 /* ── Notifications ── */

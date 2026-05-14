@@ -15,7 +15,7 @@
             type="button"
             @click="$emit('select', diary)"
           >
-            <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-sm avatar-img" />
+            <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-sm avatar-img" loading="lazy" decoding="async" />
             <span v-else class="avatar avatar-sm">{{ diary.authorName.charAt(0) }}</span>
             <span class="my-diary-info">
               <strong class="my-diary-content">{{ diary.content }}</strong>

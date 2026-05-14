@@ -2,7 +2,7 @@
   <article class="feed-item">
     <div class="feed-head">
       <div class="feed-head-left">
-        <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-img" />
+        <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-img" loading="lazy" decoding="async" />
         <span v-else class="avatar">{{ diary.authorName.charAt(0) }}</span>
         <div>
           <div class="author-row">
@@ -64,11 +64,11 @@
             <n-button size="tiny" text @click="reportComment(comment.id)">举报</n-button>
           </div>
         </div>
-        <div v-if="replyTo === comment.id" class="comment-box">
+        <div v-if="replyTo === comment.id" class="comment-box comment-box-reply">
           <n-input
             v-model:value="replyDraft"
             size="small"
-            placeholder="回复 {{ comment.authorName }}..."
+            :placeholder="`回复 ${comment.authorName}...`"
             @keyup.enter="submitReply(comment.id)"
           />
           <n-button size="small" type="primary" :disabled="!replyDraft.trim()" @click="submitReply(comment.id)">
@@ -88,7 +88,7 @@
       </div>
     </div>
 
-    <div class="comment-box">
+    <div v-if="replyTo === null" class="comment-box comment-box-main">
       <n-input
         v-model:value="draft"
         size="small"

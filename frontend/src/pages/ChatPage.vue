@@ -58,17 +58,27 @@
         </div>
 
         <div class="chat-input-area">
+          <div v-if="lastReplyError" class="chat-reply-error-bar">
+            <span>{{ lastReplyError }}</span>
+            <n-button size="tiny" text type="primary" :disabled="streaming || !lastReplyRequest" @click="retryLastReply">
+              重试回复
+            </n-button>
+          </div>
           <ReferenceBar
             :items="references"
             :recent-diaries="recentDiaryOptions"
+            :loading="recentDiariesLoading"
+            :error-message="recentDiariesError"
             @remove="removeRef"
             @add="addDiaryRef"
+            @retry="loadRecentDiaryOptions"
           />
           <div class="chat-input-row">
             <n-input
               v-model:value="draft"
               placeholder="聊聊你今天的心情..."
               :disabled="streaming || !activeConvId"
+              :maxlength="500"
               clearable
               @keyup.enter="send"
             />
@@ -101,6 +111,12 @@ interface Conversation {
   title: string
 }
 
+interface ChatReference {
+  label: string
+  content: string
+  diaryId?: number
+}
+
 function renderMd(text: string) {
   const html = marked.parse(text, { async: false }) as string
   return DOMPurify.sanitize(html, {
@@ -121,8 +137,12 @@ const draft = ref('')
 const streaming = ref(false)
 const streamingText = ref('')
 const msgBox = ref<HTMLElement | null>(null)
-const references = ref<{ label: string; content: string }[]>([])
+const references = ref<ChatReference[]>([])
 const recentDiaryOptions = ref<{ id: number; date: string; snippet: string }[]>([])
+const recentDiariesLoading = ref(false)
+const recentDiariesError = ref<string | null>(null)
+const lastReplyError = ref<string | null>(null)
+const lastReplyRequest = ref<{ convId: number; content: string; refContents: string[] } | null>(null)
 
 onMounted(async () => {
   const state = history.state as any
@@ -204,14 +224,19 @@ async function deleteConversation(id: number) {
 }
 
 function saveToBackend(convId: number) {
-  chatApi.saveHistory(convId, messages.value).catch(() => {})
+  chatApi.saveHistory(convId, messages.value).catch((error) => {
+    console.warn('[chat] 保存历史失败', { convId, error })
+  })
 }
 
 async function loadFromBackend(convId: number): Promise<Message[]> {
   try {
     const res = await chatApi.getHistory(convId)
     return res.data.data ?? []
-  } catch { return [] }
+  } catch (error) {
+    console.warn('[chat] 读取历史失败', { convId, error })
+    return []
+  }
 }
 
 async function send() {
@@ -219,6 +244,8 @@ async function send() {
   const convId = activeConvId.value
   if (!content || streaming.value || !convId) return
 
+  lastReplyError.value = null
+  lastReplyRequest.value = null
   messages.value.push({ role: 'user', content })
   saveToBackend(convId)
   draft.value = ''
@@ -233,16 +260,39 @@ async function send() {
   }
 
   const refContents = references.value.slice(0, 2).map(r => r.content.slice(0, 120))
-  await sendReply(convId, content, refContents)
+  await sendReply(convId, content, refContents, false)
 }
 
-async function sendReply(convId: number, content: string, refContents: string[]) {
+async function retryLastReply() {
+  if (!lastReplyRequest.value || streaming.value) return
+  const { convId, content, refContents } = lastReplyRequest.value
+  if (activeConvId.value !== convId) {
+    lastReplyError.value = '会话已切换，请在当前会话重新发送。'
+    return
+  }
+  streaming.value = true
+  streamingText.value = ''
+  await sendReply(convId, content, refContents, true)
+}
+
+async function sendReply(convId: number, content: string, refContents: string[], isRetry: boolean) {
   try {
     const res = await chatApi.reply(convId, content, refContents)
-    const reply = res.data.data || '我刚才没有组织好语言，你可以再说一遍吗？'
+    if (res.data?.code !== 0) {
+      throw new Error(res.data?.message || '请求失败')
+    }
+    const reply = String(res.data?.data ?? '').trim() || '我刚才没有组织好语言，你可以再说一遍吗？'
+    lastReplyError.value = null
+    lastReplyRequest.value = null
     messages.value.push({ role: 'ai', content: reply })
   } catch (e: any) {
-    messages.value.push({ role: 'ai', content: chatErrorMessage(e?.response?.status) })
+    const bizMessage = e?.response?.data?.message || e?.message
+    const errorText = chatErrorMessage(e?.response?.status, bizMessage)
+    lastReplyError.value = errorText
+    lastReplyRequest.value = { convId, content, refContents }
+    if (!isRetry) {
+      messages.value.push({ role: 'ai', content: errorText })
+    }
   } finally {
     finishSend(convId)
   }
@@ -269,18 +319,20 @@ function removeRef(index: number) {
 
 function addDiaryRef(diaryId: string) {
   const d = recentDiaryOptions.value.find(o => String(o.id) === diaryId)
-  if (d && !references.value.some(r => r.content === d.snippet.slice(0, 120))) {
-    references.value.push({ label: '日记 · ' + d.date, content: d.snippet.slice(0, 120) })
+  if (d && !references.value.some(r => r.diaryId === d.id)) {
+    references.value.push({ label: '日记 · ' + d.date, content: d.snippet.slice(0, 120), diaryId: d.id })
   }
 }
 
 async function loadRecentDiaryOptions() {
+  recentDiariesLoading.value = true
+  recentDiariesError.value = null
   try {
     const options: { id: number; date: string; snippet: string }[] = []
-    
+
     // 加载最近的日记
     try {
-      const res = await diaryApi.mine()
+      const res = await diaryApi.mine(1, 20)
       const data = res.data.data || []
       const diaries = (Array.isArray(data) ? data : data.items ?? []) as any[]
       diaries.slice(0, 20).forEach((d: any) => {
@@ -291,18 +343,39 @@ async function loadRecentDiaryOptions() {
         })
       })
     } catch (e) {
-      // 忽略日记加载失败
+      recentDiariesError.value = '加载最近日记失败'
+      console.warn('[chat] 加载引用日记失败', e)
     }
-    
+
     recentDiaryOptions.value = options
   } catch {
     recentDiaryOptions.value = []
+    recentDiariesError.value = '加载最近日记失败'
+  } finally {
+    recentDiariesLoading.value = false
   }
 }
 
-function chatErrorMessage(status?: number) {
+function chatErrorMessage(status?: number, bizMessage?: string) {
+  if (bizMessage) return bizMessage
   if (status === 429) return '今天的 AI 聊天次数先用完了，明天再继续聊。'
   if (status === 401 || status === 403) return '登录状态过期了，请重新登录后再试。'
   return '抱歉，我暂时无法回复，请稍后再试。'
 }
 </script>
+
+<style scoped>
+.chat-reply-error-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: #fff4f4;
+  border: 1px solid #ffd7d7;
+  color: #9a3030;
+  font-size: 13px;
+}
+</style>
