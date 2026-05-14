@@ -7,7 +7,7 @@
       </div>
     </div>
 
-    <div v-if="diaries.length" class="mini-feed">
+    <div v-if="diaries.length" class="mini-feed similar-feed">
       <button
         v-for="diary in diaries"
         :key="diary.id"
@@ -35,3 +35,35 @@ function formatTime(value: string) {
   }).format(new Date(value))
 }
 </script>
+
+<style scoped>
+article.panel {
+  padding: 24px;
+  display: grid;
+  gap: 20px;
+}
+.section-title {
+  margin-bottom: 0;
+}
+.similar-feed {
+  gap: 16px;
+}
+.similar-item {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: 10px;
+}
+.similar-item span {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.similar-item strong {
+  font-size: 14px;
+  line-height: 1.65;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+</style>
