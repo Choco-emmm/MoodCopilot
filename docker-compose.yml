@@ -4,8 +4,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
       MYSQL_DATABASE: mood_copilot_db
-    ports:
-      - "3307:3306"
+    expose:
+      - "3306"
     volumes:
       - mysql_data:/var/lib/mysql
     deploy:
@@ -13,6 +13,8 @@ services:
         limits:
           memory: 512M
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     command: >
       --innodb-buffer-pool-size=128M
       --max-connections=50
@@ -25,13 +27,15 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
     deploy:
       resources:
         limits:
           memory: 128M
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -39,8 +43,8 @@ services:
 
   backend:
     build: ./backend/moodcopilot
-    ports:
-      - "18080:18080"
+    expose:
+      - "18080"
     environment:
       SPRING_PROFILES_ACTIVE: docker
       DB_HOST: mysql
@@ -60,6 +64,8 @@ services:
           cpus: '0.5'
           memory: 256M
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       mysql:
         condition: service_healthy
@@ -71,6 +77,8 @@ services:
     ports:
       - "80:80"
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       - backend
 
