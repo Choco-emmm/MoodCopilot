@@ -7,7 +7,7 @@
       <aside class="chat-sidebar">
         <div class="sidebar-head">
           <span class="sidebar-title">对话</span>
-          <n-button size="tiny" text type="primary" @click="createConversation">+ 新建</n-button>
+          <n-button size="tiny" text type="primary" :disabled="creatingConversation" @click="createConversation">+ 新建</n-button>
         </div>
         <div class="conv-list">
           <div
@@ -37,6 +37,30 @@
           </div>
         </div>
 
+        <div class="chat-mobile-conv">
+          <select
+            class="chat-mobile-conv-select"
+            :value="activeConvId ?? ''"
+            @change="handleMobileConversationChange"
+          >
+            <option
+              v-for="conv in conversations"
+              :key="conv.id"
+              :value="conv.id"
+            >
+              {{ conv.title || `对话 ${conv.id}` }}
+            </option>
+          </select>
+          <n-button
+            size="small"
+            tertiary
+            type="error"
+            :disabled="!activeConvId"
+            @click="deleteActiveConversation"
+          >删除</n-button>
+          <n-button size="small" type="primary" :disabled="creatingConversation" @click="createConversation">新建</n-button>
+        </div>
+
         <div class="chat-messages" ref="msgBox">
           <div v-if="messages.length === 0" class="chat-empty">
             跟我说说今天怎么样吧～
@@ -48,7 +72,14 @@
             :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
           >
             <div v-if="msg.role === 'ai'" class="md-content" v-html="renderMd(msg.content)" />
-            <p v-else>{{ msg.content }}</p>
+            <template v-else>
+              <p>{{ msg.content }}</p>
+              <ul v-if="msg.references?.length" class="chat-user-refs">
+                <li v-for="(refText, refIndex) in msg.references" :key="`${i}-ref-${refIndex}`">
+                  引用：{{ refText }}
+                </li>
+              </ul>
+            </template>
           </div>
 
           <div v-if="streaming" class="chat-bubble chat-ai">
@@ -57,7 +88,7 @@
           </div>
         </div>
 
-        <div class="chat-input-area">
+        <div ref="chatInputArea" class="chat-input-area">
           <div v-if="lastReplyError" class="chat-reply-error-bar">
             <span>{{ lastReplyError }}</span>
             <n-button size="tiny" text type="primary" :disabled="streaming || !lastReplyRequest" @click="retryLastReply">
@@ -77,12 +108,13 @@
             <n-input
               v-model:value="draft"
               placeholder="聊聊你今天的心情..."
-              :disabled="streaming || !activeConvId"
+              :disabled="streaming || creatingConversation || !activeConvId"
               :maxlength="500"
               clearable
-              @keyup.enter="send"
+              @focus="handleDraftFocus"
+              @keydown.enter.prevent="handleDraftEnter"
             />
-            <n-button type="primary" :disabled="!draft.trim() || streaming || !activeConvId" @click="send">
+            <n-button type="primary" :disabled="!draft.trim() || streaming || creatingConversation || !activeConvId" @click="send">
               {{ streaming ? '发送中' : '发送' }}
             </n-button>
           </div>
@@ -93,7 +125,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { NButton, NInput } from 'naive-ui'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -104,6 +136,7 @@ import { chatApi, diaryApi } from '../api'
 interface Message {
   role: 'user' | 'ai'
   content: string
+  references?: string[]
 }
 
 interface Conversation {
@@ -137,12 +170,17 @@ const draft = ref('')
 const streaming = ref(false)
 const streamingText = ref('')
 const msgBox = ref<HTMLElement | null>(null)
+const chatInputArea = ref<HTMLElement | null>(null)
 const references = ref<ChatReference[]>([])
 const recentDiaryOptions = ref<{ id: number; date: string; snippet: string }[]>([])
 const recentDiariesLoading = ref(false)
 const recentDiariesError = ref<string | null>(null)
 const lastReplyError = ref<string | null>(null)
 const lastReplyRequest = ref<{ convId: number; content: string; refContents: string[] } | null>(null)
+const viewportBaseHeight = ref(0)
+const creatingConversation = ref(false)
+let syncTimer: number | null = null
+let convListSyncTick = 0
 
 onMounted(async () => {
   const state = history.state as any
@@ -171,12 +209,41 @@ onMounted(async () => {
     await nextTick()
     send()
   }
+
+  if (window.visualViewport) {
+    viewportBaseHeight.value = Math.max(window.visualViewport.height, window.innerHeight)
+    updateMobileKeyboardState()
+    window.visualViewport.addEventListener('resize', handleViewportResize)
+  }
+
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  window.addEventListener('focus', handleWindowFocus)
+  startAutoSync()
+})
+
+onBeforeUnmount(() => {
+  if (window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', handleViewportResize)
+  }
+  stopAutoSync()
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  window.removeEventListener('focus', handleWindowFocus)
+  document.body.classList.remove('chat-keyboard-open')
 })
 
 async function loadConversations() {
   try {
     const res = await chatApi.listConversations()
     conversations.value = (res.data.data || []) as Conversation[]
+    const currentId = activeConvId.value
+    if (currentId && !conversations.value.some(conv => conv.id === currentId)) {
+      if (conversations.value.length > 0) {
+        await selectConversation(conversations.value[0].id)
+      } else {
+        activeConvId.value = null
+        messages.value = []
+      }
+    }
   } catch { conversations.value = [] }
 }
 
@@ -192,18 +259,102 @@ async function selectConversation(id: number) {
   scrollBottom()
 }
 
-async function createConversation() {
+function startAutoSync() {
+  stopAutoSync()
+  syncTimer = window.setInterval(() => {
+    syncFromServer(false)
+  }, 3500)
+}
+
+function stopAutoSync() {
+  if (syncTimer != null) {
+    window.clearInterval(syncTimer)
+    syncTimer = null
+  }
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    startAutoSync()
+    syncFromServer(true)
+    return
+  }
+  stopAutoSync()
+}
+
+function handleWindowFocus() {
+  syncFromServer(true)
+}
+
+async function syncFromServer(forceScroll: boolean) {
+  const convId = activeConvId.value
+  if (!convId || streaming.value || creatingConversation.value || document.visibilityState !== 'visible') return
+
   try {
-    const res = await chatApi.createConversation()
-    const conv = res.data.data as Conversation
-    conversations.value.unshift(conv)
-    // 保存当前会话消息
+    const latest = await loadFromBackend(convId)
+    const current = messages.value
+    const changed = !isSameMessageList(current, latest)
+    const keepStickBottom = isNearBottom(msgBox.value)
+    if (changed) {
+      messages.value = latest
+      await nextTick()
+      if (forceScroll || keepStickBottom) {
+        scrollBottom()
+      }
+    }
+
+    convListSyncTick += 1
+    if (convListSyncTick % 3 === 0) {
+      await loadConversations()
+    }
+  } catch {
+    // ignore sync failures to avoid interrupting user input
+  }
+}
+
+function isSameMessageList(a: Message[], b: Message[]) {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i]
+    const right = b[i]
+    if (left.role !== right.role) return false
+    if (left.content !== right.content) return false
+    const leftRefs = left.references ?? []
+    const rightRefs = right.references ?? []
+    if (leftRefs.length !== rightRefs.length) return false
+    for (let j = 0; j < leftRefs.length; j += 1) {
+      if (leftRefs[j] !== rightRefs[j]) return false
+    }
+  }
+  return true
+}
+
+function isNearBottom(el: HTMLElement | null) {
+  if (!el) return true
+  const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+  return distance < 64
+}
+
+async function createConversation() {
+  if (creatingConversation.value) return
+  creatingConversation.value = true
+  try {
+    // 避免用户在会话创建尚未完成时把第一条消息发到旧会话里。
     if (activeConvId.value && messages.value.length > 0) {
       saveToBackend(activeConvId.value)
     }
+    activeConvId.value = null
+    messages.value = []
+
+    const res = await chatApi.createConversation()
+    const conv = res.data.data as Conversation
+    conversations.value.unshift(conv)
     activeConvId.value = conv.id
     messages.value = []
   } catch { /* ignore */ }
+  finally {
+    creatingConversation.value = false
+  }
 }
 
 async function deleteConversation(id: number) {
@@ -232,21 +383,62 @@ function saveToBackend(convId: number) {
 async function loadFromBackend(convId: number): Promise<Message[]> {
   try {
     const res = await chatApi.getHistory(convId)
-    return res.data.data ?? []
+    return normalizeHistoryMessages(res.data.data)
   } catch (error) {
     console.warn('[chat] 读取历史失败', { convId, error })
     return []
   }
 }
 
+function normalizeHistoryMessages(raw: any): Message[] {
+  if (!Array.isArray(raw)) return []
+
+  return raw
+    .map((item: any): Message | null => {
+      if (!item) return null
+      if (typeof item === 'string') {
+        return { role: 'ai', content: item }
+      }
+
+      const content = String(item.content ?? item.message ?? item.text ?? '').trim()
+      if (!content) return null
+
+      const refsRaw = Array.isArray(item.references)
+        ? item.references
+        : Array.isArray(item.refs)
+          ? item.refs
+          : []
+
+      const references = refsRaw
+        .map((v: any) => String(v ?? '').trim())
+        .filter(Boolean)
+        .slice(0, 2)
+
+      return {
+        role: normalizeMessageRole(item.role),
+        content,
+        references: references.length ? references : undefined,
+      }
+    })
+    .filter((msg): msg is Message => msg != null)
+}
+
+function normalizeMessageRole(rawRole: any): 'user' | 'ai' {
+  const normalized = String(rawRole ?? '').trim().toLowerCase()
+  if (normalized === 'user' || normalized === 'human') return 'user'
+  if (normalized === 'assistant' || normalized === 'ai' || normalized === 'bot' || normalized === 'system') return 'ai'
+  return 'ai'
+}
+
 async function send() {
   const content = draft.value.trim()
   const convId = activeConvId.value
-  if (!content || streaming.value || !convId) return
+  if (!content || streaming.value || creatingConversation.value || !convId) return
 
   lastReplyError.value = null
   lastReplyRequest.value = null
-  messages.value.push({ role: 'user', content })
+  const refContents = references.value.slice(0, 2).map(r => r.content.slice(0, 120))
+  messages.value.push({ role: 'user', content, references: refContents.length ? refContents : undefined })
   saveToBackend(convId)
   draft.value = ''
   streaming.value = true
@@ -259,7 +451,6 @@ async function send() {
     return
   }
 
-  const refContents = references.value.slice(0, 2).map(r => r.content.slice(0, 120))
   await sendReply(convId, content, refContents, false)
 }
 
@@ -282,16 +473,22 @@ async function sendReply(convId: number, content: string, refContents: string[],
       throw new Error(res.data?.message || '请求失败')
     }
     const reply = String(res.data?.data ?? '').trim() || '我刚才没有组织好语言，你可以再说一遍吗？'
+    // 会话切换后，旧请求返回不应再写入当前会话消息。
+    if (activeConvId.value !== convId) {
+      return
+    }
     lastReplyError.value = null
     lastReplyRequest.value = null
     messages.value.push({ role: 'ai', content: reply })
   } catch (e: any) {
     const bizMessage = e?.response?.data?.message || e?.message
     const errorText = chatErrorMessage(e?.response?.status, bizMessage)
-    lastReplyError.value = errorText
-    lastReplyRequest.value = { convId, content, refContents }
-    if (!isRetry) {
-      messages.value.push({ role: 'ai', content: errorText })
+    if (activeConvId.value === convId) {
+      lastReplyError.value = errorText
+      lastReplyRequest.value = { convId, content, refContents }
+      if (!isRetry) {
+        messages.value.push({ role: 'ai', content: errorText })
+      }
     }
   } finally {
     finishSend(convId)
@@ -311,6 +508,53 @@ function scrollBottom() {
   if (msgBox.value) {
     msgBox.value.scrollTop = msgBox.value.scrollHeight
   }
+}
+
+function ensureInputVisible(behavior: ScrollBehavior = 'smooth') {
+  window.requestAnimationFrame(() => {
+    chatInputArea.value?.scrollIntoView({ behavior, block: 'end' })
+    scrollBottom()
+  })
+}
+
+function handleDraftFocus() {
+  ensureInputVisible('auto')
+}
+
+function handleViewportResize() {
+  updateMobileKeyboardState()
+  if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+    ensureInputVisible('auto')
+  }
+}
+
+function handleMobileConversationChange(event: Event) {
+  const target = event.target as HTMLSelectElement
+  const nextId = Number(target.value)
+  if (Number.isFinite(nextId) && nextId > 0) {
+    selectConversation(nextId)
+  }
+}
+
+function deleteActiveConversation() {
+  const convId = activeConvId.value
+  if (!convId) return
+  const ok = window.confirm('确认删除当前对话吗？删除后不可恢复。')
+  if (!ok) return
+  deleteConversation(convId)
+}
+
+function updateMobileKeyboardState() {
+  const vv = window.visualViewport
+  if (!vv) return
+  const baseHeight = viewportBaseHeight.value || window.innerHeight
+  const keyboardLikelyOpen = baseHeight - vv.height > 120
+  document.body.classList.toggle('chat-keyboard-open', keyboardLikelyOpen)
+}
+
+function handleDraftEnter(event: KeyboardEvent) {
+  if ((event as any).isComposing) return
+  send()
 }
 
 function removeRef(index: number) {
@@ -377,5 +621,13 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   border: 1px solid #ffd7d7;
   color: #9a3030;
   font-size: 13px;
+}
+
+.chat-user-refs {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.9;
 }
 </style>

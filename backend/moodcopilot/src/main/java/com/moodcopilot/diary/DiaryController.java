@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -107,6 +108,13 @@ public class DiaryController {
             @PathVariable("id") long id,
             @RequestBody CreateCommentRequest request) {
         return ApiResponse.ok(diaryService.addComment(id, request));
+    }
+
+    @PutMapping("/{id}")
+    public ApiResponse<DiaryView> updateDiary(
+            @PathVariable("id") long id,
+            @RequestBody UpdateDiaryRequest request) {
+        return ApiResponse.ok(diaryService.updateDiary(id, request));
     }
 
     @GetMapping("/today-status")

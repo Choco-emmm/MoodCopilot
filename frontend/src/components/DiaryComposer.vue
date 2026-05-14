@@ -19,6 +19,10 @@
       :status="isOverLimit ? 'error' : undefined"
     />
 
+    <p class="composer-hint">
+      写得越具体，MoodCopilot 越能理解你在意的人和事。持续记录比一次写满更重要。
+    </p>
+
     <div class="composer-actions">
       <div class="composer-side-copy">
         <span class="privacy-copy">{{ visibilityCopy }}</span>
@@ -121,3 +125,16 @@ async function handleSave() {
   }
 }
 </script>
+
+<style scoped>
+.composer-hint {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid #7aa68f;
+  border-radius: 8px;
+  background: #f4f8f5;
+  color: #4d5f54;
+  font-size: 12px;
+  line-height: 1.7;
+}
+</style>

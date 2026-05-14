@@ -10,10 +10,13 @@
     <div v-if="diaries.length" class="diary-list">
       <template v-for="diary in diaries" :key="diary.id">
         <div class="my-diary-entry">
-          <button
+          <div
             class="my-diary"
-            type="button"
+            role="button"
+            tabindex="0"
             @click="$emit('select', diary)"
+            @keydown.enter.prevent="$emit('select', diary)"
+            @keydown.space.prevent="$emit('select', diary)"
           >
             <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-sm avatar-img" loading="lazy" decoding="async" />
             <span v-else class="avatar avatar-sm">{{ diary.authorName.charAt(0) }}</span>
@@ -25,11 +28,18 @@
               </span>
             </span>
             <button
+              class="diary-edit-btn"
+              type="button"
+              title="编辑日记"
+              @click.stop="$emit('edit', diary)"
+            >编辑</button>
+            <button
               class="diary-delete-btn"
+              type="button"
               title="删除日记"
               @click.stop="$emit('delete', diary)"
             >&times;</button>
-          </button>
+          </div>
         </div>
       </template>
     </div>
@@ -41,7 +51,7 @@
 import type { Diary } from '../stores/diary'
 
 defineProps<{ diaries: Diary[] }>()
-defineEmits<{ select: [diary: Diary]; delete: [diary: Diary] }>()
+defineEmits<{ select: [diary: Diary]; edit: [diary: Diary]; delete: [diary: Diary] }>()
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat('zh-CN', {
@@ -49,3 +59,20 @@ function formatTime(value: string) {
   }).format(new Date(value))
 }
 </script>
+
+<style scoped>
+.diary-edit-btn {
+  border: 1px solid #d7d0c3;
+  background: #fff;
+  color: #5f584f;
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.diary-edit-btn:hover {
+  border-color: #9db7a8;
+  color: #3f6d59;
+}
+</style>

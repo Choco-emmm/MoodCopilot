@@ -43,6 +43,10 @@
 
         <template v-if="report && report.diaryCount > 0">
           <div class="report-detail">
+            <div class="report-meta-row">
+              <span v-if="report.generatedAt" class="report-meta-text">上次生成：{{ formatGeneratedAt(report.generatedAt) }}</span>
+              <span v-if="report.needsRegenerate" class="report-meta-warning">有新日记未纳入，建议重新生成</span>
+            </div>
             <h4>情绪趋势</h4>
             <div class="mood-chart">
               <div
@@ -67,8 +71,10 @@
             </div>
 
             <h4>AI 周总结</h4>
-            <div v-if="!report.aiSummary" class="empty-state compact">
-              <p>暂无总结，可使用 AI 限额提前生成</p>
+            <p class="report-auto-hint">系统会在每周一 00:00 自动生成上一周报告，也可以现在手动生成。</p>
+            <div v-if="!report.aiSummary || report.needsRegenerate" class="empty-state compact">
+              <p v-if="!report.aiSummary">暂无总结，可使用 AI 限额提前生成</p>
+              <p v-else>检测到新日记未纳入本次报告，可按需重新生成，或等待下次自动生成</p>
               <n-button type="primary" @click="store.generateWeeklyAiSummary(weekOffset)">生成 AI 总结</n-button>
             </div>
             <p v-else class="ai-summary">{{ report.aiSummary }}</p>
@@ -117,8 +123,12 @@
 
         <template v-if="monthReport && monthReport.diaryCount > 0">
           <div class="report-detail">
+            <div class="report-meta-row">
+              <span v-if="monthReport.generatedAt" class="report-meta-text">上次生成：{{ formatGeneratedAt(monthReport.generatedAt) }}</span>
+              <span v-if="monthReport.needsRegenerate" class="report-meta-warning">有新日记未纳入，建议重新生成</span>
+            </div>
             <h4>情绪走向（纵轴=强度 1-5，越高表示情绪更强）</h4>
-            <svg class="sparkline" :viewBox="'0 0 ' + sparklineW + ' 60'" preserveAspectRatio="none">
+            <svg class="sparkline" :viewBox="'0 0 ' + sparklineW + ' 60'" preserveAspectRatio="xMidYMid meet">
               <polyline
                 :points="sparklinePoints"
                 fill="none"
@@ -167,8 +177,10 @@
             </div>
 
             <h4>AI 月总结</h4>
-            <div v-if="!monthReport.aiSummary" class="empty-state compact">
-              <p>暂无总结，可使用 AI 限额提前生成</p>
+            <p class="report-auto-hint">系统会在每月 1 日 00:00 自动生成上一月报告，也可以现在手动生成。</p>
+            <div v-if="!monthReport.aiSummary || monthReport.needsRegenerate" class="empty-state compact">
+              <p v-if="!monthReport.aiSummary">暂无总结，可使用 AI 限额提前生成</p>
+              <p v-else>检测到新日记未纳入本次报告，可按需重新生成，或等待下次自动生成</p>
               <n-button type="primary" @click="store.generateMonthlyAiSummary(monthOffset)">生成 AI 总结</n-button>
             </div>
             <p v-else class="ai-summary">{{ monthReport.aiSummary }}</p>
@@ -363,19 +375,19 @@ async function loadSummaries() {
   } catch { /* ignore */ }
 }
 
-function summaryDiarySnippet(day: any, summary?: any, index?: number) {
+function summaryDiarySnippet(day: any, summary?: any, index?: number | string) {
   const diaryId = firstDiaryIdFromSummary(day, summary, index)
   const raw = day?.contentSnippet?.trim?.() || (diaryId ? diarySnippetMap.value[diaryId] : '') || ''
   if (!raw) return '这篇日记'
   return raw.length > 30 ? raw.slice(0, 30) : raw
 }
 
-function summaryDiaryKey(day: any, summary?: any, index?: number) {
+function summaryDiaryKey(day: any, summary?: any, index?: number | string) {
   const diaryId = firstDiaryIdFromSummary(day, summary, index)
   return String(`${summary?.id ?? 'summary'}-${index ?? 0}-${diaryId ?? day?.date ?? 'day'}`)
 }
 
-function openSummaryDiary(day: any, summary?: any, index?: number) {
+function openSummaryDiary(day: any, summary?: any, index?: number | string) {
   const diaryId = firstDiaryIdFromSummary(day, summary, index)
   if (!diaryId) return
   router.push('/diary/' + diaryId)
@@ -411,12 +423,13 @@ function firstDiaryId(day: any): number | null {
   return null
 }
 
-function firstDiaryIdFromSummary(day: any, summary?: any, index?: number): number | null {
+function firstDiaryIdFromSummary(day: any, summary?: any, index?: number | string): number | null {
   const idFromDay = firstDiaryId(day)
   if (idFromDay != null) return idFromDay
-  if (typeof index !== 'number') return null
+  const normalizedIndex = typeof index === 'string' ? Number(index) : index
+  if (typeof normalizedIndex !== 'number' || Number.isNaN(normalizedIndex)) return null
 
-  const raw = summary?.diaryIds?.[index]
+  const raw = summary?.diaryIds?.[normalizedIndex]
   if (typeof raw === 'number' && Number.isFinite(raw)) return raw
   if (typeof raw === 'string') {
     const text = raw.trim()
@@ -494,5 +507,18 @@ function hasGuidance(currentReport: any) {
 function formatDay(dateStr: string) {
   const d = new Date(dateStr)
   return `${d.getMonth() + 1}/${d.getDate()}`
+}
+
+function formatGeneratedAt(value?: string | Date | null) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
 }
 </script>

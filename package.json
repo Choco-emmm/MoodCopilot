@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "agent:health-check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/agent-health-check.ps1",
     "app:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-public.ps1 -NoTunnel -SkipPublicCheck",
     "app:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-public.ps1 -NoTunnel -SkipPublicCheck -Restart",
     "app:doctor": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-public.ps1 -NoTunnel -SkipPublicCheck -Diagnose",

@@ -17,7 +17,9 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
+import java.io.EOFException;
 import java.net.URI;
+import java.net.SocketException;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
@@ -82,7 +84,13 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
-        log.warn("Notification websocket transport error, sessionId={}", session.getId(), exception);
+        String sessionId = session == null ? "unknown" : session.getId();
+        if (isClientDisconnect(exception)) {
+            log.debug("Notification websocket disconnected by client/network, sessionId={}, reason={}",
+                    sessionId, rootMessage(exception));
+        } else {
+            log.warn("Notification websocket transport error, sessionId={}", sessionId, exception);
+        }
         removeSession(session);
         try {
             session.close(CloseStatus.SERVER_ERROR);
@@ -129,9 +137,47 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
         try {
             session.sendMessage(new TextMessage(payload));
         } catch (IOException e) {
-            log.warn("Failed to send websocket message, sessionId={}", session.getId(), e);
+            if (isClientDisconnect(e)) {
+                log.debug("Skip send to closed websocket sessionId={}, reason={}", session.getId(), rootMessage(e));
+            } else {
+                log.warn("Failed to send websocket message, sessionId={}", session.getId(), e);
+            }
             removeSession(session);
         }
+    }
+
+    private boolean isClientDisconnect(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof EOFException) {
+                return true;
+            }
+            if (current instanceof SocketException socketException) {
+                String msg = socketException.getMessage();
+                if (msg != null) {
+                    String normalized = msg.toLowerCase();
+                    if (normalized.contains("connection reset")
+                            || normalized.contains("broken pipe")
+                            || normalized.contains("forcibly closed")) {
+                        return true;
+                    }
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private String rootMessage(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        Throwable current = error;
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+        String msg = current.getMessage();
+        return (msg == null || msg.isBlank()) ? current.getClass().getSimpleName() : msg;
     }
 
     private void removeSession(WebSocketSession session) {

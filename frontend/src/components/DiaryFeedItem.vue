@@ -7,18 +7,20 @@
         <div>
           <div class="author-row">
             <strong>{{ diary.authorName }}</strong>
-            <button
-              v-if="diary.authorUserId !== auth.userId"
-              :class="['follow-btn', { following: followStore.isFollowing(diary.authorUserId) }]"
-              @mouseenter="hoveringId = diary.authorUserId"
-              @mouseleave="hoveringId = null"
-              @click.stop="toggleFollow(diary.authorUserId)"
-            >
-              {{ followBtnLabel(diary.authorUserId) }}
-            </button>
           </div>
           <span>{{ formatTime(diary.createdAt) }}</span>
         </div>
+      </div>
+      <div class="feed-head-right">
+        <button
+          v-if="diary.authorUserId !== auth.userId"
+          :class="['follow-btn', 'feed-follow-btn', { following: followStore.isFollowing(diary.authorUserId) }]"
+          @mouseenter="hoveringId = diary.authorUserId"
+          @mouseleave="hoveringId = null"
+          @click.stop="toggleFollow(diary.authorUserId)"
+        >
+          {{ followBtnLabel(diary.authorUserId) }}
+        </button>
       </div>
     </div>
 
@@ -54,7 +56,7 @@
           <p class="comment-body">{{ comment.content }}</p>
           <div class="comment-foot">
             <n-button
-              v-if="comment.authorName === auth.displayName"
+              v-if="canDeleteComment(comment)"
               size="tiny"
               text
               type="error"
@@ -83,6 +85,9 @@
               <span class="comment-time">{{ formatTime(reply.createdAt) }}</span>
             </p>
             <p class="comment-body">{{ reply.content }}</p>
+            <div class="comment-foot">
+              <n-button v-if="canDeleteComment(reply)" size="tiny" text type="error" @click="deleteComment(reply.id)">删除</n-button>
+            </div>
           </div>
         </div>
       </div>
@@ -185,6 +190,14 @@ function submitReply(commentId: number) {
   emit('comment', props.diary, content, commentId)
   replyDraft.value = ''
   replyTo.value = null
+}
+
+function canDeleteComment(comment: any) {
+  const authorUserId = Number(comment?.authorUserId)
+  if (Number.isFinite(authorUserId) && auth.userId != null) {
+    return authorUserId === auth.userId
+  }
+  return Boolean(auth.displayName && comment?.authorName === auth.displayName)
 }
 
 function formatTime(value: string) {

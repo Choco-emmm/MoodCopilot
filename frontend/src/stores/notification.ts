@@ -22,8 +22,13 @@ export const useNotificationStore = defineStore('notification', () => {
   const unreadLoading = ref(false)
   const unreadFetchedAt = ref(0)
   const UNREAD_CACHE_MS = 30000
+  const HEARTBEAT_INTERVAL_MS = 25000
+  const RECONNECT_BASE_DELAY_MS = 1000
+  const RECONNECT_MAX_DELAY_MS = 15000
   const socket = ref<WebSocket | null>(null)
   const reconnectTimer = ref<number | null>(null)
+  const heartbeatTimer = ref<number | null>(null)
+  const reconnectAttempts = ref(0)
   const fallbackPollTimer = ref<number | null>(null)
   const manualClose = ref(false)
 
@@ -43,6 +48,35 @@ export const useNotificationStore = defineStore('notification', () => {
     if (fallbackPollTimer.value == null) return
     window.clearInterval(fallbackPollTimer.value)
     fallbackPollTimer.value = null
+  }
+
+  function clearHeartbeatTimer() {
+    if (heartbeatTimer.value == null) return
+    window.clearInterval(heartbeatTimer.value)
+    heartbeatTimer.value = null
+  }
+
+  function startHeartbeat() {
+    clearHeartbeatTimer()
+    heartbeatTimer.value = window.setInterval(() => {
+      if (!socket.value || socket.value.readyState !== WebSocket.OPEN) return
+      try {
+        socket.value.send('ping')
+      } catch {
+        // ignore send errors and let close handler reconnect
+      }
+    }, HEARTBEAT_INTERVAL_MS)
+  }
+
+  function scheduleReconnect() {
+    if (manualClose.value) return
+    clearReconnectTimer()
+
+    reconnectAttempts.value += 1
+    const expDelay = Math.min(RECONNECT_MAX_DELAY_MS,
+      RECONNECT_BASE_DELAY_MS * Math.pow(2, reconnectAttempts.value - 1))
+    const jitter = Math.floor(Math.random() * 400)
+    reconnectTimer.value = window.setTimeout(() => connectRealtime(), expDelay + jitter)
   }
 
   function startFallbackPolling() {
@@ -66,6 +100,8 @@ export const useNotificationStore = defineStore('notification', () => {
     socket.value = ws
 
     ws.onopen = () => {
+      reconnectAttempts.value = 0
+      startHeartbeat()
       clearFallbackPollTimer()
       void fetchUnreadCount(true)
     }
@@ -83,10 +119,9 @@ export const useNotificationStore = defineStore('notification', () => {
 
     ws.onclose = () => {
       socket.value = null
+      clearHeartbeatTimer()
       startFallbackPolling()
-      if (!manualClose.value) {
-        reconnectTimer.value = window.setTimeout(() => connectRealtime(), 3000)
-      }
+      scheduleReconnect()
     }
 
     ws.onerror = () => {
@@ -97,6 +132,7 @@ export const useNotificationStore = defineStore('notification', () => {
   function disconnectRealtime() {
     manualClose.value = true
     clearReconnectTimer()
+    clearHeartbeatTimer()
     clearFallbackPollTimer()
     if (socket.value) {
       socket.value.close()

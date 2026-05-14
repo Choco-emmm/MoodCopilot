@@ -13,9 +13,29 @@
             <n-tag :type="diary.visibility === 'PUBLIC' ? 'success' : 'default'" round size="small">
               {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
             </n-tag>
+            <n-button v-if="isOwner" size="tiny" text @click="toggleEdit">{{ editing ? '取消编辑' : '编辑' }}</n-button>
             <n-button v-if="!isOwner" size="tiny" text @click="reportDiary">举报</n-button>
           </div>
           <p class="diary-content">{{ diary.content }}</p>
+
+          <div v-if="isOwner && editing" class="diary-edit-panel">
+            <n-input
+              v-model:value="editContent"
+              type="textarea"
+              placeholder="编辑这篇日记..."
+              :autosize="{ minRows: 4, maxRows: 10 }"
+            />
+            <div class="diary-edit-actions">
+              <select v-model="editVisibility" class="diary-edit-visibility">
+                <option value="PRIVATE">仅自己看</option>
+                <option value="PUBLIC">分享到社区</option>
+              </select>
+              <n-button size="small" :disabled="savingEdit || !editContent.trim()" @click="toggleEdit">取消</n-button>
+              <n-button type="primary" size="small" :loading="savingEdit" :disabled="!editContent.trim()" @click="saveDiaryEdit">保存修改</n-button>
+            </div>
+            <p v-if="editError" class="comment-error">{{ editError }}</p>
+          </div>
+
           <div class="detail-actions">
             <n-button size="small" tertiary :disabled="resonating" @click="resonateDiary">
               👍 {{ diary.resonanceCount ?? 0 }}
@@ -41,6 +61,7 @@
             placeholder="写下你的回应..."
             :disabled="sending"
             clearable
+            @focus="handleCommentFocus"
             @keyup.enter="submitComment(null)"
           />
           <n-button type="primary" size="small" :disabled="!commentDraft.trim() || sending" @click="submitComment(null)">
@@ -64,6 +85,7 @@
               </div>
               <p class="comment-body">{{ c.content }}</p>
               <div class="comment-foot">
+                <n-button v-if="canDeleteComment(c)" size="tiny" text type="error" :disabled="deleting" @click="deleteComment(c.id)">删除</n-button>
                 <n-button size="tiny" text @click="startReply(c.id, c.id, c.authorName)">回复</n-button>
                 <n-button size="tiny" text @click="reportComment(c.id)">举报</n-button>
               </div>
@@ -79,6 +101,7 @@
                 </div>
                 <p class="comment-body">{{ r.content }}</p>
                 <div class="comment-foot">
+                  <n-button v-if="canDeleteComment(r)" size="tiny" text type="error" :disabled="deleting" @click="deleteComment(r.id)">删除</n-button>
                   <n-button size="tiny" text @click="startReply(r.id, c.id, r.authorName)">回复</n-button>
                   <n-button size="tiny" text @click="reportComment(r.id)">举报</n-button>
                 </div>
@@ -96,6 +119,7 @@
                 :placeholder="`回复 ${replyTargetName}...`"
                 :disabled="sending"
                 size="small"
+                @focus="handleCommentFocus"
                 @keyup.enter="submitComment(replyParentId)"
               />
               <n-button size="tiny" type="primary" :disabled="!replyDraft.trim() || sending" @click="submitComment(replyParentId)">
@@ -114,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NInput, NTag, NEmpty } from 'naive-ui'
 import { diaryApi, reportApi } from '../api'
@@ -136,7 +160,13 @@ const replyParentId = ref<number | null>(null)
 const replyThreadId = ref<number | null>(null)
 const replyTargetName = ref('')
 const sending = ref(false)
+const deleting = ref(false)
 const resonating = ref(false)
+const editing = ref(false)
+const editContent = ref('')
+const editVisibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
+const savingEdit = ref(false)
+const editError = ref('')
 
 const isOwner = computed(() => auth.userId != null && diary.value != null && auth.userId === diary.value.authorUserId)
 
@@ -158,10 +188,19 @@ async function loadDiaryByRoute() {
 
 onMounted(async () => {
   await loadDiaryByRoute()
+  if (route.query.edit === '1' && isOwner.value && diary.value) {
+    startEdit()
+  }
 })
 
 watch(() => route.params.id, async () => {
   await loadDiaryByRoute()
+})
+
+watch(() => route.query.edit, () => {
+  if (route.query.edit === '1' && isOwner.value && diary.value) {
+    startEdit()
+  }
 })
 
 async function submitComment(parentId: number | null) {
@@ -182,6 +221,31 @@ async function submitComment(parentId: number | null) {
   sending.value = false
 }
 
+async function deleteComment(commentId: number) {
+  if (!diary.value || deleting.value) return
+  deleting.value = true
+  commentError.value = ''
+  try {
+    const res = await diaryApi.deleteComment(diary.value.id, commentId)
+    diary.value = store.normalize(res.data.data)
+    if (replyParentId.value === commentId || replyThreadId.value === commentId) {
+      cancelReply()
+    }
+  } catch (e: any) {
+    commentError.value = e?.response?.data?.message || '删除失败，请稍后重试'
+  } finally {
+    deleting.value = false
+  }
+}
+
+function canDeleteComment(comment: any) {
+  const authorUserId = Number(comment?.authorUserId)
+  if (Number.isFinite(authorUserId) && auth.userId != null) {
+    return authorUserId === auth.userId
+  }
+  return Boolean(auth.displayName && comment?.authorName === auth.displayName)
+}
+
 function startReply(parentId: number, threadId: number, targetName: string) {
   if (replyParentId.value === parentId && replyThreadId.value === threadId) {
     cancelReply()
@@ -191,6 +255,9 @@ function startReply(parentId: number, threadId: number, targetName: string) {
   replyThreadId.value = threadId
   replyTargetName.value = targetName
   replyDraft.value = ''
+  void nextTick(() => {
+    ensureCommentInputVisible()
+  })
 }
 
 function cancelReply() {
@@ -228,10 +295,56 @@ function selectDiary(d: Diary) {
   void router.push(`/diary/${d.id}`)
 }
 
+function startEdit() {
+  if (!diary.value || !isOwner.value) return
+  editing.value = true
+  editError.value = ''
+  editContent.value = diary.value.content || ''
+  editVisibility.value = diary.value.visibility === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE'
+}
+
+function toggleEdit() {
+  if (editing.value) {
+    editing.value = false
+    editError.value = ''
+    return
+  }
+  startEdit()
+}
+
+async function saveDiaryEdit() {
+  if (!diary.value || !editContent.value.trim() || savingEdit.value) return
+  savingEdit.value = true
+  editError.value = ''
+  try {
+    const res = await diaryApi.update(diary.value.id, {
+      content: editContent.value.trim(),
+      visibility: editVisibility.value,
+    })
+    diary.value = store.normalize(res.data.data)
+    editing.value = false
+  } catch (e: any) {
+    editError.value = e?.response?.data?.message || '保存失败，请稍后重试'
+  } finally {
+    savingEdit.value = false
+  }
+}
+
 function formatTime(value: string) {
   return new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
   }).format(new Date(value))
+}
+
+function handleCommentFocus() {
+  ensureCommentInputVisible()
+}
+
+function ensureCommentInputVisible() {
+  window.requestAnimationFrame(() => {
+    const active = document.activeElement as HTMLElement | null
+    active?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
 }
 </script>
 
@@ -268,5 +381,31 @@ function formatTime(value: string) {
   background: #fff5f5;
   color: #b23a3a;
   font-size: 12px;
+}
+
+.diary-edit-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #e6ddcf;
+  border-radius: 10px;
+  background: #fbf8f2;
+}
+
+.diary-edit-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.diary-edit-visibility {
+  margin-right: auto;
+  min-height: 30px;
+  border: 1px solid #d9d1c3;
+  border-radius: 8px;
+  padding: 0 8px;
+  background: #fff;
 }
 </style>

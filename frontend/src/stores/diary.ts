@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { diaryApi } from '../api'
+import { normalizeResourceUrl } from '../utils/resource'
 
 export interface Diary {
   id: number
@@ -32,6 +33,8 @@ export interface WeeklyReport {
   insights?: string[]
   suggestions?: string[]
   followUpPrompt?: string
+  generatedAt?: string | null
+  needsRegenerate?: boolean
 }
 
 export interface DailyMood {
@@ -68,6 +71,8 @@ export const useDiaryStore = defineStore('diary', () => {
   const reportLoading = ref(false)
   const reportError = ref<string | null>(null)
   let analysisPollTimer: ReturnType<typeof setInterval> | null = null
+  let analysisPollAttempts = 0
+  const ANALYSIS_POLL_MAX_ATTEMPTS = 30
 
   async function fetchDiaries() {
     loading.value = true
@@ -133,9 +138,36 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
+  async function updateDiary(id: number, content: string, visibility: string) {
+    saving.value = true
+    errorMessage.value = null
+    try {
+      const res = await diaryApi.update(id, { content, visibility })
+      const updated = normalize(res.data.data)
+      mergeDiary(updated)
+      if (activeDiary.value?.id === id) {
+        activeDiary.value = updated
+      }
+      return updated
+    } catch (e: any) {
+      errorMessage.value = e?.response?.data?.message || '更新失败'
+      throw e
+    } finally {
+      saving.value = false
+    }
+  }
+
   function pollAnalysis(diaryId: number) {
     clearAnalysisPollTimer()
+    analysisPollAttempts = 0
     analysisPollTimer = setInterval(async () => {
+      analysisPollAttempts += 1
+      if (analysisPollAttempts > ANALYSIS_POLL_MAX_ATTEMPTS) {
+        analysisStatus.value = 'failed'
+        errorMessage.value = 'AI 分析耗时过长，请稍后点击重试获取'
+        clearAnalysisPollTimer()
+        return
+      }
       try {
         const res = await diaryApi.get(diaryId)
         const updated = normalize(res.data.data)
@@ -158,6 +190,7 @@ export const useDiaryStore = defineStore('diary', () => {
     if (!analysisPollTimer) return
     clearInterval(analysisPollTimer)
     analysisPollTimer = null
+    analysisPollAttempts = 0
   }
 
   async function refreshAnalysis(diaryId: number) {
@@ -291,7 +324,11 @@ export const useDiaryStore = defineStore('diary', () => {
   }
 
   function normalize(d: any): Diary {
-    return { ...d, comments: d.comments || [] }
+    return {
+      ...d,
+      authorAvatar: normalizeResourceUrl(d.authorAvatar),
+      comments: d.comments || [],
+    }
   }
 
   async function deleteDiary(id: number) {
@@ -303,7 +340,7 @@ export const useDiaryStore = defineStore('diary', () => {
   return {
     myDiaries, publicDiaries, activeDiary, similarDiaries, loading, saving, errorMessage,
     analysisStatus, hasMore, weeklyReport, reportLoading, reportError, monthlyReport, monthLoading, monthError,
-    fetchDiaries, loadMorePublic, createDiary, loadSimilar, addComment, resonate, sendEncouragement, deleteDiary,
+    fetchDiaries, loadMorePublic, createDiary, updateDiary, loadSimilar, addComment, resonate, sendEncouragement, deleteDiary,
     refreshAnalysis, deleteComment,
     fetchWeeklyReport, fetchMonthlyReport, generateWeeklyAiSummary, generateMonthlyAiSummary, normalize,
   }

@@ -41,6 +41,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -116,9 +117,74 @@ public class DiaryService {
         diary.setUpdatedAt(LocalDateTime.now());
         diaryMapper.insert(diary);
 
-        evictUserCache(user.getId());
+        markReportsStale(user.getId());
 
         return DiaryView.from(diary, List.of(), normalizeAvatar(user.getAvatar()));
+    }
+
+    @Transactional
+    public DiaryView updateDiary(long diaryId, UpdateDiaryRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "更新参数不能为空");
+        }
+
+        UserEntity user = currentUser();
+        DiaryEntity diary = findDiary(diaryId);
+        if (!diary.getAuthorUserId().equals(user.getId())) {
+            throw new ResponseStatusException(FORBIDDEN, "只能编辑自己的日记");
+        }
+
+        String normalizedContent = normalizeContent(request.content());
+        DiaryVisibility visibility = parseVisibility(request.visibility());
+
+        String oldContent = diary.getContent() == null ? "" : diary.getContent();
+        String oldVisibility = diary.getVisibility();
+        String filteredContent = ContentFilter.filter(normalizedContent);
+        boolean contentChanged = !oldContent.equals(filteredContent);
+        boolean visibilityChanged = !visibility.name().equals(oldVisibility);
+
+        diary.setContent(filteredContent);
+        diary.setVisibility(visibility.name());
+        diary.setUpdatedAt(LocalDateTime.now());
+        diaryMapper.updateById(diary);
+
+        if (contentChanged) {
+            log.info("日记内容已更新，触发分析与画像重建，diaryId={}，userId={}", diaryId, user.getId());
+            DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent);
+            DiaryAnalysisEntity existingAnalysis = diaryAnalysisMapper.selectById(diaryId);
+            LocalDateTime now = LocalDateTime.now();
+            if (existingAnalysis == null) {
+                DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
+                analysisEntity.setDiaryId(diaryId);
+                analysisEntity.setMoodLabel(analysis.moodLabel());
+                analysisEntity.setMoodIntensity(analysis.moodIntensity());
+                analysisEntity.setTopicLabelsJson(analysis.topicLabels());
+                analysisEntity.setSummary(analysis.summary());
+                analysisEntity.setFeedback(analysis.feedback());
+                analysisEntity.setCreatedAt(now);
+                analysisEntity.setUpdatedAt(now);
+                diaryAnalysisMapper.insert(analysisEntity);
+            } else {
+                existingAnalysis.setMoodLabel(analysis.moodLabel());
+                existingAnalysis.setMoodIntensity(analysis.moodIntensity());
+                existingAnalysis.setTopicLabelsJson(analysis.topicLabels());
+                existingAnalysis.setSummary(analysis.summary());
+                existingAnalysis.setFeedback(analysis.feedback());
+                existingAnalysis.setUpdatedAt(now);
+                diaryAnalysisMapper.updateById(existingAnalysis);
+            }
+            memoryExtractionService.extractAndSyncMemory(user.getId(), filteredContent);
+        }
+
+        if (visibilityChanged || contentChanged) {
+            markReportsStale(user.getId());
+        }
+        evictUserCache(user.getId());
+
+        log.info("日记更新完成，diaryId={}，userId={}，contentChanged={}，visibilityChanged={}，visibility={}",
+                diaryId, user.getId(), contentChanged, visibilityChanged, visibility.name());
+
+        return buildDiaryView(diary, "PUBLIC".equals(diary.getVisibility()));
     }
 
     @Async
@@ -140,8 +206,8 @@ public class DiaryService {
         diaryAnalysisMapper.insert(analysisEntity);
         log.info("日记 AI 分析已落库，diaryId={}，mood={}，topics={}", diaryId, analysis.moodLabel(), analysis.topicLabels());
         memoryExtractionService.extractAndSyncMemory(userId, content);
-        evictUserCache(userId);
-        log.info("日记分析后续任务已触发，diaryId={}，userId={}，动作=extractMemory+evictUserCache", diaryId, userId);
+        markReportsStale(userId);
+        log.info("日记分析后续任务已触发，diaryId={}，userId={}，动作=extractMemory+markReportsStale", diaryId, userId);
     }
 
     public Page<DiaryView> myDiaries(int page, int size) {
@@ -205,6 +271,68 @@ public class DiaryService {
         log.info("历史日记检索完成，userId={}，resultCount={}", user.getId(), diaries.size());
 
         return new DiarySearchResult(keyword, startDate, endDate, diaries.size(), diaries, note);
+    }
+
+    public UserStatsResult getOwnMoodStats(UserStatsRequest request) {
+        UserEntity user = currentUser();
+        int days = request != null && request.days() != null ? request.days() : 14;
+        int clampedDays = Math.min(60, Math.max(7, days));
+        LocalDateTime startTime = LocalDate.now().minusDays(clampedDays - 1L).atStartOfDay();
+
+        List<DiaryEntity> diaries = diaryMapper.selectList(
+                new LambdaQueryWrapper<DiaryEntity>()
+                        .eq(DiaryEntity::getAuthorUserId, user.getId())
+                        .eq(DiaryEntity::getIsDeleted, false)
+                        .ge(DiaryEntity::getCreatedAt, startTime)
+                        .orderByDesc(DiaryEntity::getCreatedAt)
+                        .last("LIMIT 120"));
+
+        if (diaries.isEmpty()) {
+            return new UserStatsResult(clampedDays, 0, Map.of(), Map.of(), "最近时段暂无可统计的日记记录");
+        }
+
+        List<Long> diaryIds = diaries.stream().map(DiaryEntity::getId).toList();
+        Map<Long, DiaryAnalysisEntity> analysisMap = diaryAnalysisMapper.selectBatchIds(diaryIds)
+                .stream()
+                .collect(Collectors.toMap(DiaryAnalysisEntity::getDiaryId, analysis -> analysis));
+
+        Map<String, Long> moodCounts = new LinkedHashMap<>();
+        Map<String, Long> topicCounter = new HashMap<>();
+
+        for (DiaryEntity diary : diaries) {
+            DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
+            if (analysis == null) {
+                continue;
+            }
+            String mood = analysis.getMoodLabel();
+            if (mood != null && !mood.isBlank()) {
+                moodCounts.put(mood, moodCounts.getOrDefault(mood, 0L) + 1L);
+            }
+            List<String> topics = analysis.getTopicLabelsJson();
+            if (topics != null) {
+                for (String topic : topics) {
+                    if (topic == null || topic.isBlank()) {
+                        continue;
+                    }
+                    topicCounter.put(topic, topicCounter.getOrDefault(topic, 0L) + 1L);
+                }
+            }
+        }
+
+        Map<String, Long> topTopics = topicCounter.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                .limit(5)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (a, b) -> a,
+                        LinkedHashMap::new));
+
+        String note = "统计窗口 " + clampedDays + " 天，含分析结果日记 "
+                + moodCounts.values().stream().mapToLong(Long::longValue).sum() + " 篇";
+        log.info("执行用户情绪统计，userId={}，days={}，diaryCount={}，moodTypes={}，topTopicCount={}",
+                user.getId(), clampedDays, diaries.size(), moodCounts.size(), topTopics.size());
+        return new UserStatsResult(clampedDays, diaries.size(), moodCounts, topTopics, note);
     }
 
     public Page<DiaryView> publicDiaries(int page, int size) {
@@ -338,32 +466,40 @@ public class DiaryService {
 
     public WeeklyReportView monthlyReport(int monthOffset) {
         Long userId = currentUser().getId();
-        String cacheKey = "report:monthly:%d:%d".formatted(userId, monthOffset);
-
-        try {
-            String cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null)
-                return objectMapper.readValue(cached, WeeklyReportView.class);
-        } catch (Exception e) {
-            log.debug("Cache read failed for {}", cacheKey, e);
-        }
-
-        WeeklyReportView report = computeMonthlyReport(monthOffset, userId);
-
-        try {
-            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), Duration.ofMinutes(30));
-        } catch (Exception e) {
-            log.debug("Cache write failed for {}", cacheKey, e);
-        }
-        return report;
+        return loadOrComputeMonthlyReport(monthOffset, userId, false);
     }
 
     public WeeklyReportView generateMonthlyAiSummary(int monthOffset) {
         Long userId = currentUser().getId();
-        String cacheKey = "report:monthly:%d:%d".formatted(userId, monthOffset);
         log.info("强制生成月报摘要，userId={}，monthOffset={}", userId, monthOffset);
+        return loadOrComputeMonthlyReport(monthOffset, userId, true);
+    }
+
+    public WeeklyReportView generateMonthlyAiSummaryForUser(long userId, int monthOffset) {
+        return loadOrComputeMonthlyReport(monthOffset, userId, true);
+    }
+
+    public WeeklyReportView loadMonthlyReportForUser(long userId, int monthOffset) {
+        return loadOrComputeMonthlyReport(monthOffset, userId, false);
+    }
+
+    private WeeklyReportView loadOrComputeMonthlyReport(int monthOffset, long userId, boolean forceGenerate) {
+        String cacheKey = "report:monthly:%d:%d".formatted(userId, monthOffset);
+
+        if (!forceGenerate) {
+            try {
+                String cached = redisTemplate.opsForValue().get(cacheKey);
+                if (cached != null) {
+                    WeeklyReportView cachedReport = objectMapper.readValue(cached, WeeklyReportView.class);
+                    return withFreshness(cachedReport, userId, monthOffset, true);
+                }
+            } catch (Exception e) {
+                log.debug("Cache read failed for {}", cacheKey, e);
+            }
+        }
 
         WeeklyReportView report = computeMonthlyReport(monthOffset, userId);
+        report = withFreshness(report, userId, monthOffset, true);
         try {
             redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), Duration.ofMinutes(30));
         } catch (Exception e) {
@@ -438,39 +574,49 @@ public class DiaryService {
                 aiSummary,
                 guidance.insights(),
                 guidance.suggestions(),
-                guidance.followUpPrompt());
+            guidance.followUpPrompt(),
+            LocalDateTime.now(),
+            false);
     }
 
     // ── Weekly report ──
 
     public WeeklyReportView weeklyReport(int weekOffset) {
         Long userId = currentUser().getId();
-        String cacheKey = "report:%d:%d".formatted(userId, weekOffset);
-
-        try {
-            String cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null)
-                return objectMapper.readValue(cached, WeeklyReportView.class);
-        } catch (Exception e) {
-            log.debug("Cache read failed for {}", cacheKey, e);
-        }
-
-        WeeklyReportView report = computeWeeklyReport(weekOffset, userId);
-
-        try {
-            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), Duration.ofMinutes(30));
-        } catch (Exception e) {
-            log.debug("Cache write failed for {}", cacheKey, e);
-        }
-        return report;
+        return loadOrComputeWeeklyReport(weekOffset, userId, false);
     }
 
     public WeeklyReportView generateWeeklyAiSummary(int weekOffset) {
         Long userId = currentUser().getId();
-        String cacheKey = "report:%d:%d".formatted(userId, weekOffset);
         log.info("强制生成周报摘要，userId={}，weekOffset={}", userId, weekOffset);
+        return loadOrComputeWeeklyReport(weekOffset, userId, true);
+    }
+
+    public WeeklyReportView generateWeeklyAiSummaryForUser(long userId, int weekOffset) {
+        return loadOrComputeWeeklyReport(weekOffset, userId, true);
+    }
+
+    public WeeklyReportView loadWeeklyReportForUser(long userId, int weekOffset) {
+        return loadOrComputeWeeklyReport(weekOffset, userId, false);
+    }
+
+    private WeeklyReportView loadOrComputeWeeklyReport(int weekOffset, long userId, boolean forceGenerate) {
+        String cacheKey = "report:%d:%d".formatted(userId, weekOffset);
+
+        if (!forceGenerate) {
+            try {
+                String cached = redisTemplate.opsForValue().get(cacheKey);
+                if (cached != null) {
+                    WeeklyReportView cachedReport = objectMapper.readValue(cached, WeeklyReportView.class);
+                    return withFreshness(cachedReport, userId, weekOffset, false);
+                }
+            } catch (Exception e) {
+                log.debug("Cache read failed for {}", cacheKey, e);
+            }
+        }
 
         WeeklyReportView report = computeWeeklyReport(weekOffset, userId);
+        report = withFreshness(report, userId, weekOffset, false);
         try {
             redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), Duration.ofMinutes(30));
         } catch (Exception e) {
@@ -545,7 +691,55 @@ public class DiaryService {
                 aiSummary,
                 guidance.insights(),
                 guidance.suggestions(),
-                guidance.followUpPrompt());
+                guidance.followUpPrompt(),
+                LocalDateTime.now(),
+                false);
+    }
+
+    public boolean hasUnreportedDiaries(long userId, LocalDate startDate, LocalDate endDate, LocalDateTime generatedAt) {
+        if (generatedAt == null) {
+            return true;
+        }
+        Long count = diaryMapper.selectCount(new LambdaQueryWrapper<DiaryEntity>()
+                .eq(DiaryEntity::getAuthorUserId, userId)
+                .ge(DiaryEntity::getCreatedAt, startDate.atStartOfDay())
+                .le(DiaryEntity::getCreatedAt, endDate.atTime(LocalTime.MAX))
+                .gt(DiaryEntity::getCreatedAt, generatedAt));
+        return count != null && count > 0;
+    }
+
+    private WeeklyReportView withFreshness(WeeklyReportView report, long userId, int offset, boolean monthly) {
+        if (report == null) {
+            return null;
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDate startDate;
+        LocalDate endDate;
+        if (monthly) {
+            LocalDate firstOfMonth = today.withDayOfMonth(1).plusMonths(offset);
+            LocalDate lastOfMonth = firstOfMonth.withDayOfMonth(firstOfMonth.lengthOfMonth());
+            startDate = firstOfMonth;
+            endDate = lastOfMonth;
+        } else {
+            LocalDate monday = today.with(DayOfWeek.MONDAY).plusWeeks(offset);
+            LocalDate sunday = monday.plusDays(6);
+            startDate = monday;
+            endDate = sunday;
+        }
+
+        boolean needsRegenerate = hasUnreportedDiaries(userId, startDate, endDate, report.generatedAt());
+        return new WeeklyReportView(
+                report.weekLabel(),
+                report.diaryCount(),
+                report.dailyMoods(),
+                report.topicCounts(),
+                report.aiSummary(),
+                report.insights(),
+                report.suggestions(),
+                report.followUpPrompt(),
+                report.generatedAt(),
+                needsRegenerate);
     }
 
     @Transactional
@@ -1092,22 +1286,24 @@ public class DiaryService {
         }
     }
 
-    private void evictUserCache(long userId) {
+    private void markReportsStale(long userId) {
         try {
-            for (int offset = -4; offset <= 0; offset++) {
-                redisTemplate.delete("report:%d:%d".formatted(userId, offset));
-                redisTemplate.delete("report:monthly:%d:%d".formatted(userId, offset));
-            }
             for (int page = 0; page <= 5; page++) {
                 for (int size : List.of(10, 20, 50)) {
-                    redisTemplate.delete("following:%d:%d:%d".formatted(userId, page, size));
                     redisTemplate.delete("public:diaries:%d:%d".formatted(page, size));
                 }
             }
             redisTemplate.delete("coaching:" + userId);
         } catch (Exception e) {
-            log.debug("Cache evict failed", e);
+            log.debug("Cache mark stale failed", e);
         }
+    }
+
+    private void evictUserCache(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        markReportsStale(userId);
     }
 
     private int similarityScore(DiaryAnalysisEntity sourceAnalysis, DiaryAnalysisEntity targetAnalysis) {

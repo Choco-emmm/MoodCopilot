@@ -5,7 +5,12 @@
     <div class="following-page">
       <h2>关注</h2>
 
-      <div v-if="diaries.length === 0 && !loading" class="empty-state">
+      <div v-if="errorMessage" class="empty-state">
+        <p>{{ errorMessage }}</p>
+        <n-button type="primary" @click="loadFirst">重试</n-button>
+      </div>
+
+      <div v-else-if="diaries.length === 0 && !loading" class="empty-state">
         <p>还没有关注任何人，去公开日记流发现有趣的人吧～</p>
         <n-button type="primary" @click="router.push('/')">去逛逛</n-button>
       </div>
@@ -44,6 +49,7 @@ const diaries = ref<Diary[]>([])
 const loading = ref(false)
 const page = ref(1)
 const hasMore = ref(true)
+const errorMessage = ref('')
 
 onMounted(async () => {
   await loadFirst()
@@ -51,12 +57,23 @@ onMounted(async () => {
 
 async function loadFirst() {
   loading.value = true
+  errorMessage.value = ''
   try {
     page.value = 1
-    const res = await diaryApi.following(1)
-    const data = res.data.data
-    diaries.value = (data.items ?? data).map(store.normalize)
-    hasMore.value = (data.items ?? data).length >= 20
+    const res = await diaryApi.following(1, 20)
+    const data = res.data?.data
+    const items: Diary[] = Array.isArray(data?.items)
+      ? data.items.map(store.normalize)
+      : Array.isArray(data)
+        ? data.map(store.normalize)
+        : []
+    diaries.value = items
+      .sort((a: Diary, b: Diary) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    hasMore.value = items.length >= 20
+  } catch (e: any) {
+    diaries.value = []
+    hasMore.value = false
+    errorMessage.value = e?.response?.data?.message || '关注动态加载失败，请稍后重试。'
   } finally {
     loading.value = false
   }
@@ -65,13 +82,21 @@ async function loadFirst() {
 async function loadMore() {
   if (loading.value || !hasMore.value) return
   loading.value = true
+  errorMessage.value = ''
   try {
     page.value++
-    const res = await diaryApi.following(page.value)
-    const data = res.data.data
-    const items = (data.items ?? data).map(store.normalize)
+    const res = await diaryApi.following(page.value, 20)
+    const data = res.data?.data
+    const items: Diary[] = Array.isArray(data?.items)
+      ? data.items.map(store.normalize)
+      : Array.isArray(data)
+        ? data.map(store.normalize)
+        : []
     diaries.value.push(...items)
     hasMore.value = items.length >= 20
+  } catch (e: any) {
+    page.value = Math.max(1, page.value - 1)
+    errorMessage.value = e?.response?.data?.message || '加载更多失败，请稍后重试。'
   } finally {
     loading.value = false
   }
