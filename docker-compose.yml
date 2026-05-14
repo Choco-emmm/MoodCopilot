@@ -1,4 +1,9 @@
 services:
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    restart: unless-stopped
+    command: tunnel run --token REPLACE_WITH_CF_TUNNEL_TOKEN
   mysql:
     image: mysql:8.0
     environment:
