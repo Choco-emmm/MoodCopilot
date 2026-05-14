@@ -8,6 +8,7 @@
       <MyDiaryList
         :diaries="store.myDiaries"
         @select="selectDiary"
+        @edit="editDiary"
         @delete="handleDelete"
       />
     </section>
@@ -29,6 +30,10 @@ onMounted(() => store.fetchDiaries())
 
 function selectDiary(diary: Diary) {
   router.push(`/diary/${diary.id}`)
+}
+
+function editDiary(diary: Diary) {
+  router.push(`/diary/${diary.id}?edit=1`)
 }
 
 async function handleDelete(diary: Diary) {

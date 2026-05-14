@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { authApi } from '../api'
+import { normalizeResourceUrl } from '../utils/resource'
 
 function getInitialToken() {
   const token = localStorage.getItem('token')
@@ -30,7 +31,7 @@ export const useAuthStore = defineStore('auth', () => {
       const data = res.data.data
       userId.value = data.userId
       displayName.value = data.displayName
-      avatar.value = data.avatar
+      avatar.value = normalizeResourceUrl(data.avatar)
       dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
       saveRole(data.role)
     } catch { /* ignore */ }
@@ -40,13 +41,13 @@ export const useAuthStore = defineStore('auth', () => {
     const res = await authApi.updateProfile({ displayName: name, avatar: avatarUrl })
     const data = res.data.data
     displayName.value = data.displayName
-    avatar.value = data.avatar
+    avatar.value = normalizeResourceUrl(data.avatar)
     saveRole(data.role)
   }
 
   async function uploadAvatar(file: File) {
     const res = await authApi.uploadAvatar(file)
-    avatar.value = res.data.data.avatar
+    avatar.value = normalizeResourceUrl(res.data.data.avatar)
   }
 
   async function updateSettings(enabled: boolean) {
@@ -60,7 +61,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = data.token
     userId.value = data.userId
     displayName.value = data.displayName
-    avatar.value = data.avatar
+    avatar.value = normalizeResourceUrl(data.avatar)
     dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
     saveRole(data.role)
     localStorage.setItem('token', data.token)
@@ -72,7 +73,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = data.token
     userId.value = data.userId
     displayName.value = data.displayName
-    avatar.value = data.avatar
+    avatar.value = normalizeResourceUrl(data.avatar)
     dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
     saveRole(data.role)
     localStorage.setItem('token', data.token)
@@ -94,6 +95,8 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('role', role.value)
   }
 
-  return { token, userId, displayName, avatar, dailyNotifyEnabled, role, isAuthenticated, isAdmin,
-    fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout }
+  return {
+    token, userId, displayName, avatar, dailyNotifyEnabled, role, isAuthenticated, isAdmin,
+    fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout
+  }
 })

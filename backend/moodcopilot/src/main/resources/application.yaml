@@ -52,7 +52,7 @@ spring:
       base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
       chat:
         options:
-          model: ${DEEPSEEK_MODEL:deepseek-chat}
+          model: deepseek-chat
           max-tokens: 2048
 jwt:
   secret: ${JWT_SECRET:bW9vZGNvcGlsb3Qtc2VjcmV0LWtleS1mb3ItZGV2ZWxvcG1lbnQtb25seS0yMDI2}
