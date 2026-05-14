@@ -22,18 +22,25 @@
       </div>
     </div>
 
-    <p class="feed-content">{{ visibleContent }}</p>
+    <p
+      class="feed-content feed-content-clickable"
+      role="button"
+      tabindex="0"
+      @click="$emit('open-detail', diary)"
+      @keydown.enter.prevent="$emit('open-detail', diary)"
+      @keydown.space.prevent="$emit('open-detail', diary)"
+    >{{ visibleContent }}</p>
     <button v-if="isLongContent" class="feed-expand" type="button" @click="expanded = !expanded">
       {{ expanded ? '收起' : '展开' }}
     </button>
 
     <div class="feed-actions">
       <n-button size="small" tertiary @click="$emit('resonate', diary)">
-        👍 {{ diary.resonanceCount || '' }}
+        👍 {{ diary.resonanceCount ?? 0 }}
       </n-button>
+      <n-button size="small" text @click="$emit('open-detail', diary)">查看详情</n-button>
       <div v-if="diary.authorUserId !== auth.userId" class="feed-safety-actions">
         <n-button size="small" text @click="reportDiary">举报</n-button>
-        <n-button size="small" text @click="hideDiary">隐藏</n-button>
       </div>
     </div>
 
@@ -100,7 +107,6 @@ import { computed, ref, onMounted } from 'vue'
 import type { Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
 import { useAuthStore } from '../stores/auth'
-import { useDiaryStore } from '../stores/diary'
 import { reportApi } from '../api'
 
 const props = defineProps<{ diary: Diary }>()
@@ -108,11 +114,11 @@ const emit = defineEmits<{
   resonate: [diary: Diary]
   comment: [diary: Diary, content: string, parentCommentId?: number]
   'delete-comment': [diary: Diary, commentId: number]
+  'open-detail': [diary: Diary]
 }>()
 
 const followStore = useFollowStore()
 const auth = useAuthStore()
-const diaryStore = useDiaryStore()
 const hoveringId = ref<number | null>(null)
 
 const draft = ref('')
@@ -152,10 +158,6 @@ async function deleteComment(commentId: number) {
   try {
     emit('delete-comment', props.diary, commentId)
   } catch { /* ignore */ }
-}
-
-async function hideDiary() {
-  await diaryStore.hideDiary(props.diary.id)
 }
 
 async function reportDiary() {

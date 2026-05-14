@@ -14,6 +14,7 @@
         :key="diary.id"
         :diary="diary"
         @resonate="$emit('resonate', $event)"
+        @open-detail="$emit('open-detail', $event)"
         @comment="(d, c, pid) => $emit('comment', d, c, pid)"
         @delete-comment="(d, commentId) => $emit('delete-comment', d, commentId)"
       />
@@ -36,6 +37,7 @@ const props = defineProps<{ diaries: Diary[]; loading: boolean; hasMore?: boolea
 const emit = defineEmits<{
   refresh: []
   resonate: [diary: Diary]
+  'open-detail': [diary: Diary]
   comment: [diary: Diary, content: string, parentCommentId?: number]
   'delete-comment': [diary: Diary, commentId: number]
   loadMore: []

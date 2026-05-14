@@ -22,6 +22,106 @@ export const useNotificationStore = defineStore('notification', () => {
   const unreadLoading = ref(false)
   const unreadFetchedAt = ref(0)
   const UNREAD_CACHE_MS = 30000
+  const socket = ref<WebSocket | null>(null)
+  const reconnectTimer = ref<number | null>(null)
+  const fallbackPollTimer = ref<number | null>(null)
+  const manualClose = ref(false)
+
+  function hasUsableToken(token: string | null) {
+    if (!token) return false
+    const normalized = token.trim().toLowerCase()
+    return normalized !== '' && normalized !== 'null' && normalized !== 'undefined'
+  }
+
+  function clearReconnectTimer() {
+    if (reconnectTimer.value == null) return
+    window.clearTimeout(reconnectTimer.value)
+    reconnectTimer.value = null
+  }
+
+  function clearFallbackPollTimer() {
+    if (fallbackPollTimer.value == null) return
+    window.clearInterval(fallbackPollTimer.value)
+    fallbackPollTimer.value = null
+  }
+
+  function startFallbackPolling() {
+    if (fallbackPollTimer.value != null) return
+    fallbackPollTimer.value = window.setInterval(() => {
+      void fetchUnreadCount(true)
+    }, 15000)
+  }
+
+  function connectRealtime() {
+    const token = localStorage.getItem('token')
+    if (!hasUsableToken(token)) return
+    if (socket.value && (socket.value.readyState === WebSocket.OPEN || socket.value.readyState === WebSocket.CONNECTING)) {
+      return
+    }
+
+    manualClose.value = false
+    clearReconnectTimer()
+    clearFallbackPollTimer()
+    const ws = new WebSocket(notificationApi.wsUrl(token!))
+    socket.value = ws
+
+    ws.onopen = () => {
+      clearFallbackPollTimer()
+      void fetchUnreadCount(true)
+    }
+
+    ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data)
+        if (payload?.type === 'NOTIFICATION') {
+          mergeIncomingNotification(payload.data as Notification)
+        }
+      } catch {
+        // ignore malformed payload
+      }
+    }
+
+    ws.onclose = () => {
+      socket.value = null
+      startFallbackPolling()
+      if (!manualClose.value) {
+        reconnectTimer.value = window.setTimeout(() => connectRealtime(), 3000)
+      }
+    }
+
+    ws.onerror = () => {
+      ws.close()
+    }
+  }
+
+  function disconnectRealtime() {
+    manualClose.value = true
+    clearReconnectTimer()
+    clearFallbackPollTimer()
+    if (socket.value) {
+      socket.value.close()
+      socket.value = null
+    }
+  }
+
+  function mergeIncomingNotification(notification: Notification | null | undefined) {
+    if (!notification || typeof notification.id !== 'number') return
+
+    const idx = items.value.findIndex((n) => n.id === notification.id)
+    if (idx >= 0) {
+      const old = items.value[idx]
+      items.value[idx] = { ...old, ...notification }
+      if ((old.isRead ?? false) && notification.isRead === false) {
+        unreadCount.value += 1
+      }
+      return
+    }
+
+    items.value.unshift({ ...notification, isRead: notification.isRead ?? false })
+    if (notification.isRead === false) {
+      unreadCount.value += 1
+    }
+  }
 
   async function fetchUnreadCount(force = false) {
     if (unreadLoading.value) return
@@ -64,5 +164,14 @@ export const useNotificationStore = defineStore('notification', () => {
     }
   }
 
-  return { items, unreadCount, loading, fetchUnreadCount, fetchNotifications, markRead }
+  return {
+    items,
+    unreadCount,
+    loading,
+    fetchUnreadCount,
+    fetchNotifications,
+    markRead,
+    connectRealtime,
+    disconnectRealtime,
+  }
 })

@@ -18,9 +18,12 @@ public class NotificationService {
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
     private final NotificationMapper notificationMapper;
+    private final NotificationWebSocketHandler notificationWebSocketHandler;
 
-    public NotificationService(NotificationMapper notificationMapper) {
+    public NotificationService(NotificationMapper notificationMapper,
+            NotificationWebSocketHandler notificationWebSocketHandler) {
         this.notificationMapper = notificationMapper;
+        this.notificationWebSocketHandler = notificationWebSocketHandler;
     }
 
     public Page<NotificationEntity> getNotifications(Long recipientUserId, int page, int size) {
@@ -62,6 +65,7 @@ public class NotificationService {
             n.setIsRead(false);
             n.setCreatedAt(LocalDateTime.now());
             notificationMapper.insert(n);
+            notificationWebSocketHandler.pushNotification(recipientUserId, n);
         } catch (Exception e) {
             log.warn("Failed to create comment notification", e);
         }
@@ -77,22 +81,24 @@ public class NotificationService {
             n.setIsRead(false);
             n.setCreatedAt(LocalDateTime.now());
             notificationMapper.insert(n);
+            notificationWebSocketHandler.pushNotification(followedUserId, n);
         } catch (Exception e) {
             log.warn("Failed to create follow notification", e);
         }
     }
 
-    public void notifyResonance(UserEntity actor, Long diaryId, Long recipientUserId) {
+    public void notifyResonance(UserEntity actor, Long diaryId, Long recipientUserId, String diarySnippet) {
         try {
             NotificationEntity n = new NotificationEntity();
             n.setRecipientUserId(recipientUserId);
             n.setActorUserId(actor.getId());
             n.setDiaryId(diaryId);
             n.setType("RESONANCE");
-            n.setMessage(actor.getDisplayName() + " 对你的日记产生了共鸣");
+            n.setMessage(actor.getDisplayName() + "给你的日记《" + diarySnippet + "》点了个赞");
             n.setIsRead(false);
             n.setCreatedAt(LocalDateTime.now());
             notificationMapper.insert(n);
+            notificationWebSocketHandler.pushNotification(recipientUserId, n);
         } catch (Exception e) {
             log.warn("Failed to create resonance notification", e);
         }
@@ -108,6 +114,7 @@ public class NotificationService {
             n.setIsRead(false);
             n.setCreatedAt(LocalDateTime.now());
             notificationMapper.insert(n);
+            notificationWebSocketHandler.pushNotification(recipientUserId, n);
         } catch (Exception e) {
             log.warn("Failed to create daily follow-up notification", e);
         }
@@ -120,11 +127,13 @@ public class NotificationService {
             n.setDiaryId(diaryId);
             n.setType("ENCOURAGEMENT");
             String preview = message != null && message.length() > 30
-                    ? message.substring(0, 30) + "..." : message;
+                    ? message.substring(0, 30) + "..."
+                    : message;
             n.setMessage("有人给你的日记送来了鼓励：" + preview);
             n.setIsRead(false);
             n.setCreatedAt(LocalDateTime.now());
             notificationMapper.insert(n);
+            notificationWebSocketHandler.pushNotification(recipientUserId, n);
         } catch (Exception e) {
             log.warn("Failed to create encouragement notification", e);
         }

@@ -2,6 +2,8 @@ package com.moodcopilot.admin;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.moodcopilot.entity.DiaryCommentEntity;
+import com.moodcopilot.entity.DiaryEntity;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.entity.UserReportEntity;
 import com.moodcopilot.mapper.DiaryCommentMapper;
@@ -34,8 +36,7 @@ public class AdminReportService {
     public AdminReportService(
             UserReportMapper userReportMapper,
             DiaryMapper diaryMapper,
-            DiaryCommentMapper diaryCommentMapper
-    ) {
+            DiaryCommentMapper diaryCommentMapper) {
         this.userReportMapper = userReportMapper;
         this.diaryMapper = diaryMapper;
         this.diaryCommentMapper = diaryCommentMapper;
@@ -51,8 +52,7 @@ public class AdminReportService {
                 new Page<>(pageNumber, pageSize),
                 new LambdaQueryWrapper<UserReportEntity>()
                         .eq(UserReportEntity::getStatus, normalizedStatus)
-                        .orderByDesc(UserReportEntity::getCreatedAt)
-        );
+                        .orderByDesc(UserReportEntity::getCreatedAt));
 
         Page<AdminReportView> viewPage = new Page<>(pageNumber, pageSize, reportPage.getTotal());
         viewPage.setRecords(reportPage.getRecords().stream().map(AdminReportView::from).toList());
@@ -76,9 +76,15 @@ public class AdminReportService {
         UserReportEntity report = findReport(id);
         String targetType = normalizeTargetType(report.getTargetType());
         if ("DIARY".equals(targetType)) {
-            diaryMapper.deleteById(report.getTargetId());
+            DiaryEntity diary = new DiaryEntity();
+            diary.setId(report.getTargetId());
+            diary.setIsDeleted(true);
+            diaryMapper.updateById(diary);
         } else {
-            diaryCommentMapper.deleteById(report.getTargetId());
+            DiaryCommentEntity comment = new DiaryCommentEntity();
+            comment.setId(report.getTargetId());
+            comment.setIsDeleted(true);
+            diaryCommentMapper.updateById(comment);
         }
         finish(report, "RESOLVED", note);
     }

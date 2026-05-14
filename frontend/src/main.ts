@@ -3,11 +3,22 @@ import { createPinia } from 'pinia'
 import naive from 'naive-ui'
 import App from './App.vue'
 import router from './router'
+import { useAuthStore } from './stores/auth'
 import './styles.css'
 
 cleanupLegacyPwa()
 
-createApp(App).use(createPinia()).use(router).use(naive).mount('#app')
+const pinia = createPinia()
+const app = createApp(App)
+
+app.use(pinia).use(router).use(naive)
+
+const auth = useAuthStore(pinia)
+if (auth.isAuthenticated) {
+  void auth.fetchProfile()
+}
+
+app.mount('#app')
 
 function cleanupLegacyPwa() {
   if (!('serviceWorker' in navigator)) return

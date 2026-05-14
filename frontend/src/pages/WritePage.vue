@@ -7,7 +7,6 @@
     <section class="write-history-section">
       <MyDiaryList
         :diaries="store.myDiaries"
-        :active-diary-id="store.activeDiary?.id ?? null"
         @select="selectDiary"
         @delete="handleDelete"
       />
@@ -17,17 +16,19 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
 import DiaryComposer from '../components/DiaryComposer.vue'
 import MyDiaryList from '../components/MyDiaryList.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
 
+const router = useRouter()
 const store = useDiaryStore()
 
 onMounted(() => store.fetchDiaries())
 
 function selectDiary(diary: Diary) {
-  store.activeDiary = store.activeDiary?.id === diary.id ? null : diary
+  router.push(`/diary/${diary.id}`)
 }
 
 async function handleDelete(diary: Diary) {

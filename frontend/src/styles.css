@@ -373,7 +373,7 @@ h2 {
   padding: 18px;
 }
 
-.my-diary-panel > .section-title {
+.my-diary-panel>.section-title {
   margin-bottom: 16px;
 }
 
@@ -549,7 +549,7 @@ h2 {
 .feed,
 .comments {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .write-history-section .diary-list {
@@ -596,8 +596,8 @@ h2 {
 
 .similar-item {
   display: grid;
-  gap: 8px;
-  padding: 14px;
+  gap: 12px;
+  padding: 18px;
 }
 
 .similar-item span,
@@ -649,6 +649,7 @@ h2 {
   text-overflow: ellipsis;
   white-space: normal;
   display: -webkit-box;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   font-size: 14px;
@@ -829,6 +830,20 @@ h2 {
   line-height: 1.75;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.feed-content-clickable {
+  cursor: pointer;
+}
+
+.feed-content-clickable:hover {
+  color: var(--color-jade-hover);
+}
+
+.feed-content-clickable:focus-visible {
+  outline: 2px solid var(--color-jade);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .feed-expand {
@@ -1778,8 +1793,20 @@ h2 {
 .diary-detail-page {
   max-width: 760px;
   display: grid;
-  gap: 16px;
+  gap: 18px;
   padding-bottom: 48px;
+}
+
+.diary-detail-page .panel:last-child {
+  margin-top: 10px;
+}
+
+.diary-detail-page .section-title.compact {
+  margin-bottom: 6px;
+}
+
+.detail-actions {
+  margin-top: 10px;
 }
 
 .comment-section-title {
@@ -1973,7 +2000,7 @@ h2 {
 }
 
 .write-history-section {
-   width: 100%;
+  width: 100%;
   margin-top: 16px;
 }
 
