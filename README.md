@@ -27,6 +27,47 @@ MoodCopilot 是一个 AI 情绪日记 + 同频陪伴社区。
   - 去重：同一用户相似对话哈希去重（2 小时窗口）。
   - 冷却：同一用户 10 分钟内最多触发一次聊天画像更新。
 - 新增链路日志：统一前缀 `memory-chat | skip/pass`，便于线上排查。
+- Docker Compose 生产安全收敛：
+  - 仅前端保留 `80:80` 对外端口。
+  - `mysql/redis/backend` 改为容器内网 `expose`，不再映射宿主机端口。
+  - 各服务增加 `no-new-privileges` 安全选项。
+
+## 云端部署（Docker Compose）
+
+生产环境推荐直接使用仓库根目录的 `docker-compose.yml`，当前默认策略为“最小暴露面”：
+
+- 对外仅开放前端端口 `80`（建议再配 `443`）。
+- 数据库、Redis、后端 API 仅在 Docker 内网通信。
+
+部署步骤（Linux 服务器）：
+
+1. 在服务器拉取代码并进入仓库根目录。
+2. 创建 `.env` 并配置 `DB_PASSWORD`、`DEEPSEEK_API_KEY`、`JWT_SECRET`。
+3. 先构建后端 JAR（后端镜像依赖 `target/*.jar`）：
+
+```bash
+cd backend/moodcopilot
+./mvnw -DskipTests clean package
+cd ../../
+```
+
+4. 回到仓库根目录启动：
+
+```bash
+docker compose up -d --build
+```
+
+5. 验证服务状态：
+
+```bash
+docker compose ps
+docker compose logs -f backend
+```
+
+安全建议：
+
+- 云厂商安全组仅放行 `80/443`。
+- 不要把 `3306/6379/18080` 对公网放行。
 
 ## 技术栈
 
