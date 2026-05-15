@@ -189,7 +189,7 @@ public class ChatService {
         rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.CHAT);
         ChatConversationEntity conv = requireOwnedConversation(conversationId, user);
 
-        // 这里负责把“用户画像 + 用户引用 + 最近日记”拼成统一上下文，后面的模型调用都直接复用。
+        // 这里负责把"用户画像 + 用户引用 + 最近日记"拼成统一上下文，后面的模型调用都直接复用。
         String context = buildContext(user.getId(), refs, memoryBackground);
         String memKey = user.getId() + ":" + conversationId;
         ChatMemory memory = userChatMemories.computeIfAbsent(memKey, k -> new InMemoryChatMemory());
@@ -253,9 +253,11 @@ public class ChatService {
             sb.append(memoryBackground).append("\n");
         }
 
-        // 强制约束：模型只能把“用户的日记/引用”当作背景材料，不能伪装成自己的经历。
+        // 强制约束：模型只能把"用户的日记/引用"当作背景材料，不能伪装成自己的经历。
         sb.append("重要约束：引用内容和日记内容都来自用户本人，不是你的亲身经历。")
-                .append("回答时不要说‘我昨天写了’、‘我经历过’，应使用‘你提到/你写到/从你的日记看’这类表述。\n\n");
+                .append("回答时不要说'我昨天写了'、'我经历过'，应使用'你提到/你写到/从你的日记看'这类表述。")
+                .append("另外，日记和引用前面的编号（如 #1、#3）是内部标记，不要在回复中提及这些编号，")
+                .append("需要引用具体日记时请说明日期（如'你5月10日提到'）。\\n\\n");
 
         // 引用栏内容（广场陪跑跳转、引用日记等）
         if (refs != null && !refs.isEmpty()) {

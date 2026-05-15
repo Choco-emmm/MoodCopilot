@@ -134,6 +134,11 @@ export const summaryApi = {
   delete: (id: number) => api.delete(`/summaries/${id}`),
 }
 
+export const memoryApi = {
+  getAll: () => api.get('/memory'),
+  forget: (id: number) => api.delete(`/memory/${id}`),
+}
+
 export const chatApi = {
   listConversations: () => api.get('/chat/conversations'),
   createConversation: (title?: string) => api.post('/chat/conversations', { title: title || '' }),

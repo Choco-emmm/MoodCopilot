@@ -498,7 +498,7 @@ public class DiaryService {
             }
         }
 
-        WeeklyReportView report = computeMonthlyReport(monthOffset, userId);
+        WeeklyReportView report = computeMonthlyReport(monthOffset, userId, forceGenerate);
         report = withFreshness(report, userId, monthOffset, true);
         try {
             redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), Duration.ofMinutes(30));
@@ -508,7 +508,7 @@ public class DiaryService {
         return report;
     }
 
-    private WeeklyReportView computeMonthlyReport(int monthOffset, long userId) {
+    private WeeklyReportView computeMonthlyReport(int monthOffset, long userId, boolean forceGenerate) {
         LocalDate today = LocalDate.now();
         LocalDate firstOfMonth = today.withDayOfMonth(1).plusMonths(monthOffset);
         LocalDate lastOfMonth = firstOfMonth.withDayOfMonth(firstOfMonth.lengthOfMonth());
@@ -563,8 +563,18 @@ public class DiaryService {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy年M月");
         String monthLabel = firstOfMonth.format(fmt);
 
-        String aiSummary = aiAnalysisService.generateMonthlySummary(contents, analyses);
-        AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateMonthlyGuidance(contents, analyses);
+        String aiSummary = null;
+        List<String> insights = List.of();
+        List<String> suggestions = List.of();
+        String followUpPrompt = null;
+
+        if (forceGenerate && !contents.isEmpty()) {
+            aiSummary = aiAnalysisService.generateMonthlySummary(contents, analyses);
+            AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateMonthlyGuidance(contents, analyses);
+            insights = guidance.insights();
+            suggestions = guidance.suggestions();
+            followUpPrompt = guidance.followUpPrompt();
+        }
 
         return new WeeklyReportView(
                 monthLabel,
@@ -572,11 +582,11 @@ public class DiaryService {
                 dailyMoods,
                 sortedTopics,
                 aiSummary,
-                guidance.insights(),
-                guidance.suggestions(),
-            guidance.followUpPrompt(),
-            LocalDateTime.now(),
-            false);
+                insights,
+                suggestions,
+                followUpPrompt,
+                LocalDateTime.now(),
+                false);
     }
 
     // ── Weekly report ──
@@ -615,7 +625,7 @@ public class DiaryService {
             }
         }
 
-        WeeklyReportView report = computeWeeklyReport(weekOffset, userId);
+        WeeklyReportView report = computeWeeklyReport(weekOffset, userId, forceGenerate);
         report = withFreshness(report, userId, weekOffset, false);
         try {
             redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), Duration.ofMinutes(30));
@@ -625,7 +635,7 @@ public class DiaryService {
         return report;
     }
 
-    private WeeklyReportView computeWeeklyReport(int weekOffset, long userId) {
+    private WeeklyReportView computeWeeklyReport(int weekOffset, long userId, boolean forceGenerate) {
         LocalDate today = LocalDate.now();
         LocalDate monday = today.with(DayOfWeek.MONDAY).plusWeeks(weekOffset);
         LocalDate sunday = monday.plusDays(6);
@@ -680,8 +690,18 @@ public class DiaryService {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("M/d");
         String weekLabel = monday.format(fmt) + " - " + sunday.format(fmt);
 
-        String aiSummary = aiAnalysisService.generateWeeklySummary(contents, analyses);
-        AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateWeeklyGuidance(contents, analyses);
+        String aiSummary = null;
+        List<String> insights = List.of();
+        List<String> suggestions = List.of();
+        String followUpPrompt = null;
+
+        if (forceGenerate && !contents.isEmpty()) {
+            aiSummary = aiAnalysisService.generateWeeklySummary(contents, analyses);
+            AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateWeeklyGuidance(contents, analyses);
+            insights = guidance.insights();
+            suggestions = guidance.suggestions();
+            followUpPrompt = guidance.followUpPrompt();
+        }
 
         return new WeeklyReportView(
                 weekLabel,
@@ -689,9 +709,9 @@ public class DiaryService {
                 dailyMoods,
                 sortedTopics,
                 aiSummary,
-                guidance.insights(),
-                guidance.suggestions(),
-                guidance.followUpPrompt(),
+                insights,
+                suggestions,
+                followUpPrompt,
                 LocalDateTime.now(),
                 false);
     }
@@ -1010,8 +1030,7 @@ public class DiaryService {
         }
         diaryMapper.deleteById(diaryId);
         evictUserCache(user.getId());
-        log.info("日记删除成功，diaryId={}，userId={}，准备触发长期画像重建", diaryId, user.getId());
-        memoryExtractionService.rebuildUserMemoryAfterDiaryDeletion(user.getId(), diaryId);
+        log.info("日记删除成功，diaryId={}，userId={}，已保留用户长期画像", diaryId, user.getId());
     }
 
     @Transactional

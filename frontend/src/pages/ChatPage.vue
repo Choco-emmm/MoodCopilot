@@ -251,7 +251,7 @@ async function selectConversation(id: number) {
   if (id === activeConvId.value) return
   // 保存当前会话
   if (activeConvId.value && messages.value.length > 0) {
-    saveToBackend(activeConvId.value)
+    await saveToBackend(activeConvId.value)
   }
   activeConvId.value = id
   messages.value = await loadFromBackend(id)
@@ -341,7 +341,7 @@ async function createConversation() {
   try {
     // 避免用户在会话创建尚未完成时把第一条消息发到旧会话里。
     if (activeConvId.value && messages.value.length > 0) {
-      saveToBackend(activeConvId.value)
+      await saveToBackend(activeConvId.value)
     }
     activeConvId.value = null
     messages.value = []
@@ -375,7 +375,7 @@ async function deleteConversation(id: number) {
 }
 
 function saveToBackend(convId: number) {
-  chatApi.saveHistory(convId, messages.value).catch((error) => {
+  return chatApi.saveHistory(convId, messages.value).catch((error) => {
     console.warn('[chat] 保存历史失败', { convId, error })
   })
 }
@@ -495,8 +495,8 @@ async function sendReply(convId: number, content: string, refContents: string[],
   }
 }
 
-function finishSend(convId: number) {
-  saveToBackend(convId)
+async function finishSend(convId: number) {
+  await saveToBackend(convId)
   streaming.value = false
   streamingText.value = ''
   references.value = []
