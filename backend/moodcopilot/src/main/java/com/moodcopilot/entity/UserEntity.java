@@ -19,6 +19,9 @@ public class UserEntity {
     private Boolean isVip;
     private String avatar;
     private Boolean dailyNotifyEnabled;
+    private String inviteCode;
+    private Integer inviteQuota;
+    private Long invitedBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -48,6 +51,15 @@ public class UserEntity {
 
     public Boolean getDailyNotifyEnabled() { return dailyNotifyEnabled; }
     public void setDailyNotifyEnabled(Boolean dailyNotifyEnabled) { this.dailyNotifyEnabled = dailyNotifyEnabled; }
+
+    public String getInviteCode() { return inviteCode; }
+    public void setInviteCode(String inviteCode) { this.inviteCode = inviteCode; }
+
+    public Integer getInviteQuota() { return inviteQuota; }
+    public void setInviteQuota(Integer inviteQuota) { this.inviteQuota = inviteQuota; }
+
+    public Long getInvitedBy() { return invitedBy; }
+    public void setInvitedBy(Long invitedBy) { this.invitedBy = invitedBy; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

@@ -83,6 +83,12 @@ Vue 3 SPA，api（拦截器+请求）、components（10+UI组件）、pages（10
 - **聊天体验修复**（2026-05-15）：
   - AI 回复中泄露内部编号（`#1`、`#5`），根因是 `ChatService.buildContext` 使用 `[日记 #N]` 标记，模型回显给用户。修复：prompt 增加编号禁用 + 日期替代约束。
   - 手机端聊天消息偶发丢失，根因是 `saveToBackend` fire-and-forget + `syncFromServer` 定期拉取覆盖本地未持久化消息。修复：`saveToBackend` 改为返回 Promise，`finishSend` 等调用点加 `await`。
+- **邀请码注册机制**（2026-05-16）：
+  - users 表新增 `invite_code`（UNIQUE）、`invite_quota`（DEFAULT 3）、`invited_by` 三列（V1_17）。
+  - `RegisterRequest` 新增 `inviteCode` 必填字段；`AuthResponse` 补齐 `inviteCode`/`inviteQuota` 返回。
+  - 注册流程：校验邀请码 → 扣减邀请人名额 → 新用户自动生成 6 位随机邀请码 + 3 名额。
+  - 万能码 `MOOD-MASTER-2026` 绕过校验，V1_18 种子脚本为 `2364116964@qq.com` 分配邀请码 `CHOCO` + 50 名额。
+  - 设置页新增「内测邀请」面板：展示自己的邀请码和剩余名额。
 - **报告页/日记编辑/时区修复**（2026-05-15）：
   - 报告生成按钮：点击后整页闪白→按钮保留 + loading 态 + AI 区域生成中提示。
   - 日记编辑：原文与编辑框重复回显→编辑时隐藏原文。
