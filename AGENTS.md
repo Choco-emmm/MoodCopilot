@@ -71,16 +71,22 @@ Vue 3 SPA，api（拦截器+请求）、components（10+UI组件）、pages（10
   - `POST /api/chat/admin/init-memory`：批量初始化接口（已完成 25/25 用户覆盖）。
   - `@Lazy DiaryService` 断开 Spring AI Bean 循环依赖。
   - `DiaryService` 补齐 `generateWeeklyAiSummary/generateMonthlyAiSummary` 方法。
-- **删除场景的画像重建**（2026-05-14）：
-  - 删除日记后不再只做增量更新，改为基于"剩余日记证据"全量重建画像。
-  - 异步入口：`MemoryExtractionService.rebuildUserMemoryAfterDiaryDeletion(userId, deletedDiaryId)`，由 `DiaryService.deleteDiary()` 触发。
-  - 四层证据分层避免长期历史截断：
-    * 近期层（最近 15 篇）：原文，保留高粒度细节和最新状态。
-    * 中期层（最多 120 篇）：读取单篇分析结果（情绪/主题/摘要），覆盖较早历史而不爆炸 token。
-    * 长期层（最多 10 个周期）：复用 `diary_summaries` 表周期摘要，自动过滤掉包含被删日记的失效摘要。
-    * 更老层：对周期摘要未覆盖的更老历史做聚合统计（高频情绪/主题）。
-  - 幂等同步确保数据库最终与重建结果一致；用户无剩余日记时清空画像。
-  - 关键日志记录：重建开始、各层证据规模、同步结果，便于排错和监控。
+- **记忆解绑与用户记忆管理**（2026-05-15）：
+  - 删除日记不再触发全量画像重建（移除 `rebuildUserMemoryAfterDiaryDeletion` 及 ~400 行证据分层/周期摘要复用/聚合统计逻辑）。
+  - 记忆控制权交还用户：新增 `UserProfileMemoryController`（`GET /api/memory`、`DELETE /api/memory/{id}`）。
+  - `MemoryExtractionService` 保留增量更新链路（`extractAndSyncMemory`、`extractAndSyncMemoryFromChat`），新增 `listCurrentUserMemories()`、`deleteMemory(long)`。
+  - 前端设置页新增「我的记忆」面板：卡片展示记忆属性（key/value），支持单条删除。
+- **报告 AI 生成策略修正**（2026-05-15）：
+  - `computeWeeklyReport` / `computeMonthlyReport` 增加 `forceGenerate` 参数，仅 `true` 时调用 AI。
+  - 定时器（周一 00:00 / 每月 1 日 00:00）+ 手动按钮走 `forceGenerate=true`。
+  - 仅查看报告页走 `forceGenerate=false`，返回情绪数据/话题统计但不消耗 AI 额度。
+- **聊天体验修复**（2026-05-15）：
+  - AI 回复中泄露内部编号（`#1`、`#5`），根因是 `ChatService.buildContext` 使用 `[日记 #N]` 标记，模型回显给用户。修复：prompt 增加编号禁用 + 日期替代约束。
+  - 手机端聊天消息偶发丢失，根因是 `saveToBackend` fire-and-forget + `syncFromServer` 定期拉取覆盖本地未持久化消息。修复：`saveToBackend` 改为返回 Promise，`finishSend` 等调用点加 `await`。
+- **报告页/日记编辑/时区修复**（2026-05-15）：
+  - 报告生成按钮：点击后整页闪白→按钮保留 + loading 态 + AI 区域生成中提示。
+  - 日记编辑：原文与编辑框重复回显→编辑时隐藏原文。
+  - 时区：Dockerfile JVM `-Duser.timezone=Asia/Shanghai` + JDBC URL `serverTimezone=Asia/Shanghai` + Jackson `time-zone: Asia/Shanghai`，解决 Docker 容器 UTC 导致时间偏差 8 小时。
 - **高可用性设计**（2026-05-13）：
   - 标准键映射：Redis key 遵循 `module:key:identifier` 格式，避免冲突。
   - 幂等 upsert：`user_profile_memory` 按 `(user_id, attribute_key)` UNIQUE，避免重复。
