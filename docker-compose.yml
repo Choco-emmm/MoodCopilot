@@ -1,4 +1,10 @@
 services:
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    restart: always
+    # 把下面这行最后的 <你的Token> 换成你刚才复制的那一大串字符
+    command: tunnel --no-autoupdate run --token REPLACE_WITH_CF_TUNNEL_TOKEN
   mysql:
     image: mysql:8.0
     environment:
@@ -54,7 +60,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-root}
       REDIS_HOST: redis
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:-bW9vZGNvcGlsb3Qtc2VjcmV0LWtleS1mb3ItZGV2ZWxvcG1lbnQtb25seS0yMDI2}
     deploy:
       resources:
         limits:
