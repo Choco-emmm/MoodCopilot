@@ -13,9 +13,14 @@ cd "$PROJECT_DIR"
 echo "[2/5] 拉取最新代码"
 git pull --ff-only
 
-echo "[3/5] 构建后端 JAR"
-cd "$BACKEND_DIR"
-./mvnw -DskipTests clean package
+# [3/5] 构建后端 JAR (精准指向 pom.xml 所在目录)
+echo "[3/5] 正在进入 moodcopilot 目录并开始通过 Docker 编译..."
+docker run --rm \
+  -v "$PWD/backend/moodcopilot:/app" \
+  -v "$HOME/.m2:/root/.m2" \
+  -w /app \
+  maven:3.9-eclipse-temurin-21 \
+  mvn clean package -Dmaven.test.skip=true
 
 echo "[4/5] 重建并启动容器"
 cd "$PROJECT_DIR"

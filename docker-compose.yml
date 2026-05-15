@@ -2,8 +2,9 @@ services:
   tunnel:
     image: cloudflare/cloudflared:latest
     container_name: cloudflare-tunnel
-    restart: unless-stopped
-    command: tunnel run --token eyJhIjoiZTNkOTc2NmY5NmU3ZjU3NzAwYmY4ODU2NTViMWNhZjYiLCJ0IjoiMzI0ZGZlM2MtMGU2MS00MzA2LThkZGEtMjY3MjRiNjkyZTIwIiwicyI6Ik5UQTROMlpqTldNdFpEZzFaQzAwTUdZeUxUazBORFl0WVRCaU56SXlZV1JpTUdOaCJ9
+    restart: always
+    # 把下面这行最后的 <你的Token> 换成你刚才复制的那一大串字符
+    command: tunnel --no-autoupdate run --token eyJhIjoiZTNkOTc2NmY5NmU3ZjU3NzAwYmY4ODU2NTViMWNhZjYiLCJ0IjoiZDIwOGQ0NmItODhjMy00OWM2LWI4OGQtYzhiNDkyM2VlN2ZjIiwicyI6IlpXRm1OakJsWkRFdFpHWTROQzAwT0dKaUxXSmlObU10TnpGa05qTmhNekk0TkdNeiJ9
   mysql:
     image: mysql:8.0
     environment:
@@ -59,7 +60,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-root}
       REDIS_HOST: redis
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:-bW9vZGNvcGlsb3Qtc2VjcmV0LWtleS1mb3ItZGV2ZWxvcG1lbnQtb25seS0yMDI2}
     deploy:
       resources:
         limits:
