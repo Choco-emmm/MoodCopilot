@@ -73,9 +73,12 @@
             <h4>AI 周总结</h4>
             <p class="report-auto-hint">系统会在每周一 00:00 自动生成上一周报告，也可以现在手动生成。</p>
             <div v-if="!report.aiSummary || report.needsRegenerate" class="empty-state compact">
-              <p v-if="!report.aiSummary">暂无总结，可使用 AI 限额提前生成</p>
+              <p v-if="store.generatingWeekly">AI 正在生成总结，请稍候...</p>
+              <p v-else-if="!report.aiSummary">暂无总结，可使用 AI 限额提前生成</p>
               <p v-else>检测到新日记未纳入本次报告，可按需重新生成，或等待下次自动生成</p>
-              <n-button type="primary" @click="store.generateWeeklyAiSummary(weekOffset)">生成 AI 总结</n-button>
+              <n-button type="primary" :loading="store.generatingWeekly" :disabled="store.generatingWeekly" @click="store.generateWeeklyAiSummary(weekOffset)">
+                {{ store.generatingWeekly ? 'AI 生成中...' : '生成 AI 总结' }}
+              </n-button>
             </div>
             <p v-else class="ai-summary">{{ report.aiSummary }}</p>
 
@@ -179,9 +182,12 @@
             <h4>AI 月总结</h4>
             <p class="report-auto-hint">系统会在每月 1 日 00:00 自动生成上一月报告，也可以现在手动生成。</p>
             <div v-if="!monthReport.aiSummary || monthReport.needsRegenerate" class="empty-state compact">
-              <p v-if="!monthReport.aiSummary">暂无总结，可使用 AI 限额提前生成</p>
+              <p v-if="store.generatingMonthly">AI 正在生成总结，请稍候...</p>
+              <p v-else-if="!monthReport.aiSummary">暂无总结，可使用 AI 限额提前生成</p>
               <p v-else>检测到新日记未纳入本次报告，可按需重新生成，或等待下次自动生成</p>
-              <n-button type="primary" @click="store.generateMonthlyAiSummary(monthOffset)">生成 AI 总结</n-button>
+              <n-button type="primary" :loading="store.generatingMonthly" :disabled="store.generatingMonthly" @click="store.generateMonthlyAiSummary(monthOffset)">
+                {{ store.generatingMonthly ? 'AI 生成中...' : '生成 AI 总结' }}
+              </n-button>
             </div>
             <p v-else class="ai-summary">{{ monthReport.aiSummary }}</p>
 

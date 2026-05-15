@@ -100,6 +100,29 @@
         </div>
       </section>
 
+      <section class="settings-section">
+        <div class="section-head">
+          <p class="settings-label">我的记忆</p>
+          <span class="section-tag">Memory</span>
+        </div>
+        <p class="memory-desc">MoodCopilot 从你的日记和聊天中学习的长期画像，你可以随时删除不想要的部分。</p>
+        <div v-if="memoriesLoading" class="memory-loading">加载中...</div>
+        <div v-else-if="memories.length === 0" class="memory-empty">
+          MoodCopilot 正在默默观察你，多写点日记或和 AI 聊天吧。
+        </div>
+        <div v-else class="memory-list">
+          <div v-for="m in memories" :key="m.id" class="memory-item">
+            <div class="memory-content">
+              <span class="memory-key">{{ m.attributeKey }}</span>
+              <span class="memory-value">{{ m.attributeValue }}</span>
+            </div>
+            <n-button size="tiny" text type="error" :disabled="deletingMemoryId === m.id" @click="forgetMemory(m.id)">
+              {{ deletingMemoryId === m.id ? '...' : '✕' }}
+            </n-button>
+          </div>
+        </div>
+      </section>
+
       <section class="settings-section danger-zone">
         <div class="section-head">
           <p class="settings-label">账户操作</p>
@@ -117,9 +140,35 @@ import { useRouter } from 'vue-router'
 import { NInput, NButton, NSwitch, NModal } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import { useAuthStore } from '../stores/auth'
+import { memoryApi } from '../api'
 
 const router = useRouter()
 const auth = useAuthStore()
+
+// ---- memory management ----
+interface MemoryItem { id: number; attributeKey: string; attributeValue: string }
+const memories = ref<MemoryItem[]>([])
+const memoriesLoading = ref(false)
+const deletingMemoryId = ref<number | null>(null)
+
+async function loadMemories() {
+  memoriesLoading.value = true
+  try {
+    const res = await memoryApi.getAll()
+    memories.value = (res.data.data ?? []) as MemoryItem[]
+  } catch { memories.value = [] }
+  finally { memoriesLoading.value = false }
+}
+
+async function forgetMemory(id: number) {
+  deletingMemoryId.value = id
+  try {
+    await memoryApi.forget(id)
+    memories.value = memories.value.filter(m => m.id !== id)
+  } catch { /* ignore */ }
+  finally { deletingMemoryId.value = null }
+}
+// ---- end memory management ----
 const fileInput = ref<HTMLInputElement | null>(null)
 const editingName = ref('')
 const savingName = ref(false)
@@ -147,6 +196,7 @@ let drawRafId: number | null = null
 onMounted(async () => {
   await auth.fetchProfile()
   editingName.value = auth.displayName ?? ''
+  loadMemories()
 })
 
 function triggerUpload() {
@@ -596,6 +646,62 @@ function handleLogout() {
   background: #edf6f0;
   border-radius: 10px;
   padding: 7px 10px;
+}
+
+.memory-desc {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #6f6256;
+}
+
+.memory-loading,
+.memory-empty {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #8f8278;
+}
+
+.memory-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.memory-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f9f7f3;
+  border: 1px solid rgba(162, 142, 123, 0.14);
+}
+
+.memory-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.memory-key {
+  font-size: 12px;
+  font-weight: 700;
+  color: #446454;
+  background: #edf4ef;
+  border-radius: 6px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.memory-value {
+  font-size: 13px;
+  color: #3d443d;
+  line-height: 1.5;
+  word-break: break-word;
 }
 
 .danger-zone {

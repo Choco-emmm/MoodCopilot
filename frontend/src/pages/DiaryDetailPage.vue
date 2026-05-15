@@ -16,7 +16,7 @@
             <n-button v-if="isOwner" size="tiny" text @click="toggleEdit">{{ editing ? '取消编辑' : '编辑' }}</n-button>
             <n-button v-if="!isOwner" size="tiny" text @click="reportDiary">举报</n-button>
           </div>
-          <p class="diary-content">{{ diary.content }}</p>
+          <p v-if="!editing" class="diary-content">{{ diary.content }}</p>
 
           <div v-if="isOwner && editing" class="diary-edit-panel">
             <n-input

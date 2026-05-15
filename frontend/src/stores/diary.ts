@@ -69,6 +69,7 @@ export const useDiaryStore = defineStore('diary', () => {
   const hasMore = ref(true)
   const weeklyReport = ref<WeeklyReport | null>(null)
   const reportLoading = ref(false)
+  const generatingWeekly = ref(false)
   const reportError = ref<string | null>(null)
   let analysisPollTimer: ReturnType<typeof setInterval> | null = null
   let analysisPollAttempts = 0
@@ -275,7 +276,7 @@ export const useDiaryStore = defineStore('diary', () => {
   }
 
   async function generateWeeklyAiSummary(weekOffset = 0) {
-    reportLoading.value = true
+    generatingWeekly.value = true
     reportError.value = null
     try {
       const res = await diaryApi.generateWeeklyReport(weekOffset)
@@ -283,12 +284,13 @@ export const useDiaryStore = defineStore('diary', () => {
     } catch (e: any) {
       reportError.value = formatReportError(e)
     } finally {
-      reportLoading.value = false
+      generatingWeekly.value = false
     }
   }
 
   const monthlyReport = ref<WeeklyReport | null>(null)
   const monthLoading = ref(false)
+  const generatingMonthly = ref(false)
   const monthError = ref<string | null>(null)
 
   async function fetchMonthlyReport(monthOffset = 0) {
@@ -306,7 +308,7 @@ export const useDiaryStore = defineStore('diary', () => {
   }
 
   async function generateMonthlyAiSummary(monthOffset = 0) {
-    monthLoading.value = true
+    generatingMonthly.value = true
     monthError.value = null
     try {
       const res = await diaryApi.generateMonthlyReport(monthOffset)
@@ -314,7 +316,7 @@ export const useDiaryStore = defineStore('diary', () => {
     } catch (e: any) {
       monthError.value = formatReportError(e)
     } finally {
-      monthLoading.value = false
+      generatingMonthly.value = false
     }
   }
 
@@ -339,7 +341,7 @@ export const useDiaryStore = defineStore('diary', () => {
 
   return {
     myDiaries, publicDiaries, activeDiary, similarDiaries, loading, saving, errorMessage,
-    analysisStatus, hasMore, weeklyReport, reportLoading, reportError, monthlyReport, monthLoading, monthError,
+    analysisStatus, hasMore, weeklyReport, reportLoading, generatingWeekly, reportError, monthlyReport, monthLoading, generatingMonthly, monthError,
     fetchDiaries, loadMorePublic, createDiary, updateDiary, loadSimilar, addComment, resonate, sendEncouragement, deleteDiary,
     refreshAnalysis, deleteComment,
     fetchWeeklyReport, fetchMonthlyReport, generateWeeklyAiSummary, generateMonthlyAiSummary, normalize,
