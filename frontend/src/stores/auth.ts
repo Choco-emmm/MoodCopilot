@@ -21,6 +21,8 @@ export const useAuthStore = defineStore('auth', () => {
   const avatar = ref<string | null>(null)
   const dailyNotifyEnabled = ref<boolean>(true)
   const role = ref<string>(localStorage.getItem('role') || 'USER')
+  const inviteCode = ref<string | null>(null)
+  const inviteQuota = ref<number>(0)
 
   const isAuthenticated = computed(() => !!token.value)
   const isAdmin = computed(() => role.value === 'ADMIN')
@@ -33,6 +35,8 @@ export const useAuthStore = defineStore('auth', () => {
       displayName.value = data.displayName
       avatar.value = normalizeResourceUrl(data.avatar)
       dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
+      inviteCode.value = data.inviteCode ?? null
+      inviteQuota.value = data.inviteQuota ?? 0
       saveRole(data.role)
     } catch { /* ignore */ }
   }
@@ -55,28 +59,26 @@ export const useAuthStore = defineStore('auth', () => {
     dailyNotifyEnabled.value = enabled
   }
 
-  async function login(email: string, password: string) {
-    const res = await authApi.login({ email, password })
-    const data = res.data.data
+  function applyAuthData(data: any) {
     token.value = data.token
     userId.value = data.userId
     displayName.value = data.displayName
     avatar.value = normalizeResourceUrl(data.avatar)
     dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
+    inviteCode.value = data.inviteCode ?? null
+    inviteQuota.value = data.inviteQuota ?? 0
     saveRole(data.role)
-    localStorage.setItem('token', data.token)
+    if (data.token) localStorage.setItem('token', data.token)
   }
 
-  async function register(name: string, email: string, password: string) {
-    const res = await authApi.register({ displayName: name, email, password })
-    const data = res.data.data
-    token.value = data.token
-    userId.value = data.userId
-    displayName.value = data.displayName
-    avatar.value = normalizeResourceUrl(data.avatar)
-    dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
-    saveRole(data.role)
-    localStorage.setItem('token', data.token)
+  async function login(email: string, password: string) {
+    const res = await authApi.login({ email, password })
+    applyAuthData(res.data.data)
+  }
+
+  async function register(name: string, email: string, password: string, inviteCodeParam: string) {
+    const res = await authApi.register({ displayName: name, email, password, inviteCode: inviteCodeParam })
+    applyAuthData(res.data.data)
   }
 
   function logout() {
@@ -96,7 +98,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    token, userId, displayName, avatar, dailyNotifyEnabled, role, isAuthenticated, isAdmin,
+    token, userId, displayName, avatar, dailyNotifyEnabled, role, inviteCode, inviteQuota, isAuthenticated, isAdmin,
     fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout
   }
 })

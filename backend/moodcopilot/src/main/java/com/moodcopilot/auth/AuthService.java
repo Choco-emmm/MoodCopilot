@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Locale;
 
@@ -45,6 +46,14 @@ public class AuthService {
         this.uploadRoot = uploadRoot;
     }
 
+    private static final String MASTER_INVITE_CODE = "MOOD-MASTER-2026";
+    private static final int DEFAULT_INVITE_QUOTA = 3;
+    private static final int INVITE_CODE_LENGTH = 6;
+    private static final String INVITE_CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private static final int INVITE_CODE_MAX_RETRIES = 10;
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    @org.springframework.transaction.annotation.Transactional
     public AuthResponse register(RegisterRequest request) {
         if (request.displayName() == null || request.displayName().isBlank()) {
             throw new ResponseStatusException(BAD_REQUEST, "用户名不能为空");
@@ -55,11 +64,31 @@ public class AuthService {
         if (request.password() == null || request.password().length() < 6) {
             throw new ResponseStatusException(BAD_REQUEST, "密码至少6位");
         }
+        if (request.inviteCode() == null || request.inviteCode().isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "内测阶段需要邀请码才能注册");
+        }
 
         boolean exists = userMapper.exists(
                 new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, request.email()));
         if (exists) {
             throw new ResponseStatusException(BAD_REQUEST, "邮箱已被注册");
+        }
+
+        // 验证邀请码
+        boolean isMasterCode = MASTER_INVITE_CODE.equals(request.inviteCode().trim());
+        UserEntity inviter = null;
+        if (!isMasterCode) {
+            inviter = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
+                    .eq(UserEntity::getInviteCode, request.inviteCode().trim()));
+            if (inviter == null) {
+                throw new ResponseStatusException(BAD_REQUEST, "邀请码无效");
+            }
+            if (inviter.getInviteQuota() == null || inviter.getInviteQuota() <= 0) {
+                throw new ResponseStatusException(BAD_REQUEST, "该邀请码的名额已用完");
+            }
+            // 扣减邀请人名额
+            inviter.setInviteQuota(inviter.getInviteQuota() - 1);
+            userMapper.updateById(inviter);
         }
 
         UserEntity user = new UserEntity();
@@ -68,12 +97,33 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setStatus(1);
         user.setRole("USER");
+        user.setInviteCode(generateUniqueInviteCode());
+        user.setInviteQuota(DEFAULT_INVITE_QUOTA);
+        user.setInvitedBy(isMasterCode ? null : inviter.getId());
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.insert(user);
 
         String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail());
         return response(token, user);
+    }
+
+    private String generateUniqueInviteCode() {
+        StringBuilder sb = new StringBuilder(INVITE_CODE_LENGTH);
+        for (int attempt = 0; attempt < INVITE_CODE_MAX_RETRIES; attempt++) {
+            sb.setLength(0);
+            for (int i = 0; i < INVITE_CODE_LENGTH; i++) {
+                sb.append(INVITE_CODE_CHARS.charAt(secureRandom.nextInt(INVITE_CODE_CHARS.length())));
+            }
+            String code = sb.toString();
+            boolean codeExists = userMapper.exists(
+                    new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getInviteCode, code));
+            if (!codeExists) {
+                return code;
+            }
+        }
+        // 重试耗尽后使用 UUID 兜底，确保永不失败
+        return java.util.UUID.randomUUID().toString().replace("-", "").substring(0, INVITE_CODE_LENGTH).toUpperCase();
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -155,7 +205,7 @@ public class AuthService {
     private AuthResponse response(String token, UserEntity user) {
         String role = user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole();
         return new AuthResponse(token, user.getId(), user.getDisplayName(), normalizeAvatar(user.getAvatar()),
-                user.getDailyNotifyEnabled(), role);
+                user.getDailyNotifyEnabled(), role, user.getInviteCode(), user.getInviteQuota());
     }
 
     private String normalizeAvatar(String avatar) {

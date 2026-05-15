@@ -14,6 +14,9 @@
         <n-form-item path="password" label="密码">
           <n-input v-model:value="form.password" type="password" placeholder="至少6位密码" />
         </n-form-item>
+        <n-form-item path="inviteCode" label="内测邀请码">
+          <n-input v-model:value="form.inviteCode" placeholder="请输入邀请码" :disabled="loading" />
+        </n-form-item>
         <n-button type="primary" block :loading="loading" @click="handleRegister">注册</n-button>
       </n-form>
       <p class="auth-switch">
@@ -35,18 +38,19 @@ const auth = useAuthStore()
 const loading = ref(false)
 const errorMsg = ref<string | null>(null)
 
-const form = reactive({ displayName: '', email: '', password: '' })
+const form = reactive({ displayName: '', email: '', password: '', inviteCode: '' })
 const rules = {
   displayName: [{ required: true, message: '请输入用户名' }],
   email: [{ required: true, message: '请输入邮箱' }],
   password: [{ required: true, message: '请输入密码', min: 6 }],
+  inviteCode: [{ required: true, message: '请输入内测邀请码' }],
 }
 
 async function handleRegister() {
   loading.value = true
   errorMsg.value = null
   try {
-    await auth.register(form.displayName, form.email, form.password)
+    await auth.register(form.displayName, form.email, form.password, form.inviteCode)
     router.push('/')
   } catch (e: any) {
     errorMsg.value = e.response?.data?.message || '注册失败，请稍后重试'
