@@ -8,16 +8,34 @@ MoodCopilot 是一个 AI 情绪日记 + 同频陪伴社区。
 - 长期用户画像：日记分析后异步抽取长期属性并注入聊天上下文。
 - 聊天驱动画像增量更新：用户与 AI 对话完成后也会触发画像提取（流式/非流式都覆盖）。
 - 聊天画像阈值策略：硬门槛 + 打分 + 去重 + 冷却，减少噪声与抖动。
-- 删除后画像重建：删除日记后按分层证据重建画像，避免旧证据污染。
+- 记忆解绑：删除日记不再自动重建画像，改为用户手动管理记忆（设置页「我的记忆」面板）。
+- 用户记忆管理 API：`GET/DELETE /api/memory`，用户可查看/删除长期画像属性。
+- 报告 AI 总结仅在定时（周一/1日 00:00）或手动点击时调用，查看报告页不再触发 AI。
 - 举报审核后台：管理员可按状态分页处理举报。
-- 管理员“隐藏并处理”已改为软删：
+- 管理员”隐藏并处理”已改为软删：
   - 举报目标是日记：将日记 `is_deleted=1`
   - 举报目标是评论：将评论 `is_deleted=1`
   - 不再物理删除。
-- 用户侧“隐藏他人日记”功能已下线。
+- 用户侧”隐藏他人日记”功能已下线。
 
 ## 本次更新（2026-05-15）
 
+- **记忆解绑**：
+  - 删除 `rebuildUserMemoryAfterDiaryDeletion` 及全部重建相关方法（~400 行）。
+  - 新增 `UserProfileMemoryController`：`GET /api/memory` 获取记忆列表，`DELETE /api/memory/{id}` 删除指定记忆。
+  - 前端设置页新增「我的记忆」面板，支持查看、删除长期画像属性。
+  - 增量更新（`extractAndSyncMemory` / `extractAndSyncMemoryFromChat`）保持不变。
+- **报告 AI 生成策略修正**：
+  - `computeWeeklyReport` / `computeMonthlyReport` 仅在 `forceGenerate=true` 时调用 AI。
+  - 查看报告页走 `forceGenerate=false`，返回情绪数据/话题统计但不生成 AI 总结。
+  - 定时器 + 手动点击”生成 AI 总结”走 `forceGenerate=true`。
+- **聊天体验修复**：
+  - 修复 AI 回复中泄露内部编号（`#1`、`#5`）的问题：prompt 增加编号禁用约束。
+  - 修复手机端聊天消息偶发丢失：`saveToBackend` 改为 await，sync 不再覆盖未持久化消息。
+- **报告页体验修复**：
+  - 生成 AI 总结时按钮保持可见 + loading 态 + 文字切换，不再整页闪白。
+- **日记编辑修复**：编辑模式下隐藏原文段落，仅保留编辑框。
+- **时区修复**：Dockerfile JVM 时区 + JDBC `serverTimezone` + Jackson `time-zone` 统一设为 `Asia/Shanghai`。
 - 聊天完成后触发画像更新：
   - 流式接口 `POST /api/chat/conversations/{id}` 在流结束后更新画像。
   - 非流式接口 `POST /api/chat/conversations/{id}/reply` 在返回后更新画像。
