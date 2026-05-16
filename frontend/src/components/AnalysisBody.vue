@@ -12,7 +12,7 @@
             </template>
             <div class="mood-guide">
               <div class="guide-section">
-                <p class="guide-section-title">情绪分类（四象限）</p>
+                <p class="guide-section-title">情绪分类</p>
                 <div class="quadrant-grid">
                   <div
                     v-for="group in moodGroups"
