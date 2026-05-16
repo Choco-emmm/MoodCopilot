@@ -17,10 +17,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Configuration
 public class AIConfiguration {
@@ -28,10 +30,13 @@ public class AIConfiguration {
     private static final Logger log = LoggerFactory.getLogger(AIConfiguration.class);
 
     @Bean
-    public Map<String, ChatMemory> userChatMemories() {
+    public Cache<String, ChatMemory> userChatMemories() {
         // 以 userId:conversationId 作为 key 的会话记忆容器。
-        // 这样同一个用户的不同会话不会互相串话，也方便删除会话时精准清理。
-        return new ConcurrentHashMap<>();
+        // 30 分钟无访问自动过期 + 最多 500 条，防止 2C4G 服务器 OOM。
+        return Caffeine.newBuilder()
+                .expireAfterAccess(30, TimeUnit.MINUTES)
+                .maximumSize(500)
+                .build();
     }
 
     @Bean

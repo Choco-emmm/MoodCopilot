@@ -110,6 +110,12 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-openai-spring-boot-starter</artifactId>
         </dependency>
+
+        <!-- Caffeine：轻量本地缓存，用于 ChatMemory 的过期驱逐，防止 2C4G 服务器 OOM -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
     </dependencies>
 
     <dependencyManagement>
