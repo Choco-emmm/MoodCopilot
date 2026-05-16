@@ -54,6 +54,21 @@ spring:
         options:
           model: deepseek-chat
           max-tokens: 2048
+  mail:
+    host: ${MAIL_HOST:smtp.qq.com}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:your-email@qq.com}
+    password: ${MAIL_PASSWORD:your-smtp-auth-code}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: false
+          socketFactory:
+            class: javax.net.ssl.SSLSocketFactory
+            port: 465
   jackson:
     time-zone: Asia/Shanghai
 jwt:

@@ -31,7 +31,7 @@
 |---|------|
 | 后端 | Spring Boot 3.5 + Java 21 + Spring AI + MyBatis-Plus |
 | 数据库 | MySQL 8.0 + Redis 7 |
-| 安全 | Spring Security + JWT + 接口速率限制 |
+| 安全 | Spring Security + JWT + 邮箱验证码 + 接口速率限制 |
 | 前端 | Vue 3 + TypeScript + Vite + Naive UI |
 | AI | DeepSeek 双模型路由（Reasoning + Chat） |
 | 部署 | Docker Compose + Nginx + Cloudflare Tunnel |
@@ -141,6 +141,10 @@ docker compose up -d
 | `DEEPSEEK_BASE_URL` | DeepSeek API 地址 | `https://api.deepseek.com` |
 | `DEEPSEEK_MODEL` | 默认模型 | `deepseek-chat` |
 | `JWT_SECRET` | JWT 签名密钥 | 内置开发默认值 |
+| `MAIL_HOST` | SMTP 服务器 | `smtp.qq.com` |
+| `MAIL_PORT` | SMTP 端口 | `465` |
+| `MAIL_USERNAME` | 发件邮箱 | — |
+| `MAIL_PASSWORD` | SMTP 授权码 | — |
 
 ## AI 架构
 

@@ -61,6 +61,10 @@ services:
       REDIS_HOST: redis
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       JWT_SECRET: ${JWT_SECRET:-bW9vZGNvcGlsb3Qtc2VjcmV0LWtleS1mb3ItZGV2ZWxvcG1lbnQtb25seS0yMDI2}
+      MAIL_HOST: ${MAIL_HOST:-smtp.qq.com}
+      MAIL_PORT: ${MAIL_PORT:-465}
+      MAIL_USERNAME: ${MAIL_USERNAME:-your-email@qq.com}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-your-smtp-auth-code}
     deploy:
       resources:
         limits:

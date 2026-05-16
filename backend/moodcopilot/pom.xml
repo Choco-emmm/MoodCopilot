@@ -111,6 +111,12 @@
             <artifactId>spring-ai-openai-spring-boot-starter</artifactId>
         </dependency>
 
+        <!-- Spring Boot Mail -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- Caffeine：轻量本地缓存，用于 ChatMemory 的过期驱逐，防止 2C4G 服务器 OOM -->
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>

@@ -76,8 +76,12 @@ export const useAuthStore = defineStore('auth', () => {
     applyAuthData(res.data.data)
   }
 
-  async function register(name: string, email: string, password: string, inviteCodeParam: string) {
-    const res = await authApi.register({ displayName: name, email, password, inviteCode: inviteCodeParam })
+  async function sendCode(email: string) {
+    await authApi.sendCode(email)
+  }
+
+  async function register(name: string, email: string, password: string, inviteCodeParam: string, verificationCode: string) {
+    const res = await authApi.register({ displayName: name, email, password, inviteCode: inviteCodeParam, verificationCode })
     applyAuthData(res.data.data)
   }
 
@@ -99,6 +103,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     token, userId, displayName, avatar, dailyNotifyEnabled, role, inviteCode, inviteQuota, isAuthenticated, isAdmin,
-    fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout
+    fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout, sendCode
   }
 })
