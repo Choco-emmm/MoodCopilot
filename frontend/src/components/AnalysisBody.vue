@@ -4,7 +4,16 @@
     <div class="section-title compact">
       <div>
         <p class="eyebrow">AI 分析</p>
-        <h2>{{ diary.analysis.moodLabel }} · 强度 {{ diary.analysis.moodIntensity }}/5</h2>
+        <h2>
+          {{ diary.analysis.moodLabel }} · 强度 {{ diary.analysis.moodIntensity }}/5
+          <span v-if="diary.analysis.secondaryMoods?.length" class="secondary-moods">
+            <span
+              v-for="m in diary.analysis.secondaryMoods"
+              :key="m"
+              class="secondary-mood-tag"
+            >{{ m }}</span>
+          </span>
+        </h2>
       </div>
     </div>
 
@@ -40,3 +49,21 @@ import type { Diary } from '../stores/diary'
 
 defineProps<{ diary: Diary }>()
 </script>
+
+<style scoped>
+.secondary-moods {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.secondary-mood-tag {
+  font-size: 0.72rem;
+  font-weight: 400;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--color-bg-secondary, #f0f0f0);
+  color: var(--color-text-secondary, #888);
+  border: 1px solid var(--color-border, #e0e0e0);
+}
+</style>

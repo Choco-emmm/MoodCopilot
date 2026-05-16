@@ -18,9 +18,9 @@ public class UrgentCareListener {
     private static final Logger log = LoggerFactory.getLogger(UrgentCareListener.class);
 
     private static final List<String> URGENT_NEGATIVE_MOODS = List.of(
-            "崩溃", "极度抑郁", "绝望", "自残", "自杀", "极度焦虑", "极度愤怒");
+            "害怕", "难过", "孤独", "迷茫", "内疚", "愤怒");
 
-    private static final int URGENT_INTENSITY_THRESHOLD = 8;
+    private static final int URGENT_INTENSITY_THRESHOLD = 5;
 
     private final AiAnalysisService aiAnalysisService;
     private final NotificationService notificationService;

@@ -84,6 +84,7 @@ public class SummaryService {
                         analysisEntity.getMoodLabel(),
                         analysisEntity.getMoodIntensity(),
                         analysisEntity.getTopicLabelsJson(),
+                        analysisEntity.getSecondaryMoodsJson() != null ? analysisEntity.getSecondaryMoodsJson() : List.of(),
                         analysisEntity.getSummary(),
                         analysisEntity.getFeedback()
                 );

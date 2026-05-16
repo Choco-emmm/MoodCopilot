@@ -17,6 +17,8 @@ public class DiaryAnalysisEntity {
     private Integer moodIntensity;
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> topicLabelsJson;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> secondaryMoodsJson;
     private String summary;
     private String feedback;
     private LocalDateTime createdAt;
@@ -33,6 +35,9 @@ public class DiaryAnalysisEntity {
 
     public List<String> getTopicLabelsJson() { return topicLabelsJson; }
     public void setTopicLabelsJson(List<String> topicLabelsJson) { this.topicLabelsJson = topicLabelsJson; }
+
+    public List<String> getSecondaryMoodsJson() { return secondaryMoodsJson; }
+    public void setSecondaryMoodsJson(List<String> secondaryMoodsJson) { this.secondaryMoodsJson = secondaryMoodsJson; }
 
     public String getSummary() { return summary; }
     public void setSummary(String summary) { this.summary = summary; }
