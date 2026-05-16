@@ -83,13 +83,13 @@
           </div>
 
           <div v-if="isThinking" class="flex items-start gap-3 my-2 animate-fade-in">
-            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 shadow-sm text-sm">
-              🧠
+            <div class="w-8 h-8 min-w-[2rem] min-h-[2rem] rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0 shadow-sm border border-indigo-100 text-sm animate-pulse">
+              ✨
             </div>
 
             <div class="bg-gray-100 text-gray-600 rounded-2xl rounded-tl-none p-4 max-w-[75%] shadow-sm flex flex-col gap-2">
               <div class="text-sm font-medium text-indigo-500 flex items-center gap-1.5">
-                <span class="animate-pulse">MoodCopilot 正在沉思...</span>
+                <span class="animate-pulse">MoodCopilot 正在沉思<span class="typing-dots"></span></span>
               </div>
 
               <div class="flex items-center gap-1 h-3 pl-1">
@@ -650,6 +650,23 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 
 .animate-fade-in {
   animation: fadeIn 0.25s ease-out forwards;
+}
+
+/* 动态省略号打字效果 */
+@keyframes typing-dots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+  100% { content: ''; }
+}
+
+.typing-dots::after {
+  content: '';
+  animation: typing-dots 1.5s infinite;
+  display: inline-block;
+  width: 1em;
+  text-align: left;
 }
 
 .chat-reply-error-bar {

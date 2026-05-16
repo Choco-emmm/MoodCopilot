@@ -62,8 +62,8 @@
       <span v-for="step in 5" :key="step" :class="{ filled: step <= diary.analysis.moodIntensity }" />
     </div>
 
-    <p class="summary">{{ diary.analysis.summary }}</p>
-    <p class="feedback">{{ diary.analysis.feedback }}</p>
+    <div v-html="parsedSummary" class="prose" />
+    <div v-html="parsedFeedback" class="prose" />
   </template>
 
   <template v-else>
@@ -90,10 +90,22 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NProgress, NPopover } from 'naive-ui'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import type { Diary } from '../stores/diary'
 import { moodColor } from '../utils/mood'
 
 const props = defineProps<{ diary: Diary }>()
+
+const parsedSummary = computed(() => {
+  if (!props.diary.analysis?.summary) return ''
+  return DOMPurify.sanitize(marked.parse(props.diary.analysis.summary, { async: false }) as string)
+})
+
+const parsedFeedback = computed(() => {
+  if (!props.diary.analysis?.feedback) return ''
+  return DOMPurify.sanitize(marked.parse(props.diary.analysis.feedback, { async: false }) as string)
+})
 
 const moodGroups = [
   {
@@ -191,6 +203,93 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ── Markdown prose 排版 ── */
+.prose {
+  max-width: none;
+  line-height: 1.75;
+  color: var(--color-text, #444);
+  white-space: normal;
+}
+
+.prose :deep(p) {
+  margin: 0 0 0.75em;
+}
+
+.prose :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.prose :deep(h1),
+.prose :deep(h2),
+.prose :deep(h3),
+.prose :deep(h4) {
+  margin: 1.25em 0 0.5em;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text, #333);
+}
+
+.prose :deep(h1) { font-size: 1.25rem; }
+.prose :deep(h2) { font-size: 1.1rem; }
+.prose :deep(h3) { font-size: 1rem; }
+
+.prose :deep(ul),
+.prose :deep(ol) {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.prose :deep(li) {
+  margin-bottom: 0.3em;
+}
+
+.prose :deep(blockquote) {
+  margin: 0.75em 0;
+  padding: 0.5em 1em;
+  border-left: 3px solid var(--color-accent-light, #d9827a);
+  background: var(--color-accent-bg, #fff1ef);
+  border-radius: 0 8px 8px 0;
+  color: var(--color-text-secondary, #67645d);
+}
+
+.prose :deep(code) {
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  background: var(--color-surface-soft, #f6f2ea);
+  font-size: 0.9em;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.prose :deep(pre) {
+  margin: 0.75em 0;
+  padding: 0.75em 1em;
+  border-radius: 8px;
+  background: var(--color-surface-soft, #f6f2ea);
+  overflow-x: auto;
+  font-size: 0.85em;
+  line-height: 1.55;
+}
+
+.prose :deep(pre code) {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+
+.prose :deep(a) {
+  color: var(--color-accent, #a94b45);
+  text-decoration: underline;
+}
+
+.prose :deep(strong) {
+  font-weight: 600;
+  color: var(--color-text, #333);
+}
+
+.prose :deep(em) {
+  font-style: italic;
+}
+
 /* ── 指南触发图标 ── */
 .mood-guide-trigger {
   display: inline-flex;
