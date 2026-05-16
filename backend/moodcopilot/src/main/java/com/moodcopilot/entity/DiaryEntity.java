@@ -21,6 +21,7 @@ public class DiaryEntity {
     @TableLogic
     @TableField("is_deleted")
     private Boolean isDeleted;
+    private Boolean isPinned;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -41,6 +42,9 @@ public class DiaryEntity {
 
     public Integer getResonanceCount() { return resonanceCount; }
     public void setResonanceCount(Integer resonanceCount) { this.resonanceCount = resonanceCount; }
+
+    public Boolean getIsPinned() { return isPinned; }
+    public void setIsPinned(Boolean isPinned) { this.isPinned = isPinned; }
 
     public Boolean getIsDeleted() { return isDeleted; }
     public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }
