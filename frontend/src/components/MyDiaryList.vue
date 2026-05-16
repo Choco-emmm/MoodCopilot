@@ -24,7 +24,10 @@
               <strong class="my-diary-content">{{ diary.content }}</strong>
               <span class="my-diary-meta">
                 <small>{{ formatTime(diary.createdAt) }}</small>
-                <small>{{ diary.analysis?.moodLabel || '分析中...' }}</small>
+                <small
+                class="mood-label"
+                :style="{ color: diary.analysis?.moodLabel ? moodColor(diary.analysis.moodLabel) : undefined }"
+              >{{ diary.analysis?.moodLabel || '分析中...' }}</small>
               </span>
             </span>
             <div class="diary-actions">
@@ -51,6 +54,7 @@
 
 <script setup lang="ts">
 import type { Diary } from '../stores/diary'
+import { moodColor } from '../utils/mood'
 
 defineProps<{ diaries: Diary[] }>()
 defineEmits<{ select: [diary: Diary]; edit: [diary: Diary]; delete: [diary: Diary] }>()
@@ -63,6 +67,12 @@ function formatTime(value: string) {
 </script>
 
 <style scoped>
+.mood-label {
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: var(--color-bg-elevated, #f5f3f0);
+}
 .diary-actions {
   display: flex;
   gap: 4px;
