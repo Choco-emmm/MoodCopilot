@@ -30,7 +30,7 @@
               <p style="margin: 0 0 8px; font-weight: bold; font-size: 13px; color: #2f2a24;">今日剩余 AI 额度</p>
               <ul style="margin: 0; padding-left: 18px; font-size: 13px; color: #555;">
                 <li>聊天：{{ quotas.CHAT ?? '--' }} 次</li>
-                <li>分析（含陪跑）：{{ quotas.ANALYSIS ?? '--' }} 次</li>
+                <li>分析：{{ quotas.ANALYSIS ?? '--' }} 次</li>
                 <li>报告：{{ quotas.REPORT ?? '--' }} 次</li>
               </ul>
               <p style="margin: 8px 0 0; font-size: 11px; color: #888;">每日 0 点重置</p>
