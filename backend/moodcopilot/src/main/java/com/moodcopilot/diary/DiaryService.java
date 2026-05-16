@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.AiAnalysisService;
+import com.moodcopilot.ai.DiaryAnalysisCompletedEvent;
 import com.moodcopilot.ai.MemoryExtractionService;
 import com.moodcopilot.common.ContentFilter;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
@@ -27,6 +28,7 @@ import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.notification.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
@@ -74,6 +76,7 @@ public class DiaryService {
     private final DiarySummaryMapper diarySummaryMapper;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public DiaryService(DiaryMapper diaryMapper,
             DiaryAnalysisMapper diaryAnalysisMapper,
@@ -88,7 +91,8 @@ public class DiaryService {
             FollowService followService,
             DiarySummaryMapper diarySummaryMapper,
             StringRedisTemplate redisTemplate,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            ApplicationEventPublisher eventPublisher) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
@@ -103,6 +107,7 @@ public class DiaryService {
         this.diarySummaryMapper = diarySummaryMapper;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -210,9 +215,13 @@ public class DiaryService {
         analysisEntity.setUpdatedAt(LocalDateTime.now());
         diaryAnalysisMapper.insert(analysisEntity);
         log.info("日记 AI 分析已落库，diaryId={}，mood={}，topics={}", diaryId, analysis.moodLabel(), analysis.topicLabels());
+
+        eventPublisher.publishEvent(new DiaryAnalysisCompletedEvent(
+                this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels()));
+
         memoryExtractionService.extractAndSyncMemory(userId, content);
         markReportsStale(userId);
-        log.info("日记分析后续任务已触发，diaryId={}，userId={}，动作=extractMemory+markReportsStale", diaryId, userId);
+        log.info("日记分析后续任务已触发，diaryId={}，userId={}，动作=publishEvent+extractMemory+markReportsStale", diaryId, userId);
     }
 
     public Page<DiaryView> myDiaries(int page, int size) {

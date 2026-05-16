@@ -37,7 +37,7 @@ public class AIConfiguration {
     @Bean
     public ChatClient analysisChatClient(ChatClient.Builder builder) {
         // 分析模型客户端：专门用于日记分析、周/月报总结、长期画像提取。
-        // 这里保持“分析”和“聊天”两套客户端的概念分离，便于后续切模型。
+        // 这里保持"分析"和"聊天"两套客户端的概念分离，便于后续切模型。
         return builder.build();
     }
 
@@ -47,11 +47,18 @@ public class AIConfiguration {
         return builder
                 .defaultSystem("""
                         你是 MoodCopilot。你温暖、善解人意，像一位了解用户近况的朋友。
-                        在对话的上下文中，会提供用户最近的日记（包含日期和内容）。请自然地引用它们。
-                        例如：「根据你 5/9 的日记...」或「你前几天提到...」。
-                        当用户追问“上周/上个月/之前/以前为什么会怎样”、或需要翻阅更早的历史时，优先调用 diarySearchFunction 查询历史日记，再基于查询结果回答。
-                        如果需要历史依据，不要假装记得没有查到的内容。
+
+                        你拥有以下工具来查询用户的历史数据：
+                        - diarySearchFunction：按关键词或日期范围检索用户的日记摘要
+                        - userStatsFunction：统计用户最近 N 天的日记数量与情绪分布
+
+                        关键行为准则：
+                        当用户提到"最近"、"之前"、"上周"、"上个月"、"以前"、或者你需要核对用户的历史状态时，必须主动调用工具查询事实，不要盲目猜测。
+                        如果用户的问题涉及过往经历或情绪变化，先查询再回答，不要假装记得没有查到的内容。
+                        查到日记后，自然引用日期和内容，例如：「根据你 5/9 的日记...」或「你前几天提到...」。
+
                         每次回复控制在2-3句话以内，像朋友发消息一样简短温暖。不要写大段分析或建议，除非用户明确要求。
+
                         重要限制：
                         1. 不要使用任何 emoji 表情符号。
                         2. 保持成熟、稳定、克制的语气。绝对禁止进行戏剧化的角色扮演，严禁在回复中使用括号描述动作（例如禁止出现「(打哈欠)」、「(伸懒腰)」等）。
@@ -66,7 +73,7 @@ public class AIConfiguration {
         return FunctionCallback.builder()
                 .function(DiarySearchFunctionSupport.NAME, diaryService::searchOwnDiarySummaries)
                 .description(
-                        "检索当前登录用户自己的历史日记摘要。keyword、startDate、endDate 都可选，日期格式为 YYYY-MM-DD。返回日期和内容片段，适合回答“上周为什么不开心”之类的历史问题。")
+                        "检索当前登录用户自己的历史日记摘要。keyword、startDate、endDate 都可选，日期格式为 YYYY-MM-DD。返回日期和内容片段，适合回答「上周为什么不开心」之类的历史问题。")
                 .inputType(DiarySearchRequest.class)
                 .build();
     }
@@ -76,7 +83,7 @@ public class AIConfiguration {
         log.info("注册 Function Calling 工具：{}", UserStatsFunctionSupport.NAME);
         return FunctionCallback.builder()
                 .function(UserStatsFunctionSupport.NAME, diaryService::getOwnMoodStats)
-                .description("统计当前登录用户最近 N 天（默认 14 天）的日记与情绪分布，返回总日记数、情绪计数和高频主题。适合回答“我最近总是什么心情”这类问题。")
+                .description("统计当前登录用户最近 N 天（默认 14 天）的日记与情绪分布，返回总日记数、情绪计数和高频主题。适合回答「我最近总是什么心情」这类问题。")
                 .inputType(UserStatsRequest.class)
                 .build();
     }

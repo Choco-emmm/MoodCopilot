@@ -94,7 +94,7 @@
         <div class="settings-row notify-row">
           <div>
             <p class="notify-title">每日跟进通知</p>
-            <p class="settings-desc">每天早上 6:00 推送一条情绪陪跑通知，计入当日 AI 额度</p>
+            <p class="settings-desc">每天在偏好时段推送一条情绪陪跑通知，计入当日 AI 额度</p>
           </div>
           <n-switch :value="auth.dailyNotifyEnabled" @update:value="toggleNotify" :disabled="toggling" />
         </div>
