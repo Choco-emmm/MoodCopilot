@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
 @RestController
@@ -25,6 +26,16 @@ public class AuthController {
 
     public AuthController(AuthService authService) {
         this.authService = authService;
+    }
+
+    @PostMapping("/send-code")
+    public ApiResponse<Void> sendVerificationCode(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "邮箱不能为空");
+        }
+        authService.sendVerificationCode(email);
+        return ApiResponse.ok(null);
     }
 
     @PostMapping("/register")

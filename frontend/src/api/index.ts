@@ -106,7 +106,8 @@ export const notificationApi = {
 }
 
 export const authApi = {
-  register: (data: { displayName: string; email: string; password: string; inviteCode: string }) =>
+  sendCode: (email: string) => api.post('/auth/send-code', { email }),
+  register: (data: { displayName: string; email: string; password: string; inviteCode: string; verificationCode: string }) =>
     api.post('/auth/register', data),
   login: (data: { email: string; password: string }) => api.post('/auth/login', data),
   me: () => api.get('/auth/me'),
