@@ -158,7 +158,9 @@
               <span class="legend-item"><i class="legend-dot" style="background:#4f8f7c"></i>平静</span>
               <span class="legend-item"><i class="legend-dot" style="background:#7db89a"></i>轻松</span>
               <span class="legend-item"><i class="legend-dot" style="background:#e08d72"></i>焦虑</span>
+              <span class="legend-item"><i class="legend-dot" style="background:#c4a8b4"></i>害怕</span>
               <span class="legend-item"><i class="legend-dot" style="background:#e09f5c"></i>烦躁</span>
+              <span class="legend-item"><i class="legend-dot" style="background:#a8b0c0"></i>难过</span>
             </div>
             <div class="sparkline-labels">
               <span>{{ sparklineFirst }}</span>
@@ -279,6 +281,7 @@ import { NButton, NTag, NDatePicker, NSpin } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import { useDiaryStore } from '../stores/diary'
 import { summaryApi } from '../api'
+import { moodColor } from '../utils/mood'
 
 const router = useRouter()
 const store = useDiaryStore()
@@ -396,14 +399,6 @@ async function loadSummaries() {
 async function remove(id: number) {
   await summaryApi.delete(id)
   summaries.value = summaries.value.filter((s: any) => s.id !== id)
-}
-
-function moodColor(label: string) {
-  const map: Record<string, string> = {
-    '焦虑': '#e08d72', '委屈': '#d4a373', '烦躁': '#e09f5c',
-    '疲惫': '#9cb4a8', '轻松': '#7db89a', '平静': '#4f8f7c',
-  }
-  return map[label] || '#9cb4a8'
 }
 
 function goDiary(ids?: number[]) {

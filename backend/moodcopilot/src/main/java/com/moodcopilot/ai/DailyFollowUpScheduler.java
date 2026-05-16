@@ -114,7 +114,8 @@ public class DailyFollowUpScheduler {
                     DiaryAnalysisEntity a = analysisMap.get(d.getId());
                     if (a != null) {
                         analyses.add(new DiaryAnalysis(a.getMoodLabel(), a.getMoodIntensity(),
-                                a.getTopicLabelsJson(), a.getSummary(), a.getFeedback()));
+                                a.getTopicLabelsJson(), a.getSecondaryMoodsJson() != null ? a.getSecondaryMoodsJson() : List.of(),
+                                a.getSummary(), a.getFeedback()));
                     } else {
                         analyses.add(null);
                     }

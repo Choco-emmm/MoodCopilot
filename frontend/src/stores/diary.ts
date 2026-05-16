@@ -20,6 +20,7 @@ export interface DiaryAnalysis {
   moodLabel: string
   moodIntensity: number
   topicLabels: string[]
+  secondaryMoods?: string[]
   summary: string
   feedback: string
 }

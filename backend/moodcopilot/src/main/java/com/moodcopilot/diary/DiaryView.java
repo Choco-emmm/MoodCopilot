@@ -47,6 +47,7 @@ public record DiaryView(
                         analysis.getMoodLabel(),
                         analysis.getMoodIntensity(),
                         analysis.getTopicLabelsJson(),
+                        analysis.getSecondaryMoodsJson() != null ? analysis.getSecondaryMoodsJson() : List.of(),
                         analysis.getSummary(),
                         analysis.getFeedback()
                 );
