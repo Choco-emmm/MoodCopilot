@@ -240,7 +240,8 @@ public class ChatService {
         StringBuilder sb = new StringBuilder();
 
         if (memoryBackground != null && !memoryBackground.isBlank()) {
-            sb.append("【用户长期画像】\n").append(memoryBackground).append("\n\n");
+            sb.append("【过往长期事实背景，仅供参考 — 不要与当前引用内容混淆】\n")
+              .append(memoryBackground).append("\n\n");
         }
 
         sb.append("重要约束：引用内容和日记内容都来自用户本人，不是你的亲身经历。")
@@ -249,11 +250,17 @@ public class ChatService {
                 .append("需要引用具体日记时请说明日期（如'你5月10日提到'）。\n\n");
 
         if (refs != null && !refs.isEmpty()) {
-            sb.append("以下内容是用户引用的话题或资料，你的回答应重点基于这些内容：\n");
+            sb.append("【绝对核心聚焦指令】\n");
+            sb.append("核心任务：用户本次对话显式引用了下面这篇日记。你后续的共情、分析和所有互动追问，")
+              .append("必须 100% 紧密围绕这篇日记中所记录的具体事件、特定人物、核心冲突以及当时的情绪展开。\n");
+            sb.append("严禁行为：严禁给出敷衍、宏观、万能的宽泛安慰。不要跳出这篇日记去聊不相关的话题。")
+              .append("请像一位面对面进行个案心理疏导的专业咨询师，针对这篇引用的具体切片进行剥茧抽丝的引导。\n\n");
+            sb.append("【当前讨论的靶向目标 — 用户聚焦引用的日记内容】\n\"\"\"\n");
             for (int i = 0; i < refs.size(); i++) {
-                sb.append("[引用 #").append(i + 1).append("] ").append(refs.get(i)).append("\n");
+                sb.append(refs.get(i));
+                if (i < refs.size() - 1) sb.append("\n---\n");
             }
-            sb.append("\n");
+            sb.append("\n\"\"\"\n\n");
         }
 
         log.info("构建聊天上下文（RAG模式），userId={}，referenceCount={}，hasMemoryBackground={}",
