@@ -14,6 +14,7 @@ import com.moodcopilot.entity.DiaryEntity;
 import com.moodcopilot.entity.DiaryHideEntity;
 import com.moodcopilot.entity.DiaryRecommendationExposureEntity;
 import com.moodcopilot.entity.DiaryResonanceEntity;
+import com.moodcopilot.entity.DiarySummaryEntity;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.DiaryCommentMapper;
@@ -21,6 +22,7 @@ import com.moodcopilot.mapper.DiaryHideMapper;
 import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.mapper.DiaryRecommendationExposureMapper;
 import com.moodcopilot.mapper.DiaryResonanceMapper;
+import com.moodcopilot.mapper.DiarySummaryMapper;
 import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.notification.NotificationService;
 import org.slf4j.Logger;
@@ -69,6 +71,7 @@ public class DiaryService {
     private final MemoryExtractionService memoryExtractionService;
     private final NotificationService notificationService;
     private final FollowService followService;
+    private final DiarySummaryMapper diarySummaryMapper;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -83,6 +86,7 @@ public class DiaryService {
             MemoryExtractionService memoryExtractionService,
             NotificationService notificationService,
             FollowService followService,
+            DiarySummaryMapper diarySummaryMapper,
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper) {
         this.diaryMapper = diaryMapper;
@@ -96,6 +100,7 @@ public class DiaryService {
         this.memoryExtractionService = memoryExtractionService;
         this.notificationService = notificationService;
         this.followService = followService;
+        this.diarySummaryMapper = diarySummaryMapper;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
     }
@@ -496,12 +501,29 @@ public class DiaryService {
             } catch (Exception e) {
                 log.debug("Cache read failed for {}", cacheKey, e);
             }
+
+            WeeklyReportView dbReport = loadReportFromDb(userId, monthOffset, true);
+            if (dbReport != null) {
+                dbReport = withFreshness(dbReport, userId, monthOffset, true);
+                try {
+                    redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(dbReport), Duration.ofDays(30));
+                } catch (Exception e) {
+                    log.debug("Cache write failed for {}", cacheKey, e);
+                }
+                return dbReport;
+            }
         }
 
         WeeklyReportView report = computeMonthlyReport(monthOffset, userId, forceGenerate);
         report = withFreshness(report, userId, monthOffset, true);
+
+        if (forceGenerate && report.aiSummary() != null) {
+            saveReportToDb(userId, report, monthOffset, true);
+        }
+
         try {
-            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), Duration.ofMinutes(30));
+            Duration ttl = forceGenerate && report.aiSummary() != null ? Duration.ofDays(30) : Duration.ofMinutes(2);
+            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), ttl);
         } catch (Exception e) {
             log.debug("Cache write failed for {}", cacheKey, e);
         }
@@ -623,12 +645,29 @@ public class DiaryService {
             } catch (Exception e) {
                 log.debug("Cache read failed for {}", cacheKey, e);
             }
+
+            WeeklyReportView dbReport = loadReportFromDb(userId, weekOffset, false);
+            if (dbReport != null) {
+                dbReport = withFreshness(dbReport, userId, weekOffset, false);
+                try {
+                    redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(dbReport), Duration.ofDays(7));
+                } catch (Exception e) {
+                    log.debug("Cache write failed for {}", cacheKey, e);
+                }
+                return dbReport;
+            }
         }
 
         WeeklyReportView report = computeWeeklyReport(weekOffset, userId, forceGenerate);
         report = withFreshness(report, userId, weekOffset, false);
+
+        if (forceGenerate && report.aiSummary() != null) {
+            saveReportToDb(userId, report, weekOffset, false);
+        }
+
         try {
-            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), Duration.ofMinutes(30));
+            Duration ttl = forceGenerate && report.aiSummary() != null ? Duration.ofDays(7) : Duration.ofMinutes(2);
+            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(report), ttl);
         } catch (Exception e) {
             log.debug("Cache write failed for {}", cacheKey, e);
         }
@@ -714,6 +753,110 @@ public class DiaryService {
                 followUpPrompt,
                 LocalDateTime.now(),
                 false);
+    }
+
+    // ── Report DB persistence ──
+
+    private LocalDate[] weekDates(int weekOffset) {
+        LocalDate today = LocalDate.now();
+        LocalDate monday = today.with(DayOfWeek.MONDAY).plusWeeks(weekOffset);
+        return new LocalDate[]{monday, monday.plusDays(6)};
+    }
+
+    private LocalDate[] monthDates(int monthOffset) {
+        LocalDate today = LocalDate.now();
+        LocalDate firstOfMonth = today.withDayOfMonth(1).plusMonths(monthOffset);
+        LocalDate lastOfMonth = firstOfMonth.withDayOfMonth(firstOfMonth.lengthOfMonth());
+        return new LocalDate[]{firstOfMonth, lastOfMonth};
+    }
+
+    private void saveReportToDb(long userId, WeeklyReportView report, int offset, boolean monthly) {
+        try {
+            LocalDate[] dates = monthly ? monthDates(offset) : weekDates(offset);
+            LocalDate startDate = dates[0];
+            LocalDate endDate = dates[1];
+            String reportType = monthly ? "MONTHLY" : "WEEKLY";
+
+            DiarySummaryEntity existing = diarySummaryMapper.selectOne(
+                    new LambdaQueryWrapper<DiarySummaryEntity>()
+                            .eq(DiarySummaryEntity::getUserId, userId)
+                            .eq(DiarySummaryEntity::getStartDate, startDate)
+                            .eq(DiarySummaryEntity::getEndDate, endDate)
+                            .eq(DiarySummaryEntity::getReportType, reportType));
+
+            DiarySummaryEntity entity = existing != null ? existing : new DiarySummaryEntity();
+            entity.setUserId(userId);
+            entity.setReportType(reportType);
+            entity.setTitle(report.weekLabel());
+            entity.setStartDate(startDate);
+            entity.setEndDate(endDate);
+            entity.setAiSummary(report.aiSummary());
+            entity.setInsightsJson(report.insights() != null && !report.insights().isEmpty()
+                    ? objectMapper.writeValueAsString(report.insights()) : null);
+            entity.setSuggestionsJson(report.suggestions() != null && !report.suggestions().isEmpty()
+                    ? objectMapper.writeValueAsString(report.suggestions()) : null);
+            entity.setFollowUpPrompt(report.followUpPrompt());
+            entity.setMoodsJson(objectMapper.writeValueAsString(report.dailyMoods()));
+            entity.setTopicsJson(objectMapper.writeValueAsString(report.topicCounts()));
+            entity.setDiaryCount(report.diaryCount());
+            entity.setCreatedAt(LocalDateTime.now());
+
+            if (existing != null) {
+                diarySummaryMapper.updateById(entity);
+            } else {
+                diarySummaryMapper.insert(entity);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to save report to DB for userId={}, offset={}, monthly={}", userId, offset, monthly, e);
+        }
+    }
+
+    private WeeklyReportView loadReportFromDb(long userId, int offset, boolean monthly) {
+        try {
+            LocalDate[] dates = monthly ? monthDates(offset) : weekDates(offset);
+            String reportType = monthly ? "MONTHLY" : "WEEKLY";
+
+            DiarySummaryEntity entity = diarySummaryMapper.selectOne(
+                    new LambdaQueryWrapper<DiarySummaryEntity>()
+                            .eq(DiarySummaryEntity::getUserId, userId)
+                            .eq(DiarySummaryEntity::getStartDate, dates[0])
+                            .eq(DiarySummaryEntity::getEndDate, dates[1])
+                            .eq(DiarySummaryEntity::getReportType, reportType));
+
+            if (entity == null || entity.getAiSummary() == null) return null;
+
+            List<WeeklyReportView.DailyMood> dailyMoods = objectMapper.readValue(
+                    entity.getMoodsJson(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, WeeklyReportView.DailyMood.class));
+
+            Map<String, Integer> topicCounts = objectMapper.readValue(
+                    entity.getTopicsJson(), new TypeReference<Map<String, Integer>>() {});
+
+            List<String> insights = entity.getInsightsJson() != null
+                    ? objectMapper.readValue(entity.getInsightsJson(),
+                            objectMapper.getTypeFactory().constructCollectionType(List.class, String.class))
+                    : List.of();
+
+            List<String> suggestions = entity.getSuggestionsJson() != null
+                    ? objectMapper.readValue(entity.getSuggestionsJson(),
+                            objectMapper.getTypeFactory().constructCollectionType(List.class, String.class))
+                    : List.of();
+
+            return new WeeklyReportView(
+                    entity.getTitle(),
+                    entity.getDiaryCount(),
+                    dailyMoods,
+                    topicCounts,
+                    entity.getAiSummary(),
+                    insights,
+                    suggestions,
+                    entity.getFollowUpPrompt(),
+                    entity.getCreatedAt(),
+                    false);
+        } catch (Exception e) {
+            log.debug("Failed to load report from DB for userId={}, offset={}, monthly={}", userId, offset, monthly, e);
+            return null;
+        }
     }
 
     public boolean hasUnreportedDiaries(long userId, LocalDate startDate, LocalDate endDate, LocalDateTime generatedAt) {
@@ -1313,6 +1456,14 @@ public class DiaryService {
                 }
             }
             redisTemplate.delete("coaching:" + userId);
+            var weeklyKeys = redisTemplate.keys("report:" + userId + ":*");
+            if (weeklyKeys != null && !weeklyKeys.isEmpty()) {
+                redisTemplate.delete(weeklyKeys);
+            }
+            var monthlyKeys = redisTemplate.keys("report:monthly:" + userId + ":*");
+            if (monthlyKeys != null && !monthlyKeys.isEmpty()) {
+                redisTemplate.delete(monthlyKeys);
+            }
         } catch (Exception e) {
             log.debug("Cache mark stale failed", e);
         }

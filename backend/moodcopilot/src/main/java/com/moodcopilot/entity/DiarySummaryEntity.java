@@ -13,10 +13,14 @@ public class DiarySummaryEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long userId;
+    private String reportType;
     private String title;
     private LocalDate startDate;
     private LocalDate endDate;
     private String aiSummary;
+    private String insightsJson;
+    private String suggestionsJson;
+    private String followUpPrompt;
     private String moodsJson;
     private String topicsJson;
     private Integer diaryCount;
@@ -29,6 +33,9 @@ public class DiarySummaryEntity {
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
 
+    public String getReportType() { return reportType; }
+    public void setReportType(String reportType) { this.reportType = reportType; }
+
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
 
@@ -40,6 +47,15 @@ public class DiarySummaryEntity {
 
     public String getAiSummary() { return aiSummary; }
     public void setAiSummary(String aiSummary) { this.aiSummary = aiSummary; }
+
+    public String getInsightsJson() { return insightsJson; }
+    public void setInsightsJson(String insightsJson) { this.insightsJson = insightsJson; }
+
+    public String getSuggestionsJson() { return suggestionsJson; }
+    public void setSuggestionsJson(String suggestionsJson) { this.suggestionsJson = suggestionsJson; }
+
+    public String getFollowUpPrompt() { return followUpPrompt; }
+    public void setFollowUpPrompt(String followUpPrompt) { this.followUpPrompt = followUpPrompt; }
 
     public String getMoodsJson() { return moodsJson; }
     public void setMoodsJson(String moodsJson) { this.moodsJson = moodsJson; }

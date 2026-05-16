@@ -15,6 +15,8 @@ import com.moodcopilot.mapper.DiaryHideMapper;
 import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.mapper.DiaryRecommendationExposureMapper;
 import com.moodcopilot.mapper.DiaryResonanceMapper;
+import com.moodcopilot.mapper.DiarySummaryMapper;
+import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.notification.NotificationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -45,10 +47,12 @@ class DiaryRecommendationServiceTest {
     @Mock private DiaryResonanceMapper diaryResonanceMapper;
     @Mock private DiaryHideMapper diaryHideMapper;
     @Mock private DiaryRecommendationExposureMapper exposureMapper;
+    @Mock private UserMapper userMapper;
     @Mock private AiAnalysisService aiAnalysisService;
     @Mock private MemoryExtractionService memoryExtractionService;
     @Mock private NotificationService notificationService;
     @Mock private FollowService followService;
+    @Mock private DiarySummaryMapper diarySummaryMapper;
     @Mock private StringRedisTemplate redisTemplate;
 
     @AfterEach
@@ -165,10 +169,12 @@ class DiaryRecommendationServiceTest {
                 diaryResonanceMapper,
                 diaryHideMapper,
                 exposureMapper,
+                userMapper,
                 aiAnalysisService,
                 memoryExtractionService,
                 notificationService,
                 followService,
+                diarySummaryMapper,
                 redisTemplate,
                 new ObjectMapper()
         );

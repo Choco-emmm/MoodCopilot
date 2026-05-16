@@ -705,8 +705,7 @@ h2 {
 }
 
 .diary-delete-btn {
-  opacity: 0;
-  align-self: start;
+  opacity: 0.55;
   padding: 2px 6px;
   border: none;
   border-radius: var(--radius-sm);
@@ -718,11 +717,9 @@ h2 {
   line-height: 1;
 }
 
-.my-diary:hover .diary-delete-btn {
-  opacity: 1;
-}
-
+.my-diary:hover .diary-delete-btn,
 .diary-delete-btn:hover {
+  opacity: 1;
   background: var(--color-accent-bg);
 }
 
@@ -2477,9 +2474,10 @@ h2 {
   }
 
   .my-diary {
-    grid-template-columns: 28px 1fr;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
     gap: 10px;
     padding: 10px 12px;
+    min-height: auto;
   }
 
   .write-history-section .diary-list {
@@ -2701,6 +2699,14 @@ h2 {
   .diary-delete-btn {
     opacity: 1;
     background: var(--color-accent-bg);
+    font-size: 18px;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
   }
 
   .ref-chip-label {
