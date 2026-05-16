@@ -15,11 +15,18 @@ public record DiaryComment(
     public static DiaryComment from(com.moodcopilot.entity.DiaryCommentEntity c,
                                      String replyToUserName,
                                      List<DiaryComment> replies) {
+        return from(c, replyToUserName, replies, c.getAuthorName());
+    }
+
+    public static DiaryComment from(com.moodcopilot.entity.DiaryCommentEntity c,
+                                     String replyToUserName,
+                                     List<DiaryComment> replies,
+                                     String authorName) {
         return new DiaryComment(
                 c.getId(),
                 c.getParentCommentId(),
                 replyToUserName,
-                c.getAuthorName(),
+                authorName,
                 c.getContent(),
                 c.getCreatedAt(),
                 replies

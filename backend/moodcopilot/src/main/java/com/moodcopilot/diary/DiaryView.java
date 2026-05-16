@@ -5,8 +5,8 @@ import com.moodcopilot.entity.DiaryCommentEntity;
 import com.moodcopilot.entity.DiaryEntity;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public record DiaryView(
@@ -21,17 +21,18 @@ public record DiaryView(
         int resonanceCount,
         List<DiaryComment> comments
 ) {
-    static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments, String authorAvatar) {
-        return build(diary, analysis, comments, authorAvatar, false);
+    static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments, String authorAvatar, String authorName, Map<Long, String> commentAuthorNames) {
+        return build(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames, false);
     }
 
     /** 公开视图：仅暴露情绪标签和主题，不暴露强度、摘要、反馈 */
-    static DiaryView fromPublic(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments, String authorAvatar) {
-        return build(diary, analysis, comments, authorAvatar, true);
+    static DiaryView fromPublic(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments, String authorAvatar, String authorName, Map<Long, String> commentAuthorNames) {
+        return build(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames, true);
     }
 
     private static DiaryView build(DiaryEntity diary, DiaryAnalysisEntity analysis,
-                                    List<DiaryCommentEntity> comments, String authorAvatar, boolean isPublic) {
+                                    List<DiaryCommentEntity> comments, String authorAvatar, String authorName,
+                                    Map<Long, String> commentAuthorNames, boolean isPublic) {
         DiaryAnalysis viewAnalysis = null;
         if (analysis != null) {
             if (isPublic) {
@@ -56,22 +57,22 @@ public record DiaryView(
         return new DiaryView(
                 diary.getId(),
                 diary.getAuthorUserId(),
-                diary.getAuthorName(),
+                authorName,
                 authorAvatar,
                 diary.getContent(),
                 DiaryVisibility.valueOf(diary.getVisibility()),
                 viewAnalysis,
                 diary.getCreatedAt(),
                 diary.getResonanceCount(),
-                buildCommentTree(comments)
+                buildCommentTree(comments, commentAuthorNames)
         );
     }
 
-    static DiaryView from(DiaryEntity diary, List<DiaryCommentEntity> comments, String authorAvatar) {
-        return from(diary, null, comments, authorAvatar);
+    static DiaryView from(DiaryEntity diary, List<DiaryCommentEntity> comments, String authorAvatar, String authorName, Map<Long, String> commentAuthorNames) {
+        return from(diary, null, comments, authorAvatar, authorName, commentAuthorNames);
     }
 
-    private static List<DiaryComment> buildCommentTree(List<DiaryCommentEntity> entities) {
+    private static List<DiaryComment> buildCommentTree(List<DiaryCommentEntity> entities, Map<Long, String> commentAuthorNames) {
         var topLevel = entities.stream()
                 .filter(c -> c.getRootCommentId() == null)
                 .toList();
@@ -79,14 +80,19 @@ public record DiaryView(
                 .filter(c -> c.getRootCommentId() != null)
                 .collect(Collectors.groupingBy(DiaryCommentEntity::getRootCommentId));
         var authorById = entities.stream()
-                .collect(Collectors.toMap(DiaryCommentEntity::getId, DiaryCommentEntity::getAuthorName, (a, b) -> a));
+                .collect(Collectors.toMap(
+                        DiaryCommentEntity::getId,
+                        c -> commentAuthorNames.getOrDefault(c.getAuthorUserId(), c.getAuthorName()),
+                        (a, b) -> a));
         return topLevel.stream()
                 .map(c -> DiaryComment.from(c, null,
                         repliesByRoot.getOrDefault(c.getId(), List.of()).stream()
                                 .map(r -> DiaryComment.from(r,
                                         r.getParentCommentId() != null ? authorById.get(r.getParentCommentId()) : null,
-                                        List.of()))
-                                .toList()))
+                                        List.<DiaryComment>of(),
+                                        commentAuthorNames.getOrDefault(r.getAuthorUserId(), r.getAuthorName())))
+                                .toList(),
+                        commentAuthorNames.getOrDefault(c.getAuthorUserId(), c.getAuthorName())))
                 .toList();
     }
 }
