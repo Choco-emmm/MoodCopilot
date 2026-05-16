@@ -59,7 +59,12 @@ public class ChatIntentRouter {
             return true;
         }
 
-        boolean cachedReasoning = conversationId != null && hasRecentReasoning(conversationId);
+        // 强惯性锁定：5分钟内曾触发推理模型的会话直接锁定，避免模型频繁横跳
+        if (conversationId != null && hasRecentReasoning(conversationId)) {
+            log.info("聊天路由结果：reasoning（惯性锁定）");
+            markReasoning(conversationId);
+            return true;
+        }
 
         Boolean llmResult = trySemanticRoute(message);
         if (llmResult != null) {
@@ -69,7 +74,7 @@ public class ChatIntentRouter {
             return llmResult;
         }
 
-        return fallbackRoutingStrategy(message, refs, memoryBackground, cachedReasoning);
+        return fallbackRoutingStrategy(message, refs, memoryBackground);
     }
 
     /**
@@ -122,9 +127,8 @@ public class ChatIntentRouter {
 
     /**
      * 降级规则路由：基于字数、关键词、标点等启发式规则打分。
-     * cachedReasoning 为 true 时额外 +1 分，使连续对话中后续短句更容易走 reasoning 模型。
      */
-    boolean fallbackRoutingStrategy(String message, List<String> refs, String memoryBackground, boolean cachedReasoning) {
+    boolean fallbackRoutingStrategy(String message, List<String> refs, String memoryBackground) {
         String normalized = message.trim();
 
         int score = 0;
@@ -161,10 +165,6 @@ public class ChatIntentRouter {
         }
 
         if (memoryBackground != null && !memoryBackground.isBlank() && normalized.length() >= 100) {
-            score++;
-        }
-
-        if (cachedReasoning) {
             score++;
         }
 

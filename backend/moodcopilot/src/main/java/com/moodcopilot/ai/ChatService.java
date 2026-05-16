@@ -18,6 +18,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.messages.AssistantMessage;
+
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +40,7 @@ public class ChatService {
     private final ChatConversationMapper conversationMapper;
     private final ChatIntentRouter chatIntentRouter;
     private final DeepSeekReasoningClient reasoningClient;
-    private final Map<String, ChatMemory> userChatMemories;
+    private final Cache<String, ChatMemory> userChatMemories;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final RateLimitService rateLimitService;
@@ -43,7 +49,7 @@ public class ChatService {
             ChatConversationMapper conversationMapper,
             ChatIntentRouter chatIntentRouter,
             DeepSeekReasoningClient reasoningClient,
-            Map<String, ChatMemory> userChatMemories,
+            Cache<String, ChatMemory> userChatMemories,
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper,
             RateLimitService rateLimitService) {
@@ -87,7 +93,7 @@ public class ChatService {
         log.info("删除聊天会话，userId={}，conversationId={}", user.getId(), conversationId);
         // 清除 ChatMemory
         String memKey = user.getId() + ":" + conversationId;
-        userChatMemories.remove(memKey);
+        userChatMemories.invalidate(memKey);
         // 清除 Redis 消息历史
         try {
             redisTemplate.delete(MSG_PREFIX + conversationId);
@@ -124,13 +130,9 @@ public class ChatService {
         // 非流式接口：移动端/公网优先走这里，减少 SSE 连接不稳定的影响。
         ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
         if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
-            try {
-                log.info("非流式聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
-                        message == null ? 0 : message.length());
-                return reasoningClient.generate(request.context(), message);
-            } catch (Exception e) {
-                log.warn("reasoning model failed, fallback to chat model: {}", e.getMessage());
-            }
+            log.info("非流式聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
+                    message == null ? 0 : message.length());
+            return callReasoningModel(request, message);
         }
 
         log.info("非流式聊天路由结果：normal，conversationId={}，messageLength={}", conversationId,
@@ -151,9 +153,24 @@ public class ChatService {
 
     private String callReasoningModel(ChatRequest request, String message) {
         try {
-            log.info("调用思考模型分支，contextLength={}，messageLength={}", request.context().length(),
+            // 为推理模型注入历史记忆，确保对话连续性
+            String history = formatChatHistory(request.memory());
+            String enhancedContext = request.context();
+            if (!history.isEmpty()) {
+                enhancedContext = history + "\n" + enhancedContext;
+            }
+
+            log.info("调用思考模型分支，contextLength={}，historyLength={}，messageLength={}",
+                    request.context().length(), history.length(),
                     message == null ? 0 : message.length());
-            return reasoningClient.generate(request.context(), message);
+            String response = reasoningClient.generate(enhancedContext, message);
+
+            // 手动回写消息到 ChatMemory，填补 Advisors 缺席导致的记忆断层
+            request.memory().add("default", List.of(
+                    new UserMessage(message),
+                    new AssistantMessage(response)));
+
+            return response;
         } catch (Exception e) {
             log.warn("reasoning model failed in stream path, fallback to chat model: {}", e.getMessage());
             log.info("思考模型失败后回退到普通模型，messageLength={}", message == null ? 0 : message.length());
@@ -165,6 +182,30 @@ public class ChatService {
                     .call()
                     .content();
         }
+    }
+
+    /**
+     * 从 ChatMemory 中提取最近 20 条消息（约 10 轮对白），
+     * 格式化为文本注入到思考模型的 system prompt 中，填补 Advisors 缺席导致的记忆断层。
+     * Spring AI 的 MessageChatMemoryAdvisor 默认使用 "default" 作为 conversationId。
+     */
+    private String formatChatHistory(ChatMemory memory) {
+        List<Message> messages = memory.get("default", 20);
+        if (messages == null || messages.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("【往期聊天历史记忆】\n");
+        for (Message msg : messages) {
+            String role = switch (msg.getMessageType()) {
+                case USER -> "用户";
+                case ASSISTANT -> "AI";
+                default -> null;
+            };
+            if (role != null && msg.getText() != null && !msg.getText().isBlank()) {
+                sb.append(role).append("：").append(msg.getText().trim()).append("\n");
+            }
+        }
+        return sb.append("\n").toString();
     }
 
     /**
@@ -183,7 +224,7 @@ public class ChatService {
         // 这里负责把"用户画像 + 用户引用 + 最近日记"拼成统一上下文，后面的模型调用都直接复用。
         String context = buildContext(user.getId(), refs, memoryBackground);
         String memKey = user.getId() + ":" + conversationId;
-        ChatMemory memory = userChatMemories.computeIfAbsent(memKey, k -> new InMemoryChatMemory());
+        ChatMemory memory = userChatMemories.get(memKey, k -> new InMemoryChatMemory());
         log.info("准备聊天请求，userId={}，conversationId={}，messageLength={}，referenceCount={}，hasMemoryBackground={}",
                 user.getId(), conversationId, message == null ? 0 : message.length(), refs == null ? 0 : refs.size(),
                 memoryBackground != null && !memoryBackground.isBlank());
