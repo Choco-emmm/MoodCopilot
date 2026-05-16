@@ -83,6 +83,45 @@ MoodCopilot 是一个 AI 情绪日记 + 同频陪伴社区。
   - `mysql/redis/backend` 改为容器内网 `expose`，不再映射宿主机端口。
   - 各服务增加 `no-new-privileges` 安全选项。
 
+### 情绪分类学重构（2026-05-16）
+
+**情绪分类：6 种 → 18 种四象限情绪轮**
+
+| 象限 | 情绪 |
+|------|------|
+| 积极/高能量 | 喜悦、期待、兴奋、自豪 |
+| 积极/低能量 | 轻松、平静、感恩、满足 |
+| 消极/高能量 | 烦躁、愤怒、焦虑、害怕 |
+| 消极/低能量 | 疲惫、委屈、难过、孤独、迷茫、内疚 |
+
+**混合情绪支持**
+- `DiaryAnalysis` 新增 `secondaryMoods` 可选数组，AI 可选择返回次要情绪。
+- DB `diary_analysis` 新增 `secondary_moods_json JSON` 字段（V1_20 迁移）。
+- `topMood()` 加权统计：主导情绪权重 1.0，次要情绪权重 0.5。
+
+**强度锚点标准化（1-5）**
+- 1: 极其轻微/转瞬即逝
+- 2: 隐约察觉/背景情绪
+- 3: 明显体验/影响注意力
+- 4: 强烈/驱使生理或行为反应
+- 5: 压倒性/难以承受
+
+**AI Prompt 全面升级**
+- `SYSTEM_PROMPT`：18 情绪列表 + `secondaryMoods` 可选标记 + 5 级强度锚点描述。
+- 周报/月报/Coaching/用户画像 Prompt 全部更新，引导模型关注主次情绪交织与情绪层次。
+- Fallback 关键词词典：18 类分层匹配（按四象限优先级匹配）。
+- Fallback `intensity()`：基础分 + 副词修饰（-2 ~ +2），如"崩溃"+2、"有点"-1。
+- 18 种情绪各有一句专属温暖 feedback 话术。
+
+**UrgentCareListener 修复**
+- 触发阈值从 8 修正为 5（匹配当前 1-5 强度量程）。
+- 情绪匹配从旧标签更新为 18 标签体系（害怕、难过、孤独、迷茫、内疚、愤怒）。
+
+**前端莫兰迪色系**
+- 新建 `utils/mood.ts` 共享模块：18 种情绪 × 低饱和度莫兰迪/粉彩色。
+- 积极象限偏暖（金/桃/绿），消极象限偏冷（灰蓝/灰褐），温度即信号。
+- `AnalysisBody.vue`：次要情绪以 sub-tag 展示在主情绪旁。
+
 ## 云端部署（Docker Compose）
 
 生产环境推荐直接使用仓库根目录的 `docker-compose.yml`，当前默认策略为“最小暴露面”：
@@ -211,6 +250,7 @@ Flyway 迁移位于：
 
 - `V1_15__refresh_seed_meaningful_users.sql`：更新高质量种子用户和日记数据
 - `V1_16__ensure_admin_account.sql`：确保可用管理员账号存在
+- `V1_20__add_secondary_moods.sql`：diary_analysis 新增 secondary_moods_json JSON 字段
 
 ## 管理员审核接口
 
