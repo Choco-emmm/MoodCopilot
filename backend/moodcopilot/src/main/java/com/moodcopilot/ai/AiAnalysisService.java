@@ -105,6 +105,11 @@ public class AiAnalysisService {
         return generateReportGuidance("本周", diaryContents, analyses);
     }
 
+    public ReportGuidance generateCustomGuidance(String period, List<String> diaryContents,
+            List<DiaryAnalysis> analyses) {
+        return generateReportGuidance(period, diaryContents, analyses);
+    }
+
     // ── Monthly report ──
 
     private static final String MONTHLY_SYSTEM_PROMPT = """
