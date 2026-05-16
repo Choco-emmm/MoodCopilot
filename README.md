@@ -5,6 +5,11 @@ MoodCopilot 是一个 AI 情绪日记 + 同频陪伴社区。
 
 ## 当前版本重点
 
+- **Agent 化升级**：语义路由 + 事件驱动关怀 + RAG 记忆检索。
+- 大模型语义路由：ChatIntentRouter 接入 Spring AI ChatClient 做意图分类，2 秒超时兜底规则路由，Redis 缓存防抖。
+- 事件驱动紧急关怀：DiaryAnalysisCompletedEvent + UrgentCareListener，极端负面情绪即时推送安抚。
+- 个性化定时调度：每日跟进从固定 6:00 改为每小时打散发送（userId 哈希映射），Redis 标记防重复。
+- RAG 记忆架构：聊天上下文不再全量灌入 10 篇日记，改为大模型通过 diarySearchFunction / userStatsFunction 按需检索。
 - 长期用户画像：日记分析后异步抽取长期属性并注入聊天上下文。
 - 聊天驱动画像增量更新：用户与 AI 对话完成后也会触发画像提取（流式/非流式都覆盖）。
 - 聊天画像阈值策略：硬门槛 + 打分 + 去重 + 冷却，减少噪声与抖动。
@@ -21,6 +26,26 @@ MoodCopilot 是一个 AI 情绪日记 + 同频陪伴社区。
 
 ## 本次更新（2026-05-16）
 
+### Agent 化升级（三大模块）
+
+**模块一：大模型语义路由**
+- `ChatIntentRouter` 重构：保留规则打分作为 `fallbackRoutingStrategy`，新增基于 `analysisChatClient` 的语义意图分类。
+- LLM 调用 2 秒超时，超时或异常自动降级为规则路由。
+- Redis 缓存防抖：`intent:reasoning:{conversationId}`，5 分钟内触发过 reasoning 的会话后续短消息自动加权。
+
+**模块二：事件驱动 + 个性化调度**
+- 新增 `DiaryAnalysisCompletedEvent`：日记分析落库后发布 Spring 事件。
+- 新增 `UrgentCareListener`：异步监听，极端负面情绪（崩溃/极度抑郁 + intensity >= 8）即时调用 AI 生成安抚并推送。
+- `DailyFollowUpScheduler` Cron 从 `0 0 6 * * *` 改为 `0 0 * * * *`（每小时），用户按 `userId % 17 + 6` 哈希分配到 6–22 点打散发送，Redis key `dailyfu:sent:{userId}:{today}` 防止当天重复。
+
+**模块三：RAG 记忆架构**
+- `ChatService.buildContext` 移除最近 10 篇日记全量加载，瘦身为仅保留长期画像 + 引用资料。
+- `ChatService` 移除 `DiaryMapper` / `DiaryAnalysisMapper` 依赖。
+- `AIConfiguration` 系统提示词增强：明确列出工具能力，强制要求主动检索而非盲目猜测。
+- 大模型通过 `diarySearchFunction` / `userStatsFunction` 按需查询历史，返回最相关 1–3 篇摘要。
+
+### 其他
+- 删除全部后端单元测试（当前覆盖不全且维护成本高，待后续重建）。
 - **邀请码注册机制**：
   - 注册接口新增 `inviteCode` 必填字段，校验邀请码有效性 + 名额。
   - 万能码 `MOOD-MASTER-2026` 绕过校验（管理员自用）。

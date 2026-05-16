@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,6 +28,9 @@ import java.util.Map;
 public class DailyFollowUpScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(DailyFollowUpScheduler.class);
+
+    private static final String SENT_KEY_PREFIX = "dailyfu:sent:";
+    private static final Duration SENT_TTL = Duration.ofHours(26);
 
     private final UserMapper userMapper;
     private final DiaryMapper diaryMapper;
@@ -52,21 +56,33 @@ public class DailyFollowUpScheduler {
         this.redisTemplate = redisTemplate;
     }
 
-    @Scheduled(cron = "0 0 6 * * *")
+    /**
+     * 每小时触发一次，打散用户通知时间。
+     * 每个用户每天只在偏好时间收到一次通知，避免一刀切的早上 6 点推送。
+     */
+    @Scheduled(cron = "0 0 * * * *")
     public void sendDailyFollowUp() {
-        log.info("每日跟进通知定时任务开始");
+        int currentHour = LocalDateTime.now().getHour();
+        log.info("每日跟进定时任务触发，currentHour={}", currentHour);
+
         List<Long> userIds = userMapper.findActiveUsersWithDiariesYesterday();
         if (userIds.isEmpty()) {
             log.info("没有需要发送每日通知的用户");
             return;
         }
-        log.info("找到 {} 位昨天有日记且开启通知的用户", userIds.size());
 
+        String today = LocalDate.now().toString();
         int sent = 0;
         int skipped = 0;
         for (Long userId : userIds) {
             try {
-                // 检查 AI 额度
+                if (!isPreferredHour(userId, currentHour)) {
+                    continue;
+                }
+                if (alreadySentToday(userId, today)) {
+                    continue;
+                }
+
                 try {
                     rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.ANALYSIS);
                 } catch (RateLimitException e) {
@@ -74,24 +90,22 @@ public class DailyFollowUpScheduler {
                     continue;
                 }
 
-                // 获取最近 7 篇日记
                 List<DiaryEntity> recent = diaryMapper.selectList(
                         new LambdaQueryWrapper<DiaryEntity>()
                                 .eq(DiaryEntity::getAuthorUserId, userId)
                                 .orderByDesc(DiaryEntity::getCreatedAt)
                                 .last("LIMIT 7"));
 
-                // 获取分析结果
                 List<Long> ids = recent.stream().map(DiaryEntity::getId).toList();
                 List<DiaryAnalysisEntity> analysisEntities = ids.isEmpty()
                         ? List.of()
                         : diaryAnalysisMapper.selectBatchIds(ids);
                 Map<Long, DiaryAnalysisEntity> analysisMap = analysisEntities.stream()
-                    .collect(java.util.stream.Collectors.toMap(
-                        DiaryAnalysisEntity::getDiaryId,
-                        analysis -> analysis,
-                        (left, right) -> left,
-                        LinkedHashMap::new));
+                        .collect(java.util.stream.Collectors.toMap(
+                                DiaryAnalysisEntity::getDiaryId,
+                                analysis -> analysis,
+                                (left, right) -> left,
+                                LinkedHashMap::new));
 
                 List<String> contents = new ArrayList<>();
                 List<DiaryAnalysis> analyses = new ArrayList<>();
@@ -106,28 +120,50 @@ public class DailyFollowUpScheduler {
                     }
                 }
 
-                // 计算连续天数
                 int streak = calcStreak(userId);
 
-                // 昨日情绪
                 String yesterdayMood = analyses.isEmpty() || analyses.get(0) == null
                         ? "复杂"
                         : analyses.get(0).moodLabel();
 
-                // 调用 AI 陪跑
                 String coaching = aiAnalysisService.generateCoaching(contents, analyses);
 
-                // 构建通知内容
                 String message = String.format(
                         "早安！已连续记录 %d 天，昨天是「%s」。\n\n%s", streak, yesterdayMood, coaching);
 
                 notificationService.notifyDailyFollowUp(userId, message);
+                markSentToday(userId, today);
                 sent++;
             } catch (Exception e) {
                 log.warn("用户 {} 每日通知生成失败: {}", userId, e.getMessage());
             }
         }
         log.info("每日跟进通知完成: 发送 {} 条, 额度不足跳过 {} 人", sent, skipped);
+    }
+
+    /**
+     * 判断当前小时是否为该用户的偏好通知时间。
+     * 使用 userId 哈希映射到 6-22 之间的某个小时，打散用户通知负载。
+     */
+    private boolean isPreferredHour(long userId, int currentHour) {
+        int assignedHour = (int) (userId % 17) + 6;
+        return currentHour == assignedHour;
+    }
+
+    private boolean alreadySentToday(long userId, String today) {
+        try {
+            return Boolean.TRUE.equals(redisTemplate.hasKey(SENT_KEY_PREFIX + userId + ":" + today));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void markSentToday(long userId, String today) {
+        try {
+            redisTemplate.opsForValue().set(SENT_KEY_PREFIX + userId + ":" + today, "1", SENT_TTL);
+        } catch (Exception e) {
+            log.debug("标记今日已发送失败, userId={}", userId, e);
+        }
     }
 
     private int calcStreak(Long userId) {

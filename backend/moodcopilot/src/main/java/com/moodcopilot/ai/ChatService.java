@@ -4,8 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.*;
 import com.moodcopilot.mapper.ChatConversationMapper;
-import com.moodcopilot.mapper.DiaryAnalysisMapper;
-import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.security.RateLimitService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +21,6 @@ import reactor.core.publisher.Flux;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -34,8 +31,6 @@ public class ChatService {
     private static final String MSG_PREFIX = "chat:msgs:";
 
     private final ChatClient chatChatClient;
-    private final DiaryMapper diaryMapper;
-    private final DiaryAnalysisMapper diaryAnalysisMapper;
     private final ChatConversationMapper conversationMapper;
     private final ChatIntentRouter chatIntentRouter;
     private final DeepSeekReasoningClient reasoningClient;
@@ -45,8 +40,6 @@ public class ChatService {
     private final RateLimitService rateLimitService;
 
     public ChatService(ChatClient chatChatClient,
-            DiaryMapper diaryMapper,
-            DiaryAnalysisMapper diaryAnalysisMapper,
             ChatConversationMapper conversationMapper,
             ChatIntentRouter chatIntentRouter,
             DeepSeekReasoningClient reasoningClient,
@@ -55,8 +48,6 @@ public class ChatService {
             ObjectMapper objectMapper,
             RateLimitService rateLimitService) {
         this.chatChatClient = chatChatClient;
-        this.diaryMapper = diaryMapper;
-        this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.conversationMapper = conversationMapper;
         this.chatIntentRouter = chatIntentRouter;
         this.reasoningClient = reasoningClient;
@@ -111,7 +102,7 @@ public class ChatService {
     public Flux<String> chat(Long conversationId, String message, List<String> refs, String memoryBackground) {
         // 流式接口：先统一装配上下文，再决定走普通模型还是思考模型。
         ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
-        if (shouldUseReasoning(message, refs, memoryBackground)) {
+        if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
             log.info("聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
                     message == null ? 0 : message.length());
             return Flux.just(callReasoningModel(request, message));
@@ -132,7 +123,7 @@ public class ChatService {
     public String reply(Long conversationId, String message, List<String> refs, String memoryBackground) {
         // 非流式接口：移动端/公网优先走这里，减少 SSE 连接不稳定的影响。
         ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
-        if (shouldUseReasoning(message, refs, memoryBackground)) {
+        if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
             try {
                 log.info("非流式聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
                         message == null ? 0 : message.length());
@@ -154,8 +145,8 @@ public class ChatService {
                 .content();
     }
 
-    private boolean shouldUseReasoning(String message, List<String> refs, String memoryBackground) {
-        return chatIntentRouter.shouldUseReasoning(message, refs, memoryBackground);
+    private boolean shouldUseReasoning(Long conversationId, String message, List<String> refs, String memoryBackground) {
+        return chatIntentRouter.shouldUseReasoning(message, refs, memoryBackground, conversationId);
     }
 
     private String callReasoningModel(ChatRequest request, String message) {
@@ -242,24 +233,21 @@ public class ChatService {
 
     /**
      * 组装给大模型的 system context。
-     * 顺序固定为：长期画像 -> 引用资料 -> 最近日记与分析。
-     * 这样模型会先拿到稳定的长期背景，再参考当前提问显式引用的内容，最后用近期日记补足上下文。
+     * 精简设计：只包含长期画像和用户主动引用的资料。
+     * 历史日记不再全量灌入——大模型需要时通过 diarySearchFunction / userStatsFunction 工具主动检索。
      */
     private String buildContext(long userId, List<String> refs, String memoryBackground) {
         StringBuilder sb = new StringBuilder();
 
         if (memoryBackground != null && !memoryBackground.isBlank()) {
-            // 长期画像先放在最前面，作为稳定的背景事实。
-            sb.append(memoryBackground).append("\n");
+            sb.append("【用户长期画像】\n").append(memoryBackground).append("\n\n");
         }
 
-        // 强制约束：模型只能把"用户的日记/引用"当作背景材料，不能伪装成自己的经历。
         sb.append("重要约束：引用内容和日记内容都来自用户本人，不是你的亲身经历。")
                 .append("回答时不要说'我昨天写了'、'我经历过'，应使用'你提到/你写到/从你的日记看'这类表述。")
                 .append("另外，日记和引用前面的编号（如 #1、#3）是内部标记，不要在回复中提及这些编号，")
-                .append("需要引用具体日记时请说明日期（如'你5月10日提到'）。\\n\\n");
+                .append("需要引用具体日记时请说明日期（如'你5月10日提到'）。\n\n");
 
-        // 引用栏内容（广场陪跑跳转、引用日记等）
         if (refs != null && !refs.isEmpty()) {
             sb.append("以下内容是用户引用的话题或资料，你的回答应重点基于这些内容：\n");
             for (int i = 0; i < refs.size(); i++) {
@@ -268,37 +256,9 @@ public class ChatService {
             sb.append("\n");
         }
 
-        List<DiaryEntity> recentDiaries = diaryMapper.selectList(
-                new LambdaQueryWrapper<DiaryEntity>()
-                        .eq(DiaryEntity::getAuthorUserId, userId)
-                        .orderByDesc(DiaryEntity::getCreatedAt)
-                        .last("LIMIT 10"));
-        log.info("构建聊天上下文，userId={}，referenceCount={}，recentDiaryCount={}", userId, refs == null ? 0 : refs.size(),
-                recentDiaries.size());
-
-        if (!recentDiaries.isEmpty()) {
-            Map<Long, DiaryAnalysisEntity> analysisMap = diaryAnalysisMapper.selectBatchIds(
-                    recentDiaries.stream().map(DiaryEntity::getId).toList()).stream()
-                    .collect(Collectors.toMap(DiaryAnalysisEntity::getDiaryId, analysis -> analysis));
-            // 最近日记按时间顺序展开，方便模型从近到远理解用户状态变化。
-            sb.append("以下是你最近日记的内容（你可以引用它们来回复用户）：\n");
-            var sorted = recentDiaries.stream()
-                    .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()))
-                    .toList();
-            for (int i = 0; i < sorted.size(); i++) {
-                DiaryEntity diary = sorted.get(i);
-                DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
-                sb.append("[日记 #").append(i + 1).append(" · ").append(diary.getCreatedAt().toLocalDate()).append("] ");
-                if (analysis != null) {
-                    sb.append("情绪：").append(analysis.getMoodLabel())
-                            .append("，主题：").append(String.join("、", analysis.getTopicLabelsJson()))
-                            .append("\n内容：").append(diary.getContent()).append("\n");
-                } else {
-                    sb.append("内容：").append(diary.getContent()).append("\n");
-                }
-            }
-        }
-
+        log.info("构建聊天上下文（RAG模式），userId={}，referenceCount={}，hasMemoryBackground={}",
+                userId, refs == null ? 0 : refs.size(),
+                memoryBackground != null && !memoryBackground.isBlank());
         return sb.toString();
     }
 
