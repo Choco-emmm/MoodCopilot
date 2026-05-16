@@ -14,7 +14,7 @@ echo "[2/5] 拉取最新代码"
 git pull --ff-only
 
 # 记录变更范围（与上一次部署比较）
-CHANGED=$(git diff --name-only HEAD~1 2>/dev/null || echo "")
+CHANGED=$(git diff --name-only ORIG_HEAD HEAD 2>/dev/null || echo "")
 FRONTEND_CHANGED=$(echo "$CHANGED" | grep -q '^frontend/' && echo true || echo false)
 BACKEND_CHANGED=$(echo "$CHANGED" | grep -q '^backend/' && echo true || echo false)
 

@@ -82,7 +82,25 @@
             </template>
           </div>
 
-          <div v-if="streaming" class="chat-bubble chat-ai">
+          <div v-if="isThinking" class="flex items-start gap-3 my-2 animate-fade-in">
+            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 shadow-sm text-sm">
+              🧠
+            </div>
+
+            <div class="bg-gray-100 text-gray-600 rounded-2xl rounded-tl-none p-4 max-w-[75%] shadow-sm flex flex-col gap-2">
+              <div class="text-sm font-medium text-indigo-500 flex items-center gap-1.5">
+                <span class="animate-pulse">MoodCopilot 正在沉思...</span>
+              </div>
+
+              <div class="flex items-center gap-1 h-3 pl-1">
+                <span class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
+                <span class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 150ms"></span>
+                <span class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 300ms"></span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="streaming && streamingText" class="chat-bubble chat-ai">
             <div class="md-content" v-html="renderMd(streamingText)" />
             <span class="chat-cursor">|</span>
           </div>
@@ -169,6 +187,7 @@ const messages = ref<Message[]>([])
 const draft = ref('')
 const streaming = ref(false)
 const streamingText = ref('')
+const isThinking = ref(false)
 const msgBox = ref<HTMLElement | null>(null)
 const chatInputArea = ref<HTMLElement | null>(null)
 const references = ref<ChatReference[]>([])
@@ -443,9 +462,11 @@ async function send() {
   draft.value = ''
   streaming.value = true
   streamingText.value = ''
+  isThinking.value = true
   scrollBottom()
   const token = localStorage.getItem('token')
   if (!token) {
+    isThinking.value = false
     messages.value.push({ role: 'ai', content: '请先登录' })
     streaming.value = false
     return
@@ -463,6 +484,7 @@ async function retryLastReply() {
   }
   streaming.value = true
   streamingText.value = ''
+  isThinking.value = true
   await sendReply(convId, content, refContents, true)
 }
 
@@ -473,6 +495,7 @@ async function sendReply(convId: number, content: string, refContents: string[],
       throw new Error(res.data?.message || '请求失败')
     }
     const reply = String(res.data?.data ?? '').trim() || '我刚才没有组织好语言，你可以再说一遍吗？'
+    isThinking.value = false
     // 会话切换后，旧请求返回不应再写入当前会话消息。
     if (activeConvId.value !== convId) {
       return
@@ -481,6 +504,7 @@ async function sendReply(convId: number, content: string, refContents: string[],
     lastReplyRequest.value = null
     messages.value.push({ role: 'ai', content: reply })
   } catch (e: any) {
+    isThinking.value = false
     const bizMessage = e?.response?.data?.message || e?.message
     const errorText = chatErrorMessage(e?.response?.status, bizMessage)
     if (activeConvId.value === convId) {
@@ -499,6 +523,7 @@ async function finishSend(convId: number) {
   await saveToBackend(convId)
   streaming.value = false
   streamingText.value = ''
+  isThinking.value = false
   references.value = []
   scrollBottom()
   loadConversations()
@@ -609,6 +634,24 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 </script>
 
 <style scoped>
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.animate-bounce {
+  animation: bounce-subtle 1.2s infinite ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
 .chat-reply-error-bar {
   display: flex;
   align-items: center;
