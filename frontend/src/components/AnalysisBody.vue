@@ -6,7 +6,7 @@
         <p class="eyebrow">AI 分析</p>
         <h2>
           {{ diary.analysis.moodLabel }} · 强度 {{ diary.analysis.moodIntensity }}/5
-          <n-popover trigger="click" placement="bottom-start" :width="370" :delay="0">
+          <n-popover trigger="click" placement="bottom-start" :width="popoverWidth" :delay="0" :scrollable="false">
             <template #trigger>
               <span class="mood-guide-trigger" title="情绪与强度评级指南">ⓘ</span>
             </template>
@@ -121,6 +121,12 @@ const intensityLevels = [
   { value: 4, name: '强烈情感', desc: '驱动身体或行为上的反应' },
   { value: 5, name: '压倒性的', desc: '几乎失控，难以独自承受' },
 ]
+
+// ── 弹窗宽度自适应 ──
+const popoverWidth = computed(() => {
+  if (typeof window === 'undefined') return 370
+  return window.innerWidth <= 600 ? undefined : 370
+})
 
 // ── 虚拟进度条 ──
 const fakeProgress = ref(0)
@@ -280,7 +286,6 @@ onUnmounted(() => {
 .intensity-label {
   font-weight: 500;
   color: var(--color-text, #333);
-  white-space: nowrap;
 }
 .intensity-desc {
   color: var(--color-text-tertiary, #999);
@@ -301,5 +306,45 @@ onUnmounted(() => {
   border-radius: 10px;
   background: transparent;
   border: 1px solid;
+}
+
+/* ── 移动端适配 ── */
+@media (max-width: 600px) {
+  .mood-guide {
+    font-size: 0.76rem;
+  }
+  .guide-section + .guide-section {
+    margin-top: 12px;
+  }
+  .guide-section-title {
+    font-size: 0.78rem;
+    margin-bottom: 8px;
+  }
+  .quadrant-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .quadrant-cell {
+    padding: 6px 8px;
+  }
+  .quadrant-label {
+    font-size: 0.68rem;
+    margin-bottom: 4px;
+  }
+  .mood-chip {
+    padding: 2px 6px;
+    font-size: 0.65rem;
+    white-space: normal;
+  }
+  .intensity-item {
+    font-size: 0.74rem;
+    gap: 4px;
+  }
+  .intensity-label {
+    white-space: normal;
+  }
+  .intensity-desc {
+    font-size: 0.7rem;
+  }
 }
 </style>
