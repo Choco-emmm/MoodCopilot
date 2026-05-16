@@ -1,339 +1,47 @@
 # MoodCopilot
 
-MoodCopilot 是一个 AI 情绪日记 + 同频陪伴社区。
-用户可以记录日记、获得 AI 情绪分析、选择公开内容并获得他人温和回应。
-
-## 当前版本重点
-
-- **Agent 化升级**：语义路由 + 事件驱动关怀 + RAG 记忆检索。
-- 大模型语义路由：ChatIntentRouter 接入 Spring AI ChatClient 做意图分类，2 秒超时兜底规则路由，Redis 缓存防抖。
-- 事件驱动紧急关怀：DiaryAnalysisCompletedEvent + UrgentCareListener，极端负面情绪即时推送安抚。
-- 个性化定时调度：每日跟进从固定 6:00 改为每小时打散发送（userId 哈希映射），Redis 标记防重复。
-- RAG 记忆架构：聊天上下文不再全量灌入 10 篇日记，改为大模型通过 diarySearchFunction / userStatsFunction 按需检索。
-- 长期用户画像：日记分析后异步抽取长期属性并注入聊天上下文。
-- 聊天驱动画像增量更新：用户与 AI 对话完成后也会触发画像提取（流式/非流式都覆盖）。
-- 聊天画像阈值策略：硬门槛 + 打分 + 去重 + 冷却，减少噪声与抖动。
-- 记忆解绑：删除日记不再自动重建画像，改为用户手动管理记忆（设置页「我的记忆」面板）。
-- 用户记忆管理 API：`GET/DELETE /api/memory`，用户可查看/删除长期画像属性。
-- 邀请码注册机制：新用户注册须提供有效邀请码，每个用户自动获得专属邀请码 + 3 个名额。
-- 报告 AI 总结仅在定时（周一/1日 00:00）或手动点击时调用，查看报告页不再触发 AI。
-- 举报审核后台：管理员可按状态分页处理举报。
-- 管理员”隐藏并处理”已改为软删：
-  - 举报目标是日记：将日记 `is_deleted=1`
-  - 举报目标是评论：将评论 `is_deleted=1`
-  - 不再物理删除。
-- 用户侧”隐藏他人日记”功能已下线。
-
-## 本次更新（2026-05-16）
-
-### Agent 化升级（三大模块）
-
-**模块一：大模型语义路由**
-- `ChatIntentRouter` 重构：保留规则打分作为 `fallbackRoutingStrategy`，新增基于 `analysisChatClient` 的语义意图分类。
-- LLM 调用 2 秒超时，超时或异常自动降级为规则路由。
-- Redis 缓存防抖：`intent:reasoning:{conversationId}`，5 分钟内触发过 reasoning 的会话后续短消息自动加权。
-
-**模块二：事件驱动 + 个性化调度**
-- 新增 `DiaryAnalysisCompletedEvent`：日记分析落库后发布 Spring 事件。
-- 新增 `UrgentCareListener`：异步监听，极端负面情绪（崩溃/极度抑郁 + intensity >= 8）即时调用 AI 生成安抚并推送。
-- `DailyFollowUpScheduler` Cron 从 `0 0 6 * * *` 改为 `0 0 * * * *`（每小时），用户按 `userId % 17 + 6` 哈希分配到 6–22 点打散发送，Redis key `dailyfu:sent:{userId}:{today}` 防止当天重复。
-
-**模块三：RAG 记忆架构**
-- `ChatService.buildContext` 移除最近 10 篇日记全量加载，瘦身为仅保留长期画像 + 引用资料。
-- `ChatService` 移除 `DiaryMapper` / `DiaryAnalysisMapper` 依赖。
-- `AIConfiguration` 系统提示词增强：明确列出工具能力，强制要求主动检索而非盲目猜测。
-- 大模型通过 `diarySearchFunction` / `userStatsFunction` 按需查询历史，返回最相关 1–3 篇摘要。
-
-### 其他
-- 删除全部后端单元测试（当前覆盖不全且维护成本高，待后续重建）。
-- **邀请码注册机制**：
-  - 注册接口新增 `inviteCode` 必填字段，校验邀请码有效性 + 名额。
-  - 万能码 `MOOD-MASTER-2026` 绕过校验（管理员自用）。
-  - 新用户自动生成 6 位随机邀请码，默认获得 3 个邀请名额。
-  - 注册时同步扣减邀请人的 `invite_quota`。
-  - 设置页新增「内测邀请」面板：展示自己的邀请码和剩余名额。
-  - DB 迁移 `V1_17` 加列 + `V1_18` 种管理员种子数据。
-- **记忆解绑**：
-  - 删除 `rebuildUserMemoryAfterDiaryDeletion` 及全部重建相关方法（~400 行）。
-  - 新增 `UserProfileMemoryController`：`GET /api/memory` 获取记忆列表，`DELETE /api/memory/{id}` 删除指定记忆。
-  - 前端设置页新增「我的记忆」面板，支持查看、删除长期画像属性。
-  - 增量更新（`extractAndSyncMemory` / `extractAndSyncMemoryFromChat`）保持不变。
-- **报告 AI 生成策略修正**：
-  - `computeWeeklyReport` / `computeMonthlyReport` 仅在 `forceGenerate=true` 时调用 AI。
-  - 查看报告页走 `forceGenerate=false`，返回情绪数据/话题统计但不生成 AI 总结。
-  - 定时器 + 手动点击”生成 AI 总结”走 `forceGenerate=true`。
-- **聊天体验修复**：
-  - 修复 AI 回复中泄露内部编号（`#1`、`#5`）的问题：prompt 增加编号禁用约束。
-  - 修复手机端聊天消息偶发丢失：`saveToBackend` 改为 await，sync 不再覆盖未持久化消息。
-- **报告页体验修复**：
-  - 生成 AI 总结时按钮保持可见 + loading 态 + 文字切换，不再整页闪白。
-- **日记编辑修复**：编辑模式下隐藏原文段落，仅保留编辑框。
-- **时区修复**：Dockerfile JVM 时区 + JDBC `serverTimezone` + Jackson `time-zone` 统一设为 `Asia/Shanghai`。
-- 聊天完成后触发画像更新：
-  - 流式接口 `POST /api/chat/conversations/{id}` 在流结束后更新画像。
-  - 非流式接口 `POST /api/chat/conversations/{id}/reply` 在返回后更新画像。
-- 新增聊天阈值策略：
-  - 硬门槛：过滤短消息、寒暄短句、短回复。
-  - 打分阈值：消息长度、长期关键词、引用、回复长度综合判断。
-  - 去重：同一用户相似对话哈希去重（2 小时窗口）。
-  - 冷却：同一用户 10 分钟内最多触发一次聊天画像更新。
-- 新增链路日志：统一前缀 `memory-chat | skip/pass`，便于线上排查。
-- Docker Compose 生产安全收敛：
-  - 仅前端保留 `80:80` 对外端口。
-  - `mysql/redis/backend` 改为容器内网 `expose`，不再映射宿主机端口。
-  - 各服务增加 `no-new-privileges` 安全选项。
-
-### 聊天割裂感修复（2026-05-16）
-
-**背景**：用户反馈聊天中存在\"回复割裂感\"——上下文断档、频繁切换模型导致人格不一致、深度推理模型丧失历史记忆。
-
-**缺陷 A — 推理模型记忆注入**
-- `ChatService` 新增 `formatChatHistory(ChatMemory)`：从 ChatMemory 提取最近 20 条消息（约 10 轮对白），格式化为 `【往期聊天历史记忆】` 注入到 reasoning 模型的 system prompt。
-- `callReasoningModel` 调用后手动回写 `UserMessage` + `AssistantMessage` 到 ChatMemory，填补 `MessageChatMemoryAdvisor` 缺席导致的记忆断层。
-- `reply()` 非流式路径也统一走 `callReasoningModel`，不再绕过历史注入。
-
-**缺陷 B — 强惯性模型锁定**
-- `ChatIntentRouter.shouldUseReasoning` 新增短路逻辑：当 `hasRecentReasoning` 命中时直接返回 `true` 并刷新 TTL，跳过语义路由和降级打分。
-- 原逻辑仅在降级规则中 +1 分，导致短消息（如\"怎么办？\"）轻易跌破阈值切回普通模型，现改为 5 分钟内持续锁定推理模型。
-- 移除 `fallbackRoutingStrategy` 的 `cachedReasoning` 参数。
-
-**防 OOM — Caffeine 替代无界 Map**
-- `AIConfiguration` 中 `userChatMemories` Bean 从 `ConcurrentHashMap` 改为 Caffeine `Cache`：30 分钟无访问自动过期 + 最多 500 条硬限制，适配 2C4G 服务器。
-- `ChatService` 适配 `Cache` API：`computeIfAbsent` → `get`，`remove` → `invalidate`。
-- `pom.xml` 新增 `com.github.ben-manes.caffeine:caffeine` 依赖。
-
-### 情绪分类学重构（2026-05-16）
-
-**情绪分类：6 种 → 18 种四象限情绪轮**
-
-| 象限 | 情绪 |
-|------|------|
-| 积极/高能量 | 喜悦、期待、兴奋、自豪 |
-| 积极/低能量 | 轻松、平静、感恩、满足 |
-| 消极/高能量 | 烦躁、愤怒、焦虑、害怕 |
-| 消极/低能量 | 疲惫、委屈、难过、孤独、迷茫、内疚 |
-
-**混合情绪支持**
-- `DiaryAnalysis` 新增 `secondaryMoods` 可选数组，AI 可选择返回次要情绪。
-- DB `diary_analysis` 新增 `secondary_moods_json JSON` 字段（V1_20 迁移）。
-- `topMood()` 加权统计：主导情绪权重 1.0，次要情绪权重 0.5。
-
-**强度锚点标准化（1-5）**
-- 1: 极其轻微/转瞬即逝
-- 2: 隐约察觉/背景情绪
-- 3: 明显体验/影响注意力
-- 4: 强烈/驱使生理或行为反应
-- 5: 压倒性/难以承受
-
-**AI Prompt 全面升级**
-- `SYSTEM_PROMPT`：18 情绪列表 + `secondaryMoods` 可选标记 + 5 级强度锚点描述。
-- 周报/月报/Coaching/用户画像 Prompt 全部更新，引导模型关注主次情绪交织与情绪层次。
-- Fallback 关键词词典：18 类分层匹配（按四象限优先级匹配）。
-- Fallback `intensity()`：基础分 + 副词修饰（-2 ~ +2），如"崩溃"+2、"有点"-1。
-- 18 种情绪各有一句专属温暖 feedback 话术。
-
-**UrgentCareListener 修复**
-- 触发阈值从 8 修正为 5（匹配当前 1-5 强度量程）。
-- 情绪匹配从旧标签更新为 18 标签体系（害怕、难过、孤独、迷茫、内疚、愤怒）。
-
-**前端莫兰迪色系**
-- 新建 `utils/mood.ts` 共享模块：18 种情绪 × 低饱和度莫兰迪/粉彩色。
-- 积极象限偏暖（金/桃/绿），消极象限偏冷（灰蓝/灰褐），温度即信号。
-- `AnalysisBody.vue`：次要情绪以 sub-tag 展示在主情绪旁。
-
-## 云端部署（Docker Compose）
-
-生产环境推荐直接使用仓库根目录的 `docker-compose.yml`，当前默认策略为“最小暴露面”：
-
-- 对外仅开放前端端口 `80`（建议再配 `443`）。
-- 数据库、Redis、后端 API 仅在 Docker 内网通信。
-
-部署步骤（Linux 服务器）：
-
-1. 在服务器拉取代码并进入仓库根目录。
-2. 创建 `.env` 并配置 `DB_PASSWORD`、`DEEPSEEK_API_KEY`、`JWT_SECRET`。
-3. 先构建后端 JAR（后端镜像依赖 `target/*.jar`）：
-
-```bash
-cd backend/moodcopilot
-./mvnw -DskipTests clean package
-cd ../../
-```
-
-4. 回到仓库根目录启动：
-
-```bash
-docker compose up -d --build
-```
-
-5. 验证服务状态：
-
-```bash
-docker compose ps
-docker compose logs -f backend
-```
-
-### 一键更新（推荐）
-
-仓库已提供根目录脚本 `deploy.sh`，用于“拉代码 + 后端打包 + 容器重建 + 日志检查”。
-
-在云服务器执行：
-
-```bash
-cd /opt/moodcopilot
-chmod +x deploy.sh
-./deploy.sh
-```
-
-日常发布同步建议：
-
-1. 本地提交并推送：`git push`
-2. 云服务器进入项目目录并拉取：`git pull`
-3. 执行一键脚本：`./deploy.sh`
-
-仅更新前端时可用：
-
-```bash
-docker compose up -d --build frontend
-```
-
-仅更新后端时可用：
-
-```bash
-cd backend/moodcopilot
-./mvnw -DskipTests clean package
-cd ../../
-docker compose up -d --build backend
-```
-
-安全建议：
-
-- 云厂商安全组仅放行 `80/443`。
-- 不要把 `3306/6379/18080` 对公网放行。
+温暖、共情的情绪伙伴 —— 先帮你看见情绪，再把你温和地连接给相似心情的人。
 
 ## 技术栈
 
-- 后端：Spring Boot 3.5、Java 21、MySQL 8、Redis、MyBatis-Plus、Flyway
-- 前端：Vue 3、Vite 5、TypeScript、Naive UI、Pinia、Vue Router
-- AI：Spring AI + DeepSeek（OpenAI 兼容）
+| 层 | 技术 |
+|---|------|
+| 后端 | Spring Boot 3 + Spring AI + MyBatis-Plus + MySQL + Redis |
+| 前端 | Vue 3 + TypeScript + Vite + Naive UI |
+| AI | DeepSeek (Reasoning + Chat) 双模型路由 |
+| 部署 | Docker Compose + Nginx |
 
-## 目录结构
+## AI 架构（最近重构）
 
-```text
-backend/moodcopilot/    Spring Boot 后端
-frontend/               Vue 前端
-docs/                   设计与计划文档
+### 双模型路由 (`ChatIntentRouter`)
+- LLM 语义分类器（2s 超时 → 规则降级）
+- 工具调用意图优先检测：检测到"报告/总结/回顾/查询"等关键词时强制走常规模型（挂载 Function Calling）
+- 引用日记时强制走推理模型（深度分析）
+- 5 分钟惯性锁定防模型横跳
+
+### System Prompt 架构 (`ChatService.buildContext`)
+
+```
+<long_term_memory>                  ← 长期画像
+  ...
+</long_term_memory>
+
+【绝对核心聚焦指令】                   ← 引用日记时注入
+<user_diary>
+  ...日记切片...
+</user_diary>
+
+【绝对系统指令】                       ← 末尾兜底，反角色扮演
+  身份：MoodCopilot（倾听者/情绪伙伴）
+  禁止：自称"心理咨询师/AI助手/经历了日记事件"
 ```
 
-## 本地启动（Windows）
+### 推理模型 (`callReasoningModel`)
+- 历史记忆以 `<chat_history>` XML 标签注入 User Message（非 System Prompt），保持 System Context 纯洁
+- Agent Tools 提示词仅注入常规模型路径（挂载 `.functions()` 时）
 
-### 一键启动（推荐）
-
-在仓库根目录执行：
-
-```powershell
-cd D:\Code\MoodCopilot
-npm.cmd run app:start
-```
-
-常用变体：
-
-- 重启：`npm.cmd run app:restart`
-- 诊断：`npm.cmd run app:doctor`
-- 含公网链路：`npm.cmd run public:start`
-
-### 1. 后端
-
-```powershell
-cd D:\Code\MoodCopilot\backend\moodcopilot
-cmd /c mvn.cmd -Dmaven.test.skip=true spring-boot:run
-```
-
-默认端口：`18080`
-
-### 2. 前端
-
-```powershell
-cd D:\Code\MoodCopilot\frontend
-npm.cmd install
-npm.cmd run dev
-```
-
-## 数据库迁移说明
-
-Flyway 迁移位于：
-
-- `backend/moodcopilot/src/main/resources/db/migration`
-
-本次与审核相关的关键迁移：
-
-- `V1_15__refresh_seed_meaningful_users.sql`：更新高质量种子用户和日记数据
-- `V1_16__ensure_admin_account.sql`：确保可用管理员账号存在
-- `V1_20__add_secondary_moods.sql`：diary_analysis 新增 secondary_moods_json JSON 字段
-
-## 管理员审核接口
-
-后端路由前缀：`/api/admin/reports`
-
-- `GET /api/admin/reports?status=PENDING&page=1&size=20`
-- `POST /api/admin/reports/{id}/resolve`
-- `POST /api/admin/reports/{id}/reject`
-- `POST /api/admin/reports/{id}/hide-target`
-
-状态流转：
-
-- 待处理：`PENDING`
-- 已处理：`RESOLVED`
-- 已驳回：`REJECTED`
-
-处理记录会写入：
-
-- `handled_by_user_id`
-- `handled_at`
-- `handle_note`
-
-## 默认管理员账号（开发环境）
-
-迁移会保证以下至少一个账号可用：
-
-1. 若存在 `test@test.com`，该账号将被提升为 `ADMIN`
-2. 若存在 `testuser2@test.com`，该账号将被提升为 `ADMIN`
-3. 若以上都不存在，会创建兜底管理员账号
-
-兜底管理员账号：
-
-- 邮箱：`admin@moodcopilot.local`
-- 密码：`123456`
-
-## 权限与安全约束
-
-- 举报审核接口仅 `ADMIN` 角色可访问。
-- 用户端不再提供“隐藏他人日记”入口。
-- 举报“隐藏并处理”使用软删，便于审计与回溯。
-
-## 常见问题
-
-### 1) 启动报 Flyway checksum mismatch
-
-原因：修改了已执行过的历史迁移文件（如 `V1_1__...`）。
-
-建议：
-
-- 不要改动已上线历史迁移内容；新增更高版本迁移。
-- 若本地已污染，先恢复历史迁移文件，再新增增量脚本。
-
-### 2) 启动报数据库认证失败
-
-检查 `application.yaml` 中数据库配置，或设置环境变量：
-
-- `DB_HOST`
-- `DB_PORT`
-- `DB_NAME`
-- `DB_USERNAME`
-- `DB_PASSWORD`
-
-## 维护建议
-
-- 业务变更优先追加新迁移，不要覆盖旧迁移。
-- 管理端动作优先可审计（软删 + 处理备注）。
-- 新增管理功能时同步更新本 README 的“接口”和“权限约束”。
+### 前端
+- 思考中动画气泡（星芒 emoji + 打字机省略号动画）
+- Markdown 富文本渲染（marked + DOMPurify）
+- 底部导航栏 Flex 均分自适应
+- 引用日记完整上下文传输（fullContent 不截断）

@@ -165,6 +165,7 @@ interface Conversation {
 interface ChatReference {
   label: string
   content: string
+  fullContent: string
   diaryId?: number
 }
 
@@ -191,7 +192,7 @@ const isThinking = ref(false)
 const msgBox = ref<HTMLElement | null>(null)
 const chatInputArea = ref<HTMLElement | null>(null)
 const references = ref<ChatReference[]>([])
-const recentDiaryOptions = ref<{ id: number; date: string; snippet: string }[]>([])
+const recentDiaryOptions = ref<{ id: number; date: string; snippet: string; fullContent: string }[]>([])
 const recentDiariesLoading = ref(false)
 const recentDiariesError = ref<string | null>(null)
 const lastReplyError = ref<string | null>(null)
@@ -207,7 +208,8 @@ onMounted(async () => {
   if (state?.references?.length) {
     references.value = state.references.slice(0, 2).map((r: string) => ({
       label: 'MoodCopilot 引用',
-      content: String(r).slice(0, 120)
+      content: String(r).length > 30 ? String(r).slice(0, 30) + '...' : String(r),
+      fullContent: String(r)
     }))
     shouldAutoSend = !!state.autoSend
     if (shouldAutoSend) {
@@ -456,7 +458,7 @@ async function send() {
 
   lastReplyError.value = null
   lastReplyRequest.value = null
-  const refContents = references.value.slice(0, 2).map(r => r.content.slice(0, 120))
+  const refContents = references.value.slice(0, 2).map(r => r.fullContent || r.content)
   messages.value.push({ role: 'user', content, references: refContents.length ? refContents : undefined })
   saveToBackend(convId)
   draft.value = ''
@@ -589,7 +591,7 @@ function removeRef(index: number) {
 function addDiaryRef(diaryId: string) {
   const d = recentDiaryOptions.value.find(o => String(o.id) === diaryId)
   if (d && !references.value.some(r => r.diaryId === d.id)) {
-    references.value.push({ label: '日记 · ' + d.date, content: d.snippet.slice(0, 120), diaryId: d.id })
+    references.value.push({ label: '日记 · ' + d.date, content: d.snippet, fullContent: d.fullContent, diaryId: d.id })
   }
 }
 
@@ -608,7 +610,8 @@ async function loadRecentDiaryOptions() {
         options.push({
           id: d.id,
           date: d.createdAt?.split('T')[0] ?? '',
-          snippet: d.content?.length > 30 ? d.content.slice(0, 30) : d.content ?? ''
+          snippet: d.content?.length > 30 ? d.content.slice(0, 30) + '...' : d.content ?? '',
+          fullContent: d.content ?? ''
         })
       })
     } catch (e) {
