@@ -8,7 +8,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -28,8 +31,16 @@ public class DeepSeekReasoningClient {
             @Value("${DEEPSEEK_REASONING_MODEL:deepseek-reasoner}") String model,
             ObjectMapper objectMapper) {
         // 这里不走 Spring AI 的 ChatClient，直接用原生 HTTP 请求，是为了绕开 thinking/reasoning_content
-        // 兼容问题。
-        this.restClient = RestClient.builder().baseUrl(normalizeBaseUrl(baseUrl)).build();
+        // 兼容问题。设置 90s 超时，低于 Cloudflare 的 100s 限制，避免推理模型长响应被 Cloudflare 截断后前端无感知等待。
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofSeconds(90));
+        this.restClient = RestClient.builder()
+                .baseUrl(normalizeBaseUrl(baseUrl))
+                .requestFactory(requestFactory)
+                .build();
         this.apiKey = apiKey == null ? "" : apiKey.trim();
         this.model = model == null || model.isBlank() ? "deepseek-reasoner" : model.trim();
         this.objectMapper = objectMapper;
