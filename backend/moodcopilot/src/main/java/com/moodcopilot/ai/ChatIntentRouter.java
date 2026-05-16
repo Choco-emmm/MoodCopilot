@@ -50,6 +50,15 @@ public class ChatIntentRouter {
             return false;
         }
 
+        // 携带引用日记时强制走深度分析（reasoning 模型），确保 AI 聚焦引用内容做精准回应
+        if (refs != null && !refs.isEmpty()) {
+            log.info("聊天路由结果：reasoning（强制，因携带 {} 条引用日记）", refs.size());
+            if (conversationId != null) {
+                markReasoning(conversationId);
+            }
+            return true;
+        }
+
         boolean cachedReasoning = conversationId != null && hasRecentReasoning(conversationId);
 
         Boolean llmResult = trySemanticRoute(message);
