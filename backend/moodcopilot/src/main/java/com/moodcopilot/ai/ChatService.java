@@ -363,7 +363,9 @@ public class ChatService {
 
             sb.append("<user_diary>\n");
             for (int i = 0; i < refs.size(); i++) {
-                sb.append(refs.get(i));
+                String ref = refs.get(i);
+                // 截断过长的日记引用，避免推理模型处理超大 prompt 时超时（Cloudflare 100s 限制）
+                sb.append(ref.length() > 500 ? ref.substring(0, 500) + "…" : ref);
                 if (i < refs.size() - 1) sb.append("\n---\n");
             }
             sb.append("\n</user_diary>\n\n");

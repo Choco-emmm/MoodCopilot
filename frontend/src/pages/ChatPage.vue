@@ -322,6 +322,9 @@ async function syncFromServer(forceScroll: boolean) {
   try {
     const latest = await loadFromBackend(convId)
     const current = messages.value
+    // 远端无数据或本地消息更多（本地有未持久化的新消息）时，不覆盖本地
+    if (latest.length === 0) return
+    if (current.length > latest.length) return
     const changed = !isSameMessageList(current, latest)
     const keepStickBottom = isNearBottom(msgBox.value)
     if (changed) {
