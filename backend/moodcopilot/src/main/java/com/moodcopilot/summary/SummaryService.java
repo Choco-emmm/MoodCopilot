@@ -97,14 +97,16 @@ public class SummaryService {
             }
         }
 
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("M/d");
+        String title = startDate.format(fmt) + " - " + endDate.format(fmt);
+
         String aiSummary = aiAnalysisService.generateWeeklySummary(contents, analyses);
+        AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateCustomGuidance(
+                title, contents, analyses);
 
         var sortedTopics = topicCounts.entrySet().stream()
                 .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
-
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("M/d");
-        String title = startDate.format(fmt) + " - " + endDate.format(fmt);
 
         DiarySummaryEntity entity = new DiarySummaryEntity();
         entity.setUserId(user.getId());
@@ -114,6 +116,11 @@ public class SummaryService {
         entity.setAiSummary(aiSummary);
         entity.setDiaryCount(diaries.size());
         try {
+            entity.setInsightsJson(guidance.insights().isEmpty() ? null
+                    : objectMapper.writeValueAsString(guidance.insights()));
+            entity.setSuggestionsJson(guidance.suggestions().isEmpty() ? null
+                    : objectMapper.writeValueAsString(guidance.suggestions()));
+            entity.setFollowUpPrompt(guidance.followUpPrompt());
             entity.setMoodsJson(objectMapper.writeValueAsString(dailyMoods));
             entity.setTopicsJson(objectMapper.writeValueAsString(sortedTopics));
             entity.setDiaryIds(objectMapper.writeValueAsString(diaryIds));
