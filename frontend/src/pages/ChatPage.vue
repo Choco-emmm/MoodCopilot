@@ -599,7 +599,7 @@ async function loadRecentDiaryOptions() {
   recentDiariesLoading.value = true
   recentDiariesError.value = null
   try {
-    const options: { id: number; date: string; snippet: string }[] = []
+    const options: { id: number; date: string; snippet: string; fullContent: string }[] = []
 
     // 加载最近的日记
     try {
