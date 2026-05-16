@@ -18,6 +18,17 @@
             <n-button
               v-if="auth.isAdmin"
               size="tiny"
+              type="warning"
+              text
+              :loading="pinning"
+              @click="togglePin"
+              style="margin-left: 8px; font-weight: bold;"
+            >
+              {{ diary.isPinned ? '📌 取消置顶' : '📌 置顶' }}
+            </n-button>
+            <n-button
+              v-if="auth.isAdmin"
+              size="tiny"
               type="error"
               text
               @click="handleAdminDeleteDiary"
@@ -191,6 +202,7 @@ const editContent = ref('')
 const editVisibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
 const savingEdit = ref(false)
 const editError = ref('')
+const pinning = ref(false)
 
 const isOwner = computed(() => auth.userId != null && diary.value != null && auth.userId === diary.value.authorUserId)
 
@@ -300,6 +312,24 @@ async function reportDiary() {
   const reason = window.prompt('请简单说明举报原因')
   if (!reason?.trim()) return
   await reportApi.create({ targetType: 'DIARY', targetId: diary.value.id, reason: reason.trim() })
+}
+
+async function togglePin() {
+  if (!diary.value || pinning.value) return
+  pinning.value = true
+  try {
+    const res = await diaryApi.update(diary.value.id, {
+      content: diary.value.content,
+      visibility: diary.value.visibility,
+      isPinned: !diary.value.isPinned,
+    })
+    diary.value = store.normalize(res.data.data)
+    message.success(diary.value.isPinned ? '已置顶' : '已取消置顶')
+  } catch (e: any) {
+    message.error(e?.response?.data?.message || '操作失败')
+  } finally {
+    pinning.value = false
+  }
 }
 
 async function handleAdminDeleteDiary() {

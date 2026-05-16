@@ -147,6 +147,13 @@ public class DiaryService {
         String normalizedContent = normalizeContent(request.content());
         DiaryVisibility visibility = parseVisibility(request.visibility());
 
+        if (request.isPinned() != null) {
+            if (!"ADMIN".equalsIgnoreCase(user.getRole())) {
+                throw new ResponseStatusException(FORBIDDEN, "只有管理员才能置顶日记");
+            }
+            diary.setIsPinned(request.isPinned());
+        }
+
         String oldContent = diary.getContent() == null ? "" : diary.getContent();
         String oldVisibility = diary.getVisibility();
         String filteredContent = ContentFilter.filter(normalizedContent);
