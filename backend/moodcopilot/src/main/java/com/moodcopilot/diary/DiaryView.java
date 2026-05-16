@@ -19,6 +19,7 @@ public record DiaryView(
         DiaryAnalysis analysis,
         LocalDateTime createdAt,
         int resonanceCount,
+        boolean isPinned,
         List<DiaryComment> comments
 ) {
     static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments, String authorAvatar, String authorName, Map<Long, String> commentAuthorNames) {
@@ -64,6 +65,7 @@ public record DiaryView(
                 viewAnalysis,
                 diary.getCreatedAt(),
                 diary.getResonanceCount(),
+                Boolean.TRUE.equals(diary.getIsPinned()),
                 buildCommentTree(comments, commentAuthorNames)
         );
     }
