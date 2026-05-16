@@ -6,22 +6,28 @@
         <p class="eyebrow">AI 分析</p>
         <h2>
           {{ diary.analysis.moodLabel }} · 强度 {{ diary.analysis.moodIntensity }}/5
-          <n-popover trigger="click" placement="bottom-start" :width="340" :delay="0">
+          <n-popover trigger="click" placement="bottom-start" :width="370" :delay="0">
             <template #trigger>
               <span class="mood-guide-trigger" title="情绪与强度评级指南">ⓘ</span>
             </template>
             <div class="mood-guide">
               <div class="guide-section">
-                <p class="guide-section-title">情绪分类</p>
-                <div v-for="group in moodGroups" :key="group.label" class="mood-group">
-                  <p class="mood-group-label">{{ group.label }}</p>
-                  <div class="mood-chips">
-                    <span
-                      v-for="m in group.moods"
-                      :key="m"
-                      class="mood-chip"
-                      :style="{ background: moodColor(m) }"
-                    >{{ m }}</span>
+                <p class="guide-section-title">情绪分类（四象限）</p>
+                <div class="quadrant-grid">
+                  <div
+                    v-for="group in moodGroups"
+                    :key="group.label"
+                    class="quadrant-cell"
+                  >
+                    <p class="quadrant-label">{{ group.label }}</p>
+                    <div class="mood-chips">
+                      <span
+                        v-for="m in group.moods"
+                        :key="m"
+                        class="mood-chip"
+                        :style="{ background: moodColor(m) }"
+                      >{{ m }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -149,25 +155,34 @@ const intensityLevels = [
   color: var(--color-text, #333);
 }
 
-/* ── 情绪分组 ── */
-.mood-group + .mood-group {
-  margin-top: 10px;
+/* ── 四象限网格 ── */
+.quadrant-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
-.mood-group-label {
-  margin: 0 0 4px;
-  font-size: 0.72rem;
+.quadrant-cell {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--color-bg-elevated, #fafafa);
+}
+.quadrant-label {
+  margin: 0 0 5px;
+  font-size: 0.7rem;
+  font-weight: 500;
   color: var(--color-text-tertiary, #999);
+  letter-spacing: 0.02em;
 }
 .mood-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
 }
 .mood-chip {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 9px;
-  font-size: 0.7rem;
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-size: 0.68rem;
   color: #fff;
   white-space: nowrap;
   opacity: 0.88;
