@@ -15,6 +15,27 @@
             </n-tag>
             <n-button v-if="isOwner" size="tiny" text @click="toggleEdit">{{ editing ? '取消编辑' : '编辑' }}</n-button>
             <n-button v-if="!isOwner" size="tiny" text @click="reportDiary">举报</n-button>
+            <n-button
+              v-if="auth.isAdmin"
+              size="tiny"
+              type="error"
+              text
+              @click="handleAdminDeleteDiary"
+              style="margin-left: 8px; font-weight: bold;"
+            >
+              🗑️ 强制删除日记
+            </n-button>
+            <n-button
+              v-if="!isOwner"
+              size="tiny"
+              :type="followStore.isFollowing(diary.authorUserId) ? 'default' : 'primary'"
+              :secondary="!followStore.isFollowing(diary.authorUserId)"
+              :loading="followStore.loading"
+              @click="handleFollow"
+              style="margin-left: 8px;"
+            >
+              {{ followStore.isFollowing(diary.authorUserId) ? '已关注' : '关注' }}
+            </n-button>
           </div>
           <p v-if="!editing" class="diary-content">{{ diary.content }}</p>
 
@@ -140,18 +161,21 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NButton, NInput, NTag, NEmpty } from 'naive-ui'
+import { NButton, NInput, NTag, NEmpty, useMessage } from 'naive-ui'
 import { diaryApi, reportApi } from '../api'
 import { useAuthStore } from '../stores/auth'
 import AppHeader from '../components/AppHeader.vue'
 import AiAnalysisCard from '../components/AiAnalysisCard.vue'
 import SimilarDiariesPanel from '../components/SimilarDiariesPanel.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
+import { useFollowStore } from '../stores/follow'
 
 const route = useRoute()
 const router = useRouter()
 const store = useDiaryStore()
+const followStore = useFollowStore()
 const auth = useAuthStore()
+const message = useMessage()
 const diary = ref<Diary | null>(null)
 const commentDraft = ref('')
 const replyDraft = ref('')
@@ -180,6 +204,9 @@ async function loadDiaryByRoute() {
   try {
     const res = await diaryApi.get(id)
     diary.value = store.normalize(res.data.data)
+    if (!isOwner.value && diary.value?.authorUserId) {
+      await followStore.checkStatus(diary.value.authorUserId)
+    }
     await store.loadSimilar(id)
   } catch {
     diary.value = null
@@ -239,6 +266,7 @@ async function deleteComment(commentId: number) {
 }
 
 function canDeleteComment(comment: any) {
+  if (auth.isAdmin) return true
   const authorUserId = Number(comment?.authorUserId)
   if (Number.isFinite(authorUserId) && auth.userId != null) {
     return authorUserId === auth.userId
@@ -272,6 +300,19 @@ async function reportDiary() {
   const reason = window.prompt('请简单说明举报原因')
   if (!reason?.trim()) return
   await reportApi.create({ targetType: 'DIARY', targetId: diary.value.id, reason: reason.trim() })
+}
+
+async function handleAdminDeleteDiary() {
+  if (!diary.value) return
+  if (window.confirm('您正在以管理员身份强制删除这篇日记，此操作不可逆，确定吗？')) {
+    try {
+      await store.deleteDiary(diary.value.id)
+      message.success('日记已成功强制删除')
+      router.push('/')
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '强制删除失败')
+    }
+  }
 }
 
 async function reportComment(commentId: number) {
@@ -334,6 +375,16 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
   }).format(new Date(value))
+}
+
+async function handleFollow() {
+  if (!diary.value || followStore.loading) return
+  const authorId = diary.value.authorUserId
+  if (followStore.isFollowing(authorId)) {
+    await followStore.unfollow(authorId)
+  } else {
+    await followStore.follow(authorId)
+  }
 }
 
 function handleCommentFocus() {

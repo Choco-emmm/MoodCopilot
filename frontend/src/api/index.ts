@@ -75,6 +75,8 @@ export const adminApi = {
     api.post(`/admin/reports/${id}/reject`, { note: note ?? '' }),
   hideTarget: (id: number, note?: string) =>
     api.post(`/admin/reports/${id}/hide-target`, { note: note ?? '' }),
+  banUserReport: (id: number, note?: string) =>
+    api.post(`/admin/reports/${id}/ban-user`, { note: note ?? '' }),
 }
 
 export const notificationApi = {

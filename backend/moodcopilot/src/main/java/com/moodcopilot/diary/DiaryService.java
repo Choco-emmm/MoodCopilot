@@ -381,6 +381,7 @@ public class DiaryService {
                 Page.of(page, size),
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
+                        .orderByDesc(DiaryEntity::getIsPinned)
                         .orderByDesc(DiaryEntity::getCreatedAt));
         List<DiaryView> views = buildDiaryViews(entityPage.getRecords(), true);
         Page<DiaryView> viewPage = new Page<>(page, size, entityPage.getTotal());
@@ -464,6 +465,7 @@ public class DiaryService {
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
                         .in(DiaryEntity::getAuthorUserId, followingIds)
+                        .orderByDesc(DiaryEntity::getIsPinned)
                         .orderByDesc(DiaryEntity::getCreatedAt));
         List<DiaryEntity> visibleDiaries = filterHidden(entityPage.getRecords(), userId);
         List<DiaryView> views = buildDiaryViews(visibleDiaries, true);
@@ -1172,12 +1174,13 @@ public class DiaryService {
         DiaryEntity diary = diaryMapper.selectById(diaryId);
         if (diary == null)
             throw new ResponseStatusException(NOT_FOUND, "日记不存在");
-        if (!diary.getAuthorUserId().equals(user.getId())) {
-            throw new ResponseStatusException(FORBIDDEN, "只能删除自己的日记");
+        if (!diary.getAuthorUserId().equals(user.getId()) && !"ADMIN".equals(user.getRole())) {
+            throw new ResponseStatusException(FORBIDDEN, "只能删除自己的日记或由管理员操作");
         }
         diaryMapper.deleteById(diaryId);
-        evictUserCache(user.getId());
-        log.info("日记删除成功，diaryId={}，userId={}，已保留用户长期画像", diaryId, user.getId());
+        evictUserCache(diary.getAuthorUserId());
+        log.info("日记{}删除成功，diaryId={}，操作者UserId={}，原作者UserId={}",
+                "ADMIN".equals(user.getRole()) ? "强制" : "", diaryId, user.getId(), diary.getAuthorUserId());
     }
 
     @Transactional
@@ -1187,6 +1190,7 @@ public class DiaryService {
 
     @Transactional
     public void deleteComment(long diaryId, long commentId) {
+        UserEntity user = currentUser();
         DiaryEntity diary = diaryMapper.selectById(diaryId);
         if (diary == null)
             throw new ResponseStatusException(NOT_FOUND, "日记不存在");
@@ -1194,8 +1198,8 @@ public class DiaryService {
         if (comment == null || !comment.getDiaryId().equals(diaryId)) {
             throw new ResponseStatusException(NOT_FOUND, "评论不存在");
         }
-        if (!comment.getAuthorUserId().equals(currentUser().getId())) {
-            throw new ResponseStatusException(FORBIDDEN, "只能删除自己的评论");
+        if (!comment.getAuthorUserId().equals(user.getId()) && !"ADMIN".equals(user.getRole())) {
+            throw new ResponseStatusException(FORBIDDEN, "只能删除自己的评论或由管理员操作");
         }
         diaryCommentMapper.deleteById(commentId);
         evictRelatedUserCaches(comment.getAuthorUserId(), diary.getAuthorUserId());

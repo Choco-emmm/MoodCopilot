@@ -30,7 +30,18 @@
           <div class="admin-report-main">
             <div class="admin-report-title">
               <n-tag size="small" :type="tagType(report.status)">{{ report.status }}</n-tag>
-              <strong>{{ report.targetType }} #{{ report.targetId }}</strong>
+              <span><strong>{{ report.targetType }} #{{ report.targetId }}</strong></span>
+              <span v-if="report.targetType === 'DIARY'">
+                <n-button
+                  size="tiny"
+                  type="primary"
+                  text
+                  @click="goToTarget(report)"
+                  style="margin-left: 12px; font-weight: bold; text-decoration: underline;"
+                >
+                  🔍 查看原日记
+                </n-button>
+              </span>
             </div>
             <p class="admin-report-reason">{{ report.reason }}</p>
             <p class="admin-report-meta">
@@ -49,6 +60,9 @@
             <n-button size="small" type="error" :loading="actingId === report.id" @click="hideTarget(report)">
               隐藏并处理
             </n-button>
+            <n-button size="small" type="error" ghost :loading="actingId === report.id" @click="banUser(report)">
+              🚫 封禁作者并隐藏
+            </n-button>
           </div>
         </article>
 
@@ -61,10 +75,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { NButton, NSelect, NTag } from 'naive-ui'
+import { useRouter } from 'vue-router'
+import { NButton, NSelect, NTag, useMessage } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import { adminApi } from '../api'
 import { useAuthStore } from '../stores/auth'
+
+const router = useRouter()
+const message = useMessage()
 
 type AdminReport = {
   id: number
@@ -141,6 +159,18 @@ async function hideTarget(report: AdminReport) {
   await act(report.id, (note) => adminApi.hideTarget(report.id, note), '内容违规，已隐藏')
 }
 
+async function banUser(report: AdminReport) {
+  await act(report.id, (note) => adminApi.banUserReport(report.id, note), '内容严重违规，已封禁该作者并隐藏内容')
+}
+
+function goToTarget(report: AdminReport) {
+  if (report.targetType === 'DIARY') {
+    router.push(`/diary/${report.targetId}`)
+  } else if (report.targetType === 'COMMENT') {
+    message.info('评论类型暂不支持直接跳转，请根据内容定位')
+  }
+}
+
 async function act(id: number, action: (note: string) => Promise<unknown>, defaultNote: string) {
   const note = window.prompt('处理备注', defaultNote)
   if (note === null) return
@@ -169,3 +199,104 @@ function formatTime(value?: string) {
   }).format(new Date(value))
 }
 </script>
+
+<style scoped>
+.admin-page {
+  padding: var(--pad, 16px);
+  max-width: 800px;
+  margin: 0 auto;
+  padding-bottom: 90px;
+}
+
+.admin-page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .admin-page-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .admin-status-select {
+    width: 100% !important;
+  }
+}
+
+.admin-report-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-report-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  border: 1px solid #edf2f7;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-report-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-report-reason {
+  font-size: 14px;
+  color: #2d3748;
+  line-height: 1.5;
+  background: #f7fafc;
+  padding: 12px;
+  border-radius: 8px;
+  margin: 6px 0;
+  word-break: break-all;
+}
+
+.admin-report-meta {
+  font-size: 12px;
+  color: #718096;
+}
+
+.admin-report-note {
+  font-size: 13px;
+  color: #dd6b20;
+  background: #fffaf0;
+  padding: 8px;
+  border-radius: 6px;
+  margin-top: 4px;
+}
+
+.admin-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid #edf2f7;
+  padding-top: 12px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 500px) {
+  .admin-report-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+
+  .admin-report-actions :deep(.n-button) {
+    width: 100% !important;
+    margin: 0 !important;
+    font-size: 12px !important;
+    padding: 0 4px !important;
+  }
+}
+</style>
