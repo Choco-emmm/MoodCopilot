@@ -154,13 +154,10 @@
                 <circle :cx="p.x" :cy="p.y" r="3.2" :fill="p.color" />
               </g>
             </svg>
-            <div class="trend-legend">
-              <span class="legend-item"><i class="legend-dot" style="background:#4f8f7c"></i>平静</span>
-              <span class="legend-item"><i class="legend-dot" style="background:#7db89a"></i>轻松</span>
-              <span class="legend-item"><i class="legend-dot" style="background:#e08d72"></i>焦虑</span>
-              <span class="legend-item"><i class="legend-dot" style="background:#c4a8b4"></i>害怕</span>
-              <span class="legend-item"><i class="legend-dot" style="background:#e09f5c"></i>烦躁</span>
-              <span class="legend-item"><i class="legend-dot" style="background:#a8b0c0"></i>难过</span>
+            <div v-if="activeMoods.length" class="trend-legend">
+              <span v-for="m in activeMoods" :key="m.label" class="legend-item">
+                <i class="legend-dot" :style="{ background: m.color }"></i>{{ m.label }}
+              </span>
             </div>
             <div class="sparkline-labels">
               <span>{{ sparklineFirst }}</span>
@@ -375,6 +372,19 @@ const sparklineFirst = computed(() => {
 const sparklineLast = computed(() => {
   const moods = monthReport.value?.dailyMoods ?? []
   return moods.length > 0 ? formatDay(moods[moods.length - 1].date) : ''
+})
+
+const activeMoods = computed(() => {
+  const moods = monthReport.value?.dailyMoods ?? []
+  const seen = new Set<string>()
+  const result: { label: string; color: string }[] = []
+  for (const d of moods) {
+    if (d.moodLabel && !seen.has(d.moodLabel)) {
+      seen.add(d.moodLabel)
+      result.push({ label: d.moodLabel, color: moodColor(d.moodLabel) })
+    }
+  }
+  return result
 })
 
 async function createCustom() {
