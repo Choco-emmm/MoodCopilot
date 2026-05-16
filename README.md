@@ -83,6 +83,25 @@ MoodCopilot 是一个 AI 情绪日记 + 同频陪伴社区。
   - `mysql/redis/backend` 改为容器内网 `expose`，不再映射宿主机端口。
   - 各服务增加 `no-new-privileges` 安全选项。
 
+### 聊天割裂感修复（2026-05-16）
+
+**背景**：用户反馈聊天中存在\"回复割裂感\"——上下文断档、频繁切换模型导致人格不一致、深度推理模型丧失历史记忆。
+
+**缺陷 A — 推理模型记忆注入**
+- `ChatService` 新增 `formatChatHistory(ChatMemory)`：从 ChatMemory 提取最近 20 条消息（约 10 轮对白），格式化为 `【往期聊天历史记忆】` 注入到 reasoning 模型的 system prompt。
+- `callReasoningModel` 调用后手动回写 `UserMessage` + `AssistantMessage` 到 ChatMemory，填补 `MessageChatMemoryAdvisor` 缺席导致的记忆断层。
+- `reply()` 非流式路径也统一走 `callReasoningModel`，不再绕过历史注入。
+
+**缺陷 B — 强惯性模型锁定**
+- `ChatIntentRouter.shouldUseReasoning` 新增短路逻辑：当 `hasRecentReasoning` 命中时直接返回 `true` 并刷新 TTL，跳过语义路由和降级打分。
+- 原逻辑仅在降级规则中 +1 分，导致短消息（如\"怎么办？\"）轻易跌破阈值切回普通模型，现改为 5 分钟内持续锁定推理模型。
+- 移除 `fallbackRoutingStrategy` 的 `cachedReasoning` 参数。
+
+**防 OOM — Caffeine 替代无界 Map**
+- `AIConfiguration` 中 `userChatMemories` Bean 从 `ConcurrentHashMap` 改为 Caffeine `Cache`：30 分钟无访问自动过期 + 最多 500 条硬限制，适配 2C4G 服务器。
+- `ChatService` 适配 `Cache` API：`computeIfAbsent` → `get`，`remove` → `invalidate`。
+- `pom.xml` 新增 `com.github.ben-manes.caffeine:caffeine` 依赖。
+
 ### 情绪分类学重构（2026-05-16）
 
 **情绪分类：6 种 → 18 种四象限情绪轮**
