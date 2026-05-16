@@ -38,7 +38,7 @@ api.interceptors.response.use(
 
 export const diaryApi = {
   create: (data: { content: string; visibility: string }) => api.post('/diaries', data),
-  update: (id: number, data: { content: string; visibility: string }) => api.put(`/diaries/${id}`, data),
+  update: (id: number, data: { content: string; visibility: string; isPinned?: boolean }) => api.put(`/diaries/${id}`, data),
   mine: (page = 1, size = 20) => api.get('/diaries/mine', { params: { page, size } }),
   public: (page = 1, size = 20) => api.get('/diaries/public', { params: { page, size } }),
   get: (id: number) => api.get(`/diaries/${id}`),
