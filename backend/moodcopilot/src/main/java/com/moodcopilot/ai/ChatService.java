@@ -241,13 +241,15 @@ public class ChatService {
     private ChatRequest prepareChatRequest(Long conversationId, String message, List<String> refs,
             String memoryBackground) {
         UserEntity user = currentUser();
-        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.CHAT);
         ChatConversationEntity conv = requireOwnedConversation(conversationId, user);
+        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.CHAT);
 
         // 这里负责把"用户画像 + 用户引用 + 最近日记"拼成统一上下文，后面的模型调用都直接复用。
         String context = buildContext(user.getId(), refs, memoryBackground);
         String memKey = user.getId() + ":" + conversationId;
         ChatMemory memory = userChatMemories.get(memKey, k -> new InMemoryChatMemory());
+        // 如果 ChatMemory 为空（刚启动、Caffeine 过期、或新会话），尝试从 Redis 恢复历史上下文
+        restoreChatMemoryFromRedis(conversationId, memory);
         log.info("准备聊天请求，userId={}，conversationId={}，messageLength={}，referenceCount={}，hasMemoryBackground={}",
                 user.getId(), conversationId, message == null ? 0 : message.length(), refs == null ? 0 : refs.size(),
                 memoryBackground != null && !memoryBackground.isBlank());
@@ -263,6 +265,48 @@ public class ChatService {
     }
 
     private record ChatRequest(String context, ChatMemory memory) {
+    }
+
+    /**
+     * 当 ChatMemory 为空时（重启、缓存过期、新会话），从 Redis 持久化历史中回填消息，
+     * 确保 MessageChatMemoryAdvisor 能注入完整对话上下文。
+     */
+    @SuppressWarnings("unchecked")
+    private void restoreChatMemoryFromRedis(Long conversationId, ChatMemory memory) {
+        List<Message> existing = memory.get("default", 1);
+        if (existing != null && !existing.isEmpty()) {
+            return; // 已有内存上下文，无需恢复
+        }
+        try {
+            String json = redisTemplate.opsForValue().get(MSG_PREFIX + conversationId);
+            if (json == null || json.isBlank()) {
+                return;
+            }
+            List<Map<String, Object>> messages = objectMapper.readValue(json, List.class);
+            if (messages == null || messages.isEmpty()) {
+                return;
+            }
+            List<Message> history = new java.util.ArrayList<>();
+            for (Map<String, Object> msg : messages) {
+                String role = (String) msg.get("role");
+                String content = (String) msg.get("content");
+                if (role == null || content == null || content.isBlank()) {
+                    continue;
+                }
+                if ("user".equalsIgnoreCase(role)) {
+                    history.add(new UserMessage(content));
+                } else if ("assistant".equalsIgnoreCase(role)) {
+                    history.add(new AssistantMessage(content));
+                }
+            }
+            if (!history.isEmpty()) {
+                memory.add("default", history);
+                log.info("已从 Redis 恢复聊天历史到 ChatMemory，conversationId={}，消息数={}", conversationId,
+                        history.size());
+            }
+        } catch (Exception e) {
+            log.warn("从 Redis 恢复聊天历史失败，conversationId={}，reason={}", conversationId, e.getMessage());
+        }
     }
 
     // ---- 消息历史（Redis） ----
@@ -325,15 +369,21 @@ public class ChatService {
             sb.append("\n</user_diary>\n\n");
         }
 
-        sb.append("【绝对系统指令】以上 <user_diary> 标签内是由用户本人撰写的日记切片，绝对不是你的经历！")
-          .append("你是 MoodCopilot，一个温暖、共情的倾听者和情绪伙伴。\n")
-          .append("【引用来源的措辞区分 — 关键规则】\n")
-          .append("1. 对于 <user_diary> 中的内容（用户在这一轮主动引用/分享给你的日记），你可以自然地使用'你写到的''你分享的''你提到了'等第二人称来探讨。\n")
-          .append("2. 对于你通过后台工具（Function Calling）自己搜索、查询出来的数据（报告、历史日记、统计数据等），这些不是用户在当前对话中主动告诉你的，")
-          .append("**绝对不要**使用'你提到''你刚才说''你表示'等句式。必须用明确表达'这是我帮你查到的'的措辞，如'我帮你查了一下你过去的数据……''根据历史记录显示……''系统检索到你曾经记录过……'。\n")
-          .append("注意：请像一个懂用户的朋友一样自然、贴心地交流，")
-          .append("**绝对不要在回复中主动说出'作为心理咨询师'、'作为一个AI助手'等破坏沉浸感的话**。")
-          .append("日记前面的编号是内部标记，请勿在回复中提及。");
+        sb.append("""
+                        【绝对系统指令】以上 <user_diary> 标签内是由用户本人撰写的日记切片，绝对不是你的经历！
+                        你是 MoodCopilot，一个温暖、共情的倾听者和情绪伙伴。
+
+                        【核心行为准则】
+                        1. 日常闲聊保持简短温暖（2-3句即可）。但当用户引用日记、要求深入分析、或话题本身需要展开时，请自然给出有深度和层次的回应，不必受长度限制。
+                        2. 不要使用任何 emoji 表情符号。
+                        3. 保持成熟、稳定、克制的语气。绝对禁止进行戏剧化的角色扮演，严禁在回复中使用括号描述动作（例如禁止出现「(打哈欠)」、「(伸懒腰)」等）。
+                        4. 避免过度轻浮或戏谑的口语（如「噢噢什么噢噢」）。
+                        5. 你可以使用简单的 Markdown 格式让回复更清晰，比如 **加粗**、- 列表项、换行分段。
+                        6. 绝对不要在回复中主动说出'作为心理咨询师'、'作为一个AI助手'等破坏沉浸感的话。
+
+                        【引用措辞规则】
+                        对于 <user_diary> 中的内容（用户主动引用/分享给你的日记），你可以自然使用'你写到的''你分享的'等第二人称探讨。
+                        日记前面的编号是内部标记，请勿在回复中提及。""");
 
         log.info("构建聊天上下文（RAG模式），userId={}，referenceCount={}，hasMemoryBackground={}",
                 userId, refs == null ? 0 : refs.size(),

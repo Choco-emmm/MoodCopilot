@@ -139,7 +139,8 @@ docker compose up -d
 | `REDIS_PASSWORD` | Redis 密码 | — |
 | `DEEPSEEK_API_KEY` | DeepSeek API Key | — |
 | `DEEPSEEK_BASE_URL` | DeepSeek API 地址 | `https://api.deepseek.com` |
-| `DEEPSEEK_MODEL` | 默认模型 | `deepseek-chat` |
+| `DEEPSEEK_MODEL` | 常规对话模型 | `deepseek-chat` |
+| `DEEPSEEK_REASONING_MODEL` | 推理模型 | `deepseek-reasoner` |
 | `JWT_SECRET` | JWT 签名密钥 | 内置开发默认值 |
 | `MAIL_HOST` | SMTP 服务器 | `smtp.qq.com` |
 | `MAIL_PORT` | SMTP 端口 | `465` |
@@ -158,7 +159,7 @@ docker compose up -d
 ### System Prompt 分层
 
 ```
-<long_term_memory>          ← 长期画像
+<long_term_memory>          ← 长期画像（JSON 事实列表，反注入保护）
   ...
 </long_term_memory>
 
@@ -167,10 +168,23 @@ docker compose up -d
   ...日记切片...
 </user_diary>
 
-【绝对系统指令】              ← 末尾兜底，反角色扮演
-  身份：MoodCopilot（倾听者/情绪伙伴）
-  禁止：自称"心理咨询师/AI助手/经历了日记事件"
+【核心行为准则】              ← 始终注入（推理模型 + 常规模型共用）
+  1. 日常闲聊简短温暖（2-3句）；用户引用日记或要求分析时自然展开
+  2. 禁止 emoji / 角色扮演 / 轻浮口语
+  3. 禁止自称"心理咨询师/AI助手/经历了日记事件"
+  4. 支持 Markdown 格式
+
+【Agent Tools】               ← 仅常规模型路径
+  工具检索结果的措辞规范，区分"用户主动提及"与"系统检索查到"
 ```
+
+### 长期画像（Memory Extraction）
+
+- **双源提取**：日记分析完成后异步提取 + 聊天完成后经 4 层门控增量提取
+- **幂等同步**：MySQL UNIQUE KEY (user_id, attribute_key)，LLM 输出完整替换旧属性列表
+- **安全防护**：空属性列表不执行同步；用户手动删除的属性 key 进入 Redis 黑名单，防止被重新生成
+- **提取 Prompt** 包含 3 个 few-shot 示例（稳定特征提取 / 一次性状态不提取 / 新证据更新旧属性）
+- **门控优化**：短消息包含长期关键词（"总是""一直""失眠"等）时跳过长度门槛
 
 ### 推理模型独立策略
 
