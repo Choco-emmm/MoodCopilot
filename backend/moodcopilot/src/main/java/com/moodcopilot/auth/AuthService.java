@@ -264,7 +264,20 @@ public class AuthService {
         }
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
+        evictPublicDiaryCaches();
         return response(null, user);
+    }
+
+    private void evictPublicDiaryCaches() {
+        try {
+            for (int page = 0; page <= 5; page++) {
+                for (int size : java.util.List.of(10, 20, 50)) {
+                    stringRedisTemplate.delete("public:diaries:%d:%d".formatted(page, size));
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Failed to evict public diary caches", e);
+        }
     }
 
     public void updateSettings(Long userId, Boolean dailyNotifyEnabled) {

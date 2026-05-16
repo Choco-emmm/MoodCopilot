@@ -129,7 +129,7 @@ public class DiaryService {
 
         markReportsStale(user.getId());
 
-        return DiaryView.from(diary, List.of(), normalizeAvatar(user.getAvatar()));
+        return DiaryView.from(diary, List.of(), normalizeAvatar(user.getAvatar()), user.getDisplayName(), Map.of());
     }
 
     @Transactional
@@ -390,12 +390,8 @@ public class DiaryService {
 
     public DiaryView get(long id) {
         DiaryEntity diary = findDiary(id);
-        DiaryAnalysisEntity analysis = findAnalysis(id);
-        List<DiaryCommentEntity> comments = findComments(id);
         boolean isOwner = diary.getAuthorUserId().equals(currentUser().getId());
-        String authorAvatar = resolveAuthorAvatar(diary.getAuthorUserId());
-        return isOwner ? DiaryView.from(diary, analysis, comments, authorAvatar)
-                : DiaryView.fromPublic(diary, analysis, comments, authorAvatar);
+        return buildDiaryView(diary, !isOwner);
     }
 
     public List<DiaryView> similar(long id, int limit) {
@@ -940,10 +936,8 @@ public class DiaryService {
                     comment.getId(), snippet);
         }
 
-        DiaryAnalysisEntity analysis = findAnalysis(diaryId);
-        List<DiaryCommentEntity> comments = findComments(diaryId);
         evictRelatedUserCaches(commenter.getId(), diary.getAuthorUserId());
-        return DiaryView.fromPublic(diary, analysis, comments, resolveAuthorAvatar(diary.getAuthorUserId()));
+        return buildDiaryView(diary, true);
     }
 
     @Transactional
@@ -972,10 +966,8 @@ public class DiaryService {
             }
         }
 
-        DiaryAnalysisEntity analysis = findAnalysis(diaryId);
-        List<DiaryCommentEntity> comments = findComments(diaryId);
         evictRelatedUserCaches(actor.getId(), diary.getAuthorUserId());
-        return DiaryView.fromPublic(diary, analysis, comments, resolveAuthorAvatar(diary.getAuthorUserId()));
+        return buildDiaryView(diary, true);
     }
 
     private String toDiarySnippet(String content) {
@@ -999,9 +991,13 @@ public class DiaryService {
         List<Long> ids = diaries.stream().map(DiaryEntity::getId).toList();
         Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(ids);
         Map<Long, List<DiaryCommentEntity>> commentMap = batchLoadComments(ids);
-        Map<Long, String> authorAvatarMap = batchLoadAuthorAvatars(diaries);
+        java.util.Set<Long> authorIds = new java.util.HashSet<>();
+        diaries.forEach(d -> authorIds.add(d.getAuthorUserId()));
+        commentMap.values().forEach(comments ->
+                comments.forEach(c -> authorIds.add(c.getAuthorUserId())));
+        Map<Long, UserEntity> authorInfoMap = batchLoadAuthorInfo(authorIds);
         return diaries.stream()
-                .map(diary -> buildDiaryView(diary, isPublic, analysisMap, commentMap, authorAvatarMap))
+                .map(diary -> buildDiaryView(diary, isPublic, analysisMap, commentMap, authorInfoMap))
                 .toList();
     }
 
@@ -1017,25 +1013,34 @@ public class DiaryService {
             boolean isPublic,
             Map<Long, DiaryAnalysisEntity> analysisMap,
             Map<Long, List<DiaryCommentEntity>> commentMap) {
-        String avatar = resolveAuthorAvatar(diary.getAuthorUserId());
-        Map<Long, String> avatarMap = new java.util.HashMap<>();
-        if (avatar != null && !avatar.isBlank()) {
-            avatarMap.put(diary.getAuthorUserId(), avatar);
-        }
-        return buildDiaryView(diary, isPublic, analysisMap, commentMap, avatarMap);
+        java.util.Set<Long> authorIds = new java.util.HashSet<>();
+        authorIds.add(diary.getAuthorUserId());
+        commentMap.getOrDefault(diary.getId(), List.of())
+                .forEach(c -> authorIds.add(c.getAuthorUserId()));
+        Map<Long, UserEntity> authorInfoMap = batchLoadAuthorInfo(authorIds);
+        return buildDiaryView(diary, isPublic, analysisMap, commentMap, authorInfoMap);
     }
 
     private DiaryView buildDiaryView(DiaryEntity diary,
             boolean isPublic,
             Map<Long, DiaryAnalysisEntity> analysisMap,
             Map<Long, List<DiaryCommentEntity>> commentMap,
-            Map<Long, String> authorAvatarMap) {
+            Map<Long, UserEntity> authorInfoMap) {
         DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
         List<DiaryCommentEntity> comments = commentMap.getOrDefault(diary.getId(), List.of());
-        String authorAvatar = authorAvatarMap.getOrDefault(diary.getAuthorUserId(),
-                resolveAuthorAvatar(diary.getAuthorUserId()));
-        return isPublic ? DiaryView.fromPublic(diary, analysis, comments, authorAvatar)
-                : DiaryView.from(diary, analysis, comments, authorAvatar);
+        UserEntity author = authorInfoMap.get(diary.getAuthorUserId());
+        String authorName = author != null ? author.getDisplayName() : diary.getAuthorName();
+        String authorAvatar = author != null
+                ? normalizeAvatar(author.getAvatar())
+                : resolveAuthorAvatar(diary.getAuthorUserId());
+        Map<Long, String> commentAuthorNames = new java.util.HashMap<>();
+        for (DiaryCommentEntity c : comments) {
+            UserEntity cu = authorInfoMap.get(c.getAuthorUserId());
+            commentAuthorNames.put(c.getAuthorUserId(),
+                    cu != null ? cu.getDisplayName() : c.getAuthorName());
+        }
+        return isPublic ? DiaryView.fromPublic(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames)
+                : DiaryView.from(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames);
     }
 
     private Map<Long, DiaryAnalysisEntity> batchLoadAnalyses(List<Long> diaryIds) {
@@ -1055,23 +1060,11 @@ public class DiaryService {
         return comments.stream().collect(Collectors.groupingBy(DiaryCommentEntity::getDiaryId));
     }
 
-    private Map<Long, String> batchLoadAuthorAvatars(List<DiaryEntity> diaries) {
-        if (diaries.isEmpty())
-            return Map.of();
-        List<Long> authorIds = diaries.stream()
-                .map(DiaryEntity::getAuthorUserId)
-                .distinct()
-                .toList();
+    private Map<Long, UserEntity> batchLoadAuthorInfo(java.util.Set<Long> authorIds) {
         if (authorIds.isEmpty())
             return Map.of();
-        Map<Long, String> result = new java.util.HashMap<>();
-        userMapper.selectBatchIds(authorIds).forEach(user -> {
-            String avatar = normalizeAvatar(user.getAvatar());
-            if (avatar != null && !avatar.isBlank()) {
-                result.put(user.getId(), avatar);
-            }
-        });
-        return result;
+        return userMapper.selectBatchIds(new ArrayList<>(authorIds)).stream()
+                .collect(Collectors.toMap(UserEntity::getId, u -> u));
     }
 
     private String resolveAuthorAvatar(Long authorUserId) {
