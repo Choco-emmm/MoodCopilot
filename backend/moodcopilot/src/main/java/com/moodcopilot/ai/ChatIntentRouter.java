@@ -21,7 +21,29 @@ public class ChatIntentRouter {
     private static final Duration CACHE_TTL = Duration.ofMinutes(5);
 
     private static final String CLASSIFIER_SYSTEM_PROMPT = """
-            你是一个意图分类器。判断用户的输入是否需要深度推理、复杂情感分析或逻辑推演。只需输出 true 或 false。用户输入：""";
+            你是一个意图分类器，用于判断用户的输入是否需要深度推理模型处理。
+            需要深度推理的情况：要求分析情绪成因、梳理复杂人际关系、对比过去与现在的变化、给出个性化建议、多步骤规划、或涉及矛盾/纠结的心理状态。
+            不需要深度推理的情况：简单情绪表达（如"今天好累"）、日常问候、单纯倾诉不要求分析、事实性询问。
+            只需输出 true 或 false，不要解释。
+
+            示例：
+            输入：今天加班到十点，好累啊。
+            输出：false
+
+            输入：为什么我每次和父母聊天都会莫名烦躁？我想搞清楚这个模式。
+            输出：true
+
+            输入：谢谢你听我说这些。
+            输出：false
+
+            输入：帮我分析一下，我最近两周的情绪波动是不是和工作压力有关，以及我该怎么调整。
+            输出：true
+
+            输入：刚才吃了个很好吃的小蛋糕，开心。
+            输出：false
+
+            输入：我觉得自己陷入了一个怪圈：越想交朋友越害怕社交，能不能帮我梳理一下这个心理？
+            输出：true""";
 
     private final ChatClient analysisChatClient;
     private final StringRedisTemplate redisTemplate;

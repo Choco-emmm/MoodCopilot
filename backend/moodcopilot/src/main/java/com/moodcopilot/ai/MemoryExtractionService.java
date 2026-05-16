@@ -39,13 +39,15 @@ public class MemoryExtractionService {
     private static final int ATTRIBUTE_VALUE_MAX_LENGTH = 500;
     private static final String CHAT_MEMORY_UPDATE_LOCK_PREFIX = "memory:chat:update:";
     private static final String CHAT_MEMORY_LAST_HASH_PREFIX = "memory:chat:last-hash:";
+    private static final String MEMORY_BLACKLIST_PREFIX = "memory:blacklist:";
     private static final Duration CHAT_MEMORY_UPDATE_COOLDOWN = Duration.ofMinutes(10);
     private static final Duration CHAT_MEMORY_LAST_HASH_TTL = Duration.ofHours(2);
     private static final int CHAT_MIN_USER_MESSAGE_LENGTH = 18;
     private static final int CHAT_MIN_AI_REPLY_LENGTH = 30;
     private static final int CHAT_TRIGGER_SCORE_THRESHOLD = 2;
     private static final Set<String> CHAT_LONG_TERM_KEYWORDS = Set.of(
-            "一直", "最近总", "长期", "目标", "习惯", "性格", "关系", "家庭", "父母", "伴侣", "朋友", "工作压力", "压力源");
+            "一直", "最近总", "总是", "老是", "经常", "越来越", "最近", "长期", "目标", "习惯", "性格", "关系",
+            "家庭", "父母", "伴侣", "朋友", "失眠", "压力大", "工作压力", "压力源");
     private static final Set<String> CHAT_SMALL_TALK_PHRASES = Set.of(
             "嗯", "嗯嗯", "好的", "好", "收到", "谢谢", "谢谢你", "明白了", "知道了", "ok", "okay", "好的谢谢");
 
@@ -64,7 +66,26 @@ public class MemoryExtractionService {
             2. 如果旧特征已被新日记推翻或明显变化，请输出更新后的值。
             3. 如果没有足够证据支持某条旧特征继续保留，可以不输出该条。
             4. attributeKey 使用简洁中文，例如：性格、长期目标、关键人物、长期压力源、重要关系。
-            5. attributeValue 使用一句简洁中文，避免重复和空话。""";
+            5. attributeValue 使用一句简洁中文，避免重复和空话。
+
+            示例一 — 提取稳定特征：
+            新日记：今天又被领导当着全组的面批评了，说我做事不够细心。其实我知道自己确实有点粗心，从小到大都这样。妈妈也说我像我爸，什么都挺好就是马虎。回到工位后一直忍着没哭，但心里的委屈和愤怒一直散不掉。最近一个月的压力真的好大，项目一个接一个，感觉身体要撑不住了。
+            旧属性列表：
+            - 无
+            输出：{"attributes":[{"attributeKey":"性格","attributeValue":"自认偏粗心马虎，在意他人评价，情绪内敛不轻易外露"},{"attributeKey":"长期压力源","attributeValue":"工作强度大，项目连续，长期处于高压状态"},{"attributeKey":"重要关系","attributeValue":"与上级关系紧张，对被公开批评敏感"}]}
+
+            示例二 — 仅含一次性状态，不做提取：
+            新日记：今天天气不错，中午吃了个很好吃的麻辣烫，晚上看了两集电视剧就睡了。
+            旧属性列表：
+            - 无
+            输出：{"attributes":[]}
+
+            示例三 — 新证据更新旧属性：
+            新日记：这周开始坚持每天跑步了，虽然很累但是跑完感觉整个人都轻松了。以前从不运动，这次竟然坚持了五天，有点意外。工作上还是老样子，但运动让我的焦虑感少了一些。
+            旧属性列表：
+            - 性格：偏内向，不喜欢尝试新事物
+            - 长期压力源：工作焦虑
+            输出：{"attributes":[{"attributeKey":"性格","attributeValue":"开始愿意尝试新事物，有一定的行动力和自律潜力"},{"attributeKey":"长期压力源","attributeValue":"工作焦虑，但正在通过运动缓解"},{"attributeKey":"习惯","attributeValue":"最近开始养成每日跑步的习惯"}]}""";
 
     private final ChatClient analysisChatClient;
     private final UserProfileMemoryMapper userProfileMemoryMapper;
@@ -170,7 +191,10 @@ public class MemoryExtractionService {
         Long userId = currentUser().getId();
 
         // 第一层：硬门槛，过滤无信息量噪声。
-        if (normalizedUserMessage.length() < CHAT_MIN_USER_MESSAGE_LENGTH && normalizedRefs.isEmpty()) {
+        // 但如果短消息中包含长期特征关键词（如"总是""习惯""关系"），放行进入后续评分。
+        boolean hasLongTermKeyword = containsLongTermKeyword(normalizedUserMessage);
+        if (normalizedUserMessage.length() < CHAT_MIN_USER_MESSAGE_LENGTH && normalizedRefs.isEmpty()
+                && !hasLongTermKeyword) {
             log.info("memory-chat | skip | reason=short_user_message | userId={} | userLength={} | refCount={}",
                     userId, normalizedUserMessage.length(), normalizedRefs.size());
             return;
@@ -272,8 +296,15 @@ public class MemoryExtractionService {
             throw new ResponseStatusException(BAD_REQUEST, "记忆记录不存在或无权操作");
         }
         userProfileMemoryMapper.deleteById(memoryId);
-        log.info("用户手动删除长期画像属性，userId={}，memoryId={}，attributeKey={}", user.getId(), memoryId,
-                entity.getAttributeKey());
+        // 加入黑名单，防止后续提取再次生成该属性
+        try {
+            redisTemplate.opsForSet().add(MEMORY_BLACKLIST_PREFIX + user.getId(), entity.getAttributeKey());
+            log.info("用户手动删除长期画像属性，已加入黑名单，userId={}，memoryId={}，attributeKey={}", user.getId(), memoryId,
+                    entity.getAttributeKey());
+        } catch (Exception e) {
+            log.warn("将已删除属性加入黑名单失败，userId={}，attributeKey={}，reason={}", user.getId(),
+                    entity.getAttributeKey(), e.getMessage());
+        }
     }
 
     // ---- 私有方法 ----
@@ -403,16 +434,35 @@ public class MemoryExtractionService {
      * 1. 已存在同 key 就更新 value；
      * 2. 不存在就插入；
      * 3. 新结果里消失的旧 key 会删除。
+     *
+     * 安全防护：如果 LLM 返回空属性列表，跳过本次同步，避免一次性清空用户全部画像。
      */
     private void syncMemories(Long userId, List<UserProfileMemoryEntity> existing, List<MemoryAttribute> attributes) {
+        if (attributes.isEmpty()) {
+            if (!existing.isEmpty()) {
+                log.warn("长期画像同步被跳过：LLM 返回了空属性列表但存在 {} 条旧属性，userId={}，已保留旧数据",
+                        existing.size(), userId);
+            }
+            return;
+        }
         Map<String, UserProfileMemoryEntity> existingByKey = existing.stream()
                 .collect(Collectors.toMap(UserProfileMemoryEntity::getAttributeKey, memory -> memory, (a, b) -> a,
                         LinkedHashMap::new));
 
+        // 加载用户主动删除的黑名单，过滤掉不应重新生成的属性
+        Set<String> blacklist = loadMemoryBlacklist(userId);
+        List<MemoryAttribute> filteredAttributes = attributes.stream()
+                .filter(a -> !blacklist.contains(a.attributeKey()))
+                .toList();
+        if (filteredAttributes.size() < attributes.size()) {
+            log.info("长期画像同步已过滤黑名单属性，userId={}，过滤前={}，过滤后={}，黑名单={}", userId,
+                    attributes.size(), filteredAttributes.size(), blacklist);
+        }
+
         LocalDateTime now = LocalDateTime.now();
         int updatedCount = 0;
         int insertedCount = 0;
-        for (MemoryAttribute attribute : attributes) {
+        for (MemoryAttribute attribute : filteredAttributes) {
             UserProfileMemoryEntity existingEntity = existingByKey.get(attribute.attributeKey());
             if (existingEntity != null) {
                 existingEntity.setAttributeValue(attribute.attributeValue());
@@ -430,7 +480,7 @@ public class MemoryExtractionService {
             insertedCount++;
         }
 
-        Set<String> newKeys = attributes.stream().map(MemoryAttribute::attributeKey).collect(Collectors.toSet());
+        Set<String> newKeys = filteredAttributes.stream().map(MemoryAttribute::attributeKey).collect(Collectors.toSet());
         int deletedCount = 0;
         for (UserProfileMemoryEntity memory : existing) {
             if (!newKeys.contains(memory.getAttributeKey())) {
@@ -439,7 +489,20 @@ public class MemoryExtractionService {
             }
         }
         log.info("长期画像已同步，userId={}，inserted={}，updated={}，deleted={}，finalCount={}",
-                userId, insertedCount, updatedCount, deletedCount, attributes.size());
+                userId, insertedCount, updatedCount, deletedCount, filteredAttributes.size());
+    }
+
+    /**
+     * 加载用户主动删除的属性 key 黑名单，防止这些属性被 LLM 重新提取后再次出现。
+     */
+    private Set<String> loadMemoryBlacklist(Long userId) {
+        try {
+            Set<String> members = redisTemplate.opsForSet().members(MEMORY_BLACKLIST_PREFIX + userId);
+            return members != null ? members : Set.of();
+        } catch (Exception e) {
+            log.debug("加载画像黑名单失败，userId={}，reason={}", userId, e.getMessage());
+            return Set.of();
+        }
     }
 
     private UserEntity currentUser() {
