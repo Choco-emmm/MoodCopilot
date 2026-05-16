@@ -8,6 +8,7 @@ import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.entity.UserReportEntity;
 import com.moodcopilot.mapper.DiaryCommentMapper;
 import com.moodcopilot.mapper.DiaryMapper;
+import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.mapper.UserReportMapper;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -32,14 +33,17 @@ public class AdminReportService {
     private final UserReportMapper userReportMapper;
     private final DiaryMapper diaryMapper;
     private final DiaryCommentMapper diaryCommentMapper;
+    private final UserMapper userMapper;
 
     public AdminReportService(
             UserReportMapper userReportMapper,
             DiaryMapper diaryMapper,
-            DiaryCommentMapper diaryCommentMapper) {
+            DiaryCommentMapper diaryCommentMapper,
+            UserMapper userMapper) {
         this.userReportMapper = userReportMapper;
         this.diaryMapper = diaryMapper;
         this.diaryCommentMapper = diaryCommentMapper;
+        this.userMapper = userMapper;
     }
 
     public Page<AdminReportView> list(String status, int page, int size) {
@@ -87,6 +91,38 @@ public class AdminReportService {
             diaryCommentMapper.updateById(comment);
         }
         finish(report, "RESOLVED", note);
+    }
+
+    @Transactional
+    public void banUserAndHideTarget(Long id, String note) {
+        UserReportEntity report = findReport(id);
+        String targetType = normalizeTargetType(report.getTargetType());
+        Long authorUserId;
+        if ("DIARY".equals(targetType)) {
+            DiaryEntity diary = diaryMapper.selectById(report.getTargetId());
+            if (diary == null) {
+                throw new ResponseStatusException(NOT_FOUND, "目标日记不存在");
+            }
+            authorUserId = diary.getAuthorUserId();
+            diary.setIsDeleted(true);
+            diaryMapper.updateById(diary);
+        } else {
+            DiaryCommentEntity comment = diaryCommentMapper.selectById(report.getTargetId());
+            if (comment == null) {
+                throw new ResponseStatusException(NOT_FOUND, "目标评论不存在");
+            }
+            authorUserId = comment.getAuthorUserId();
+            comment.setIsDeleted(true);
+            diaryCommentMapper.updateById(comment);
+        }
+
+        UserEntity author = userMapper.selectById(authorUserId);
+        if (author != null) {
+            author.setStatus(0);
+            userMapper.updateById(author);
+        }
+
+        finish(report, "RESOLVED", "【封禁用户并隐藏内容】" + (note != null ? note : ""));
     }
 
     private UserReportEntity findReport(Long id) {

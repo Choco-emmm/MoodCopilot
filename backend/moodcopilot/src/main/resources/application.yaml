@@ -40,6 +40,7 @@ spring:
     enabled: true
     clean-disabled: true
     baseline-on-migrate: true
+    validate-on-migrate: false
     locations: classpath:db/migration
   cache:
     type: redis

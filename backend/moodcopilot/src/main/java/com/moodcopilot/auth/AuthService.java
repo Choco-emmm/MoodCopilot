@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
 import java.util.Locale;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
 @Service
@@ -248,6 +249,9 @@ public class AuthService {
         }
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new ResponseStatusException(UNAUTHORIZED, "邮箱或密码错误");
+        }
+        if (user.getStatus() != null && user.getStatus() == 0) {
+            throw new ResponseStatusException(FORBIDDEN, "您的账号已被封禁，无法登录");
         }
 
         String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail());

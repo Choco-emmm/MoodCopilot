@@ -1,11 +1,23 @@
 <template>
   <n-config-provider :theme-overrides="themeOverrides">
-    <router-view />
+    <n-message-provider>
+      <MessageEnvironment />
+      <router-view />
+    </n-message-provider>
   </n-config-provider>
 </template>
 
 <script setup lang="ts">
+import { defineComponent } from 'vue'
+import { useMessage } from 'naive-ui'
 import type { GlobalThemeOverrides } from 'naive-ui'
+
+const MessageEnvironment = defineComponent({
+  setup() {
+    window.$message = useMessage()
+    return () => null
+  },
+})
 
 const themeOverrides: GlobalThemeOverrides = {
   common: {

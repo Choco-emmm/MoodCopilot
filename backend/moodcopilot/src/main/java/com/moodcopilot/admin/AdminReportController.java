@@ -55,6 +55,12 @@ public class AdminReportController {
         return ApiResponse.ok();
     }
 
+    @PostMapping("/{id}/ban-user")
+    public ApiResponse<Void> banUser(@PathVariable Long id, @RequestBody(required = false) Map<String, String> body) {
+        adminReportService.banUserAndHideTarget(id, note(body));
+        return ApiResponse.ok();
+    }
+
     private String note(Map<String, String> body) {
         return body == null ? null : body.get("note");
     }

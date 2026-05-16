@@ -6,6 +6,9 @@
         <span v-else class="avatar">{{ diary.authorName.charAt(0) }}</span>
         <div>
           <div class="author-row">
+            <n-tag v-if="diary.isPinned" type="warning" size="small" round style="margin-right: 8px;">
+              📌 置顶公告
+            </n-tag>
             <strong>{{ diary.authorName }}</strong>
           </div>
           <span>{{ formatTime(diary.createdAt) }}</span>
@@ -44,6 +47,16 @@
       <div v-if="diary.authorUserId !== auth.userId" class="feed-safety-actions">
         <n-button size="small" text @click="reportDiary">举报</n-button>
       </div>
+      <span v-if="auth.isAdmin">
+        <n-button
+          size="small"
+          text
+          style="color: #b23a3a; margin-left: auto; font-weight: bold;"
+          @click="handleAdminDeleteCard"
+        >
+          🗑️ 强制删除
+        </n-button>
+      </span>
     </div>
 
     <div v-if="(diary.comments ?? []).length" class="comments">
@@ -109,10 +122,15 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
+import { useMessage } from 'naive-ui'
 import type { Diary } from '../stores/diary'
+import { useDiaryStore } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
 import { useAuthStore } from '../stores/auth'
 import { reportApi } from '../api'
+
+const store = useDiaryStore()
+const message = useMessage()
 
 const props = defineProps<{ diary: Diary }>()
 const emit = defineEmits<{
@@ -177,6 +195,17 @@ async function reportComment(commentId: number) {
   await reportApi.create({ targetType: 'COMMENT', targetId: commentId, reason: reason.trim() })
 }
 
+async function handleAdminDeleteCard() {
+  if (window.confirm(`您确定要以管理员身份直接从公共广场删除 [${props.diary.authorName}] 的这篇日记吗？`)) {
+    try {
+      await store.deleteDiary(props.diary.id)
+      message.success('该日记已被强制抹除')
+    } catch {
+      message.error('删除失败，请稍后重试')
+    }
+  }
+}
+
 function submit() {
   const content = draft.value.trim()
   if (!content) return
@@ -193,6 +222,7 @@ function submitReply(commentId: number) {
 }
 
 function canDeleteComment(comment: any) {
+  if (auth.isAdmin) return true
   const authorUserId = Number(comment?.authorUserId)
   if (Number.isFinite(authorUserId) && auth.userId != null) {
     return authorUserId === auth.userId

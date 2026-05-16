@@ -1,7 +1,7 @@
 <template>
   <nav class="flex w-full items-center">
     <router-link
-      v-for="tab in tabs"
+      v-for="tab in visibleTabs"
       :key="tab.path"
       :to="tab.path"
       class="bottom-tab"
@@ -14,7 +14,12 @@
 </template>
 
 <script setup lang="ts">
-const tabs = [
+import { computed } from 'vue'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
+
+const baseTabs = [
   { path: '/', label: '广场', icon: '🏠' },
   { path: '/write', label: '写日记', icon: '✏️' },
   { path: '/chat', label: 'AI', icon: '💬' },
@@ -22,6 +27,13 @@ const tabs = [
   { path: '/report', label: '报告', icon: '📊' },
   { path: '/settings', label: '我的', icon: '👤' },
 ]
+
+const visibleTabs = computed(() => {
+  if (auth.isAdmin) {
+    return [...baseTabs, { path: '/admin/reports', label: '审核', icon: '🛡️' }]
+  }
+  return baseTabs
+})
 </script>
 
 <style scoped>

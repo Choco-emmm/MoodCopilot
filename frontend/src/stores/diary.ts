@@ -13,6 +13,7 @@ export interface Diary {
   analysis: DiaryAnalysis | null
   createdAt: string
   resonanceCount: number
+  isPinned?: boolean
   comments: DiaryComment[]
 }
 
@@ -337,6 +338,7 @@ export const useDiaryStore = defineStore('diary', () => {
   async function deleteDiary(id: number) {
     await diaryApi.delete(id)
     myDiaries.value = myDiaries.value.filter(d => d.id !== id)
+    publicDiaries.value = publicDiaries.value.filter(d => d.id !== id)
     if (activeDiary.value?.id === id) activeDiary.value = null
   }
 
