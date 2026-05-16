@@ -67,15 +67,15 @@
           </div>
 
           <div
-            v-for="(msg, i) in messages"
-            :key="i"
+            v-for="msg in messages"
+            :key="msg.id"
             :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
           >
             <div v-if="msg.role === 'ai'" class="md-content" v-html="renderMd(msg.content)" />
             <template v-else>
               <p>{{ msg.content }}</p>
               <ul v-if="msg.references?.length" class="chat-user-refs">
-                <li v-for="(refText, refIndex) in msg.references" :key="`${i}-ref-${refIndex}`">
+                <li v-for="(refText, refIndex) in msg.references" :key="`${msg.id}-ref-${refIndex}`">
                   引用：{{ refText }}
                 </li>
               </ul>
@@ -152,9 +152,14 @@ import ReferenceBar from '../components/ReferenceBar.vue'
 import { chatApi, diaryApi } from '../api'
 
 interface Message {
+  id: string
   role: 'user' | 'ai'
   content: string
   references?: string[]
+}
+
+function nextMsgId(): string {
+  return `${Date.now()}-${++msgIdCounter}-${Math.random().toString(36).slice(2, 6)}`
 }
 
 interface Conversation {
@@ -199,8 +204,10 @@ const lastReplyError = ref<string | null>(null)
 const lastReplyRequest = ref<{ convId: number; content: string; refContents: string[] } | null>(null)
 const viewportBaseHeight = ref(0)
 const creatingConversation = ref(false)
+const syncCooldownUntil = ref(0)
 let syncTimer: number | null = null
 let convListSyncTick = 0
+let msgIdCounter = 0
 
 onMounted(async () => {
   const state = history.state as any
@@ -272,7 +279,7 @@ async function selectConversation(id: number) {
   if (id === activeConvId.value) return
   // 保存当前会话
   if (activeConvId.value && messages.value.length > 0) {
-    await saveToBackend(activeConvId.value)
+    await saveToBackend(activeConvId.value).catch(() => {})
   }
   activeConvId.value = id
   messages.value = await loadFromBackend(id)
@@ -310,6 +317,7 @@ function handleWindowFocus() {
 async function syncFromServer(forceScroll: boolean) {
   const convId = activeConvId.value
   if (!convId || streaming.value || creatingConversation.value || document.visibilityState !== 'visible') return
+  if (Date.now() < syncCooldownUntil.value) return
 
   try {
     const latest = await loadFromBackend(convId)
@@ -336,16 +344,7 @@ async function syncFromServer(forceScroll: boolean) {
 function isSameMessageList(a: Message[], b: Message[]) {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i += 1) {
-    const left = a[i]
-    const right = b[i]
-    if (left.role !== right.role) return false
-    if (left.content !== right.content) return false
-    const leftRefs = left.references ?? []
-    const rightRefs = right.references ?? []
-    if (leftRefs.length !== rightRefs.length) return false
-    for (let j = 0; j < leftRefs.length; j += 1) {
-      if (leftRefs[j] !== rightRefs[j]) return false
-    }
+    if (a[i].id !== b[i].id) return false
   }
   return true
 }
@@ -362,7 +361,7 @@ async function createConversation() {
   try {
     // 避免用户在会话创建尚未完成时把第一条消息发到旧会话里。
     if (activeConvId.value && messages.value.length > 0) {
-      await saveToBackend(activeConvId.value)
+      await saveToBackend(activeConvId.value).catch(() => {})
     }
     activeConvId.value = null
     messages.value = []
@@ -398,6 +397,7 @@ async function deleteConversation(id: number) {
 function saveToBackend(convId: number) {
   return chatApi.saveHistory(convId, messages.value).catch((error) => {
     console.warn('[chat] 保存历史失败', { convId, error })
+    throw error
   })
 }
 
@@ -418,7 +418,7 @@ function normalizeHistoryMessages(raw: any): Message[] {
     .map((item: any): Message | null => {
       if (!item) return null
       if (typeof item === 'string') {
-        return { role: 'ai', content: item }
+        return { id: nextMsgId(), role: 'ai', content: item }
       }
 
       const content = String(item.content ?? item.message ?? item.text ?? '').trim()
@@ -436,6 +436,7 @@ function normalizeHistoryMessages(raw: any): Message[] {
         .slice(0, 2)
 
       return {
+        id: item.id || nextMsgId(),
         role: normalizeMessageRole(item.role),
         content,
         references: references.length ? references : undefined,
@@ -459,8 +460,8 @@ async function send() {
   lastReplyError.value = null
   lastReplyRequest.value = null
   const refContents = references.value.slice(0, 2).map(r => r.fullContent || r.content)
-  messages.value.push({ role: 'user', content, references: refContents.length ? refContents : undefined })
-  saveToBackend(convId)
+  messages.value.push({ id: nextMsgId(), role: 'user', content, references: refContents.length ? refContents : undefined })
+  saveToBackend(convId).catch(() => {})
   draft.value = ''
   streaming.value = true
   streamingText.value = ''
@@ -469,7 +470,7 @@ async function send() {
   const token = localStorage.getItem('token')
   if (!token) {
     isThinking.value = false
-    messages.value.push({ role: 'ai', content: '请先登录' })
+    messages.value.push({ id: nextMsgId(), role: 'ai', content: '请先登录' })
     streaming.value = false
     return
   }
@@ -498,13 +499,12 @@ async function sendReply(convId: number, content: string, refContents: string[],
     }
     const reply = String(res.data?.data ?? '').trim() || '我刚才没有组织好语言，你可以再说一遍吗？'
     isThinking.value = false
-    // 会话切换后，旧请求返回不应再写入当前会话消息。
     if (activeConvId.value !== convId) {
       return
     }
     lastReplyError.value = null
     lastReplyRequest.value = null
-    messages.value.push({ role: 'ai', content: reply })
+    messages.value.push({ id: nextMsgId(), role: 'ai', content: reply })
   } catch (e: any) {
     isThinking.value = false
     const bizMessage = e?.response?.data?.message || e?.message
@@ -513,7 +513,7 @@ async function sendReply(convId: number, content: string, refContents: string[],
       lastReplyError.value = errorText
       lastReplyRequest.value = { convId, content, refContents }
       if (!isRetry) {
-        messages.value.push({ role: 'ai', content: errorText })
+        messages.value.push({ id: nextMsgId(), role: 'ai', content: errorText })
       }
     }
   } finally {
@@ -522,7 +522,11 @@ async function sendReply(convId: number, content: string, refContents: string[],
 }
 
 async function finishSend(convId: number) {
-  await saveToBackend(convId)
+  try {
+    await saveToBackend(convId)
+  } catch {
+    syncCooldownUntil.value = Date.now() + 5000
+  }
   streaming.value = false
   streamingText.value = ''
   isThinking.value = false

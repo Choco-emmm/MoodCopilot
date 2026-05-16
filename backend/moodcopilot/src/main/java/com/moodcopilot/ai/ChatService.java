@@ -277,6 +277,7 @@ public class ChatService {
                     json.length());
         } catch (Exception e) {
             log.warn("保存聊天历史失败，userId={}，conversationId={}，reason={}", user.getId(), conversationId, e.getMessage());
+            throw new RuntimeException("保存聊天历史失败", e);
         }
     }
 
