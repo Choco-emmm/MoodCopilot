@@ -408,4 +408,15 @@ function ensureCommentInputVisible() {
   padding: 0 8px;
   background: #fff;
 }
+
+@media (max-width: 600px) {
+  .diary-edit-actions {
+    flex-wrap: wrap;
+  }
+
+  .diary-edit-visibility {
+    flex: 1 0 100%;
+    order: -1;
+  }
+}
 </style>

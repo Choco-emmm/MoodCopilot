@@ -27,18 +27,20 @@
                 <small>{{ diary.analysis?.moodLabel || '分析中...' }}</small>
               </span>
             </span>
-            <button
-              class="diary-edit-btn"
-              type="button"
-              title="编辑日记"
-              @click.stop="$emit('edit', diary)"
-            >编辑</button>
-            <button
-              class="diary-delete-btn"
-              type="button"
-              title="删除日记"
-              @click.stop="$emit('delete', diary)"
-            >&times;</button>
+            <div class="diary-actions">
+              <button
+                class="diary-edit-btn"
+                type="button"
+                title="编辑日记"
+                @click.stop="$emit('edit', diary)"
+              >编辑</button>
+              <button
+                class="diary-delete-btn"
+                type="button"
+                title="删除日记"
+                @click.stop="$emit('delete', diary)"
+              >&times;</button>
+            </div>
           </div>
         </div>
       </template>
@@ -61,6 +63,12 @@ function formatTime(value: string) {
 </script>
 
 <style scoped>
+.diary-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
 .diary-edit-btn {
   border: 1px solid #d7d0c3;
   background: #fff;
@@ -69,10 +77,28 @@ function formatTime(value: string) {
   border-radius: 999px;
   padding: 2px 8px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .diary-edit-btn:hover {
   border-color: #9db7a8;
   color: #3f6d59;
+}
+
+@media (max-width: 780px) {
+  .diary-actions {
+    flex-direction: column;
+    align-self: stretch;
+  }
+
+  .diary-edit-btn {
+    font-size: 13px;
+    padding: 5px 10px;
+    min-height: 36px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 </style>
