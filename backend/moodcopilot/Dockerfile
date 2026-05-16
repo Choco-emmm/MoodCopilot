@@ -1,9 +1,14 @@
 FROM eclipse-temurin:21-jre
 
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY target/*.jar app.jar
 
 EXPOSE 18080
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=5 \
+    CMD curl -f http://localhost:18080/api/health || exit 1
 
 ENTRYPOINT ["java", \
     "-Xms256m", "-Xmx512m", \
