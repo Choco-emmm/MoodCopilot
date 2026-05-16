@@ -50,6 +50,13 @@ public class ChatIntentRouter {
             return false;
         }
 
+        // 工具调用意图检测：当用户意图需要查询后台数据时，必须走常规模型分支（挂载了 functions）
+        // 优先级高于所有其他路由规则，确保 AI 有工具能力可用
+        if (hasToolCallingIntent(message)) {
+            log.info("聊天路由结果：normal（强制，检测到工具调用意图）");
+            return false;
+        }
+
         // 携带引用日记时强制走深度分析（reasoning 模型），确保 AI 聚焦引用内容做精准回应
         if (refs != null && !refs.isEmpty()) {
             log.info("聊天路由结果：reasoning（强制，因携带 {} 条引用日记）", refs.size());
@@ -169,6 +176,18 @@ public class ChatIntentRouter {
         }
 
         return score >= 2;
+    }
+
+    /**
+     * 检测用户消息是否包含需要调用后台数据工具的意图关键词。
+     * 这些请求必须走常规模型分支（挂载了 functions），否则 AI 会编造数据或拒绝查询。
+     */
+    private boolean hasToolCallingIntent(String message) {
+        String lower = message.trim().toLowerCase();
+        return containsAny(lower, List.of(
+                "报告", "总结", "回顾", "统计数据", "数据总结", "趋势",
+                "看看我的", "最近表现", "最近情况", "我的记录", "历史记录",
+                "查询", "查一下", "调取", "帮我查"));
     }
 
     private boolean containsAny(String text, List<String> keywords) {

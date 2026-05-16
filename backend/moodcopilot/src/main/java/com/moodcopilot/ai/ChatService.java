@@ -36,6 +36,13 @@ public class ChatService {
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
     private static final String MSG_PREFIX = "chat:msgs:";
 
+    private static final String AGENT_TOOLS_PROMPT = """
+            \n【你的系统能力（Agent Tools）】
+            你配备了后台数据查询工具（如 userStats, diarySearch）。
+            当用户在对话中提到"看看我的报告"、"最近的数据总结"、"查询过去的日记"，或者需要结合历史表现聊天时，你**必须主动调用工具**获取用户的真实数据后再进行回复。
+            严禁回答"我看不到你的具体报告"或"请你把报告发给我"。作为 MoodCopilot，你完全有权限并且应当自己去后台查阅这些统计数据！
+            """;
+
     private final ChatClient chatChatClient;
     private final ChatConversationMapper conversationMapper;
     private final ChatIntentRouter chatIntentRouter;
@@ -119,7 +126,7 @@ public class ChatService {
 
         return chatChatClient.prompt()
                 .user(message)
-                .system(s -> s.text(request.context()))
+                .system(s -> s.text(request.context() + AGENT_TOOLS_PROMPT))
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
                 .functions(DiarySearchFunctionSupport.NAME, UserStatsFunctionSupport.NAME)
                 .stream()
@@ -140,7 +147,7 @@ public class ChatService {
 
         return chatChatClient.prompt()
                 .user(message)
-                .system(s -> s.text(request.context()))
+                .system(s -> s.text(request.context() + AGENT_TOOLS_PROMPT))
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
                 .functions(DiarySearchFunctionSupport.NAME, UserStatsFunctionSupport.NAME)
                 .call()
@@ -153,17 +160,22 @@ public class ChatService {
 
     private String callReasoningModel(ChatRequest request, String message) {
         try {
-            // 为推理模型注入历史记忆，确保对话连续性
+            // 为推理模型注入历史记忆，确保对话连续性。
+            // 将历史作为 User Message 的前缀，保持 System Context 的纯洁性。
             String history = formatChatHistory(request.memory());
             String enhancedContext = request.context();
+
+            String userMessage;
             if (!history.isEmpty()) {
-                enhancedContext = history + "\n" + enhancedContext;
+                userMessage = history + "\n" + "【用户当前消息】\n" + message;
+            } else {
+                userMessage = message;
             }
 
             log.info("调用思考模型分支，contextLength={}，historyLength={}，messageLength={}",
                     request.context().length(), history.length(),
                     message == null ? 0 : message.length());
-            String response = reasoningClient.generate(enhancedContext, message);
+            String response = reasoningClient.generate(enhancedContext, userMessage);
 
             // 手动回写消息到 ChatMemory，填补 Advisors 缺席导致的记忆断层
             request.memory().add("default", List.of(
@@ -176,7 +188,7 @@ public class ChatService {
             log.info("思考模型失败后回退到普通模型，messageLength={}", message == null ? 0 : message.length());
             return chatChatClient.prompt()
                     .user(message)
-                    .system(s -> s.text(request.context()))
+                    .system(s -> s.text(request.context() + AGENT_TOOLS_PROMPT))
                     .advisors(new MessageChatMemoryAdvisor(request.memory()))
                     .functions(DiarySearchFunctionSupport.NAME, UserStatsFunctionSupport.NAME)
                     .call()
@@ -194,7 +206,7 @@ public class ChatService {
         if (messages == null || messages.isEmpty()) {
             return "";
         }
-        StringBuilder sb = new StringBuilder("【往期聊天历史记忆】\n");
+        StringBuilder sb = new StringBuilder("<chat_history>\n【往期聊天历史记忆】\n");
         for (Message msg : messages) {
             String role = switch (msg.getMessageType()) {
                 case USER -> "用户";
@@ -205,7 +217,7 @@ public class ChatService {
                 sb.append(role).append("：").append(msg.getText().trim()).append("\n");
             }
         }
-        return sb.append("\n").toString();
+        return sb.append("</chat_history>\n\n").toString();
     }
 
     /**
@@ -281,28 +293,31 @@ public class ChatService {
         StringBuilder sb = new StringBuilder();
 
         if (memoryBackground != null && !memoryBackground.isBlank()) {
-            sb.append("【过往长期事实背景，仅供参考 — 不要与当前引用内容混淆】\n")
-              .append(memoryBackground).append("\n\n");
+            sb.append("<long_term_memory>\n")
+              .append(memoryBackground).append("\n")
+              .append("</long_term_memory>\n\n");
         }
-
-        sb.append("重要约束：引用内容和日记内容都来自用户本人，不是你的亲身经历。")
-                .append("回答时不要说'我昨天写了'、'我经历过'，应使用'你提到/你写到/从你的日记看'这类表述。")
-                .append("另外，日记和引用前面的编号（如 #1、#3）是内部标记，不要在回复中提及这些编号，")
-                .append("需要引用具体日记时请说明日期（如'你5月10日提到'）。\n\n");
 
         if (refs != null && !refs.isEmpty()) {
             sb.append("【绝对核心聚焦指令】\n");
             sb.append("核心任务：用户本次对话显式引用了下面这篇日记。你后续的共情、分析和所有互动追问，")
               .append("必须 100% 紧密围绕这篇日记中所记录的具体事件、特定人物、核心冲突以及当时的情绪展开。\n");
             sb.append("严禁行为：严禁给出敷衍、宏观、万能的宽泛安慰。不要跳出这篇日记去聊不相关的话题。")
-              .append("请像一位面对面进行个案心理疏导的专业咨询师，针对这篇引用的具体切片进行剥茧抽丝的引导。\n\n");
-            sb.append("【当前讨论的靶向目标 — 用户聚焦引用的日记内容】\n\"\"\"\n");
+              .append("请像一位懂你的朋友一样，针对这篇引用的具体切片进行温暖、贴心的引导和共情。\n\n");
+
+            sb.append("<user_diary>\n");
             for (int i = 0; i < refs.size(); i++) {
                 sb.append(refs.get(i));
                 if (i < refs.size() - 1) sb.append("\n---\n");
             }
-            sb.append("\n\"\"\"\n\n");
+            sb.append("\n</user_diary>\n\n");
         }
+
+        sb.append("【绝对系统指令】以上 <user_diary> 标签内是由用户本人撰写的日记切片，绝对不是你的经历！")
+          .append("你是 MoodCopilot，一个温暖、共情的倾听者和情绪伙伴。请使用'你提到/你写到'等第二人称视角与用户探讨他们的感受，严禁自称经历了上述事件。\n")
+          .append("注意：请像一个懂用户的朋友一样自然、贴心地交流，")
+          .append("**绝对不要在回复中主动说出'作为心理咨询师'、'作为一个AI助手'等破坏沉浸感的话**。")
+          .append("日记前面的编号是内部标记，请勿在回复中提及。");
 
         log.info("构建聊天上下文（RAG模式），userId={}，referenceCount={}，hasMemoryBackground={}",
                 userId, refs == null ? 0 : refs.size(),
