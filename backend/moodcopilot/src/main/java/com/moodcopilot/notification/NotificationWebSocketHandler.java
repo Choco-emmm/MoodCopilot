@@ -4,10 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.NotificationEntity;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.mapper.UserMapper;
-import com.moodcopilot.security.JwtTokenProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpHeaders;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.socket.CloseStatus;
@@ -31,30 +30,37 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationWebSocketHandler.class);
 
-    private final JwtTokenProvider jwtTokenProvider;
+    private final StringRedisTemplate redisTemplate;
     private final UserMapper userMapper;
     private final ObjectMapper objectMapper;
 
     private final Map<Long, Set<WebSocketSession>> sessionsByUserId = new ConcurrentHashMap<>();
     private final Map<String, Long> userIdBySessionId = new ConcurrentHashMap<>();
 
-    public NotificationWebSocketHandler(JwtTokenProvider jwtTokenProvider,
+    public NotificationWebSocketHandler(StringRedisTemplate redisTemplate,
             UserMapper userMapper,
             ObjectMapper objectMapper) {
-        this.jwtTokenProvider = jwtTokenProvider;
+        this.redisTemplate = redisTemplate;
         this.userMapper = userMapper;
         this.objectMapper = objectMapper;
     }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-        String token = resolveToken(session);
-        if (!StringUtils.hasText(token) || !jwtTokenProvider.validateToken(token)) {
-            session.close(CloseStatus.NOT_ACCEPTABLE.withReason("Invalid token"));
+        String ticket = resolveTicket(session);
+        if (!StringUtils.hasText(ticket)) {
+            session.close(CloseStatus.NOT_ACCEPTABLE.withReason("Missing ticket"));
             return;
         }
 
-        Long userId = jwtTokenProvider.getUserId(token);
+        String redisKey = "ws_ticket:" + ticket;
+        String userIdStr = redisTemplate.opsForValue().getAndDelete(redisKey);
+        if (userIdStr == null) {
+            session.close(CloseStatus.NOT_ACCEPTABLE.withReason("Invalid or expired ticket"));
+            return;
+        }
+
+        Long userId = Long.parseLong(userIdStr);
         UserEntity user = userMapper.selectById(userId);
         if (user == null || (user.getStatus() != null && user.getStatus() != 1)) {
             session.close(CloseStatus.NOT_ACCEPTABLE.withReason("Invalid user"));
@@ -108,16 +114,11 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
         sessions.forEach(session -> sendSafely(session, message));
     }
 
-    private String resolveToken(WebSocketSession session) {
-        String header = session.getHandshakeHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
-            return header.substring(7);
-        }
-
+    private String resolveTicket(WebSocketSession session) {
         URI uri = session.getUri();
         if (uri == null)
             return null;
-        return UriComponentsBuilder.fromUri(uri).build().getQueryParams().getFirst("token");
+        return UriComponentsBuilder.fromUri(uri).build().getQueryParams().getFirst("ticket");
     }
 
     private String buildEnvelope(String type, Object data) {

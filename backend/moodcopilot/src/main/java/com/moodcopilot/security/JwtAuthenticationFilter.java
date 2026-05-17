@@ -63,17 +63,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private String extractToken(HttpServletRequest request) {
-        // 优先从 Authorization header 提取
         String header = request.getHeader("Authorization");
         if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
             return header.substring(7);
-        }
-        // WebSocket 握手无法携带自定义 header，从 query 参数提取
-        if (request.getRequestURI().startsWith("/ws/")) {
-            String token = request.getParameter("token");
-            if (StringUtils.hasText(token)) {
-                return token.trim();
-            }
         }
         return null;
     }

@@ -32,12 +32,6 @@ export const useNotificationStore = defineStore('notification', () => {
   const fallbackPollTimer = ref<number | null>(null)
   const manualClose = ref(false)
 
-  function hasUsableToken(token: string | null) {
-    if (!token) return false
-    const normalized = token.trim().toLowerCase()
-    return normalized !== '' && normalized !== 'null' && normalized !== 'undefined'
-  }
-
   function clearReconnectTimer() {
     if (reconnectTimer.value == null) return
     window.clearTimeout(reconnectTimer.value)
@@ -86,9 +80,9 @@ export const useNotificationStore = defineStore('notification', () => {
     }, 15000)
   }
 
-  function connectRealtime() {
+  async function connectRealtime() {
     const token = localStorage.getItem('token')
-    if (!hasUsableToken(token)) return
+    if (!token) return
     if (socket.value && (socket.value.readyState === WebSocket.OPEN || socket.value.readyState === WebSocket.CONNECTING)) {
       return
     }
@@ -96,7 +90,20 @@ export const useNotificationStore = defineStore('notification', () => {
     manualClose.value = false
     clearReconnectTimer()
     clearFallbackPollTimer()
-    const ws = new WebSocket(notificationApi.wsUrl(token!))
+
+    // 先请求短期 ticket，再建立 WS 连接（避免 JWT 出现在 URL 日志中）
+    let ticket: string
+    try {
+      const res = await notificationApi.wsTicket()
+      ticket = res.data.data.ticket
+    } catch {
+      // 获取 ticket 失败，启动轮询兜底
+      startFallbackPolling()
+      scheduleReconnect()
+      return
+    }
+
+    const ws = new WebSocket(notificationApi.wsUrl(ticket))
     socket.value = ws
 
     ws.onopen = () => {
