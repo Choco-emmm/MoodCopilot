@@ -34,4 +34,11 @@ public class UserProfileMemoryController {
         memoryExtractionService.deleteMemory(id);
         return ApiResponse.ok(null);
     }
+
+    @PutMapping("/{id}")
+    public ApiResponse<Void> update(@PathVariable long id, @RequestBody Map<String, String> body) {
+        String newValue = body.get("attributeValue");
+        memoryExtractionService.updateMemory(id, newValue);
+        return ApiResponse.ok(null);
+    }
 }

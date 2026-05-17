@@ -39,7 +39,6 @@ public class MemoryExtractionService {
     private static final int ATTRIBUTE_VALUE_MAX_LENGTH = 500;
     private static final String CHAT_MEMORY_UPDATE_LOCK_PREFIX = "memory:chat:update:";
     private static final String CHAT_MEMORY_LAST_HASH_PREFIX = "memory:chat:last-hash:";
-    private static final String MEMORY_BLACKLIST_PREFIX = "memory:blacklist:";
     private static final String DELETE_MARKER = "DELETE_MARKER";
     private static final Duration CHAT_MEMORY_UPDATE_COOLDOWN = Duration.ofMinutes(10);
     private static final Duration CHAT_MEMORY_LAST_HASH_TTL = Duration.ofHours(2);
@@ -66,14 +65,14 @@ public class MemoryExtractionService {
             1. 只保留相对稳定、跨时间成立的特征，不要记录一次性的当天状态。
             2. 【重要】默认必须输出所有旧属性，保持 attributeKey 和 attributeValue 不变。只有当新日记提供了明确的新证据，才能修改该属性的 attributeValue。
             3. 【重要】要删除某个属性，必须将 attributeValue 设为精确字符串 "DELETE_MARKER"（不含引号）。仅在新证据明确推翻旧特征时才使用。
-            4. attributeKey 使用简洁中文，例如：性格、长期目标、关键人物、长期压力源、重要关系。
+            4. 【重要】attributeKey 必须极度垂直和原子化，每条只描述一个具体维度。不要使用宽泛词如"性格""习惯"，应拆分为"社交偏好""情绪模式""运动习惯""工作风格"等。
             5. attributeValue 使用一句简洁中文，避免重复和空话。
 
             示例一 — 提取稳定特征：
             新日记：今天又被领导当着全组的面批评了，说我做事不够细心。其实我知道自己确实有点粗心，从小到大都这样。妈妈也说我像我爸，什么都挺好就是马虎。回到工位后一直忍着没哭，但心里的委屈和愤怒一直散不掉。最近一个月的压力真的好大，项目一个接一个，感觉身体要撑不住了。
             旧属性列表：
             - 无
-            输出：{"attributes":[{"attributeKey":"性格","attributeValue":"自认偏粗心马虎，在意他人评价，情绪内敛不轻易外露"},{"attributeKey":"长期压力源","attributeValue":"工作强度大，项目连续，长期处于高压状态"},{"attributeKey":"重要关系","attributeValue":"与上级关系紧张，对被公开批评敏感"}]}
+            输出：{"attributes":[{"attributeKey":"自我认知","attributeValue":"自认偏粗心马虎，在意他人评价，情绪内敛不轻易外露"},{"attributeKey":"长期压力源","attributeValue":"工作强度大，项目连续，长期处于高压状态"},{"attributeKey":"职场关系","attributeValue":"与上级关系紧张，对被公开批评敏感"}]}
 
             示例二 — 仅含一次性状态，不做提取：
             新日记：今天天气不错，中午吃了个很好吃的麻辣烫，晚上看了两集电视剧就睡了。
@@ -84,16 +83,16 @@ public class MemoryExtractionService {
             示例三 — 新证据更新旧属性（保留未涉及的旧属性不变）：
             新日记：这周开始坚持每天跑步了，虽然很累但是跑完感觉整个人都轻松了。以前从不运动，这次竟然坚持了五天，有点意外。工作上还是老样子，但运动让我的焦虑感少了一些。
             旧属性列表：
-            - 性格：偏内向，不喜欢尝试新事物
+            - 社交偏好：偏内向，不喜欢尝试新事物
             - 长期压力源：工作焦虑
-            输出：{"attributes":[{"attributeKey":"性格","attributeValue":"开始愿意尝试新事物，有一定的行动力和自律潜力"},{"attributeKey":"长期压力源","attributeValue":"工作焦虑，但正在通过运动缓解"},{"attributeKey":"习惯","attributeValue":"最近开始养成每日跑步的习惯"}]}
+            输出：{"attributes":[{"attributeKey":"社交偏好","attributeValue":"开始愿意尝试新事物，有一定的行动力和自律潜力"},{"attributeKey":"长期压力源","attributeValue":"工作焦虑，但正在通过运动缓解"},{"attributeKey":"运动习惯","attributeValue":"最近开始养成每日跑步的习惯"}]}
 
             示例四 — 新证据明确推翻旧特征时使用 DELETE_MARKER 删除：
             新日记：今天体检报告出来了，一切指标正常，医生说之前的血压偏高问题已经完全消失了，以后不用再担心了。
             旧属性列表：
             - 健康问题：有轻度高血压，需定期监测
-            - 性格：偏谨慎，做事较真
-            输出：{"attributes":[{"attributeKey":"健康问题","attributeValue":"DELETE_MARKER"},{"attributeKey":"性格","attributeValue":"偏谨慎，做事较真"}]}""";
+            - 工作风格：偏谨慎，做事较真
+            输出：{"attributes":[{"attributeKey":"健康问题","attributeValue":"DELETE_MARKER"},{"attributeKey":"工作风格","attributeValue":"偏谨慎，做事较真"}]}""";
 
     private final ChatClient analysisChatClient;
     private final UserProfileMemoryMapper userProfileMemoryMapper;
@@ -302,15 +301,25 @@ public class MemoryExtractionService {
             throw new ResponseStatusException(BAD_REQUEST, "记忆记录不存在或无权操作");
         }
         userProfileMemoryMapper.deleteById(memoryId);
-        // 加入黑名单，防止后续提取再次生成该属性
-        try {
-            redisTemplate.opsForSet().add(MEMORY_BLACKLIST_PREFIX + user.getId(), entity.getAttributeKey());
-            log.info("用户手动删除长期画像属性，已加入黑名单，userId={}，memoryId={}，attributeKey={}", user.getId(), memoryId,
-                    entity.getAttributeKey());
-        } catch (Exception e) {
-            log.warn("将已删除属性加入黑名单失败，userId={}，attributeKey={}，reason={}", user.getId(),
-                    entity.getAttributeKey(), e.getMessage());
+        log.info("用户手动删除长期画像属性，userId={}，memoryId={}，attributeKey={}", user.getId(), memoryId,
+                entity.getAttributeKey());
+    }
+
+    public void updateMemory(long memoryId, String newValue) {
+        UserEntity user = currentUser();
+        UserProfileMemoryEntity entity = userProfileMemoryMapper.selectById(memoryId);
+        if (entity == null || !entity.getUserId().equals(user.getId())) {
+            throw new ResponseStatusException(BAD_REQUEST, "记忆记录不存在或无权操作");
         }
+        if (newValue == null || newValue.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "属性值不能为空");
+        }
+        String sanitized = sanitizeAttributeValue(newValue);
+        entity.setAttributeValue(sanitized);
+        entity.setUpdateTime(LocalDateTime.now());
+        userProfileMemoryMapper.updateById(entity);
+        log.info("用户手动编辑长期画像属性，userId={}，memoryId={}，attributeKey={}", user.getId(), memoryId,
+                entity.getAttributeKey());
     }
 
     // ---- 私有方法 ----
@@ -455,21 +464,11 @@ public class MemoryExtractionService {
                 .collect(Collectors.toMap(UserProfileMemoryEntity::getAttributeKey, memory -> memory, (a, b) -> a,
                         LinkedHashMap::new));
 
-        // 加载用户主动删除的黑名单，过滤掉不应重新生成的属性
-        Set<String> blacklist = loadMemoryBlacklist(userId);
-        List<MemoryAttribute> filteredAttributes = attributes.stream()
-                .filter(a -> !blacklist.contains(a.attributeKey()))
-                .toList();
-        if (filteredAttributes.size() < attributes.size()) {
-            log.info("长期画像同步已过滤黑名单属性，userId={}，过滤前={}，过滤后={}，黑名单={}", userId,
-                    attributes.size(), filteredAttributes.size(), blacklist);
-        }
-
         LocalDateTime now = LocalDateTime.now();
         int updatedCount = 0;
         int insertedCount = 0;
         int deletedCount = 0;
-        for (MemoryAttribute attribute : filteredAttributes) {
+        for (MemoryAttribute attribute : attributes) {
             UserProfileMemoryEntity existingEntity = existingByKey.get(attribute.attributeKey());
 
             if (DELETE_MARKER.equals(attribute.attributeValue())) {
@@ -501,19 +500,6 @@ public class MemoryExtractionService {
         log.info("长期画像已同步，userId={}，inserted={}，updated={}，deleted={}，finalEstimatedCount~{}",
                 userId, insertedCount, updatedCount, deletedCount,
                 existing.size() + insertedCount - deletedCount);
-    }
-
-    /**
-     * 加载用户主动删除的属性 key 黑名单，防止这些属性被 LLM 重新提取后再次出现。
-     */
-    private Set<String> loadMemoryBlacklist(Long userId) {
-        try {
-            Set<String> members = redisTemplate.opsForSet().members(MEMORY_BLACKLIST_PREFIX + userId);
-            return members != null ? members : Set.of();
-        } catch (Exception e) {
-            log.debug("加载画像黑名单失败，userId={}，reason={}", userId, e.getMessage());
-            return Set.of();
-        }
     }
 
     private UserEntity currentUser() {

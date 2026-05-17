@@ -132,6 +132,7 @@ export const summaryApi = {
 export const memoryApi = {
   getAll: () => api.get('/memory'),
   forget: (id: number) => api.delete(`/memory/${id}`),
+  update: (id: number, data: { attributeValue: string }) => api.put(`/memory/${id}`, data),
 }
 
 export const chatApi = {
