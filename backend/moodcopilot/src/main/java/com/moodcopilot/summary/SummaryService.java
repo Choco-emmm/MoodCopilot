@@ -111,6 +111,7 @@ public class SummaryService {
 
         DiarySummaryEntity entity = new DiarySummaryEntity();
         entity.setUserId(user.getId());
+        entity.setReportType("CUSTOM");
         entity.setTitle(title);
         entity.setStartDate(startDate);
         entity.setEndDate(endDate);
@@ -131,13 +132,15 @@ public class SummaryService {
         return SummaryView.from(entity, objectMapper);
     }
 
-    public List<SummaryView> list() {
+    public List<SummaryView> list(String reportType) {
         UserEntity user = currentUser();
-        return summaryMapper.selectList(
-                new LambdaQueryWrapper<DiarySummaryEntity>()
-                        .eq(DiarySummaryEntity::getUserId, user.getId())
-                        .orderByDesc(DiarySummaryEntity::getCreatedAt)
-        ).stream().map(e -> SummaryView.from(e, objectMapper)).toList();
+        LambdaQueryWrapper<DiarySummaryEntity> q = new LambdaQueryWrapper<DiarySummaryEntity>()
+                .eq(DiarySummaryEntity::getUserId, user.getId())
+                .orderByDesc(DiarySummaryEntity::getCreatedAt);
+        if (reportType != null && !reportType.isBlank()) {
+            q.eq(DiarySummaryEntity::getReportType, reportType);
+        }
+        return summaryMapper.selectList(q).stream().map(e -> SummaryView.from(e, objectMapper)).toList();
     }
 
     @Transactional

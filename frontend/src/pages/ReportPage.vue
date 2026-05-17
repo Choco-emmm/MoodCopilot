@@ -5,8 +5,22 @@
     <div class="report-page">
       <h2>情绪报告</h2>
 
-      <!-- 周/月切换 -->
-      <div class="report-mode-tabs">
+      <!-- 顶级 Tab：常规报告 / 自定义总结 -->
+      <div class="main-tabs">
+        <button
+          :class="['main-tab', { active: mainTab === 'regular' }]"
+          @click="mainTab = 'regular'"
+        >常规报告</button>
+        <button
+          :class="['main-tab', { active: mainTab === 'custom' }]"
+          @click="mainTab = 'custom'"
+        >自定义总结</button>
+      </div>
+
+      <!-- ==================== 常规报告 ==================== -->
+      <template v-if="mainTab === 'regular'">
+        <!-- 周/月切换 -->
+        <div class="report-mode-tabs">
         <button
           :class="['mode-tab', { active: mode === 'week' }]"
           @click="switchMode('week')"
@@ -221,9 +235,11 @@
           </div>
         </template>
       </section>
+      </template>
 
-      <!-- 自定义总结 -->
-      <section class="report-section">
+      <!-- ==================== 自定义总结 ==================== -->
+      <template v-if="mainTab === 'custom'">
+        <section class="report-section">
         <h3>自定义总结</h3>
         <div class="create-row">
           <n-date-picker v-model:value="startDate" type="date" placeholder="开始日期" />
@@ -281,6 +297,7 @@
           </article>
         </div>
       </section>
+      </template>
     </div>
   </main>
 </template>
@@ -312,6 +329,7 @@ function renderMd(text: string) {
 const router = useRouter()
 const store = useDiaryStore()
 
+const mainTab = ref<'regular' | 'custom'>('regular')
 const mode = ref<'week' | 'month'>('week')
 const weekOffset = ref(0)
 const monthOffset = ref(0)
@@ -430,7 +448,7 @@ async function createCustom() {
 
 async function loadSummaries() {
   try {
-    const res = await summaryApi.list()
+    const res = await summaryApi.list('CUSTOM')
     summaries.value = res.data.data ?? []
   } catch { /* ignore */ }
 }

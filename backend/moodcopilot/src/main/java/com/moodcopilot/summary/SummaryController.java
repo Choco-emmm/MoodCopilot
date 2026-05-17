@@ -24,8 +24,8 @@ public class SummaryController {
     }
 
     @GetMapping
-    public ApiResponse<java.util.List<SummaryView>> list() {
-        return ApiResponse.ok(summaryService.list());
+    public ApiResponse<java.util.List<SummaryView>> list(@RequestParam(required = false) String type) {
+        return ApiResponse.ok(summaryService.list(type));
     }
 
     @DeleteMapping("/{id}")

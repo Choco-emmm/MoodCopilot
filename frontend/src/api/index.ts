@@ -125,7 +125,7 @@ export const followApi = {
 
 export const summaryApi = {
   create: (data: { startDate: string; endDate: string }) => api.post('/summaries', data),
-  list: () => api.get('/summaries'),
+  list: (type?: string) => api.get('/summaries', { params: type ? { type } : undefined }),
   delete: (id: number) => api.delete(`/summaries/${id}`),
 }
 
