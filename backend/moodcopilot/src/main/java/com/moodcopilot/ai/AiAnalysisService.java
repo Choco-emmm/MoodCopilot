@@ -124,6 +124,50 @@ public class AiAnalysisService {
         return generateReportGuidance(period, diaryContents, analyses);
     }
 
+    // ── Custom summary (date-range agnostic) ──
+
+    private static final String CUSTOM_SUMMARY_SYSTEM_PROMPT = """
+            You are a compassionate reflection assistant. Below is a list of diary entries from a selected period, each with its primary mood, optional secondary moods, topic, and summary. Write a warm, gentle Chinese reflection (150-300 characters) that:
+            1. Acknowledges the emotional journey of this period, noticing when emotions were mixed or layered
+            2. Notices patterns or shifts in mood and themes, including subtle secondary emotions that may signal underlying currents
+            3. Offers gentle encouragement without being preachy
+            Return ONLY the Chinese text. You are encouraged to use simple Markdown (like **bold**, lists, and line breaks) for a beautiful and clear layout. No JSON, no explanation.""";
+
+    public String generateCustomSummary(List<String> diaryContents, List<DiaryAnalysis> analyses) {
+        if (diaryContents.isEmpty())
+            return "该时段还没有记录日记，去写一篇吧～";
+
+        StringBuilder prompt = new StringBuilder("自选时段日记摘要：\n");
+        for (int i = 0; i < diaryContents.size(); i++) {
+            DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
+            prompt.append("- ");
+            if (a != null) {
+                prompt.append("情绪：").append(a.moodLabel());
+                if (a.hasSecondaryMoods()) {
+                    prompt.append("（同时感受到：").append(String.join("、", a.secondaryMoods())).append("）");
+                }
+                prompt.append("，强度：").append(a.moodIntensity())
+                        .append("，主题：").append(String.join("、", a.topicLabels()))
+                        .append("，摘要：").append(a.summary());
+            } else {
+                String content = diaryContents.get(i);
+                prompt.append(content.length() > 60 ? content.substring(0, 60) + "..." : content);
+            }
+            prompt.append("\n");
+        }
+
+        try {
+            return analysisChatClient.prompt()
+                    .system(CUSTOM_SUMMARY_SYSTEM_PROMPT)
+                    .user(prompt.toString())
+                    .call()
+                    .content();
+        } catch (Exception e) {
+            log.warn("AI custom summary failed, falling back: {}", e.getMessage());
+            return fallbackWeeklySummary(diaryContents.size(), analyses);
+        }
+    }
+
     // ── Monthly report ──
 
     private static final String MONTHLY_SYSTEM_PROMPT = """
