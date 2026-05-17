@@ -29,9 +29,9 @@
             <div style="padding: 4px; min-width: 140px;">
               <p style="margin: 0 0 8px; font-weight: bold; font-size: 13px; color: #2f2a24;">今日剩余 AI 额度</p>
               <ul style="margin: 0; padding-left: 18px; font-size: 13px; color: #555;">
-                <li>聊天：{{ quotas.CHAT ?? '--' }} 次</li>
-                <li>分析：{{ quotas.ANALYSIS ?? '--' }} 次</li>
-                <li>报告：{{ quotas.REPORT ?? '--' }} 次</li>
+                <li>聊天：{{ formatQuota(quotas.CHAT) }}</li>
+                <li>分析：{{ formatQuota(quotas.ANALYSIS) }}</li>
+                <li>报告：{{ formatQuota(quotas.REPORT) }}</li>
               </ul>
               <p style="margin: 8px 0 0; font-size: 11px; color: #888;">每日 0 点重置</p>
               <p v-if="quotaError" style="margin: 6px 0 0; font-size: 11px; color: #b15454;">{{ quotaError }}</p>
@@ -162,6 +162,12 @@ function handleNotifClick(item: Notification) {
   } else if (item.diaryId) {
     router.push(`/diary/${item.diaryId}`)
   }
+}
+
+function formatQuota(val: number | undefined): string {
+  if (val == null) return '--'
+  if (val < 0) return '不限'
+  return val + ' 次'
 }
 
 function formatTime(value: string) {

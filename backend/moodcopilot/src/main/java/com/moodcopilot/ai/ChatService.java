@@ -301,7 +301,7 @@ public class ChatService {
             String memoryBackground) {
         UserEntity user = currentUser();
         ChatConversationEntity conv = requireOwnedConversation(conversationId, user);
-        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.CHAT);
+        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.CHAT, user.getRole());
 
         // 这里负责把"用户画像 + 用户引用 + 最近日记"拼成统一上下文，后面的模型调用都直接复用。
         String context = buildContext(user.getId(), refs, memoryBackground);
