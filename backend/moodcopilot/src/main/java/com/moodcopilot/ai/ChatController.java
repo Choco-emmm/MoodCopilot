@@ -1,9 +1,13 @@
 package com.moodcopilot.ai;
 
 import com.moodcopilot.common.ApiResponse;
+import com.moodcopilot.entity.UserEntity;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
@@ -58,13 +62,21 @@ public class ChatController {
      * 每次请求都会先把当前用户的长期画像转成背景 prompt，再交给 ChatService 统一拼装完整上下文。
      */
     @PostMapping(value = "/conversations/{id}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> chat(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+    public Flux<String> chat(@PathVariable Long id, @RequestBody Map<String, Object> body,
+                             HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("Connection", "keep-alive");
+        response.setHeader("X-Accel-Buffering", "no");
         String message = (String) body.get("message");
         @SuppressWarnings("unchecked")
         List<String> references = (List<String>) body.get("references");
         String memoryBackground = memoryExtractionService.buildUserMemoryPrompt();
         log.info("收到流式聊天请求，conversationId={}，messageLength={}，referenceCount={}",
                 id, message == null ? 0 : message.length(), references == null ? 0 : references.size());
+        // 在异步流开始前捕获 userId 和 Authentication，避免异步回调中 SecurityContext 丢失
+        UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = user.getId();
+        Authentication currentAuth = SecurityContextHolder.getContext().getAuthentication();
         StringBuilder aiReplyBuffer = new StringBuilder();
         return chatService.chat(id, message, references, memoryBackground)
                 .doOnNext(chunk -> {
@@ -77,13 +89,18 @@ public class ChatController {
                     log.info("流式聊天完成，准备触发画像增量更新，conversationId={}，replyLength={}",
                             id, aiReplyBuffer.length());
                     try {
-                        memoryExtractionService.extractAndSyncMemoryFromChat(message, references,
+                        memoryExtractionService.extractAndSyncMemoryFromChat(userId, message, references,
                                 aiReplyBuffer.toString());
                         log.info("流式聊天后画像增量更新已提交，conversationId={}", id);
                     } catch (Exception e) {
                         log.warn("聊天后触发长期画像更新失败，conversationId={}，reason={}", id, e.getMessage());
                     }
-                });
+                })
+                .onErrorResume(e -> {
+                    log.warn("SSE 流异常终止，conversationId={}，error={}", id, e.getMessage());
+                    return Flux.just("\n\n[服务器暂时无法回应，请稍后重试。]");
+                })
+                .contextWrite(ctx -> ctx.put(Authentication.class, currentAuth));
     }
 
     /**
@@ -98,11 +115,13 @@ public class ChatController {
         String memoryBackground = memoryExtractionService.buildUserMemoryPrompt();
         log.info("收到非流式聊天请求，conversationId={}，messageLength={}，referenceCount={}",
                 id, message == null ? 0 : message.length(), references == null ? 0 : references.size());
+        UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Long userId = user.getId();
         String reply = chatService.reply(id, message, references, memoryBackground);
         log.info("非流式聊天完成，准备触发画像增量更新，conversationId={}，replyLength={}",
                 id, reply == null ? 0 : reply.length());
         try {
-            memoryExtractionService.extractAndSyncMemoryFromChat(message, references, reply);
+            memoryExtractionService.extractAndSyncMemoryFromChat(userId, message, references, reply);
             log.info("非流式聊天后画像增量更新已提交，conversationId={}", id);
         } catch (Exception e) {
             log.warn("非流式聊天后触发长期画像更新失败，conversationId={}，reason={}", id, e.getMessage());

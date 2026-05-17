@@ -52,6 +52,10 @@ public class ChatService {
                - "从你之前的日记/报告中我看到……"
                - "系统检索到你曾经记录过……"
             这样做是为了让用户清楚地知道：有些内容是你主动帮他们查的，而不会产生"我什么时候说过这个？"的困惑。
+
+            【时间与工具检索规范 — 极其重要】
+            1. 当你需要根据用户提到的相对时间（如"昨天"、"上周"）调用 diarySearch 等工具时，你必须先参考上方的 <system_metadata> 中的【当前系统时间】，将其在心里计算成绝对日期（如 yyyy-MM-dd），然后再将绝对日期作为参数传入工具！
+            2. 禁忌：<system_metadata> 中的时间仅供你作为底层计算基准。在最终回复用户的文字中，**绝对不要**主动提及或重复当前的日期和星期（例如绝对不要说"今天是2024年X月X日"或"现在是星期几"），除非用户明确问你今天几号。请始终保持像真人朋友一样自然、共情的对话风格，不要像个报时的机器人。
             """;
 
     private final ChatClient chatChatClient;
@@ -126,10 +130,12 @@ public class ChatService {
     public Flux<String> chat(Long conversationId, String message, List<String> refs, String memoryBackground) {
         // 流式接口：先统一装配上下文，再决定走普通模型还是思考模型。
         ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
+        // 捕获当前 SecurityContext，通过 Reactor Context 传递给 Function Calling 的异步回调线程
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
-            log.info("聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
+            log.info("聊天路由结果：reasoning（流式），conversationId={}，messageLength={}", conversationId,
                     message == null ? 0 : message.length());
-            return Flux.just(callReasoningModel(request, message));
+            return callReasoningModelStream(request, message, auth);
         }
 
         log.info("聊天路由结果：normal，conversationId={}，messageLength={}", conversationId,
@@ -137,9 +143,10 @@ public class ChatService {
 
         return chatChatClient.prompt()
                 .user(message)
-                .system(s -> s.text(request.context() + AGENT_TOOLS_PROMPT))
+                .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
                 .functions(DiarySearchFunctionSupport.NAME, UserStatsFunctionSupport.NAME)
+                .toolContext(Map.of("auth", auth))
                 .stream()
                 .content();
     }
@@ -147,10 +154,11 @@ public class ChatService {
     public String reply(Long conversationId, String message, List<String> refs, String memoryBackground) {
         // 非流式接口：移动端/公网优先走这里，减少 SSE 连接不稳定的影响。
         ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
             log.info("非流式聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
                     message == null ? 0 : message.length());
-            return callReasoningModel(request, message);
+            return callReasoningModel(request, message, auth);
         }
 
         log.info("非流式聊天路由结果：normal，conversationId={}，messageLength={}", conversationId,
@@ -158,9 +166,10 @@ public class ChatService {
 
         return chatChatClient.prompt()
                 .user(message)
-                .system(s -> s.text(request.context() + AGENT_TOOLS_PROMPT))
+                .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
                 .functions(DiarySearchFunctionSupport.NAME, UserStatsFunctionSupport.NAME)
+                .toolContext(Map.of("auth", auth))
                 .call()
                 .content();
     }
@@ -169,12 +178,12 @@ public class ChatService {
         return chatIntentRouter.shouldUseReasoning(message, refs, memoryBackground, conversationId);
     }
 
-    private String callReasoningModel(ChatRequest request, String message) {
+    private String callReasoningModel(ChatRequest request, String message, Authentication auth) {
         try {
             // 为推理模型注入历史记忆，确保对话连续性。
             // 将历史作为 User Message 的前缀，保持 System Context 的纯洁性。
             String history = formatChatHistory(request.memory());
-            String enhancedContext = request.context();
+            String enhancedContext = request.context() + buildTimeMetadata();
 
             String userMessage;
             if (!history.isEmpty()) {
@@ -199,10 +208,60 @@ public class ChatService {
             log.info("思考模型失败后回退到普通模型，messageLength={}", message == null ? 0 : message.length());
             return chatChatClient.prompt()
                     .user(message)
-                    .system(s -> s.text(request.context() + AGENT_TOOLS_PROMPT))
+                    .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
                     .advisors(new MessageChatMemoryAdvisor(request.memory()))
                     .functions(DiarySearchFunctionSupport.NAME, UserStatsFunctionSupport.NAME)
+                    .toolContext(Map.of("auth", auth))
                     .call()
+                    .content();
+        }
+    }
+
+    private Flux<String> callReasoningModelStream(ChatRequest request, String message, Authentication auth) {
+        try {
+            String history = formatChatHistory(request.memory());
+            String enhancedContext = request.context() + buildTimeMetadata();
+
+            String userMessage;
+            if (!history.isEmpty()) {
+                userMessage = history + "\n" + "【用户当前消息】\n" + message;
+            } else {
+                userMessage = message;
+            }
+
+            log.info("调用思考模型分支（流式），contextLength={}，historyLength={}，messageLength={}",
+                    request.context().length(), history.length(),
+                    message == null ? 0 : message.length());
+
+            StringBuilder fullResponse = new StringBuilder();
+            return reasoningClient.generateStream(enhancedContext, userMessage)
+                    .doOnNext(fullResponse::append)
+                    .doOnComplete(() -> {
+                        request.memory().add("default", List.of(
+                                new UserMessage(message),
+                                new AssistantMessage(fullResponse.toString())));
+                    })
+                    .onErrorResume(e -> {
+                        log.warn("思考模型流式调用失败，回退到普通模型: {}", e.getMessage());
+                        return chatChatClient.prompt()
+                                .user(message)
+                                .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
+                                .advisors(new MessageChatMemoryAdvisor(request.memory()))
+                                .functions(DiarySearchFunctionSupport.NAME, UserStatsFunctionSupport.NAME)
+                                .toolContext(Map.of("auth", auth))
+                                .stream()
+                                .content();
+                    });
+        } catch (Exception e) {
+            log.warn("reasoning model failed in stream path, fallback to chat model: {}", e.getMessage());
+            log.info("思考模型失败后回退到普通模型（流式），messageLength={}", message == null ? 0 : message.length());
+            return chatChatClient.prompt()
+                    .user(message)
+                    .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
+                    .advisors(new MessageChatMemoryAdvisor(request.memory()))
+                    .functions(DiarySearchFunctionSupport.NAME, UserStatsFunctionSupport.NAME)
+                    .toolContext(Map.of("auth", auth))
+                    .stream()
                     .content();
         }
     }
@@ -339,6 +398,12 @@ public class ChatService {
     }
 
     // ---- 日记上下文 ----
+
+    private String buildTimeMetadata() {
+        String currentTime = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd EEEE"));
+        return "\n\n<system_metadata>\n【当前系统时间】: " + currentTime + "\n</system_metadata>\n\n";
+    }
 
     /**
      * 组装给大模型的 system context。

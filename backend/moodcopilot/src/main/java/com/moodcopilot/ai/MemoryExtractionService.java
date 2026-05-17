@@ -178,7 +178,7 @@ public class MemoryExtractionService {
      * 在聊天完成后，用"用户消息 + AI 回复 + 用户引用"作为新证据增量更新长期画像。
      * 这里同步拿到当前用户 ID，然后复用已有异步提取流程，避免阻塞聊天主链路。
      */
-    public void extractAndSyncMemoryFromChat(String userMessage, List<String> refs, String aiReply) {
+    public void extractAndSyncMemoryFromChat(Long userId, String userMessage, List<String> refs, String aiReply) {
         String normalizedUserMessage = userMessage == null ? "" : normalizeWhitespace(userMessage);
         String normalizedAiReply = aiReply == null ? "" : normalizeWhitespace(aiReply);
         List<String> normalizedRefs = normalizeRefs(refs);
@@ -187,8 +187,6 @@ public class MemoryExtractionService {
             log.info("memory-chat | skip | reason=empty_message_and_reply");
             return;
         }
-
-        Long userId = currentUser().getId();
 
         // 第一层：硬门槛，过滤无信息量噪声。
         // 但如果短消息中包含长期特征关键词（如"总是""习惯""关系"），放行进入后续评分。

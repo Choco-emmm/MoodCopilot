@@ -3,6 +3,7 @@ package com.moodcopilot.config;
 import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.security.JwtAuthenticationFilter;
 import com.moodcopilot.security.JwtTokenProvider;
+import jakarta.servlet.DispatcherType;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -49,17 +50,19 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
+                        .requestMatchers("/ws/**").authenticated()
                         .requestMatchers(
                                 "/api/health",
                                 "/api/auth/register",
                                 "/api/auth/login",
                                 "/api/auth/send-code",
-                                "/ws/**",
                                 "/api/uploads/**",
                                 "/uploads/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
-                                "/v3/api-docs/**")
+                                "/v3/api-docs/**",
+                                "/error")
                         .permitAll()
                         .requestMatchers("/api/diaries/**").authenticated()
                         .anyRequest().authenticated())

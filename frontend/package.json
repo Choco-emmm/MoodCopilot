@@ -9,6 +9,7 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
+    "@microsoft/fetch-event-source": "^2.0.1",
     "@types/cropperjs": "^1.1.5",
     "@vitejs/plugin-vue": "^5.1.4",
     "axios": "^1.7.7",
