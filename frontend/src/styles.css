@@ -1187,6 +1187,42 @@ h2 {
   font-weight: 600;
 }
 
+/* 顶级 Tab：常规报告 / 自定义总结 */
+.main-tabs {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  width: fit-content;
+  margin-bottom: 20px;
+}
+
+.main-tab {
+  padding: 8px 24px;
+  border: none;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.main-tab:first-child {
+  border-right: 1px solid var(--color-border);
+}
+
+.main-tab:hover {
+  background: var(--color-surface-hover);
+}
+
+.main-tab.active {
+  background: var(--color-jade);
+  color: #fff;
+  font-weight: 600;
+}
+
 /* SVG sparkline */
 .sparkline {
   width: 100%;
@@ -2724,11 +2760,13 @@ h2 {
     flex-direction: column;
   }
 
-  .report-mode-tabs {
+  .report-mode-tabs,
+  .main-tabs {
     width: 100%;
   }
 
-  .mode-tab {
+  .mode-tab,
+  .main-tab {
     flex: 1;
   }
 

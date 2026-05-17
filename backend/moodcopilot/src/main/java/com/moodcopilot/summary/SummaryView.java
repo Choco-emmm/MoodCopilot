@@ -23,6 +23,7 @@ public record SummaryView(
         List<String> insights,
         List<String> suggestions,
         String followUpPrompt,
+        String reportType,
         LocalDateTime createdAt
 ) {
     static SummaryView from(DiarySummaryEntity entity, ObjectMapper mapper) {
@@ -65,6 +66,7 @@ public record SummaryView(
                 insights,
                 suggestions,
                 entity.getFollowUpPrompt(),
+                entity.getReportType(),
                 entity.getCreatedAt()
         );
     }
