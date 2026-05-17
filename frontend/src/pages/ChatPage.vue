@@ -481,6 +481,7 @@ async function send() {
   const refContents = references.value.slice(0, 2).map(r => r.fullContent || r.content)
   messages.value.push({ id: nextMsgId(), role: 'user', content, references: refContents.length ? refContents : undefined })
   saveToBackend(convId).catch(() => {})
+  references.value = []
   draft.value = ''
   streaming.value = true
   streamingText.value = ''
@@ -566,19 +567,18 @@ async function sendReply(convId: number, content: string, refContents: string[],
 async function finishSend(convId: number) {
   if (streamRafId !== null) {
     cancelAnimationFrame(streamRafId)
-    streamingText.value = pendingStreamText
     streamRafId = null
-  }
-  try {
-    await saveToBackend(convId)
-  } catch {
-    syncCooldownUntil.value = Date.now() + 5000
   }
   streaming.value = false
   streamingText.value = ''
   isThinking.value = false
   references.value = []
   scrollBottom()
+  try {
+    await saveToBackend(convId)
+  } catch {
+    syncCooldownUntil.value = Date.now() + 5000
+  }
   loadConversations()
 }
 

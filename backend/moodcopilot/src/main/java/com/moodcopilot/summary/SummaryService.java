@@ -101,7 +101,7 @@ public class SummaryService {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("M/d");
         String title = startDate.format(fmt) + " - " + endDate.format(fmt);
 
-        String aiSummary = aiAnalysisService.generateWeeklySummary(contents, analyses);
+        String aiSummary = aiAnalysisService.generateCustomSummary(contents, analyses);
         AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateCustomGuidance(
                 title, contents, analyses);
 

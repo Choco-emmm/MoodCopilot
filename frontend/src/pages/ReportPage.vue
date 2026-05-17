@@ -72,15 +72,22 @@
 
             <h4>AI 周总结</h4>
             <p class="report-auto-hint">系统会在每周一 00:00 自动生成上一周报告，也可以现在手动生成。</p>
-            <div v-if="!report.aiSummary || report.needsRegenerate" class="empty-state compact">
+            <div v-if="!report.aiSummary" class="empty-state compact">
               <p v-if="store.generatingWeekly">AI 正在生成总结，请稍候...</p>
-              <p v-else-if="!report.aiSummary">暂无总结，可使用 AI 限额提前生成</p>
-              <p v-else>检测到新日记未纳入本次报告，可按需重新生成，或等待下次自动生成</p>
+              <p v-else>暂无总结，可使用 AI 限额提前生成</p>
               <n-button type="primary" :loading="store.generatingWeekly" :disabled="store.generatingWeekly" @click="store.generateWeeklyAiSummary(weekOffset)">
                 {{ store.generatingWeekly ? 'AI 生成中...' : '生成 AI 总结' }}
               </n-button>
             </div>
-            <div v-else class="md-content ai-summary" v-html="renderMd(report.aiSummary)" />
+            <div v-else class="ai-summary-wrapper">
+              <div v-if="report.needsRegenerate" class="regenerate-banner">
+                <p>检测到新日记未纳入本次报告，可按需重新生成，或等待下次自动生成</p>
+                <n-button size="small" type="primary" :loading="store.generatingWeekly" :disabled="store.generatingWeekly" @click="store.generateWeeklyAiSummary(weekOffset)">
+                  {{ store.generatingWeekly ? '生成中...' : '重新生成' }}
+                </n-button>
+              </div>
+              <div class="md-content ai-summary" v-html="renderMd(report.aiSummary)" />
+            </div>
 
             <div v-if="hasGuidance(report)" class="report-guidance">
               <div v-if="report.insights?.length">
@@ -180,15 +187,22 @@
 
             <h4>AI 月总结</h4>
             <p class="report-auto-hint">系统会在每月 1 日 00:00 自动生成上一月报告，也可以现在手动生成。</p>
-            <div v-if="!monthReport.aiSummary || monthReport.needsRegenerate" class="empty-state compact">
+            <div v-if="!monthReport.aiSummary" class="empty-state compact">
               <p v-if="store.generatingMonthly">AI 正在生成总结，请稍候...</p>
-              <p v-else-if="!monthReport.aiSummary">暂无总结，可使用 AI 限额提前生成</p>
-              <p v-else>检测到新日记未纳入本次报告，可按需重新生成，或等待下次自动生成</p>
+              <p v-else>暂无总结，可使用 AI 限额提前生成</p>
               <n-button type="primary" :loading="store.generatingMonthly" :disabled="store.generatingMonthly" @click="store.generateMonthlyAiSummary(monthOffset)">
                 {{ store.generatingMonthly ? 'AI 生成中...' : '生成 AI 总结' }}
               </n-button>
             </div>
-            <div v-else class="md-content ai-summary" v-html="renderMd(monthReport.aiSummary)" />
+            <div v-else class="ai-summary-wrapper">
+              <div v-if="monthReport.needsRegenerate" class="regenerate-banner">
+                <p>检测到新日记未纳入本次报告，可按需重新生成，或等待下次自动生成</p>
+                <n-button size="small" type="primary" :loading="store.generatingMonthly" :disabled="store.generatingMonthly" @click="store.generateMonthlyAiSummary(monthOffset)">
+                  {{ store.generatingMonthly ? '生成中...' : '重新生成' }}
+                </n-button>
+              </div>
+              <div class="md-content ai-summary" v-html="renderMd(monthReport.aiSummary)" />
+            </div>
 
             <div v-if="hasGuidance(monthReport)" class="report-guidance">
               <div v-if="monthReport.insights?.length">
@@ -493,5 +507,55 @@ function formatGeneratedAt(value?: string | Date | null) {
   color: #64748b;
   font-style: italic;
   margin: 0.8em 0;
+}
+
+/* 日记列表高度约束 + 移动端滚动优化 */
+.mood-chart,
+.mood-snippet-list {
+  max-height: 48vh;
+  overflow-y: auto;
+  padding-right: 6px;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+
+.mood-chart::-webkit-scrollbar,
+.mood-snippet-list::-webkit-scrollbar {
+  width: 5px;
+}
+.mood-chart::-webkit-scrollbar-thumb,
+.mood-snippet-list::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
+/* 重新生成提示条 */
+.regenerate-banner {
+  background-color: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.regenerate-banner p {
+  margin: 0;
+  font-size: 13px;
+  color: #92400e;
+  line-height: 1.5;
+}
+
+@media (max-width: 480px) {
+  .regenerate-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .regenerate-banner button {
+    align-self: flex-end;
+  }
 }
 </style>
