@@ -37,6 +37,13 @@ public class RateLimitService {
     }
 
     public void tryAcquire(Long userId, AiApiType type) {
+        tryAcquire(userId, type, null);
+    }
+
+    public void tryAcquire(Long userId, AiApiType type, String role) {
+        if ("ADMIN".equalsIgnoreCase(role)) {
+            return;
+        }
         String key = buildKey(userId, type);
         Long count = redis.opsForValue().increment(key);
         if (count == 1) {
@@ -51,6 +58,13 @@ public class RateLimitService {
     }
 
     public long getRemaining(Long userId, AiApiType type) {
+        return getRemaining(userId, type, null);
+    }
+
+    public long getRemaining(Long userId, AiApiType type, String role) {
+        if ("ADMIN".equalsIgnoreCase(role)) {
+            return -1;
+        }
         try {
             String key = buildKey(userId, type);
             String val = redis.opsForValue().get(key);
@@ -73,9 +87,13 @@ public class RateLimitService {
     }
 
     public Map<String, Long> getAllRemaining(Long userId) {
+        return getAllRemaining(userId, null);
+    }
+
+    public Map<String, Long> getAllRemaining(Long userId, String role) {
         Map<String, Long> result = new LinkedHashMap<>();
         for (AiApiType type : AiApiType.values()) {
-            result.put(type.name(), getRemaining(userId, type));
+            result.put(type.name(), getRemaining(userId, type, role));
         }
         return result;
     }

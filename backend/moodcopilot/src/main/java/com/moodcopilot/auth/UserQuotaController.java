@@ -27,6 +27,6 @@ public class UserQuotaController {
         if (user == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "登录状态已失效");
         }
-        return ApiResponse.ok(rateLimitService.getAllRemaining(user.getId()));
+        return ApiResponse.ok(rateLimitService.getAllRemaining(user.getId(), user.getRole()));
     }
 }
