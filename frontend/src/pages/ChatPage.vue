@@ -193,6 +193,8 @@ const messages = ref<Message[]>([])
 const draft = ref('')
 const streaming = ref(false)
 const streamingText = ref('')
+let pendingStreamText = ''
+let streamRafId: number | null = null
 const isThinking = ref(false)
 const msgBox = ref<HTMLElement | null>(null)
 const chatInputArea = ref<HTMLElement | null>(null)
@@ -251,6 +253,10 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (streamRafId !== null) {
+    cancelAnimationFrame(streamRafId)
+    streamRafId = null
+  }
   if (streamAbortCtrl) {
     streamAbortCtrl.abort()
     streamAbortCtrl = null
@@ -518,11 +524,17 @@ async function sendReply(convId: number, content: string, refContents: string[],
   try {
     await chatApi.replyStream(convId, content, refContents, (chunk) => {
       fullReply += chunk
-      streamingText.value = fullReply
+      pendingStreamText = fullReply
       if (isThinking.value) {
         isThinking.value = false
       }
-      scrollBottom()
+      if (streamRafId === null) {
+        streamRafId = requestAnimationFrame(() => {
+          streamingText.value = pendingStreamText
+          streamRafId = null
+          scrollBottom()
+        })
+      }
     }, ctrl)
 
     // 流正常结束
@@ -552,6 +564,11 @@ async function sendReply(convId: number, content: string, refContents: string[],
 }
 
 async function finishSend(convId: number) {
+  if (streamRafId !== null) {
+    cancelAnimationFrame(streamRafId)
+    streamingText.value = pendingStreamText
+    streamRafId = null
+  }
   try {
     await saveToBackend(convId)
   } catch {
