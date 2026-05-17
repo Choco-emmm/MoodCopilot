@@ -84,27 +84,18 @@ export const notificationApi = {
   list: (page = 1, size = 20) => api.get('/notifications', { params: { page, size } }),
   unreadCount: () => api.get('/notifications/unread-count'),
   markRead: (id: number) => api.put(`/notifications/${id}/read`),
-  wsUrl: (token: string) => {
+  wsTicket: () => api.post('/notifications/ws-ticket'),
+  wsUrl: (ticket: string) => {
     const env = import.meta.env as Record<string, string | undefined>
     const override = env.VITE_WS_BASE_URL?.trim()
     if (override) {
-      return `${override.replace(/\/$/, '')}/ws/notifications?token=${encodeURIComponent(token)}`
+      return `${override.replace(/\/$/, '')}/ws/notifications?ticket=${encodeURIComponent(ticket)}`
     }
-
-    const isLocalHost = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname)
-    const proxyTarget = env.VITE_API_PROXY_TARGET?.trim()
-    if (isLocalHost && proxyTarget) {
-      try {
-        const target = new URL(proxyTarget)
-        const wsProtocol = target.protocol === 'https:' ? 'wss:' : 'ws:'
-        return `${wsProtocol}//${target.host}/ws/notifications?token=${encodeURIComponent(token)}`
-      } catch {
-        // fallback to same-origin when env is malformed
-      }
-    }
-
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    return `${protocol}://${window.location.host}/ws/notifications?token=${encodeURIComponent(token)}`
+    // 始终通过当前页面的 host 建立 WebSocket 连接：
+    // - 开发环境：Vite 的 /ws 代理（ws: true）会转发到后端
+    // - 生产环境：Nginx 的 /ws/ location 会代理到后端
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${protocol}//${window.location.host}/ws/notifications?ticket=${encodeURIComponent(ticket)}`
   },
 }
 
