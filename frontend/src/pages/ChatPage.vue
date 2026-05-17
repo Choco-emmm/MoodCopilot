@@ -727,4 +727,43 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   line-height: 1.5;
   opacity: 0.9;
 }
+
+/* Markdown 动态内容样式穿透 */
+.md-content :deep(p) {
+  margin: 0 0 0.5em 0;
+  line-height: 1.6;
+}
+.md-content :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.md-content :deep(strong), .md-content :deep(b) {
+  font-weight: 600;
+  color: inherit;
+}
+.md-content :deep(ul) {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.md-content :deep(ol) {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.md-content :deep(li) {
+  margin-bottom: 0.25em;
+}
+.md-content :deep(blockquote) {
+  border-left: 3px solid #cbd5e1;
+  padding-left: 0.75em;
+  color: #64748b;
+  margin: 0.5em 0;
+}
+.md-content :deep(code) {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
 </style>

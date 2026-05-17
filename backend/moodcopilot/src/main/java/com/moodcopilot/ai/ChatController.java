@@ -78,7 +78,15 @@ public class ChatController {
         Long userId = user.getId();
         Authentication currentAuth = SecurityContextHolder.getContext().getAuthentication();
         StringBuilder aiReplyBuffer = new StringBuilder();
-        return chatService.chat(id, message, references, memoryBackground)
+        Flux<String> chatFlux;
+        try {
+            chatFlux = chatService.chat(id, message, references, memoryBackground);
+        } catch (com.moodcopilot.common.RateLimitException e) {
+            log.info("AI 限流触发，conversationId={}，type={}", id, e.getType());
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, e.getMessage(), e);
+        }
+        return chatFlux
                 .doOnNext(chunk -> {
                     // 流式返回按 chunk 到达，这里先拼完整回复，完成时再统一更新画像。
                     if (chunk != null && !chunk.isBlank()) {
@@ -117,7 +125,14 @@ public class ChatController {
                 id, message == null ? 0 : message.length(), references == null ? 0 : references.size());
         UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = user.getId();
-        String reply = chatService.reply(id, message, references, memoryBackground);
+        String reply;
+        try {
+            reply = chatService.reply(id, message, references, memoryBackground);
+        } catch (com.moodcopilot.common.RateLimitException e) {
+            log.info("AI 限流触发（非流式），conversationId={}，type={}", id, e.getType());
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, e.getMessage(), e);
+        }
         log.info("非流式聊天完成，准备触发画像增量更新，conversationId={}，replyLength={}",
                 id, reply == null ? 0 : reply.length());
         try {
