@@ -62,8 +62,8 @@
       <span v-for="step in 5" :key="step" :class="{ filled: step <= diary.analysis.moodIntensity }" />
     </div>
 
-    <div v-html="parsedSummary" class="prose" />
-    <div v-html="parsedFeedback" class="prose" />
+    <div class="md-content" v-html="renderMd(diary.analysis.summary)" />
+    <div class="md-content" v-html="renderMd(diary.analysis.feedback)" />
   </template>
 
   <template v-else>
@@ -97,15 +97,19 @@ import { moodColor } from '../utils/mood'
 
 const props = defineProps<{ diary: Diary }>()
 
-const parsedSummary = computed(() => {
-  if (!props.diary.analysis?.summary) return ''
-  return DOMPurify.sanitize(marked.parse(props.diary.analysis.summary, { async: false }) as string)
-})
-
-const parsedFeedback = computed(() => {
-  if (!props.diary.analysis?.feedback) return ''
-  return DOMPurify.sanitize(marked.parse(props.diary.analysis.feedback, { async: false }) as string)
-})
+function renderMd(text: string) {
+  if (!text) return ''
+  const html = marked.parse(text, { async: false }) as string
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    ALLOWED_TAGS: [
+      'p', 'br', 'strong', 'em', 'b', 'i', 'u',
+      'ul', 'ol', 'li', 'blockquote', 'code', 'pre',
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a',
+    ],
+    ALLOWED_ATTR: ['href', 'target', 'rel'],
+  })
+}
 
 const moodGroups = [
   {
@@ -288,6 +292,45 @@ onUnmounted(() => {
 
 .prose :deep(em) {
   font-style: italic;
+}
+
+/* Markdown 动态内容样式穿透（ChatPage 同款） */
+.md-content :deep(p) {
+  margin: 0 0 0.5em 0;
+  line-height: 1.6;
+}
+.md-content :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.md-content :deep(strong), .md-content :deep(b) {
+  font-weight: 600;
+  color: inherit;
+}
+.md-content :deep(ul) {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.md-content :deep(ol) {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.md-content :deep(li) {
+  margin-bottom: 0.25em;
+}
+.md-content :deep(blockquote) {
+  border-left: 3px solid #cbd5e1;
+  padding-left: 0.75em;
+  color: #64748b;
+  margin: 0.5em 0;
+}
+.md-content :deep(code) {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9em;
 }
 
 /* ── 指南触发图标 ── */

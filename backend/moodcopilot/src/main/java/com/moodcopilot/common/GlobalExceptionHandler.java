@@ -16,10 +16,10 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(RateLimitException.class)
-    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
-    public ApiResponse<Void> handleRateLimit(RateLimitException e) {
+    public ResponseEntity<ApiResponse<Void>> handleRateLimit(RateLimitException e) {
         log.info("AI 限流触发: type={}", e.getType());
-        return ApiResponse.error(429, e.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ApiResponse.error(429, e.getMessage()));
     }
 
     @ExceptionHandler(ResponseStatusException.class)

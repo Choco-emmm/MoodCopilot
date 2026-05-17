@@ -80,19 +80,19 @@
                 {{ store.generatingWeekly ? 'AI 生成中...' : '生成 AI 总结' }}
               </n-button>
             </div>
-            <p v-else class="ai-summary">{{ report.aiSummary }}</p>
+            <div v-else class="md-content ai-summary" v-html="renderMd(report.aiSummary)" />
 
             <div v-if="hasGuidance(report)" class="report-guidance">
               <div v-if="report.insights?.length">
                 <h4>MoodCopilot 看见了</h4>
                 <ul class="guidance-list">
-                  <li v-for="item in report.insights" :key="item">{{ item }}</li>
+                  <li v-for="item in report.insights" :key="item" v-html="renderMd(item)" />
                 </ul>
               </div>
               <div v-if="report.suggestions?.length">
                 <h4>可以试试</h4>
                 <ul class="guidance-list">
-                  <li v-for="item in report.suggestions" :key="item">{{ item }}</li>
+                  <li v-for="item in report.suggestions" :key="item" v-html="renderMd(item)" />
                 </ul>
               </div>
             </div>
@@ -188,19 +188,19 @@
                 {{ store.generatingMonthly ? 'AI 生成中...' : '生成 AI 总结' }}
               </n-button>
             </div>
-            <p v-else class="ai-summary">{{ monthReport.aiSummary }}</p>
+            <div v-else class="md-content ai-summary" v-html="renderMd(monthReport.aiSummary)" />
 
             <div v-if="hasGuidance(monthReport)" class="report-guidance">
               <div v-if="monthReport.insights?.length">
                 <h4>MoodCopilot 看见了</h4>
                 <ul class="guidance-list">
-                  <li v-for="item in monthReport.insights" :key="item">{{ item }}</li>
+                  <li v-for="item in monthReport.insights" :key="item" v-html="renderMd(item)" />
                 </ul>
               </div>
               <div v-if="monthReport.suggestions?.length">
                 <h4>可以试试</h4>
                 <ul class="guidance-list">
-                  <li v-for="item in monthReport.suggestions" :key="item">{{ item }}</li>
+                  <li v-for="item in monthReport.suggestions" :key="item" v-html="renderMd(item)" />
                 </ul>
               </div>
             </div>
@@ -249,18 +249,18 @@
                 </div>
               </div>
             </div>
-            <p class="summary-body">{{ s.aiSummary }}</p>
+            <div class="md-content summary-body" v-html="renderMd(s.aiSummary)" />
             <div v-if="hasGuidance(s)" class="report-guidance">
               <div v-if="s.insights?.length">
                 <h4>MoodCopilot 看见了</h4>
                 <ul class="guidance-list">
-                  <li v-for="item in s.insights" :key="item">{{ item }}</li>
+                  <li v-for="item in s.insights" :key="item" v-html="renderMd(item)" />
                 </ul>
               </div>
               <div v-if="s.suggestions?.length">
                 <h4>可以试试</h4>
                 <ul class="guidance-list">
-                  <li v-for="item in s.suggestions" :key="item">{{ item }}</li>
+                  <li v-for="item in s.suggestions" :key="item" v-html="renderMd(item)" />
                 </ul>
               </div>
             </div>
@@ -279,6 +279,21 @@ import AppHeader from '../components/AppHeader.vue'
 import { useDiaryStore } from '../stores/diary'
 import { summaryApi } from '../api'
 import { moodColor } from '../utils/mood'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
+
+function renderMd(text: string) {
+  if (!text) return ''
+  const html = marked.parse(text, { async: false }) as string
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    ALLOWED_TAGS: [
+      'p', 'br', 'strong', 'em', 'b', 'i', 'u',
+      'ul', 'ol', 'li', 'blockquote', 'code', 'pre',
+      'h1', 'h2', 'h3',
+    ],
+  })
+}
 
 const router = useRouter()
 const store = useDiaryStore()
@@ -443,3 +458,40 @@ function formatGeneratedAt(value?: string | Date | null) {
   }).format(date)
 }
 </script>
+
+<style scoped>
+/* Markdown 动态报告内容样式穿透 */
+.md-content :deep(p) {
+  margin: 0 0 0.8em 0;
+  line-height: 1.7;
+  color: var(--text-color, #333);
+}
+.md-content :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.md-content :deep(strong), .md-content :deep(b) {
+  font-weight: 600;
+  color: #111827;
+}
+.md-content :deep(ul) {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.md-content :deep(ol) {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.md-content :deep(li) {
+  margin-bottom: 0.4em;
+  line-height: 1.6;
+}
+.md-content :deep(blockquote) {
+  border-left: 4px solid #e2e8f0;
+  padding-left: 1em;
+  color: #64748b;
+  font-style: italic;
+  margin: 0.8em 0;
+}
+</style>

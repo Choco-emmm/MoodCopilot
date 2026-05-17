@@ -40,7 +40,7 @@ public class AiAnalysisService {
             1. Acknowledges the emotional journey of the week, noticing when emotions were mixed or layered
             2. Notices patterns or shifts in mood and themes, including subtle secondary emotions that may signal underlying currents
             3. Offers gentle encouragement without being preachy
-            Return ONLY the Chinese text, no markdown, no JSON, no explanation.""";
+            Return ONLY the Chinese text. You are encouraged to use simple Markdown (like **bold**, lists, and line breaks) for a beautiful and clear layout. No JSON, no explanation.""";
 
     private final ChatClient analysisChatClient;
     private final ObjectMapper objectMapper;
@@ -131,7 +131,7 @@ public class AiAnalysisService {
             1. Acknowledges the emotional journey of the month, noticing when emotions were layered or contradictory
             2. Notices patterns, shifts, or trends in mood and themes over the longer period, paying attention to the interplay between primary and secondary emotions
             3. Offers gentle encouragement and a forward-looking perspective
-            Return ONLY the Chinese text, no markdown, no JSON, no explanation.""";
+            Return ONLY the Chinese text. You are encouraged to use simple Markdown (like **bold**, lists, and line breaks) for a beautiful and clear layout. No JSON, no explanation.""";
 
     public String generateMonthlySummary(List<String> diaryContents, List<DiaryAnalysis> analyses) {
         if (diaryContents.isEmpty())
@@ -177,7 +177,7 @@ public class AiAnalysisService {
             - insights: array of 2-3 concise Chinese observations about emotional patterns (consider both primary and secondary moods for deeper insight)
             - suggestions: array of 2-3 small, concrete Chinese actions the user can try
             - followUpPrompt: one Chinese sentence the user could ask MoodCopilot to explore further
-            Be warm and specific. Do not diagnose. Do not use markdown. Do not use emoji.""";
+            Be warm and specific. Do not diagnose. You can use simple Markdown (like **bold**) inside the strings for emphasis. Do not use emoji.""";
 
     @SuppressWarnings("unchecked")
     private ReportGuidance generateReportGuidance(String period, List<String> diaryContents,
@@ -307,7 +307,7 @@ public class AiAnalysisService {
             1. Acknowledges their recent emotional patterns, noticing when primary and secondary moods reveal layered feelings
             2. Suggests one small, concrete action they could try today
             3. Is encouraging but not preachy
-            Return ONLY the Chinese text, no markdown, no JSON, no explanation.""";
+            Return ONLY the Chinese text. You can use simple Markdown (like **bold**) to highlight key actionable advice. No JSON, no explanation.""";
 
     public String generateCoaching(List<String> contents, List<DiaryAnalysis> analyses) {
         if (contents.isEmpty())
