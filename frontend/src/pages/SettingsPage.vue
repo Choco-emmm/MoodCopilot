@@ -123,7 +123,7 @@
           <p class="settings-label">我的记忆</p>
           <span class="section-tag">Memory</span>
         </div>
-        <p class="memory-desc">MoodCopilot 从你的日记和聊天中学习的长期画像，你可以随时删除不想要的部分。</p>
+        <p class="memory-desc">MoodCopilot 从你的日记和聊天中学习的长期画像，你可以编辑修正或删除不想要的部分。</p>
         <div v-if="memoriesLoading" class="memory-loading">加载中...</div>
         <div v-else-if="memories.length === 0" class="memory-empty">
           MoodCopilot 正在默默观察你，多写点日记或和 AI 聊天吧。
@@ -132,11 +132,32 @@
           <div v-for="m in memories" :key="m.id" class="memory-item">
             <div class="memory-content">
               <span class="memory-key">{{ m.attributeKey }}</span>
-              <span class="memory-value">{{ m.attributeValue }}</span>
+              <template v-if="editingMemoryId === m.id">
+                <n-input
+                  v-model:value="editingMemoryValue"
+                  size="small"
+                  class="memory-edit-input"
+                  :maxlength="500"
+                  @keyup.enter="saveMemory(m.id)"
+                  @keyup.escape="cancelEditMemory"
+                />
+              </template>
+              <span v-else class="memory-value">{{ m.attributeValue }}</span>
             </div>
-            <n-button size="tiny" text type="error" :disabled="deletingMemoryId === m.id" @click="forgetMemory(m.id)">
-              {{ deletingMemoryId === m.id ? '...' : '✕' }}
-            </n-button>
+            <div class="memory-actions">
+              <template v-if="editingMemoryId === m.id">
+                <n-button size="tiny" text type="primary" :disabled="savingMemoryId === m.id" @click="saveMemory(m.id)">
+                  {{ savingMemoryId === m.id ? '...' : '保存' }}
+                </n-button>
+                <n-button size="tiny" text @click="cancelEditMemory">取消</n-button>
+              </template>
+              <template v-else>
+                <n-button size="tiny" text type="info" @click="startEditMemory(m)">编辑</n-button>
+                <n-button size="tiny" text type="error" :disabled="deletingMemoryId === m.id" @click="forgetMemory(m.id)">
+                  {{ deletingMemoryId === m.id ? '...' : '✕' }}
+                </n-button>
+              </template>
+            </div>
           </div>
         </div>
       </section>
@@ -168,6 +189,9 @@ interface MemoryItem { id: number; attributeKey: string; attributeValue: string 
 const memories = ref<MemoryItem[]>([])
 const memoriesLoading = ref(false)
 const deletingMemoryId = ref<number | null>(null)
+const editingMemoryId = ref<number | null>(null)
+const editingMemoryValue = ref('')
+const savingMemoryId = ref<number | null>(null)
 
 async function loadMemories() {
   memoriesLoading.value = true
@@ -185,6 +209,31 @@ async function forgetMemory(id: number) {
     memories.value = memories.value.filter(m => m.id !== id)
   } catch { /* ignore */ }
   finally { deletingMemoryId.value = null }
+}
+
+function startEditMemory(m: MemoryItem) {
+  editingMemoryId.value = m.id
+  editingMemoryValue.value = m.attributeValue
+}
+
+async function saveMemory(id: number) {
+  if (!editingMemoryValue.value.trim()) return
+  savingMemoryId.value = id
+  try {
+    await memoryApi.update(id, { attributeValue: editingMemoryValue.value.trim() })
+    const idx = memories.value.findIndex(m => m.id === id)
+    if (idx !== -1) {
+      memories.value[idx] = { ...memories.value[idx], attributeValue: editingMemoryValue.value.trim() }
+    }
+    editingMemoryId.value = null
+    editingMemoryValue.value = ''
+  } catch { /* ignore */ }
+  finally { savingMemoryId.value = null }
+}
+
+function cancelEditMemory() {
+  editingMemoryId.value = null
+  editingMemoryValue.value = ''
 }
 // ---- end memory management ----
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -769,6 +818,18 @@ function handleLogout() {
   word-break: break-word;
 }
 
+.memory-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.memory-edit-input {
+  flex: 1;
+  min-width: 0;
+}
+
 .danger-zone {
   background: linear-gradient(180deg, #ffffff 0%, #fff8f8 100%);
   border-color: rgba(181, 90, 90, 0.2);
@@ -829,6 +890,29 @@ function handleLogout() {
 
   .settings-section {
     padding: 14px;
+  }
+
+  .memory-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .memory-content {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .memory-key {
+    align-self: flex-start;
+  }
+
+  .memory-edit-input {
+    width: 100%;
+  }
+
+  .memory-actions {
+    justify-content: flex-end;
   }
 }
 

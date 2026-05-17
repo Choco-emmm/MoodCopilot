@@ -83,4 +83,17 @@ router.beforeEach((to, _from, next) => {
   }
 })
 
+router.onError((error) => {
+  const msg = error?.message || ''
+  const isChunkError = msg.includes('Failed to fetch dynamically imported module')
+    || msg.includes('Importing a module script failed')
+  if (!isChunkError) return
+
+  const url = new URL(window.location.href)
+  if (url.searchParams.has('t')) return
+
+  url.searchParams.set('t', Date.now().toString())
+  window.location.href = url.href
+})
+
 export default router
