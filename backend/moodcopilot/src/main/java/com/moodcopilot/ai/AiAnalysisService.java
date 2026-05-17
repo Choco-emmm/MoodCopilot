@@ -177,7 +177,7 @@ public class AiAnalysisService {
             - insights: array of 2-3 concise Chinese observations about emotional patterns (consider both primary and secondary moods for deeper insight)
             - suggestions: array of 2-3 small, concrete Chinese actions the user can try
             - followUpPrompt: one Chinese sentence the user could ask MoodCopilot to explore further
-            Be warm and specific. Do not diagnose. You can use simple Markdown (like **bold**) inside the strings for emphasis. Do not use emoji.""";
+            Be warm and specific. Do not diagnose. You can use simple Markdown (like **bold**) inside the strings for emphasis. You may use emoji sparingly (1-2 per response) to add warmth, but don't overuse them.""";
 
     @SuppressWarnings("unchecked")
     private ReportGuidance generateReportGuidance(String period, List<String> diaryContents,
