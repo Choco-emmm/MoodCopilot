@@ -40,6 +40,7 @@ public class MemoryExtractionService {
     private static final String CHAT_MEMORY_UPDATE_LOCK_PREFIX = "memory:chat:update:";
     private static final String CHAT_MEMORY_LAST_HASH_PREFIX = "memory:chat:last-hash:";
     private static final String MEMORY_BLACKLIST_PREFIX = "memory:blacklist:";
+    private static final String DELETE_MARKER = "DELETE_MARKER";
     private static final Duration CHAT_MEMORY_UPDATE_COOLDOWN = Duration.ofMinutes(10);
     private static final Duration CHAT_MEMORY_LAST_HASH_TTL = Duration.ofHours(2);
     private static final int CHAT_MIN_USER_MESSAGE_LENGTH = 18;
@@ -63,8 +64,8 @@ public class MemoryExtractionService {
             }
             规则：
             1. 只保留相对稳定、跨时间成立的特征，不要记录一次性的当天状态。
-            2. 如果旧特征已被新日记推翻或明显变化，请输出更新后的值。
-            3. 如果没有足够证据支持某条旧特征继续保留，可以不输出该条。
+            2. 【重要】默认必须输出所有旧属性，保持 attributeKey 和 attributeValue 不变。只有当新日记提供了明确的新证据，才能修改该属性的 attributeValue。
+            3. 【重要】要删除某个属性，必须将 attributeValue 设为精确字符串 "DELETE_MARKER"（不含引号）。仅在新证据明确推翻旧特征时才使用。
             4. attributeKey 使用简洁中文，例如：性格、长期目标、关键人物、长期压力源、重要关系。
             5. attributeValue 使用一句简洁中文，避免重复和空话。
 
@@ -80,12 +81,19 @@ public class MemoryExtractionService {
             - 无
             输出：{"attributes":[]}
 
-            示例三 — 新证据更新旧属性：
+            示例三 — 新证据更新旧属性（保留未涉及的旧属性不变）：
             新日记：这周开始坚持每天跑步了，虽然很累但是跑完感觉整个人都轻松了。以前从不运动，这次竟然坚持了五天，有点意外。工作上还是老样子，但运动让我的焦虑感少了一些。
             旧属性列表：
             - 性格：偏内向，不喜欢尝试新事物
             - 长期压力源：工作焦虑
-            输出：{"attributes":[{"attributeKey":"性格","attributeValue":"开始愿意尝试新事物，有一定的行动力和自律潜力"},{"attributeKey":"长期压力源","attributeValue":"工作焦虑，但正在通过运动缓解"},{"attributeKey":"习惯","attributeValue":"最近开始养成每日跑步的习惯"}]}""";
+            输出：{"attributes":[{"attributeKey":"性格","attributeValue":"开始愿意尝试新事物，有一定的行动力和自律潜力"},{"attributeKey":"长期压力源","attributeValue":"工作焦虑，但正在通过运动缓解"},{"attributeKey":"习惯","attributeValue":"最近开始养成每日跑步的习惯"}]}
+
+            示例四 — 新证据明确推翻旧特征时使用 DELETE_MARKER 删除：
+            新日记：今天体检报告出来了，一切指标正常，医生说之前的血压偏高问题已经完全消失了，以后不用再担心了。
+            旧属性列表：
+            - 健康问题：有轻度高血压，需定期监测
+            - 性格：偏谨慎，做事较真
+            输出：{"attributes":[{"attributeKey":"健康问题","attributeValue":"DELETE_MARKER"},{"attributeKey":"性格","attributeValue":"偏谨慎，做事较真"}]}""";
 
     private final ChatClient analysisChatClient;
     private final UserProfileMemoryMapper userProfileMemoryMapper;
@@ -428,10 +436,10 @@ public class MemoryExtractionService {
     }
 
     /**
-     * 幂等同步：
+     * 增量同步：
      * 1. 已存在同 key 就更新 value；
      * 2. 不存在就插入；
-     * 3. 新结果里消失的旧 key 会删除。
+     * 3. attributeValue 为 "DELETE_MARKER" 时显式删除该属性。
      *
      * 安全防护：如果 LLM 返回空属性列表，跳过本次同步，避免一次性清空用户全部画像。
      */
@@ -460,8 +468,20 @@ public class MemoryExtractionService {
         LocalDateTime now = LocalDateTime.now();
         int updatedCount = 0;
         int insertedCount = 0;
+        int deletedCount = 0;
         for (MemoryAttribute attribute : filteredAttributes) {
             UserProfileMemoryEntity existingEntity = existingByKey.get(attribute.attributeKey());
+
+            if (DELETE_MARKER.equals(attribute.attributeValue())) {
+                if (existingEntity != null) {
+                    userProfileMemoryMapper.deleteById(existingEntity.getId());
+                    deletedCount++;
+                    log.info("长期画像属性已通过 DELETE_MARKER 删除，userId={}，attributeKey={}", userId,
+                            attribute.attributeKey());
+                }
+                continue;
+            }
+
             if (existingEntity != null) {
                 existingEntity.setAttributeValue(attribute.attributeValue());
                 existingEntity.setUpdateTime(now);
@@ -478,16 +498,9 @@ public class MemoryExtractionService {
             insertedCount++;
         }
 
-        Set<String> newKeys = filteredAttributes.stream().map(MemoryAttribute::attributeKey).collect(Collectors.toSet());
-        int deletedCount = 0;
-        for (UserProfileMemoryEntity memory : existing) {
-            if (!newKeys.contains(memory.getAttributeKey())) {
-                userProfileMemoryMapper.deleteById(memory.getId());
-                deletedCount++;
-            }
-        }
-        log.info("长期画像已同步，userId={}，inserted={}，updated={}，deleted={}，finalCount={}",
-                userId, insertedCount, updatedCount, deletedCount, filteredAttributes.size());
+        log.info("长期画像已同步，userId={}，inserted={}，updated={}，deleted={}，finalEstimatedCount~{}",
+                userId, insertedCount, updatedCount, deletedCount,
+                existing.size() + insertedCount - deletedCount);
     }
 
     /**
