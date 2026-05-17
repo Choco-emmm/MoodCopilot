@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { fetchEventSource } from '@microsoft/fetch-event-source'
 
 const api = axios.create({ baseURL: '/api' })
 
@@ -150,4 +151,32 @@ export const chatApi = {
   saveHistory: (id: number, messages: any[]) => api.put(`/chat/conversations/${id}/history`, { messages }),
   reply: (id: number, message: string, references: string[] = []) =>
     api.post(`/chat/conversations/${id}/reply`, { message, references }),
+  /** SSE 流式请求 */
+  replyStream: (
+    id: number,
+    message: string,
+    references: string[],
+    onChunk: (text: string) => void,
+    ctrl: AbortController,
+  ): Promise<void> => {
+    const token = localStorage.getItem('token')
+    return fetchEventSource(`/api/chat/conversations/${id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ message, references }),
+      signal: ctrl.signal,
+      openWhenHidden: true,
+      onmessage(event) {
+        const chunk = event.data
+        if (chunk === '[DONE]') return
+        onChunk(chunk)
+      },
+      onerror(err) {
+        throw err
+      },
+    })
+  },
 }

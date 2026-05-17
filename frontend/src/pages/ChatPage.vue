@@ -208,6 +208,7 @@ const syncCooldownUntil = ref(0)
 let syncTimer: number | null = null
 let convListSyncTick = 0
 let msgIdCounter = 0
+let streamAbortCtrl: AbortController | null = null
 
 onMounted(async () => {
   const state = history.state as any
@@ -250,6 +251,10 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (streamAbortCtrl) {
+    streamAbortCtrl.abort()
+    streamAbortCtrl = null
+  }
   if (window.visualViewport) {
     window.visualViewport.removeEventListener('resize', handleViewportResize)
   }
@@ -277,6 +282,11 @@ async function loadConversations() {
 
 async function selectConversation(id: number) {
   if (id === activeConvId.value) return
+  // 中止当前流
+  if (streamAbortCtrl) {
+    streamAbortCtrl.abort()
+    streamAbortCtrl = null
+  }
   // 保存当前会话
   if (activeConvId.value && messages.value.length > 0) {
     await saveToBackend(activeConvId.value).catch(() => {})
@@ -495,23 +505,39 @@ async function retryLastReply() {
 }
 
 async function sendReply(convId: number, content: string, refContents: string[], isRetry: boolean) {
+  // 中止上一次未完成的流
+  if (streamAbortCtrl) {
+    streamAbortCtrl.abort()
+    streamAbortCtrl = null
+  }
+  const ctrl = new AbortController()
+  streamAbortCtrl = ctrl
+
+  let fullReply = ''
+
   try {
-    const res = await chatApi.reply(convId, content, refContents)
-    if (res.data?.code !== 0) {
-      throw new Error(res.data?.message || '请求失败')
-    }
-    const reply = String(res.data?.data ?? '').trim() || '我刚才没有组织好语言，你可以再说一遍吗？'
-    isThinking.value = false
-    if (activeConvId.value !== convId) {
-      return
-    }
+    await chatApi.replyStream(convId, content, refContents, (chunk) => {
+      fullReply += chunk
+      streamingText.value = fullReply
+      if (isThinking.value) {
+        isThinking.value = false
+      }
+      scrollBottom()
+    }, ctrl)
+
+    // 流正常结束
+    if (activeConvId.value !== convId) return
     lastReplyError.value = null
     lastReplyRequest.value = null
-    messages.value.push({ id: nextMsgId(), role: 'ai', content: reply })
+    messages.value.push({
+      id: nextMsgId(),
+      role: 'ai',
+      content: fullReply || '我刚才没有组织好语言，你可以再说一遍吗？',
+    })
   } catch (e: any) {
     isThinking.value = false
-    const bizMessage = e?.response?.data?.message || e?.message
-    const errorText = chatErrorMessage(e?.response?.status, bizMessage)
+    const bizMessage = e?.message
+    const errorText = chatErrorMessage(e?.status, bizMessage)
     if (activeConvId.value === convId) {
       lastReplyError.value = errorText
       lastReplyRequest.value = { convId, content, refContents }
@@ -520,6 +546,7 @@ async function sendReply(convId: number, content: string, refContents: string[],
       }
     }
   } finally {
+    streamAbortCtrl = null
     finishSend(convId)
   }
 }

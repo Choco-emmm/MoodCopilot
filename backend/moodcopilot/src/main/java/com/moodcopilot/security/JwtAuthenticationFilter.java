@@ -7,6 +7,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,6 +22,8 @@ import java.util.Map;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+
     private final JwtTokenProvider jwtTokenProvider;
     private final UserMapper userMapper;
 
@@ -32,6 +36,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         String token = extractToken(request);
+        String uri = request.getRequestURI();
+        if (token != null) {
+            log.debug("JWT Token 提取成功，uri={}, tokenPrefix={}...", uri, token.substring(0, Math.min(8, token.length())));
+        } else {
+            log.debug("JWT Token 未提取到，uri={}", uri);
+        }
         if (token != null && jwtTokenProvider.validateToken(token)) {
             Long userId = jwtTokenProvider.getUserId(token);
             UserEntity user = userMapper.selectById(userId);
@@ -53,9 +63,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private String extractToken(HttpServletRequest request) {
+        // 优先从 Authorization header 提取
         String header = request.getHeader("Authorization");
         if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
             return header.substring(7);
+        }
+        // WebSocket 握手无法携带自定义 header，从 query 参数提取
+        if (request.getRequestURI().startsWith("/ws/")) {
+            String token = request.getParameter("token");
+            if (StringUtils.hasText(token)) {
+                return token.trim();
+            }
         }
         return null;
     }
