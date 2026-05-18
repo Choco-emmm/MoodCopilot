@@ -131,7 +131,9 @@ public class MemoryExtractionService {
             List<UserProfileMemoryEntity> existing = listUserMemories(userId);
             log.info("开始提取长期画像，userId={}，旧属性数={}，日记长度={}", userId, existing.size(),
                     diaryContent == null ? 0 : diaryContent.length());
-            String prompt = buildExtractionUserPrompt(diaryContent, existing);
+            // RAG 检索与当前日记语义相关的历史内容，帮助 LLM 发现跨日记的模式
+            String ragContext = ragMemoryService.buildRagContext(userId, diaryContent, 3);
+            String prompt = buildExtractionUserPrompt(diaryContent, existing, ragContext);
             String json = analysisChatClient.prompt()
                     .system(MEMORY_EXTRACTION_PROMPT)
                     .user(prompt)
@@ -334,7 +336,8 @@ public class MemoryExtractionService {
 
     // ---- 私有方法 ----
 
-    private String buildExtractionUserPrompt(String diaryContent, List<UserProfileMemoryEntity> existing) {
+    private String buildExtractionUserPrompt(String diaryContent, List<UserProfileMemoryEntity> existing,
+            String ragContext) {
         StringBuilder sb = new StringBuilder("新日记：\n").append(diaryContent).append("\n\n旧属性列表：\n");
         if (existing.isEmpty()) {
             sb.append("- 无\n");
@@ -343,6 +346,10 @@ public class MemoryExtractionService {
                 sb.append("- ").append(memory.getAttributeKey()).append("：")
                         .append(memory.getAttributeValue()).append("\n");
             }
+        }
+        if (ragContext != null && !ragContext.isBlank()) {
+            sb.append("\n").append(ragContext).append("\n");
+            sb.append("（以上历史记录仅供参考模式识别，请以新日记为主要提取依据）\n");
         }
         return sb.toString();
     }

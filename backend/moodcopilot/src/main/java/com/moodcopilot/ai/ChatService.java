@@ -29,6 +29,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.messages.AssistantMessage;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -155,9 +156,10 @@ public class ChatService {
                 message == null ? 0 : message.length());
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
+        String ragCtx = ragMemoryService.buildRagContext(uid, message, 3);
         return chatChatClient.prompt()
                 .user(message)
-                .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
+                .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT + ragCtx))
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
                 .functions(
                         DiarySearchFunctionSupport.NAME,
@@ -184,9 +186,10 @@ public class ChatService {
                 message == null ? 0 : message.length());
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
+        String ragCtx = ragMemoryService.buildRagContext(uid, message, 3);
         String result = chatChatClient.prompt()
                 .user(message)
-                .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
+                .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT + ragCtx))
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
                 .functions(
                         DiarySearchFunctionSupport.NAME,
@@ -317,26 +320,45 @@ public class ChatService {
         }
     }
 
+    private static final int CHAT_HISTORY_CHAR_BUDGET = 3000;
+
     /**
-     * 从 ChatMemory 中提取最近 20 条消息（约 10 轮对白），
-     * 格式化为文本注入到思考模型的 system prompt 中，填补 Advisors 缺席导致的记忆断层。
-     * Spring AI 的 MessageChatMemoryAdvisor 默认使用 "default" 作为 conversationId。
+     * 从 ChatMemory 中提取最近消息，按字符预算自动截断旧消息。
+     * 保留最近消息完整，超出预算时从最早的消息开始丢弃。
      */
     private String formatChatHistory(ChatMemory memory) {
-        List<Message> messages = memory.get("default", 20);
+        List<Message> messages = memory.get("default", Integer.MAX_VALUE);
         if (messages == null || messages.isEmpty()) {
             return "";
         }
-        StringBuilder sb = new StringBuilder("<chat_history>\n【往期聊天历史记忆】\n");
-        for (Message msg : messages) {
+        // 倒序收集，从最新消息开始累计，到达预算后停止
+        List<String> parts = new ArrayList<>();
+        int totalChars = 0;
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            Message msg = messages.get(i);
             String role = switch (msg.getMessageType()) {
                 case USER -> "用户";
                 case ASSISTANT -> "AI";
                 default -> null;
             };
-            if (role != null && msg.getText() != null && !msg.getText().isBlank()) {
-                sb.append(role).append("：").append(msg.getText().trim()).append("\n");
+            if (role == null) continue;
+            String text = msg.getText();
+            if (text == null || text.isBlank()) continue;
+            String line = role + "：" + text.trim();
+            totalChars += line.length();
+            if (totalChars > CHAT_HISTORY_CHAR_BUDGET && !parts.isEmpty()) {
+                break; // 超出预算，停止累积旧消息
             }
+            parts.add(line);
+        }
+        if (parts.isEmpty()) {
+            return "";
+        }
+        // 恢复时间顺序
+        java.util.Collections.reverse(parts);
+        StringBuilder sb = new StringBuilder("<chat_history>\n【往期聊天历史记忆】\n");
+        for (String part : parts) {
+            sb.append(part).append("\n");
         }
         return sb.append("</chat_history>\n\n").toString();
     }
