@@ -10,91 +10,105 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public record DiaryView(
-        long id,
-        long authorUserId,
-        String authorName,
-        String authorAvatar,
-        String content,
-        DiaryVisibility visibility,
-        DiaryAnalysis analysis,
-        LocalDateTime createdAt,
-        int resonanceCount,
-        boolean isPinned,
-        List<DiaryComment> comments
-) {
-    static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments, String authorAvatar, String authorName, Map<Long, String> commentAuthorNames) {
-        return build(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames, false);
-    }
-
-    /** 公开视图：仅暴露情绪标签和主题，不暴露强度、摘要、反馈 */
-    static DiaryView fromPublic(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments, String authorAvatar, String authorName, Map<Long, String> commentAuthorNames) {
-        return build(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames, true);
-    }
-
-    private static DiaryView build(DiaryEntity diary, DiaryAnalysisEntity analysis,
-                                    List<DiaryCommentEntity> comments, String authorAvatar, String authorName,
-                                    Map<Long, String> commentAuthorNames, boolean isPublic) {
-        DiaryAnalysis viewAnalysis = null;
-        if (analysis != null) {
-            if (isPublic) {
-                viewAnalysis = new DiaryAnalysis(
-                        analysis.getMoodLabel(),
-                        0,
-                        analysis.getTopicLabelsJson(),
-                        null,
-                        null
-                );
-            } else {
-                viewAnalysis = new DiaryAnalysis(
-                        analysis.getMoodLabel(),
-                        analysis.getMoodIntensity(),
-                        analysis.getTopicLabelsJson(),
-                        analysis.getSecondaryMoodsJson() != null ? analysis.getSecondaryMoodsJson() : List.of(),
-                        analysis.getSummary(),
-                        analysis.getFeedback()
-                );
-            }
+                long id,
+                long authorUserId,
+                String authorName,
+                String authorAvatar,
+                String content,
+                DiaryVisibility visibility,
+                DiaryAnalysis analysis,
+                LocalDateTime createdAt,
+                int resonanceCount,
+                boolean likedByMe,
+                boolean isPinned,
+                List<DiaryComment> comments) {
+        static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments,
+                        String authorAvatar, String authorName, Map<Long, String> commentAuthorNames,
+                        boolean likedByMe) {
+                return build(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames, false, likedByMe);
         }
-        return new DiaryView(
-                diary.getId(),
-                diary.getAuthorUserId(),
-                authorName,
-                authorAvatar,
-                diary.getContent(),
-                DiaryVisibility.valueOf(diary.getVisibility()),
-                viewAnalysis,
-                diary.getCreatedAt(),
-                diary.getResonanceCount(),
-                Boolean.TRUE.equals(diary.getIsPinned()),
-                buildCommentTree(comments, commentAuthorNames)
-        );
-    }
 
-    static DiaryView from(DiaryEntity diary, List<DiaryCommentEntity> comments, String authorAvatar, String authorName, Map<Long, String> commentAuthorNames) {
-        return from(diary, null, comments, authorAvatar, authorName, commentAuthorNames);
-    }
+        /** 公开视图：仅暴露情绪标签和主题，不暴露强度、摘要、反馈 */
+        static DiaryView fromPublic(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments,
+                        String authorAvatar, String authorName, Map<Long, String> commentAuthorNames,
+                        boolean likedByMe) {
+                return build(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames, true, likedByMe);
+        }
 
-    private static List<DiaryComment> buildCommentTree(List<DiaryCommentEntity> entities, Map<Long, String> commentAuthorNames) {
-        var topLevel = entities.stream()
-                .filter(c -> c.getRootCommentId() == null)
-                .toList();
-        var repliesByRoot = entities.stream()
-                .filter(c -> c.getRootCommentId() != null)
-                .collect(Collectors.groupingBy(DiaryCommentEntity::getRootCommentId));
-        var authorById = entities.stream()
-                .collect(Collectors.toMap(
-                        DiaryCommentEntity::getId,
-                        c -> commentAuthorNames.getOrDefault(c.getAuthorUserId(), c.getAuthorName()),
-                        (a, b) -> a));
-        return topLevel.stream()
-                .map(c -> DiaryComment.from(c, null,
-                        repliesByRoot.getOrDefault(c.getId(), List.of()).stream()
-                                .map(r -> DiaryComment.from(r,
-                                        r.getParentCommentId() != null ? authorById.get(r.getParentCommentId()) : null,
-                                        List.<DiaryComment>of(),
-                                        commentAuthorNames.getOrDefault(r.getAuthorUserId(), r.getAuthorName())))
-                                .toList(),
-                        commentAuthorNames.getOrDefault(c.getAuthorUserId(), c.getAuthorName())))
-                .toList();
-    }
+        private static DiaryView build(DiaryEntity diary, DiaryAnalysisEntity analysis,
+                        List<DiaryCommentEntity> comments, String authorAvatar, String authorName,
+                        Map<Long, String> commentAuthorNames, boolean isPublic, boolean likedByMe) {
+                DiaryAnalysis viewAnalysis = null;
+                if (analysis != null) {
+                        if (isPublic) {
+                                viewAnalysis = new DiaryAnalysis(
+                                                analysis.getMoodLabel(),
+                                                0,
+                                                analysis.getTopicLabelsJson(),
+                                                null,
+                                                null);
+                        } else {
+                                viewAnalysis = new DiaryAnalysis(
+                                                analysis.getMoodLabel(),
+                                                analysis.getMoodIntensity(),
+                                                analysis.getTopicLabelsJson(),
+                                                analysis.getSecondaryMoodsJson() != null
+                                                                ? analysis.getSecondaryMoodsJson()
+                                                                : List.of(),
+                                                analysis.getSummary(),
+                                                analysis.getFeedback());
+                        }
+                }
+                return new DiaryView(
+                                diary.getId(),
+                                diary.getAuthorUserId(),
+                                authorName,
+                                authorAvatar,
+                                diary.getContent(),
+                                DiaryVisibility.valueOf(diary.getVisibility()),
+                                viewAnalysis,
+                                diary.getCreatedAt(),
+                                diary.getResonanceCount(),
+                                likedByMe,
+                                Boolean.TRUE.equals(diary.getIsPinned()),
+                                buildCommentTree(comments, commentAuthorNames));
+        }
+
+        static DiaryView from(DiaryEntity diary, List<DiaryCommentEntity> comments, String authorAvatar,
+                        String authorName,
+                        Map<Long, String> commentAuthorNames, boolean likedByMe) {
+                return from(diary, null, comments, authorAvatar, authorName, commentAuthorNames, likedByMe);
+        }
+
+        private static List<DiaryComment> buildCommentTree(List<DiaryCommentEntity> entities,
+                        Map<Long, String> commentAuthorNames) {
+                var topLevel = entities.stream()
+                                .filter(c -> c.getRootCommentId() == null)
+                                .toList();
+                var repliesByRoot = entities.stream()
+                                .filter(c -> c.getRootCommentId() != null)
+                                .collect(Collectors.groupingBy(DiaryCommentEntity::getRootCommentId));
+                var authorById = entities.stream()
+                                .collect(Collectors.toMap(
+                                                DiaryCommentEntity::getId,
+                                                c -> commentAuthorNames.getOrDefault(c.getAuthorUserId(),
+                                                                c.getAuthorName()),
+                                                (a, b) -> a));
+                return topLevel.stream()
+                                .map(c -> DiaryComment.from(c, null,
+                                                repliesByRoot.getOrDefault(c.getId(), List.of()).stream()
+                                                                .map(r -> DiaryComment.from(r,
+                                                                                r.getParentCommentId() != null
+                                                                                                ? authorById.get(r
+                                                                                                                .getParentCommentId())
+                                                                                                : null,
+                                                                                List.<DiaryComment>of(),
+                                                                                commentAuthorNames.getOrDefault(
+                                                                                                r.getAuthorUserId(),
+                                                                                                r.getAuthorName())))
+                                                                .toList(),
+                                                commentAuthorNames.getOrDefault(c.getAuthorUserId(),
+                                                                c.getAuthorName())))
+                                .toList();
+        }
 }

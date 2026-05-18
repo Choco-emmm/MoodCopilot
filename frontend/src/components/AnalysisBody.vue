@@ -90,25 +90,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NProgress, NPopover } from 'naive-ui'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
 import type { Diary } from '../stores/diary'
 import { moodColor } from '../utils/mood'
+import { renderSafeMarkdown } from '../utils/markdown'
 
 const props = defineProps<{ diary: Diary }>()
 
 function renderMd(text: string) {
-  if (!text) return ''
-  const html = marked.parse(text, { async: false }) as string
-  return DOMPurify.sanitize(html, {
-    USE_PROFILES: { html: true },
-    ALLOWED_TAGS: [
-      'p', 'br', 'strong', 'em', 'b', 'i', 'u',
-      'ul', 'ol', 'li', 'blockquote', 'code', 'pre',
-      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a',
-    ],
-    ALLOWED_ATTR: ['href', 'target', 'rel'],
-  })
+  return renderSafeMarkdown(text)
 }
 
 const moodGroups = [

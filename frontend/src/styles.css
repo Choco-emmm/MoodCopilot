@@ -841,15 +841,102 @@ h2 {
 }
 
 .feed-item .feed-actions {
-  justify-content: flex-start;
-  padding-top: 2px;
+  display: grid;
+  grid-template-columns: minmax(94px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
 }
 
-.feed-safety-actions {
-  display: flex;
+.feed-report-btn {
+  color: var(--color-text-muted);
+  min-height: 30px;
+  padding: 0 6px;
+}
+
+.like-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-left: auto;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  min-width: 72px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.like-btn:hover {
+  border-color: color-mix(in srgb, var(--color-jade) 40%, var(--color-border) 60%);
+  background: color-mix(in srgb, var(--color-jade-light) 25%, white 75%);
+}
+
+.like-btn:hover .like-btn-icon {
+  transform: scale(1.12);
+}
+
+.like-btn .like-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+  transition: transform 0.25s ease, color 0.2s ease;
+}
+
+.like-btn .like-btn-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.like-btn .like-btn-count {
+  min-width: 1.4em;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.like-btn.liked {
+  border-color: var(--color-jade);
+  background: color-mix(in srgb, var(--color-jade-light) 55%, white 45%);
+  color: var(--color-jade);
+}
+
+.like-btn.liked .like-btn-icon {
+  color: var(--color-jade);
+}
+
+@keyframes like-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+.like-btn.just-liked .like-btn-icon {
+  animation: like-pop 0.35s ease;
+}
+
+.feed-admin-row {
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px dashed color-mix(in srgb, var(--color-border) 86%, white 14%);
+}
+
+.feed-admin-delete {
+  color: #b23a3a;
+  font-weight: 700;
+}
+
+.feed-time {
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 
 .feed-head-left {
@@ -874,12 +961,29 @@ h2 {
   min-width: 0;
 }
 
-.author-row strong {
+.author-row strong,
+.author-name-link {
   display: inline-block;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.author-name-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+
+.author-name-link:hover {
+  color: var(--color-jade);
 }
 
 .feed-follow-btn {
@@ -1055,9 +1159,11 @@ h2 {
 
 /* ── Notifications ── */
 .notif-popover {
-  width: 280px;
+  width: min(340px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
   max-height: 360px;
   overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .notif-empty {
@@ -1070,7 +1176,7 @@ h2 {
 .notif-item {
   display: grid;
   gap: 4px;
-  padding: 12px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--color-border);
   cursor: pointer;
   transition: background 0.15s;
@@ -1089,6 +1195,44 @@ h2 {
   font-size: 14px;
   line-height: 1.5;
   color: var(--color-text);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.notif-msg-collapsed {
+  max-height: 4.8em;
+  overflow: hidden;
+  position: relative;
+}
+
+.notif-msg-collapsed::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1.6em;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.92));
+}
+
+.notif-msg :is(p, ul, ol, blockquote, pre, code) {
+  margin: 0;
+}
+
+.notif-msg a {
+  word-break: break-all;
+}
+
+.notif-expand-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin-top: 2px;
+  color: var(--color-jade);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
 }
 
 .notif-time {
@@ -2340,6 +2484,12 @@ h2 {
     padding-bottom: env(safe-area-inset-bottom);
   }
 
+  .notif-popover {
+    width: calc(100vw - 20px);
+    max-width: 320px;
+    max-height: min(62vh, 420px);
+  }
+
   .app-shell {
     width: 100%;
     padding: 28px 20px calc(96px + env(safe-area-inset-bottom));
@@ -2412,8 +2562,10 @@ h2 {
     bottom: 0;
     z-index: 9000;
     display: flex;
-    gap: 6px;
+    align-items: flex-end;
+    gap: 4px;
     overflow-x: auto;
+    overflow-y: visible;
     padding: 7px 10px calc(7px + env(safe-area-inset-bottom));
     border-top: 1px solid rgba(212, 205, 188, 0.9);
     background: rgba(253, 251, 247, 0.96);
@@ -2427,12 +2579,13 @@ h2 {
   }
 
   .mobile-nav-link {
-    display: inline-grid;
+    flex: 1 0 60px;
+    display: grid;
     place-items: center;
     gap: 2px;
-    min-width: 66px;
+    min-width: 60px;
     min-height: 46px;
-    padding: 8px 10px;
+    padding: 8px 6px;
     border-radius: 12px;
     color: var(--color-text-muted);
     font-size: 11px;
@@ -2630,31 +2783,39 @@ h2 {
 
   .feed-item .feed-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
+    align-items: stretch;
   }
 
   .feed-item .feed-actions>.n-button {
-    width: 100%;
     min-height: 42px;
     border-radius: 12px;
     justify-content: center;
     font-weight: 600;
   }
 
-  .feed-safety-actions {
-    grid-column: 1 / -1;
-    justify-self: end;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    margin-left: 0;
-    margin-top: 2px;
+  .feed-item .feed-actions>.like-btn {
+    width: 100%;
   }
 
-  .feed-safety-actions .n-button {
-    min-height: 38px;
-    border-radius: 10px;
+  .feed-item .like-btn {
+    min-height: 40px;
+    border-radius: 12px;
+  }
+
+  .feed-item .feed-report-btn {
+    justify-self: end;
+    width: auto;
+    min-height: 30px;
+    border-radius: 8px;
+    padding: 0 6px;
+    font-weight: 500;
+  }
+
+  .feed-admin-row {
+    margin-top: 0;
+    padding-top: 6px;
   }
 
   .comment-box {
@@ -2950,6 +3111,25 @@ h2 {
   .diary-detail-page .comment-reply-box .n-button,
   .chat-input-row .n-button {
     min-height: 40px;
+  }
+
+  .feed-item .feed-actions>.like-btn,
+  .diary-detail-page .detail-actions>.like-btn {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
+    gap: 5px;
+  }
+
+  .feed-item .like-btn .like-btn-icon,
+  .diary-detail-page .detail-actions .like-btn .like-btn-icon {
+    width: 15px;
+    height: 15px;
+  }
+
+  .feed-item .like-btn .like-btn-count,
+  .diary-detail-page .detail-actions .like-btn .like-btn-count {
+    font-size: 13px;
   }
 
   .report-mode-tabs,

@@ -8,7 +8,7 @@
           <div class="diary-author-row">
             <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-img" decoding="async" />
             <span v-else class="avatar">{{ diary.authorName.charAt(0) }}</span>
-            <span class="author-name">{{ diary.authorName }}</span>
+            <n-button text class="author-name-link" @click="openAuthorProfile">{{ diary.authorName }}</n-button>
             <span class="diary-time">{{ formatTime(diary.createdAt) }}</span>
             <n-tag :type="diary.visibility === 'PUBLIC' ? 'success' : 'default'" round size="small">
               {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
@@ -69,8 +69,15 @@
           </div>
 
           <div class="detail-actions">
-            <n-button size="small" tertiary :disabled="resonating" @click="resonateDiary">
-              👍 {{ diary.resonanceCount ?? 0 }}
+            <n-button
+              size="small"
+              tertiary
+              :class="['like-btn', { liked: diary.likedByMe, 'just-liked': justLiked }]"
+              :disabled="resonating"
+              @click="resonateDiary"
+            >
+              <span class="like-btn-icon" v-html="diary.likedByMe ? thumbsUpFilled : thumbsUpOutline" />
+              <span class="like-btn-count">{{ diary.resonanceCount ?? 0 }}</span>
             </n-button>
           </div>
         </div>
@@ -199,6 +206,10 @@ const replyTargetName = ref('')
 const sending = ref(false)
 const deleting = ref(false)
 const resonating = ref(false)
+const justLiked = ref(false)
+let justLikedTimer: ReturnType<typeof setTimeout> | null = null
+const thumbsUpOutline = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3m7-2V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14Z"/></svg>`
+const thumbsUpFilled = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3m7-2V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14Z"/></svg>`
 const editing = ref(false)
 const editContent = ref('')
 const editVisibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
@@ -318,6 +329,11 @@ async function reportDiary() {
   await reportApi.create({ targetType: 'DIARY', targetId: diary.value.id, reason: reason.trim() })
 }
 
+function openAuthorProfile() {
+  if (!diary.value) return
+  router.push(`/profile/${diary.value.authorUserId}`)
+}
+
 async function togglePin() {
   if (!diary.value || pinning.value) return
   pinning.value = true
@@ -358,12 +374,15 @@ async function reportComment(commentId: number) {
 async function resonateDiary() {
   if (!diary.value || resonating.value) return
   resonating.value = true
+  if (justLikedTimer) { clearTimeout(justLikedTimer) }
+  justLiked.value = true
   try {
     const res = await diaryApi.resonate(diary.value.id)
     diary.value = store.normalize(res.data.data)
   } finally {
     resonating.value = false
   }
+  justLikedTimer = window.setTimeout(() => { justLiked.value = false }, 360)
 }
 
 function selectDiary(d: Diary) {

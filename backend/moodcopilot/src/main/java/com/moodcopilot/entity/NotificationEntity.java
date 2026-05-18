@@ -17,37 +17,96 @@ public class NotificationEntity {
     private Long commentId;
     private String type;
     private String message;
+    private Boolean isMarkdown;
     private Boolean isRead;
     private LocalDateTime readAt;
     private LocalDateTime createdAt;
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public Long getRecipientUserId() { return recipientUserId; }
-    public void setRecipientUserId(Long recipientUserId) { this.recipientUserId = recipientUserId; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    public Long getActorUserId() { return actorUserId; }
-    public void setActorUserId(Long actorUserId) { this.actorUserId = actorUserId; }
+    public Long getRecipientUserId() {
+        return recipientUserId;
+    }
 
-    public Long getDiaryId() { return diaryId; }
-    public void setDiaryId(Long diaryId) { this.diaryId = diaryId; }
+    public void setRecipientUserId(Long recipientUserId) {
+        this.recipientUserId = recipientUserId;
+    }
 
-    public Long getCommentId() { return commentId; }
-    public void setCommentId(Long commentId) { this.commentId = commentId; }
+    public Long getActorUserId() {
+        return actorUserId;
+    }
 
-    public String getType() { return type; }
-    public void setType(String type) { this.type = type; }
+    public void setActorUserId(Long actorUserId) {
+        this.actorUserId = actorUserId;
+    }
 
-    public String getMessage() { return message; }
-    public void setMessage(String message) { this.message = message; }
+    public Long getDiaryId() {
+        return diaryId;
+    }
 
-    public Boolean getIsRead() { return isRead; }
-    public void setIsRead(Boolean isRead) { this.isRead = isRead; }
+    public void setDiaryId(Long diaryId) {
+        this.diaryId = diaryId;
+    }
 
-    public LocalDateTime getReadAt() { return readAt; }
-    public void setReadAt(LocalDateTime readAt) { this.readAt = readAt; }
+    public Long getCommentId() {
+        return commentId;
+    }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public void setCommentId(Long commentId) {
+        this.commentId = commentId;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
+
+    public Boolean getIsMarkdown() {
+        return isMarkdown;
+    }
+
+    public void setIsMarkdown(Boolean isMarkdown) {
+        this.isMarkdown = isMarkdown;
+    }
+
+    public Boolean getIsRead() {
+        return isRead;
+    }
+
+    public void setIsRead(Boolean isRead) {
+        this.isRead = isRead;
+    }
+
+    public LocalDateTime getReadAt() {
+        return readAt;
+    }
+
+    public void setReadAt(LocalDateTime readAt) {
+        this.readAt = readAt;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
 }

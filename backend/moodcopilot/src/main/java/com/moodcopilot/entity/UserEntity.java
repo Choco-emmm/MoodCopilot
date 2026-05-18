@@ -18,6 +18,7 @@ public class UserEntity {
     private String role;
     private Boolean isVip;
     private String avatar;
+    private String signature;
     private Boolean dailyNotifyEnabled;
     private String inviteCode;
     private Integer inviteQuota;
@@ -25,45 +26,123 @@ public class UserEntity {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public String getDisplayName() { return displayName; }
-    public void setDisplayName(String displayName) { this.displayName = displayName; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public String getDisplayName() {
+        return displayName;
+    }
 
-    public String getPasswordHash() { return passwordHash; }
-    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
+    }
 
-    public Integer getStatus() { return status; }
-    public void setStatus(Integer status) { this.status = status; }
+    public String getEmail() {
+        return email;
+    }
 
-    public String getRole() { return role; }
-    public void setRole(String role) { this.role = role; }
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
-    public Boolean getIsVip() { return isVip; }
-    public void setIsVip(Boolean isVip) { this.isVip = isVip; }
+    public String getPasswordHash() {
+        return passwordHash;
+    }
 
-    public String getAvatar() { return avatar; }
-    public void setAvatar(String avatar) { this.avatar = avatar; }
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
 
-    public Boolean getDailyNotifyEnabled() { return dailyNotifyEnabled; }
-    public void setDailyNotifyEnabled(Boolean dailyNotifyEnabled) { this.dailyNotifyEnabled = dailyNotifyEnabled; }
+    public Integer getStatus() {
+        return status;
+    }
 
-    public String getInviteCode() { return inviteCode; }
-    public void setInviteCode(String inviteCode) { this.inviteCode = inviteCode; }
+    public void setStatus(Integer status) {
+        this.status = status;
+    }
 
-    public Integer getInviteQuota() { return inviteQuota; }
-    public void setInviteQuota(Integer inviteQuota) { this.inviteQuota = inviteQuota; }
+    public String getRole() {
+        return role;
+    }
 
-    public Long getInvitedBy() { return invitedBy; }
-    public void setInvitedBy(Long invitedBy) { this.invitedBy = invitedBy; }
+    public void setRole(String role) {
+        this.role = role;
+    }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Boolean getIsVip() {
+        return isVip;
+    }
 
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public void setIsVip(Boolean isVip) {
+        this.isVip = isVip;
+    }
+
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
+    }
+
+    public String getSignature() {
+        return signature;
+    }
+
+    public void setSignature(String signature) {
+        this.signature = signature;
+    }
+
+    public Boolean getDailyNotifyEnabled() {
+        return dailyNotifyEnabled;
+    }
+
+    public void setDailyNotifyEnabled(Boolean dailyNotifyEnabled) {
+        this.dailyNotifyEnabled = dailyNotifyEnabled;
+    }
+
+    public String getInviteCode() {
+        return inviteCode;
+    }
+
+    public void setInviteCode(String inviteCode) {
+        this.inviteCode = inviteCode;
+    }
+
+    public Integer getInviteQuota() {
+        return inviteQuota;
+    }
+
+    public void setInviteQuota(Integer inviteQuota) {
+        this.inviteQuota = inviteQuota;
+    }
+
+    public Long getInvitedBy() {
+        return invitedBy;
+    }
+
+    public void setInvitedBy(Long invitedBy) {
+        this.invitedBy = invitedBy;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 }

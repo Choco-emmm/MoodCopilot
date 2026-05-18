@@ -9,9 +9,11 @@
             <n-tag v-if="diary.isPinned" type="warning" size="small" round style="margin-right: 8px;">
               📌 置顶公告
             </n-tag>
-            <strong>{{ diary.authorName }}</strong>
+            <button type="button" class="author-name-link" @click.stop="openAuthorProfile(diary.authorUserId)">
+              {{ diary.authorName }}
+            </button>
           </div>
-          <span>{{ formatTime(diary.createdAt) }}</span>
+          <span class="feed-time">{{ formatTime(diary.createdAt) }}</span>
         </div>
       </div>
       <div class="feed-head-right">
@@ -40,23 +42,17 @@
     </button>
 
     <div class="feed-actions">
-      <n-button size="small" tertiary @click="$emit('resonate', diary)">
-        👍 {{ diary.resonanceCount ?? 0 }}
+      <n-button size="small" tertiary :class="['like-btn', { liked: diary.likedByMe, 'just-liked': justLiked }]" @click="handleResonate(diary)">
+        <span class="like-btn-icon" v-html="diary.likedByMe ? thumbsUpFilled : thumbsUpOutline" />
+        <span class="like-btn-count">{{ diary.resonanceCount ?? 0 }}</span>
       </n-button>
-      <n-button size="small" text @click="$emit('open-detail', diary)">查看详情</n-button>
-      <div v-if="diary.authorUserId !== auth.userId" class="feed-safety-actions">
-        <n-button size="small" text @click="reportDiary">举报</n-button>
-      </div>
-      <span v-if="auth.isAdmin">
-        <n-button
-          size="small"
-          text
-          style="color: #b23a3a; margin-left: auto; font-weight: bold;"
-          @click="handleAdminDeleteCard"
-        >
-          🗑️ 强制删除
-        </n-button>
-      </span>
+      <n-button v-if="diary.authorUserId !== auth.userId" size="small" text class="feed-report-btn" @click="reportDiary">举报</n-button>
+    </div>
+
+    <div v-if="auth.isAdmin" class="feed-admin-row">
+      <n-button size="small" text class="feed-admin-delete" @click="handleAdminDeleteCard">
+        🗑️ 强制删除
+      </n-button>
     </div>
 
     <div v-if="enableComments && (diary.comments ?? []).length" class="comments">
@@ -122,6 +118,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import type { Diary } from '../stores/diary'
 import { useDiaryStore } from '../stores/diary'
@@ -131,6 +128,7 @@ import { reportApi } from '../api'
 
 const store = useDiaryStore()
 const message = useMessage()
+const router = useRouter()
 
 const props = withDefaults(defineProps<{
   diary: Diary
@@ -159,6 +157,11 @@ const draft = ref('')
 const replyDraft = ref('')
 const replyTo = ref<number | null>(null)
 const expanded = ref(false)
+const justLiked = ref(false)
+let justLikedTimer: ReturnType<typeof setTimeout> | null = null
+
+const thumbsUpOutline = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3m7-2V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14Z"/></svg>`
+const thumbsUpFilled = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3m7-2V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14Z"/></svg>`
 
 const enableComments = computed(() => props.enableComments)
 const compact = computed(() => props.compact)
@@ -183,6 +186,13 @@ function toggleFollow(userId: number) {
   } else {
     followStore.follow(userId)
   }
+}
+
+function handleResonate(diary: Diary) {
+  if (justLikedTimer) { clearTimeout(justLikedTimer) }
+  justLiked.value = true
+  emit('resonate', diary)
+  justLikedTimer = window.setTimeout(() => { justLiked.value = false }, 360)
 }
 
 function followBtnLabel(userId: number) {
@@ -249,5 +259,10 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
   }).format(new Date(value))
+}
+
+function openAuthorProfile(userId: number) {
+  if (!Number.isFinite(userId)) return
+  router.push(`/profile/${userId}`)
 }
 </script>

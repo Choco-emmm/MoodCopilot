@@ -5,6 +5,7 @@ import com.moodcopilot.entity.UserEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,6 +39,19 @@ public class AuthController {
         return ApiResponse.ok(null);
     }
 
+    @PostMapping("/change-password/send-code")
+    public ApiResponse<Void> sendPasswordChangeCode(@AuthenticationPrincipal UserEntity user) {
+        authService.sendPasswordChangeCode(requireUser(user).getId());
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/change-password")
+    public ApiResponse<Void> changePassword(@AuthenticationPrincipal UserEntity user,
+            @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(requireUser(user).getId(), request);
+        return ApiResponse.ok(null);
+    }
+
     @PostMapping("/register")
     public ApiResponse<AuthResponse> register(@RequestBody RegisterRequest request) {
         return ApiResponse.ok(authService.register(request));
@@ -53,12 +67,20 @@ public class AuthController {
         return ApiResponse.ok(authService.me(requireUser(user).getId()));
     }
 
+    @GetMapping("/profile/{userId}")
+    public ApiResponse<UserProfileResponse> profile(@AuthenticationPrincipal UserEntity user,
+            @PathVariable Long userId) {
+        requireUser(user);
+        return ApiResponse.ok(authService.profile(userId));
+    }
+
     @PostMapping("/update-profile")
     public ApiResponse<AuthResponse> updateProfile(@AuthenticationPrincipal UserEntity user,
             @RequestBody Map<String, String> body) {
         String displayName = body.get("displayName");
         String avatar = body.get("avatar");
-        return ApiResponse.ok(authService.updateProfile(requireUser(user).getId(), displayName, avatar));
+        String signature = body.get("signature");
+        return ApiResponse.ok(authService.updateProfile(requireUser(user).getId(), displayName, avatar, signature));
     }
 
     @PostMapping("/avatar")

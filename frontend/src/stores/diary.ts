@@ -13,6 +13,7 @@ export interface Diary {
   analysis: DiaryAnalysis | null
   createdAt: string
   resonanceCount: number
+  likedByMe?: boolean
   isPinned?: boolean
   comments: DiaryComment[]
 }
@@ -334,6 +335,7 @@ export const useDiaryStore = defineStore('diary', () => {
   function normalize(d: any): Diary {
     return {
       ...d,
+      likedByMe: Boolean(d.likedByMe),
       authorAvatar: normalizeResourceUrl(d.authorAvatar),
       comments: d.comments || [],
     }

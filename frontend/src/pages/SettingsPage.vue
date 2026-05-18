@@ -88,6 +88,42 @@
 
       <section class="settings-section">
         <div class="section-head">
+          <label class="settings-label">个性签名</label>
+          <span class="section-tag">Profile</span>
+        </div>
+        <div class="settings-row settings-row-signature">
+          <n-input
+            v-model:value="editingSignature"
+            type="textarea"
+            :maxlength="160"
+            :autosize="{ minRows: 2, maxRows: 4 }"
+            placeholder="写一句你希望别人看到的状态（最多160字）"
+          />
+          <n-button
+            size="small"
+            type="primary"
+            :loading="savingSignature"
+            :disabled="(editingSignature ?? '').trim() === (auth.signature ?? '')"
+            @click="saveSignature"
+            class="save-btn"
+          >
+            保存签名
+          </n-button>
+        </div>
+        <p v-if="signatureMsg" class="settings-hint">{{ signatureMsg }}</p>
+      </section>
+
+      <section class="settings-section">
+        <div class="section-head">
+          <label class="settings-label">邮箱账号</label>
+          <span class="section-tag">Account</span>
+        </div>
+        <div class="settings-inline-tip">{{ auth.email || '未获取到邮箱信息' }}</div>
+        <p class="settings-desc">邮箱账号当前仅用于登录和安全验证，暂不支持直接修改。</p>
+      </section>
+
+      <section class="settings-section">
+        <div class="section-head">
           <label class="settings-label">提醒与陪伴</label>
           <span class="section-tag">Routine</span>
         </div>
@@ -159,6 +195,66 @@
               </template>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section class="settings-section danger-zone">
+        <div class="section-head">
+          <p class="settings-label">账户安全</p>
+          <span class="section-tag">Security</span>
+        </div>
+        <p class="settings-desc">修改密码前会向当前账号邮箱发送验证码，验证通过后才会生效。</p>
+        <div class="password-change-panel">
+          <div class="password-row-inline">
+            <n-input
+              v-model:value="oldPassword"
+              type="password"
+              show-password-on="click"
+              :maxlength="64"
+              placeholder="输入当前密码"
+            />
+          </div>
+          <div class="password-row-inline">
+            <n-input
+              v-model:value="newPassword"
+              type="password"
+              show-password-on="click"
+              :maxlength="64"
+              placeholder="输入新密码（至少6位）"
+            />
+          </div>
+          <div class="password-row-inline">
+            <n-input
+              v-model:value="confirmNewPassword"
+              type="password"
+              show-password-on="click"
+              :maxlength="64"
+              placeholder="再次输入新密码"
+            />
+          </div>
+          <div class="password-row-inline password-code-row">
+            <n-input
+              v-model:value="passwordVerificationCode"
+              :maxlength="6"
+              placeholder="输入邮箱验证码"
+            />
+            <n-button
+              :disabled="passwordCodeCountdown > 0"
+              :loading="sendingPasswordCode"
+              @click="sendPasswordCode"
+            >
+              {{ passwordCodeCountdown > 0 ? `${passwordCodeCountdown}s` : '发送验证码' }}
+            </n-button>
+          </div>
+          <n-button
+            type="primary"
+            :loading="changingPassword"
+            :disabled="!oldPassword.trim() || !newPassword.trim() || !confirmNewPassword.trim() || !passwordVerificationCode.trim()"
+            @click="submitPasswordChange"
+          >
+            确认修改密码
+          </n-button>
+          <p v-if="passwordMsg" class="settings-hint">{{ passwordMsg }}</p>
         </div>
       </section>
 
@@ -238,11 +334,23 @@ function cancelEditMemory() {
 // ---- end memory management ----
 const fileInput = ref<HTMLInputElement | null>(null)
 const editingName = ref('')
+const editingSignature = ref('')
 const savingName = ref(false)
+const savingSignature = ref(false)
 const nameMsg = ref('')
+const signatureMsg = ref('')
 const uploadMsg = ref('')
 const uploading = ref(false)
 const toggling = ref(false)
+const oldPassword = ref('')
+const newPassword = ref('')
+const confirmNewPassword = ref('')
+const passwordVerificationCode = ref('')
+const sendingPasswordCode = ref(false)
+const changingPassword = ref(false)
+const passwordCodeCountdown = ref(0)
+const passwordMsg = ref('')
+let passwordCodeTimer: number | null = null
 
 const showCropModal = ref(false)
 const cropImageSrc = ref('')
@@ -263,6 +371,7 @@ let drawRafId: number | null = null
 onMounted(async () => {
   await auth.fetchProfile()
   editingName.value = auth.displayName ?? ''
+  editingSignature.value = auth.signature ?? ''
   loadMemories()
 })
 
@@ -402,6 +511,10 @@ onBeforeUnmount(() => {
     window.cancelAnimationFrame(drawRafId)
     drawRafId = null
   }
+  if (passwordCodeTimer != null) {
+    window.clearInterval(passwordCodeTimer)
+    passwordCodeTimer = null
+  }
 })
 
 function handleCrop() {
@@ -457,12 +570,94 @@ async function saveName() {
   savingName.value = false
 }
 
+async function saveSignature() {
+  savingSignature.value = true
+  signatureMsg.value = ''
+  try {
+    await auth.updateProfile(undefined, undefined, editingSignature.value.trim())
+    editingSignature.value = auth.signature ?? ''
+    signatureMsg.value = '个性签名已更新'
+  } catch {
+    signatureMsg.value = '保存失败'
+  }
+  savingSignature.value = false
+}
+
 async function toggleNotify(val: boolean) {
   toggling.value = true
   try {
     await auth.updateSettings(val)
   } catch { /* ignore */ }
   toggling.value = false
+}
+
+async function sendPasswordCode() {
+  if (passwordCodeCountdown.value > 0 || sendingPasswordCode.value) return
+  passwordMsg.value = ''
+  sendingPasswordCode.value = true
+  try {
+    await auth.sendPasswordChangeCode()
+    passwordCodeCountdown.value = 60
+    if (passwordCodeTimer != null) {
+      window.clearInterval(passwordCodeTimer)
+    }
+    passwordCodeTimer = window.setInterval(() => {
+      passwordCodeCountdown.value -= 1
+      if (passwordCodeCountdown.value <= 0 && passwordCodeTimer != null) {
+        window.clearInterval(passwordCodeTimer)
+        passwordCodeTimer = null
+      }
+    }, 1000)
+    passwordMsg.value = '验证码已发送到你的注册邮箱'
+  } catch (e: any) {
+    passwordMsg.value = e?.response?.data?.message || '验证码发送失败'
+  } finally {
+    sendingPasswordCode.value = false
+  }
+}
+
+async function submitPasswordChange() {
+  if (!oldPassword.value.trim()) {
+    passwordMsg.value = '请输入当前密码'
+    return
+  }
+  if (newPassword.value.trim().length < 6) {
+    passwordMsg.value = '新密码至少 6 位'
+    return
+  }
+  if (!confirmNewPassword.value.trim()) {
+    passwordMsg.value = '请再次输入新密码'
+    return
+  }
+  if (newPassword.value.trim() !== confirmNewPassword.value.trim()) {
+    passwordMsg.value = '两次输入的新密码不一致'
+    return
+  }
+  if (!passwordVerificationCode.value.trim()) {
+    passwordMsg.value = '请输入验证码'
+    return
+  }
+
+  changingPassword.value = true
+  passwordMsg.value = ''
+  try {
+    await auth.changePassword(
+      oldPassword.value.trim(),
+      newPassword.value.trim(),
+      confirmNewPassword.value.trim(),
+      passwordVerificationCode.value.trim(),
+    )
+    oldPassword.value = ''
+    newPassword.value = ''
+    confirmNewPassword.value = ''
+    passwordVerificationCode.value = ''
+    auth.logout()
+    await router.push('/login')
+  } catch (e: any) {
+    passwordMsg.value = e?.response?.data?.message || '密码修改失败'
+  } finally {
+    changingPassword.value = false
+  }
 }
 
 function handleLogout() {
@@ -830,6 +1025,26 @@ function handleLogout() {
   min-width: 0;
 }
 
+.password-change-panel {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.password-row-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.password-row-inline :deep(.n-input) {
+  flex: 1;
+}
+
+.password-code-row .n-button {
+  min-width: 108px;
+}
+
 .danger-zone {
   background: linear-gradient(180deg, #ffffff 0%, #fff8f8 100%);
   border-color: rgba(181, 90, 90, 0.2);
@@ -877,6 +1092,15 @@ function handleLogout() {
   .settings-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .password-row-inline {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .password-code-row .n-button {
+    width: 100%;
   }
 
   .save-btn {

@@ -10,6 +10,7 @@ export interface Notification {
   commentId: number | null
   type: string
   message: string
+  isMarkdown?: boolean
   isRead: boolean
   readAt: string | null
   createdAt: string

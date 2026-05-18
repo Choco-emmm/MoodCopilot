@@ -41,6 +41,7 @@ export const diaryApi = {
   create: (data: { content: string; visibility: string }) => api.post('/diaries', data),
   update: (id: number, data: { content: string; visibility: string; isPinned?: boolean }) => api.put(`/diaries/${id}`, data),
   mine: (page = 1, size = 20) => api.get('/diaries/mine', { params: { page, size } }),
+  byUser: (userId: number, page = 1, size = 20) => api.get(`/diaries/user/${userId}`, { params: { page, size } }),
   public: (page = 1, size = 20) => api.get('/diaries/public', { params: { page, size } }),
   get: (id: number) => api.get(`/diaries/${id}`),
   similar: (id: number, limit = 3) => api.get(`/diaries/${id}/similar`, { params: { limit } }),
@@ -101,11 +102,15 @@ export const notificationApi = {
 
 export const authApi = {
   sendCode: (email: string) => api.post('/auth/send-code', { email }),
+  sendPasswordChangeCode: () => api.post('/auth/change-password/send-code'),
   register: (data: { displayName: string; email: string; password: string; inviteCode: string; verificationCode: string }) =>
     api.post('/auth/register', data),
   login: (data: { email: string; password: string }) => api.post('/auth/login', data),
+  changePassword: (data: { oldPassword: string; newPassword: string; confirmNewPassword: string; verificationCode: string }) =>
+    api.post('/auth/change-password', data),
   me: () => api.get('/auth/me'),
-  updateProfile: (data: { displayName?: string; avatar?: string }) =>
+  profile: (userId: number) => api.get(`/auth/profile/${userId}`),
+  updateProfile: (data: { displayName?: string; avatar?: string; signature?: string }) =>
     api.post('/auth/update-profile', data),
   uploadAvatar: (file: File) => {
     const fd = new FormData()
