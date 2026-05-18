@@ -133,6 +133,9 @@ public class DiaryService {
         diaryMapper.insert(diary);
 
         markReportsStale(user.getId());
+        if ("PUBLIC".equals(diary.getVisibility())) {
+            evictPublicDiaryCaches();
+        }
 
         return DiaryView.from(diary, List.of(), normalizeAvatar(user.getAvatar()), user.getDisplayName(), Map.of(),
                 false);
@@ -199,8 +202,12 @@ public class DiaryService {
             memoryExtractionService.extractAndSyncMemory(user.getId(), filteredContent);
         }
 
+        boolean affectsPublicCache = "PUBLIC".equals(visibility.name()) || "PUBLIC".equals(oldVisibility);
         if (visibilityChanged || contentChanged) {
             markReportsStale(user.getId());
+            if (affectsPublicCache) {
+                evictPublicDiaryCaches();
+            }
         }
         evictUserCache(user.getId());
 
@@ -234,6 +241,10 @@ public class DiaryService {
 
         memoryExtractionService.extractAndSyncMemory(userId, content);
         markReportsStale(userId);
+        DiaryEntity diary = diaryMapper.selectById(diaryId);
+        if (diary != null && "PUBLIC".equals(diary.getVisibility())) {
+            evictPublicDiaryCaches();
+        }
         log.info("日记分析后续任务已触发，diaryId={}，userId={}，动作=publishEvent+extractMemory+markReportsStale", diaryId, userId);
     }
 
@@ -528,7 +539,6 @@ public class DiaryService {
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getVisibility, "PUBLIC")
                         .in(DiaryEntity::getAuthorUserId, followingIds)
-                        .orderByDesc(DiaryEntity::getIsPinned)
                         .orderByDesc(DiaryEntity::getCreatedAt));
         List<DiaryEntity> visibleDiaries = filterHidden(entityPage.getRecords(), userId);
         List<DiaryView> views = buildDiaryViews(visibleDiaries, true);
@@ -1381,7 +1391,10 @@ public class DiaryService {
             throw new ResponseStatusException(FORBIDDEN, "只能删除自己的日记或由管理员操作");
         }
         diaryMapper.deleteById(diaryId);
-        evictUserCache(diary.getAuthorUserId());
+        markReportsStale(diary.getAuthorUserId());
+        if ("PUBLIC".equals(diary.getVisibility())) {
+            evictPublicDiaryCaches();
+        }
         log.info("日记{}删除成功，diaryId={}，操作者UserId={}，原作者UserId={}",
                 "ADMIN".equals(user.getRole()) ? "强制" : "", diaryId, user.getId(), diary.getAuthorUserId());
     }
@@ -1659,21 +1672,27 @@ public class DiaryService {
         }
     }
 
-    private void markReportsStale(long userId) {
+    private void evictPublicDiaryCaches() {
         try {
-            // 确定性批量删除公开日记缓存，避免 KEYS 全扫描
             List<String> keysToDelete = new ArrayList<>();
             for (int page = 0; page <= 5; page++) {
                 for (int size : List.of(10, 20, 50)) {
                     keysToDelete.add("public:diaries:%d:%d".formatted(page, size));
                 }
             }
+            redisTemplate.delete(keysToDelete);
+        } catch (Exception e) {
+            log.debug("Public diary cache eviction failed", e);
+        }
+    }
+
+    private void markReportsStale(long userId) {
+        try {
+            List<String> keysToDelete = new ArrayList<>();
             keysToDelete.add("coaching:" + userId);
-            // 删除当前及前后共 8 周的周报缓存（-4 到 +3 offset）
             for (int offset = -4; offset <= 3; offset++) {
                 keysToDelete.add("report:%d:%d".formatted(userId, offset));
             }
-            // 删除当前及前后共 6 个月的月报缓存（-5 到 0 offset）
             for (int offset = -5; offset <= 0; offset++) {
                 keysToDelete.add("report:monthly:%d:%d".formatted(userId, offset));
             }
