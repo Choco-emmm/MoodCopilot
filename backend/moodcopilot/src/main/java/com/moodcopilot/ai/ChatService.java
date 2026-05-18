@@ -157,7 +157,7 @@ public class ChatService {
                 message == null ? 0 : message.length());
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = ragMemoryService.buildRagContext(uid, message, 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
+        String ragCtx = buildRagContextWithFallback(uid, message, 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
         return chatChatClient.prompt()
                 .user(message)
                 .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT + ragCtx))
@@ -187,7 +187,7 @@ public class ChatService {
                 message == null ? 0 : message.length());
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = ragMemoryService.buildRagContext(uid, message, 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
+        String ragCtx = buildRagContextWithFallback(uid, message, 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
         String result = chatChatClient.prompt()
                 .user(message)
                 .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT + ragCtx))
@@ -204,6 +204,38 @@ public class ChatService {
         return result;
     }
 
+    /**
+     * RAG 语义搜索 + SQL 关键词降级。RAG 空结果时回退到数据库 LIKE 搜索。
+     */
+    private String buildRagContextWithFallback(long userId, String message, int topK, String... sourceTypes) {
+        String ragCtx = ragMemoryService.buildRagContext(userId, message, topK, sourceTypes);
+        if (!ragCtx.isBlank()) {
+            return ragCtx;
+        }
+        // RAG 空结果，降级到 SQL 关键词搜索
+        log.info("RAG 无结果，降级到 SQL 关键词搜索 userId={} queryLen={}", userId, message.length());
+        try {
+            var request = new com.moodcopilot.diary.DiarySearchRequest(
+                    message.length() > 20 ? message.substring(0, 20) : message, null, null);
+            var result = diaryService.searchOwnDiarySummaries(request);
+            if (result != null && result.total() > 0) {
+                StringBuilder sb = new StringBuilder("\n\n<sql_retrieved_context>\n");
+                sb.append("以下是通过关键词匹配到的历史日记摘要：\n");
+                int max = Math.min(result.diaries().size(), 5);
+                for (int i = 0; i < max; i++) {
+                    var d = result.diaries().get(i);
+                    sb.append("[").append(i + 1).append("] ")
+                            .append(d.date()).append(": ").append(d.snippet()).append("\n");
+                }
+                sb.append("</sql_retrieved_context>");
+                return sb.toString();
+            }
+        } catch (Exception e) {
+            log.debug("SQL 关键词搜索降级失败: {}", e.getMessage());
+        }
+        return "";
+    }
+
     private boolean shouldUseReasoning(Long conversationId, String message, List<String> refs,
             String memoryBackground) {
         return chatIntentRouter.shouldUseReasoning(message, refs, memoryBackground, conversationId);
@@ -215,7 +247,7 @@ public class ChatService {
             String history = formatChatHistory(request.memory());
             String enhancedContext = request.context() + buildTimeMetadata()
                     + buildReasoningDataContext(auth)
-                    + ragMemoryService.buildRagContext(userId, message, 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
+                    + buildRagContextWithFallback(userId, message, 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
 
             String userMessage;
             if (!history.isEmpty()) {
@@ -263,7 +295,7 @@ public class ChatService {
             String history = formatChatHistory(request.memory());
             String enhancedContext = request.context() + buildTimeMetadata()
                     + buildReasoningDataContext(auth)
-                    + ragMemoryService.buildRagContext(userId, message, 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
+                    + buildRagContextWithFallback(userId, message, 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
 
             String userMessage;
             if (!history.isEmpty()) {
