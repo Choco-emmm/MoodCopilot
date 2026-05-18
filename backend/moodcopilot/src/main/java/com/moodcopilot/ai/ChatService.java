@@ -217,53 +217,16 @@ public class ChatService {
      * RAG 语义搜索 + SQL 关键词降级。RAG 空结果时回退到数据库 LIKE 搜索。
      */
     private String buildRagContextWithFallback(long userId, String message, int topK, String... sourceTypes) {
-        // Query 重写：口语化输入 → 精准检索关键词（结合用户画像）
         String memoryBg = memoryExtractionService.buildUserMemoryPrompt();
         String searchQuery = aiAnalysisService.rewriteQueryForSearch(message, memoryBg);
         if (!searchQuery.equals(message)) {
             log.info("RAG query 已重写: \"{}\" → \"{}\"", message, searchQuery);
         }
-        // RAG 语义检索 + SQL 关键词双路召回
         String ragCtx = ragMemoryService.buildRagContext(userId, searchQuery, topK, sourceTypes);
-        String sqlCtx = buildSqlFallbackContext(userId, searchQuery);
-        return mergeRetrievalContexts(ragCtx, sqlCtx);
-    }
-
-    private String buildSqlFallbackContext(long userId, String keywords) {
-        try {
-            // 取重写后的第一个关键词做 SQL LIKE 搜索（空格分割，单关键词匹配率更高）
-            String firstKeyword = keywords.split("\\s+")[0];
-            String keyword = firstKeyword.length() > 10 ? firstKeyword.substring(0, 10) : firstKeyword;
-            var request = new com.moodcopilot.diary.DiarySearchRequest(keyword, null, null);
-            var result = diaryService.searchOwnDiarySummaries(request);
-            if (result != null && result.total() > 0) {
-                StringBuilder sb = new StringBuilder("\n\n<sql_retrieved_context>\n");
-                sb.append("以下是通过关键词匹配到的历史日记摘要：\n");
-                int max = Math.min(result.diaries().size(), 5);
-                for (int i = 0; i < max; i++) {
-                    var d = result.diaries().get(i);
-                    sb.append("[").append(i + 1).append("] ")
-                            .append(d.date()).append(": ").append(d.snippet()).append("\n");
-                }
-                sb.append("</sql_retrieved_context>");
-                return sb.toString();
-            }
-        } catch (Exception e) {
-            log.debug("SQL 关键词搜索降级失败: {}", e.getMessage());
+        if (ragCtx.isBlank()) {
+            log.info("RAG 无结果，将依赖模型的 diarySearchFunction 工具主动查询 userId={}", userId);
         }
-        return "";
-    }
-
-    /** 合并 RAG 和 SQL 两路检索结果，保留双路都命中时只显示 RAG */
-    private String mergeRetrievalContexts(String ragCtx, String sqlCtx) {
-        if (!ragCtx.isBlank()) {
-            return ragCtx; // RAG 命中优先
-        }
-        if (!sqlCtx.isBlank()) {
-            log.info("RAG 无结果，使用 SQL 降级结果");
-            return sqlCtx;
-        }
-        return "";
+        return ragCtx;
     }
 
     private boolean shouldUseReasoning(Long conversationId, String message, List<String> refs,
