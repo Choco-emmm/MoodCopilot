@@ -740,9 +740,14 @@ public class AiAnalysisService {
     }
 
     private static final String QUERY_REWRITE_PROMPT = """
-            你是一位日记检索专家。请根据用户的输入，以第一人称（"我"）的口吻，替用户写一段他可能会记录在日记里的自然语言陈述句（30-80字）。
+            你是一位日记检索专家。根据用户的输入，以第一人称（"我"）的口吻，替用户写一段他可能会记录在日记里的自然语言陈述句（30-80字）。
 
             这段话需要包含具体的场景、心理活动和情感色彩，以便用于在向量库中寻找语义最接近的真实日记。
+
+            【多轮对话语境理解 —— 极其重要】
+            你现在处于多轮对话中。请结合下方 <chat_history>（最近两轮的对话上下文）来理解用户当前输入的真正意图。
+            例如，如果上一轮在聊"写Bug卡了四小时"，这一轮用户问"我是不是很有耐心"，你应当理解用户的隐含意图是想寻找关于"死磕难题、写代码有耐心"的历史记录，而不是宽泛的"为人处世有耐心"。
+            如果 <chat_history> 为空或不存在，说明这是第一轮对话，直接基于当前输入改写即可。
 
             重要规则：
             1. 必须用"我"的第一人称视角，模拟真实日记的语气
@@ -757,15 +762,21 @@ public class AiAnalysisService {
             """;
 
     /**
-     * 将用户口语化输入改写为精准检索关键词（HyDE 变体）。
+     * 将用户口语化输入改写为日记风格的陈述句，用于向量语义检索（HyDE）。
+     * @param query 用户当前消息
+     * @param memoryContext 长期画像背景（可为空）
+     * @param chatHistoryContext 最近对话历史（可为空，第一轮传 ""）
      */
-    public String rewriteQueryForSearch(String userMessage, String memoryBackground) {
+    public String rewriteQueryForSearch(String query, String memoryContext, String chatHistoryContext) {
         try {
             StringBuilder prompt = new StringBuilder(QUERY_REWRITE_PROMPT);
-            if (memoryBackground != null && !memoryBackground.isBlank()) {
-                prompt.append("\n用户长期画像：").append(memoryBackground).append("\n");
+            if (chatHistoryContext != null && !chatHistoryContext.isBlank()) {
+                prompt.append("\n<chat_history>\n").append(chatHistoryContext).append("</chat_history>\n");
             }
-            prompt.append("\n用户输入：").append(userMessage);
+            if (memoryContext != null && !memoryContext.isBlank()) {
+                prompt.append("\n用户长期画像：").append(memoryContext).append("\n");
+            }
+            prompt.append("\n用户输入：").append(query);
             String result = analysisChatClient.prompt()
                     .user(prompt.toString())
                     .call()
@@ -776,6 +787,6 @@ public class AiAnalysisService {
         } catch (Exception e) {
             log.debug("Query 重写失败: {}", e.getMessage());
         }
-        return userMessage; // 降级：返回原始输入
+        return query; // 降级：返回原始输入
     }
 }
