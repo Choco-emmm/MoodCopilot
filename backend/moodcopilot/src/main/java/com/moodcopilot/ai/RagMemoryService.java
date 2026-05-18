@@ -149,19 +149,39 @@ public class RagMemoryService {
     /**
      * 异步：将日记内容 embedding 后存入 Redis vector index。
      */
+    private static final int CHUNK_SIZE = 400;
+    private static final int CHUNK_OVERLAP = 50;
+
     @Async("aiExecutor")
     public void indexDiary(long userId, long diaryId, String content) {
         if (content == null || content.isBlank()) {
             log.debug("RAG 索引跳过：日记内容为空 diaryId={}", diaryId);
             return;
         }
-        float[] vec = embed(content);
-        if (vec == null) {
-            log.warn("RAG 索引失败：embedding 生成失败 diaryId={}", diaryId);
-            return;
+        if (content.length() <= 500) {
+            float[] vec = embed(content);
+            if (vec == null) {
+                log.warn("RAG 索引失败：embedding 生成失败 diaryId={}", diaryId);
+                return;
+            }
+            storeEmbedding("diary:" + diaryId, userId, SOURCE_DIARY, content, vec);
+            log.info("RAG 已索引日记 diaryId={} userId={} dim={}", diaryId, userId, vec.length);
+        } else {
+            // 长日记分块索引：400字/块，50字重叠
+            int chunks = 0;
+            int start = 0;
+            while (start < content.length()) {
+                int end = Math.min(start + CHUNK_SIZE, content.length());
+                String chunk = content.substring(start, end);
+                float[] vec = embed(chunk);
+                if (vec != null) {
+                    storeEmbedding("diary:" + diaryId + ":" + chunks, userId, SOURCE_DIARY, chunk, vec);
+                    chunks++;
+                }
+                start += CHUNK_SIZE - CHUNK_OVERLAP;
+            }
+            log.info("RAG 已索引日记（分块） diaryId={} userId={} chunks={}", diaryId, userId, chunks);
         }
-        storeEmbedding("diary:" + diaryId, userId, SOURCE_DIARY, snippet(content, 800), vec);
-        log.info("RAG 已索引日记 diaryId={} userId={} dim={}", diaryId, userId, vec.length);
     }
 
     /**
@@ -306,8 +326,16 @@ public class RagMemoryService {
                 if (raw != null) {
                     parseResults(raw, hits);
                 }
-                log.info("RAG 搜索完成 userId={} queryLen={} topK={} hits={}", userId,
-                        query.length(), topK, hits.size());
+                if (!hits.isEmpty()) {
+                    double topScore = hits.get(0).score() != null ? hits.get(0).score() : -1;
+                    double avgScore = hits.stream().filter(h -> h.score() != null)
+                            .mapToDouble(RagHit::score).average().orElse(-1);
+                    log.info("RAG 搜索完成 userId={} queryLen={} hits={} topScore={} avgScore={}",
+                            userId, query.length(), hits.size(),
+                            String.format("%.3f", topScore), String.format("%.3f", avgScore));
+                } else {
+                    log.info("RAG 搜索完成 userId={} queryLen={} hits=0", userId, query.length());
+                }
                 return hits;
             });
         } catch (Exception e) {
@@ -322,13 +350,23 @@ public class RagMemoryService {
             log.debug("RAG 上下文为空 userId={} queryLen={}", userId, query.length());
             return "";
         }
+        // 过滤低分噪音 + 余弦距离→相似度转换（0=完全相同, 1=正交, 2=完全相反）
+        List<RagHit> qualityHits = hits.stream()
+                .filter(h -> h.score() != null && h.score() < 1.0)
+                .toList();
+        if (qualityHits.isEmpty()) {
+            log.debug("RAG 命中全部低于阈值，已过滤 userId={}", userId);
+            return "";
+        }
+
         StringBuilder sb = new StringBuilder("\n\n<rag_retrieved_context>\n");
         sb.append("以下是与用户当前问题语义相关的历史记录（由向量检索自动获取）：\n");
-        for (int i = 0; i < hits.size(); i++) {
-            RagHit hit = hits.get(i);
+        for (int i = 0; i < qualityHits.size(); i++) {
+            RagHit hit = qualityHits.get(i);
             sb.append("[").append(i + 1).append("] ").append(hit.content());
             if (hit.score() != null) {
-                sb.append(" (相关度: ").append(String.format("%.2f", hit.score())).append(")");
+                double similarity = 1.0 - hit.score() / 2.0; // 余弦距离→相似度 0~1
+                sb.append(" (相关度: ").append(String.format("%.2f", similarity)).append(")");
             }
             sb.append("\n");
         }
