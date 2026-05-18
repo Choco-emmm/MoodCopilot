@@ -91,6 +91,19 @@ public class DiaryController {
                 "size", result.getSize()));
     }
 
+    @GetMapping("/user/{userId}")
+    public ApiResponse<Map<String, Object>> userDiaries(
+            @PathVariable long userId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        var result = diaryService.userDiaries(userId, page, size);
+        return ApiResponse.ok(Map.of(
+                "items", result.getRecords(),
+                "total", result.getTotal(),
+                "page", result.getCurrent(),
+                "size", result.getSize()));
+    }
+
     @GetMapping("/{id}")
     public ApiResponse<DiaryView> get(@PathVariable("id") long id) {
         return ApiResponse.ok(diaryService.get(id));

@@ -15,9 +15,9 @@
           <n-input v-model:value="form.password" type="password" placeholder="至少6位密码" />
         </n-form-item>
         <n-form-item path="verificationCode" label="邮箱验证码">
-          <div style="display: flex; gap: 8px; width: 100%">
-            <n-input v-model:value="form.verificationCode" placeholder="6位验证码" style="flex: 1" />
-            <n-button attr-type="button" :disabled="countdown > 0" :loading="sendingCode" @click="handleSendCode" style="white-space: nowrap">
+          <div class="verify-row">
+            <n-input v-model:value="form.verificationCode" placeholder="6位验证码" class="verify-input" />
+            <n-button attr-type="button" :disabled="countdown > 0" :loading="sendingCode" @click="handleSendCode" class="verify-btn">
               {{ countdown > 0 ? `${countdown}s` : '发送验证码' }}
             </n-button>
           </div>
@@ -105,3 +105,35 @@ async function handleRegister() {
   }
 }
 </script>
+
+<style scoped>
+.verify-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.verify-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.verify-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 420px) {
+  .verify-row {
+    gap: 6px;
+  }
+
+  .verify-btn {
+    min-width: 84px;
+    font-size: 12px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+</style>

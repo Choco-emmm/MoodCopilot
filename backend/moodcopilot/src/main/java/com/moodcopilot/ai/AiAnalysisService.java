@@ -223,6 +223,7 @@ public class AiAnalysisService {
             - insights: array of 2-3 concise Chinese observations about emotional patterns (consider both primary and secondary moods for deeper insight)
             - suggestions: array of 2-3 small, concrete Chinese actions the user can try
             - followUpPrompt: one Chinese sentence the user could ask MoodCopilot to explore further
+            Avoid mechanical time-template wording such as “花几分钟”“先给自己X分钟”.
             Be warm and specific. Do not diagnose. You can use simple Markdown (like **bold**) inside the strings for emphasis. You may use emoji sparingly (1-2 per response) to add warmth, but don't overuse them.""";
 
     @SuppressWarnings("unchecked")
@@ -281,7 +282,7 @@ public class AiAnalysisService {
 
     private List<String> fallbackSuggestions(List<DiaryAnalysis> analyses) {
         return List.of(
-                "今天先给自己 10 分钟不被打扰的时间，慢慢把状态放下来。",
+                "今晚给自己留一点安静空间，把注意力放回当下的感受。",
                 "下次记录时，可以多写一句「这件事真正影响我的地方是？」");
     }
 
@@ -354,6 +355,7 @@ public class AiAnalysisService {
             1. Acknowledges their recent emotional patterns, noticing when primary and secondary moods reveal layered feelings
             2. Suggests one small, concrete action they could try today
             3. Is encouraging but not preachy
+            4. Avoids mechanical time-template wording such as “花几分钟”“先给自己X分钟”
             Return ONLY the Chinese text. You can use simple Markdown (like **bold**) to highlight key actionable advice. No JSON, no explanation.""";
 
     public String generateCoaching(List<String> contents, List<DiaryAnalysis> analyses) {
@@ -379,7 +381,7 @@ public class AiAnalysisService {
         } catch (Exception e) {
             log.warn("AI coaching failed: {}", e.getMessage());
             String topMood = topMood(analyses);
-            return "你最近的情绪以「" + topMood + "」为主。试着每天给自己5分钟安静时间，不用想任何事，只是呼吸。";
+            return "你最近的情绪以「" + topMood + "」为主。先别急着评判自己，试着把此刻最真实的感受写成一句话。";
         }
     }
 

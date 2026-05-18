@@ -47,7 +47,7 @@
 
     <div v-if="store.analysisStatus !== 'idle'" class="composer-status">
       <template v-if="store.analysisStatus === 'analyzing'">已保存，MoodCopilot 正在分析中...</template>
-      <template v-else-if="store.analysisStatus === 'complete'">分析完成，可以在上方查看结果。</template>
+      <template v-else-if="store.analysisStatus === 'complete'">分析完成，结果已经更新在上方。</template>
       <template v-else-if="store.analysisStatus === 'failed'">
         分析结果暂时没有更新。
         <button v-if="store.activeDiary" class="inline-link" @click="store.refreshAnalysis(store.activeDiary.id)">重新获取分析结果</button>

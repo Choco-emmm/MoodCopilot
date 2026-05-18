@@ -134,7 +134,8 @@ public class DiaryService {
 
         markReportsStale(user.getId());
 
-        return DiaryView.from(diary, List.of(), normalizeAvatar(user.getAvatar()), user.getDisplayName(), Map.of());
+        return DiaryView.from(diary, List.of(), normalizeAvatar(user.getAvatar()), user.getDisplayName(), Map.of(),
+                false);
     }
 
     @Transactional
@@ -245,6 +246,26 @@ public class DiaryService {
                         .eq(DiaryEntity::getAuthorUserId, currentUser().getId())
                         .orderByDesc(DiaryEntity::getCreatedAt));
         List<DiaryView> views = buildDiaryViews(entityPage.getRecords(), false);
+        Page<DiaryView> viewPage = new Page<>(cappedPage, cappedSize, entityPage.getTotal());
+        viewPage.setRecords(views);
+        return viewPage;
+    }
+
+    public Page<DiaryView> userDiaries(long targetUserId, int page, int size) {
+        int cappedPage = Math.max(1, page);
+        int cappedSize = Math.min(50, Math.max(1, size));
+        Long viewerId = currentUser().getId();
+        boolean isOwner = viewerId.equals(targetUserId);
+
+        LambdaQueryWrapper<DiaryEntity> query = new LambdaQueryWrapper<DiaryEntity>()
+                .eq(DiaryEntity::getAuthorUserId, targetUserId)
+                .orderByDesc(DiaryEntity::getCreatedAt);
+        if (!isOwner) {
+            query.eq(DiaryEntity::getVisibility, "PUBLIC");
+        }
+
+        Page<DiaryEntity> entityPage = diaryMapper.selectPage(Page.of(cappedPage, cappedSize), query);
+        List<DiaryView> views = buildDiaryViews(entityPage.getRecords(), !isOwner);
         Page<DiaryView> viewPage = new Page<>(cappedPage, cappedSize, entityPage.getTotal());
         viewPage.setRecords(views);
         return viewPage;
@@ -429,7 +450,11 @@ public class DiaryService {
 
     public DiaryView get(long id) {
         DiaryEntity diary = findDiary(id);
-        boolean isOwner = diary.getAuthorUserId().equals(currentUser().getId());
+        Long currentUserId = currentUser().getId();
+        boolean isOwner = diary.getAuthorUserId().equals(currentUserId);
+        if (!isOwner && !"PUBLIC".equals(diary.getVisibility())) {
+            throw new ResponseStatusException(NOT_FOUND, "公开日记不存在");
+        }
         return buildDiaryView(diary, !isOwner);
     }
 
@@ -1093,11 +1118,13 @@ public class DiaryService {
         DiaryEntity diary = findPublicDiary(diaryId);
         UserEntity actor = currentUser();
 
-        boolean exists = diaryResonanceMapper.exists(
+        DiaryResonanceEntity existing = diaryResonanceMapper.selectOne(
                 new LambdaQueryWrapper<DiaryResonanceEntity>()
                         .eq(DiaryResonanceEntity::getDiaryId, diaryId)
-                        .eq(DiaryResonanceEntity::getUserId, actor.getId()));
-        if (!exists) {
+                        .eq(DiaryResonanceEntity::getUserId, actor.getId())
+                        .last("LIMIT 1"));
+
+        if (existing == null) {
             DiaryResonanceEntity resonance = new DiaryResonanceEntity();
             resonance.setDiaryId(diaryId);
             resonance.setUserId(actor.getId());
@@ -1112,6 +1139,12 @@ public class DiaryService {
                 notificationService.notifyResonance(actor, diaryId, diary.getAuthorUserId(),
                         toDiarySnippet(diary.getContent()));
             }
+        } else {
+            diaryResonanceMapper.deleteById(existing.getId());
+            int current = diary.getResonanceCount() == null ? 0 : diary.getResonanceCount();
+            diary.setResonanceCount(Math.max(0, current - 1));
+            diary.setUpdatedAt(LocalDateTime.now());
+            diaryMapper.updateById(diary);
         }
 
         evictRelatedUserCaches(actor.getId(), diary.getAuthorUserId());
@@ -1143,36 +1176,45 @@ public class DiaryService {
         diaries.forEach(d -> authorIds.add(d.getAuthorUserId()));
         commentMap.values().forEach(comments -> comments.forEach(c -> authorIds.add(c.getAuthorUserId())));
         Map<Long, UserEntity> authorInfoMap = batchLoadAuthorInfo(authorIds);
+        Set<Long> likedDiaryIds = batchLoadLikedDiaryIds(ids);
         return diaries.stream()
-                .map(diary -> buildDiaryView(diary, isPublic, analysisMap, commentMap, authorInfoMap))
+                .map(diary -> buildDiaryView(diary, isPublic, analysisMap, commentMap, authorInfoMap,
+                        likedDiaryIds.contains(diary.getId())))
                 .toList();
     }
 
     private DiaryView buildDiaryView(DiaryEntity diary, boolean isPublic) {
         DiaryAnalysisEntity analysis = findAnalysis(diary.getId());
         List<DiaryCommentEntity> comments = findComments(diary.getId());
+        boolean likedByMe = diaryResonanceMapper.exists(
+                new LambdaQueryWrapper<DiaryResonanceEntity>()
+                        .eq(DiaryResonanceEntity::getDiaryId, diary.getId())
+                        .eq(DiaryResonanceEntity::getUserId, currentUser().getId()));
         return buildDiaryView(diary, isPublic,
                 analysis != null ? Map.of(diary.getId(), analysis) : Map.of(),
-                Map.of(diary.getId(), comments));
-    }
-
-    private DiaryView buildDiaryView(DiaryEntity diary,
-            boolean isPublic,
-            Map<Long, DiaryAnalysisEntity> analysisMap,
-            Map<Long, List<DiaryCommentEntity>> commentMap) {
-        java.util.Set<Long> authorIds = new java.util.HashSet<>();
-        authorIds.add(diary.getAuthorUserId());
-        commentMap.getOrDefault(diary.getId(), List.of())
-                .forEach(c -> authorIds.add(c.getAuthorUserId()));
-        Map<Long, UserEntity> authorInfoMap = batchLoadAuthorInfo(authorIds);
-        return buildDiaryView(diary, isPublic, analysisMap, commentMap, authorInfoMap);
+                Map.of(diary.getId(), comments),
+                likedByMe);
     }
 
     private DiaryView buildDiaryView(DiaryEntity diary,
             boolean isPublic,
             Map<Long, DiaryAnalysisEntity> analysisMap,
             Map<Long, List<DiaryCommentEntity>> commentMap,
-            Map<Long, UserEntity> authorInfoMap) {
+            boolean likedByMe) {
+        java.util.Set<Long> authorIds = new java.util.HashSet<>();
+        authorIds.add(diary.getAuthorUserId());
+        commentMap.getOrDefault(diary.getId(), List.of())
+                .forEach(c -> authorIds.add(c.getAuthorUserId()));
+        Map<Long, UserEntity> authorInfoMap = batchLoadAuthorInfo(authorIds);
+        return buildDiaryView(diary, isPublic, analysisMap, commentMap, authorInfoMap, likedByMe);
+    }
+
+    private DiaryView buildDiaryView(DiaryEntity diary,
+            boolean isPublic,
+            Map<Long, DiaryAnalysisEntity> analysisMap,
+            Map<Long, List<DiaryCommentEntity>> commentMap,
+            Map<Long, UserEntity> authorInfoMap,
+            boolean likedByMe) {
         DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
         List<DiaryCommentEntity> comments = commentMap.getOrDefault(diary.getId(), List.of());
         UserEntity author = authorInfoMap.get(diary.getAuthorUserId());
@@ -1186,8 +1228,24 @@ public class DiaryService {
             commentAuthorNames.put(c.getAuthorUserId(),
                     cu != null ? cu.getDisplayName() : c.getAuthorName());
         }
-        return isPublic ? DiaryView.fromPublic(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames)
-                : DiaryView.from(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames);
+        return isPublic
+                ? DiaryView.fromPublic(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames,
+                        likedByMe)
+                : DiaryView.from(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames, likedByMe);
+    }
+
+    private Set<Long> batchLoadLikedDiaryIds(List<Long> diaryIds) {
+        if (diaryIds.isEmpty()) {
+            return Set.of();
+        }
+        Long currentUserId = currentUser().getId();
+        return diaryResonanceMapper.selectList(
+                new LambdaQueryWrapper<DiaryResonanceEntity>()
+                        .eq(DiaryResonanceEntity::getUserId, currentUserId)
+                        .in(DiaryResonanceEntity::getDiaryId, diaryIds))
+                .stream()
+                .map(DiaryResonanceEntity::getDiaryId)
+                .collect(Collectors.toSet());
     }
 
     private Map<Long, DiaryAnalysisEntity> batchLoadAnalyses(List<Long> diaryIds) {

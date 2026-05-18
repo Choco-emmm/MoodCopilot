@@ -145,11 +145,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { NButton, NInput } from 'naive-ui'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
 import AppHeader from '../components/AppHeader.vue'
 import ReferenceBar from '../components/ReferenceBar.vue'
 import { chatApi, diaryApi } from '../api'
+import { renderSafeMarkdown } from '../utils/markdown'
 
 interface Message {
   id: string
@@ -175,16 +174,7 @@ interface ChatReference {
 }
 
 function renderMd(text: string) {
-  const html = marked.parse(text, { async: false }) as string
-  return DOMPurify.sanitize(html, {
-    USE_PROFILES: { html: true },
-    ALLOWED_TAGS: [
-      'p', 'br', 'strong', 'em', 'b', 'i', 'u',
-      'ul', 'ol', 'li', 'blockquote', 'code', 'pre',
-      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a',
-    ],
-    ALLOWED_ATTR: ['href', 'target', 'rel'],
-  })
+  return renderSafeMarkdown(text)
 }
 
 const conversations = ref<Conversation[]>([])

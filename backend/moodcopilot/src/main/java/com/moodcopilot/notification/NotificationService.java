@@ -62,6 +62,7 @@ public class NotificationService {
             n.setCommentId(commentId);
             n.setType("COMMENT");
             n.setMessage(actor.getDisplayName() + " 评论了你的日记：" + snippet);
+            n.setIsMarkdown(false);
             n.setIsRead(false);
             n.setCreatedAt(LocalDateTime.now());
             notificationMapper.insert(n);
@@ -78,6 +79,7 @@ public class NotificationService {
             n.setActorUserId(actor.getId());
             n.setType("FOLLOW");
             n.setMessage(actor.getDisplayName() + " 关注了你");
+            n.setIsMarkdown(false);
             n.setIsRead(false);
             n.setCreatedAt(LocalDateTime.now());
             notificationMapper.insert(n);
@@ -95,6 +97,7 @@ public class NotificationService {
             n.setDiaryId(diaryId);
             n.setType("RESONANCE");
             n.setMessage(actor.getDisplayName() + "给你的日记《" + diarySnippet + "》点了个赞");
+            n.setIsMarkdown(false);
             n.setIsRead(false);
             n.setCreatedAt(LocalDateTime.now());
             notificationMapper.insert(n);
@@ -111,6 +114,7 @@ public class NotificationService {
             n.setActorUserId(null);
             n.setType("SYSTEM");
             n.setMessage(message);
+            n.setIsMarkdown(true);
             n.setIsRead(false);
             n.setCreatedAt(LocalDateTime.now());
             notificationMapper.insert(n);
@@ -130,6 +134,7 @@ public class NotificationService {
                     ? message.substring(0, 30) + "..."
                     : message;
             n.setMessage("有人给你的日记送来了鼓励：" + preview);
+            n.setIsMarkdown(false);
             n.setIsRead(false);
             n.setCreatedAt(LocalDateTime.now());
             notificationMapper.insert(n);

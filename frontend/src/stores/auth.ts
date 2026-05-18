@@ -18,7 +18,9 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(getInitialToken())
   const userId = ref<number | null>(null)
   const displayName = ref<string | null>(null)
+  const email = ref<string | null>(null)
   const avatar = ref<string | null>(null)
+  const signature = ref<string | null>(null)
   const dailyNotifyEnabled = ref<boolean>(true)
   const role = ref<string>(localStorage.getItem('role') || 'USER')
   const inviteCode = ref<string | null>(null)
@@ -33,7 +35,9 @@ export const useAuthStore = defineStore('auth', () => {
       const data = res.data.data
       userId.value = data.userId
       displayName.value = data.displayName
+      email.value = data.email ?? null
       avatar.value = normalizeResourceUrl(data.avatar)
+      signature.value = data.signature ?? null
       dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
       inviteCode.value = data.inviteCode ?? null
       inviteQuota.value = data.inviteQuota ?? 0
@@ -41,11 +45,12 @@ export const useAuthStore = defineStore('auth', () => {
     } catch { /* ignore */ }
   }
 
-  async function updateProfile(name?: string, avatarUrl?: string) {
-    const res = await authApi.updateProfile({ displayName: name, avatar: avatarUrl })
+  async function updateProfile(name?: string, avatarUrl?: string, signatureText?: string) {
+    const res = await authApi.updateProfile({ displayName: name, avatar: avatarUrl, signature: signatureText })
     const data = res.data.data
     displayName.value = data.displayName
     avatar.value = normalizeResourceUrl(data.avatar)
+    signature.value = data.signature ?? null
     saveRole(data.role)
   }
 
@@ -63,7 +68,9 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = data.token
     userId.value = data.userId
     displayName.value = data.displayName
+    email.value = data.email ?? null
     avatar.value = normalizeResourceUrl(data.avatar)
+    signature.value = data.signature ?? null
     dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
     inviteCode.value = data.inviteCode ?? null
     inviteQuota.value = data.inviteQuota ?? 0
@@ -80,16 +87,26 @@ export const useAuthStore = defineStore('auth', () => {
     await authApi.sendCode(email)
   }
 
+  async function sendPasswordChangeCode() {
+    await authApi.sendPasswordChangeCode()
+  }
+
   async function register(name: string, email: string, password: string, inviteCodeParam: string, verificationCode: string) {
     const res = await authApi.register({ displayName: name, email, password, inviteCode: inviteCodeParam, verificationCode })
     applyAuthData(res.data.data)
+  }
+
+  async function changePassword(oldPassword: string, newPassword: string, confirmNewPassword: string, verificationCode: string) {
+    await authApi.changePassword({ oldPassword, newPassword, confirmNewPassword, verificationCode })
   }
 
   function logout() {
     token.value = null
     userId.value = null
     displayName.value = null
+    email.value = null
     avatar.value = null
+    signature.value = null
     dailyNotifyEnabled.value = true
     role.value = 'USER'
     localStorage.removeItem('token')
@@ -102,7 +119,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    token, userId, displayName, avatar, dailyNotifyEnabled, role, inviteCode, inviteQuota, isAuthenticated, isAdmin,
-    fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout, sendCode
+    token, userId, displayName, email, avatar, signature, dailyNotifyEnabled, role, inviteCode, inviteQuota, isAuthenticated, isAdmin,
+    fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout, sendCode, sendPasswordChangeCode, changePassword
   }
 })

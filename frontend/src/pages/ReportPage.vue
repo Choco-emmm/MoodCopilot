@@ -349,20 +349,10 @@ import AppHeader from '../components/AppHeader.vue'
 import { useDiaryStore } from '../stores/diary'
 import { summaryApi } from '../api'
 import { moodColor } from '../utils/mood'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
+import { renderSafeMarkdown } from '../utils/markdown'
 
 function renderMd(text: string) {
-  if (!text) return ''
-  const html = marked.parse(text, { async: false }) as string
-  return DOMPurify.sanitize(html, {
-    USE_PROFILES: { html: true },
-    ALLOWED_TAGS: [
-      'p', 'br', 'strong', 'em', 'b', 'i', 'u',
-      'ul', 'ol', 'li', 'blockquote', 'code', 'pre',
-      'h1', 'h2', 'h3',
-    ],
-  })
+  return renderSafeMarkdown(text)
 }
 
 const router = useRouter()

@@ -29,6 +29,7 @@ import java.util.Locale;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
 @Service
@@ -99,44 +100,7 @@ public class AuthService {
         log.info("生成验证码: email={}, code={}", normalizedEmail, code);
 
         try {
-            MimeMessage mimeMessage = javaMailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
-            helper.setFrom(mailFrom);
-            helper.setTo(email.trim());
-            helper.setSubject("MoodCopilot 登录验证码");
-            helper.setText("""
-                    <!DOCTYPE html>
-                    <html><head><meta charset="UTF-8"></head>
-                    <body style="margin:0;padding:0;background-color:#f7f3eb;">
-                    <table width="100%%" cellpadding="0" cellspacing="0" style="background-color:#f7f3eb;padding:40px 0;">
-                    <tr><td align="center">
-                    <table width="460" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
-                      <tr>
-                        <td style="background-color:#4a7c62;padding:28px 36px;text-align:center;">
-                          <span style="color:#ffffff;font-size:22px;font-weight:600;letter-spacing:1px;">MoodCopilot</span>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:36px;">
-                          <p style="color:#444;font-size:15px;line-height:1.7;margin:0 0 8px;">嗨，欢迎来到 MoodCopilot ⊂(◉‿◉)つ</p>
-                          <p style="color:#888;font-size:14px;line-height:1.7;margin:0 0 28px;">下面是你的登录验证码，输入即可完成注册：</p>
-                          <div style="background-color:#f5f0e8;border-radius:8px;padding:22px 16px;text-align:center;margin-bottom:28px;">
-                            <span style="font-family:'SF Mono',Menlo,Monaco,monospace;font-size:34px;font-weight:700;letter-spacing:8px;color:#4a7c62;">%s</span>
-                          </div>
-                          <p style="color:#aaa;font-size:12px;line-height:1.6;text-align:center;margin:0;">验证码 5 分钟内有效，请勿转发给他人。</p>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style="border-top:1px solid #eee;padding:16px 36px;text-align:center;">
-                          <p style="color:#ccc;font-size:11px;margin:0;">这是自动发送的系统邮件，无需回复。</p>
-                        </td>
-                      </tr>
-                    </table>
-                    </td></tr>
-                    </table>
-                    </body></html>
-                    """.formatted(code), true);
-            javaMailSender.send(mimeMessage);
+            sendCodeEmail(normalizedEmail, code, "MoodCopilot 登录验证码", "下面是你的登录验证码，输入即可完成注册：");
             log.info("邮件发送成功: email={}", normalizedEmail);
         } catch (Exception e) {
             log.error("邮件发送失败: email={}", normalizedEmail, e);
@@ -146,6 +110,121 @@ public class AuthService {
         stringRedisTemplate.opsForValue().set(codeKey, code, Duration.ofMinutes(5));
         stringRedisTemplate.opsForValue().set(limitKey, "1", Duration.ofSeconds(60));
         log.info("验证码已写入Redis: email={}, codeKey={}, limitKey={}", normalizedEmail, codeKey, limitKey);
+    }
+
+    public void sendPasswordChangeCode(Long userId) {
+        UserEntity user = userMapper.selectById(userId);
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            throw new ResponseStatusException(UNAUTHORIZED, "登录状态已失效");
+        }
+
+        String normalizedEmail = user.getEmail().trim().toLowerCase();
+        String codeKey = "email:pwd:code:" + normalizedEmail;
+        String limitKey = "email:pwd:limit:" + normalizedEmail;
+
+        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(limitKey))) {
+            throw new ResponseStatusException(BAD_REQUEST, "发送验证码太频繁，请 60 秒后再试");
+        }
+
+        String code = String.format("%06d", secureRandom.nextInt(1_000_000));
+        try {
+            sendCodeEmail(normalizedEmail, code, "MoodCopilot 修改密码验证码", "你正在修改账户密码，验证码如下：");
+            log.info("改密验证码邮件发送成功: userId={}", userId);
+        } catch (Exception e) {
+            log.error("改密验证码邮件发送失败: userId={}", userId, e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "邮件发送失败");
+        }
+
+        stringRedisTemplate.opsForValue().set(codeKey, code, Duration.ofMinutes(5));
+        stringRedisTemplate.opsForValue().set(limitKey, "1", Duration.ofSeconds(60));
+    }
+
+    public void changePassword(Long userId, ChangePasswordRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "请求参数不能为空");
+        }
+        if (request.oldPassword() == null || request.oldPassword().isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "请输入旧密码");
+        }
+        if (request.newPassword() == null || request.newPassword().length() < 6) {
+            throw new ResponseStatusException(BAD_REQUEST, "新密码至少6位");
+        }
+        if (request.confirmNewPassword() == null || request.confirmNewPassword().isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "请再次输入新密码");
+        }
+        if (!request.newPassword().equals(request.confirmNewPassword())) {
+            throw new ResponseStatusException(BAD_REQUEST, "两次输入的新密码不一致");
+        }
+        if (request.verificationCode() == null || request.verificationCode().isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "验证码不能为空");
+        }
+
+        UserEntity user = userMapper.selectById(userId);
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            throw new ResponseStatusException(UNAUTHORIZED, "登录状态已失效");
+        }
+        if (!passwordEncoder.matches(request.oldPassword(), user.getPasswordHash())) {
+            throw new ResponseStatusException(BAD_REQUEST, "旧密码不正确");
+        }
+        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+            throw new ResponseStatusException(BAD_REQUEST, "新密码不能与旧密码相同");
+        }
+
+        String normalizedEmail = user.getEmail().trim().toLowerCase();
+        String codeKey = "email:pwd:code:" + normalizedEmail;
+        String storedCode = stringRedisTemplate.opsForValue().get(codeKey);
+        if (storedCode == null || !storedCode.equals(request.verificationCode().trim())) {
+            throw new ResponseStatusException(BAD_REQUEST, "验证码无效或已过期");
+        }
+
+        stringRedisTemplate.delete(codeKey);
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+    }
+
+    private void sendCodeEmail(String normalizedEmail, String code, String subject, String introLine) throws Exception {
+        MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+        helper.setFrom(mailFrom);
+        helper.setTo(normalizedEmail);
+        helper.setSubject(subject);
+        helper.setText(
+                """
+                        <!DOCTYPE html>
+                        <html><head><meta charset="UTF-8"></head>
+                        <body style="margin:0;padding:0;background-color:#f7f3eb;">
+                        <table width="100%%" cellpadding="0" cellspacing="0" style="background-color:#f7f3eb;padding:40px 0;">
+                        <tr><td align="center">
+                        <table width="460" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+                            <tr>
+                                <td style="background-color:#4a7c62;padding:28px 36px;text-align:center;">
+                                    <span style="color:#ffffff;font-size:22px;font-weight:600;letter-spacing:1px;">MoodCopilot</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:36px;">
+                                    <p style="color:#444;font-size:15px;line-height:1.7;margin:0 0 8px;">嗨，欢迎来到 MoodCopilot ⊂(◉‿◉)つ</p>
+                                    <p style="color:#888;font-size:14px;line-height:1.7;margin:0 0 28px;">%s</p>
+                                    <div style="background-color:#f5f0e8;border-radius:8px;padding:22px 16px;text-align:center;margin-bottom:28px;">
+                                        <span style="font-family:'SF Mono',Menlo,Monaco,monospace;font-size:34px;font-weight:700;letter-spacing:8px;color:#4a7c62;">%s</span>
+                                    </div>
+                                    <p style="color:#aaa;font-size:12px;line-height:1.6;text-align:center;margin:0;">验证码 5 分钟内有效，请勿转发给他人。</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="border-top:1px solid #eee;padding:16px 36px;text-align:center;">
+                                    <p style="color:#ccc;font-size:11px;margin:0;">这是自动发送的系统邮件，无需回复。</p>
+                                </td>
+                            </tr>
+                        </table>
+                        </td></tr>
+                        </table>
+                        </body></html>
+                        """
+                        .formatted(introLine, code),
+                true);
+        javaMailSender.send(mimeMessage);
     }
 
     @org.springframework.transaction.annotation.Transactional
@@ -258,7 +337,7 @@ public class AuthService {
         return response(token, user);
     }
 
-    public AuthResponse updateProfile(Long userId, String displayName, String avatar) {
+    public AuthResponse updateProfile(Long userId, String displayName, String avatar, String signature) {
         UserEntity user = userMapper.selectById(userId);
         if (displayName != null && !displayName.isBlank()) {
             user.setDisplayName(displayName.trim());
@@ -266,10 +345,26 @@ public class AuthService {
         if (avatar != null) {
             user.setAvatar(avatar);
         }
+        if (signature != null) {
+            String normalizedSignature = signature.trim();
+            if (normalizedSignature.length() > 160) {
+                throw new ResponseStatusException(BAD_REQUEST, "个性签名最多 160 字");
+            }
+            user.setSignature(normalizedSignature.isBlank() ? null : normalizedSignature);
+        }
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
         evictPublicDiaryCaches();
         return response(null, user);
+    }
+
+    public UserProfileResponse profile(Long userId) {
+        UserEntity user = userMapper.selectById(userId);
+        if (user == null || (user.getStatus() != null && user.getStatus() == 0)) {
+            throw new ResponseStatusException(NOT_FOUND, "用户不存在");
+        }
+        return new UserProfileResponse(user.getId(), user.getDisplayName(), normalizeAvatar(user.getAvatar()),
+                user.getSignature());
     }
 
     private void evictPublicDiaryCaches() {
@@ -328,7 +423,8 @@ public class AuthService {
 
     private AuthResponse response(String token, UserEntity user) {
         String role = user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole();
-        return new AuthResponse(token, user.getId(), user.getDisplayName(), normalizeAvatar(user.getAvatar()),
+        return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getEmail(),
+                normalizeAvatar(user.getAvatar()), user.getSignature(),
                 user.getDailyNotifyEnabled(), role, user.getInviteCode(), user.getInviteQuota());
     }
 

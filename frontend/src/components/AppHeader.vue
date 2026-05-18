@@ -37,7 +37,7 @@
               <p v-if="quotaError" style="margin: 6px 0 0; font-size: 11px; color: #b15454;">{{ quotaError }}</p>
             </div>
           </n-popover>
-          <n-popover trigger="click" placement="bottom-end" @update:show="onPopoverShow">
+          <n-popover trigger="click" placement="bottom-end" :shift="8" @update:show="onPopoverShow">
             <template #trigger>
               <n-badge :value="notif.unreadCount" :max="99" :show="notif.unreadCount > 0">
                 <n-button text size="small" class="nav-bell">
@@ -56,7 +56,18 @@
                 :class="{ unread: !item.isRead }"
                 @click="handleNotifClick(item)"
               >
-                <p class="notif-msg">{{ item.message }}</p>
+                <div
+                  :class="['notif-msg', 'md-content', { 'notif-msg-collapsed': shouldCollapseNotification(item) && !isNotificationExpanded(item.id) }]"
+                  v-html="renderNotification(item)"
+                />
+                <button
+                  v-if="shouldCollapseNotification(item)"
+                  type="button"
+                  class="notif-expand-btn"
+                  @click.stop="toggleNotificationExpand(item.id)"
+                >
+                  {{ isNotificationExpanded(item.id) ? '收起' : '展开' }}
+                </button>
                 <span class="notif-time">{{ formatTime(item.createdAt) }}</span>
               </div>
             </div>
@@ -99,6 +110,7 @@ import { NButton, NBadge, NPopover } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore, type Notification } from '../stores/notification'
 import { authApi } from '../api'
+import { renderSafeMarkdown } from '../utils/markdown'
 
 const router = useRouter()
 const route = useRoute()
@@ -107,6 +119,7 @@ const notif = useNotificationStore()
 
 const quotas = ref<Record<string, number>>({})
 const quotaError = ref('')
+const expandedNotificationIds = ref<number[]>([])
 
 const navItems = computed(() => {
   const items = [
@@ -140,7 +153,10 @@ function handleLogout() {
 }
 
 function onPopoverShow(show: boolean) {
-  if (show) notif.fetchNotifications()
+  if (show) {
+    expandedNotificationIds.value = []
+    notif.fetchNotifications()
+  }
 }
 
 async function onQuotaPopoverShow(show: boolean) {
@@ -175,5 +191,30 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
   }).format(new Date(value))
+}
+
+function renderNotification(item: Notification) {
+  if (!item?.message) return ''
+  if (item.isMarkdown === false) {
+    return renderSafeMarkdown(item.message.replace(/\n/g, '  \n'))
+  }
+  return renderSafeMarkdown(item.message)
+}
+
+function shouldCollapseNotification(item: Notification) {
+  if (!item?.message) return false
+  return item.message.length > 88 || item.message.includes('\n') || item.message.includes('**')
+}
+
+function isNotificationExpanded(id: number) {
+  return expandedNotificationIds.value.includes(id)
+}
+
+function toggleNotificationExpand(id: number) {
+  if (isNotificationExpanded(id)) {
+    expandedNotificationIds.value = expandedNotificationIds.value.filter((itemId) => itemId !== id)
+    return
+  }
+  expandedNotificationIds.value = [...expandedNotificationIds.value, id]
 }
 </script>
