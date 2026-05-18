@@ -37,7 +37,14 @@
               <p v-if="quotaError" style="margin: 6px 0 0; font-size: 11px; color: #b15454;">{{ quotaError }}</p>
             </div>
           </n-popover>
-          <n-popover trigger="click" placement="bottom-end" :shift="8" @update:show="onPopoverShow">
+          <n-popover
+            trigger="click"
+            placement="bottom-end"
+            :shift="8"
+            overlay-class="notif-popover-overlay"
+            :overlay-style="notifOverlayStyle"
+            @update:show="onPopoverShow"
+          >
             <template #trigger>
               <n-badge :value="notif.unreadCount" :max="99" :show="notif.unreadCount > 0">
                 <n-button text size="small" class="nav-bell">
@@ -72,7 +79,7 @@
               </div>
             </div>
           </n-popover>
-          <router-link to="/settings" class="masthead-user-link">
+          <router-link :to="profilePath" class="masthead-user-link">
             <img v-if="auth.avatar" :src="auth.avatar" class="avatar-sm-nav avatar-sm-nav-img" decoding="async" />
             <span v-else class="avatar-sm-nav">{{ auth.displayName?.charAt(0) }}</span>
             <span class="masthead-user-name">{{ auth.displayName }}</span>
@@ -120,6 +127,12 @@ const notif = useNotificationStore()
 const quotas = ref<Record<string, number>>({})
 const quotaError = ref('')
 const expandedNotificationIds = ref<number[]>([])
+const profilePath = computed(() => (auth.userId != null ? `/profile/${auth.userId}` : '/login'))
+const notifOverlayStyle = {
+  width: 'min(320px, calc(100vw - 24px))',
+  maxWidth: 'calc(100vw - 24px)',
+  boxSizing: 'border-box',
+}
 
 const navItems = computed(() => {
   const items = [
@@ -137,13 +150,14 @@ const navItems = computed(() => {
 
 const mobileNavItems = computed(() => {
   const items = [...navItems.value]
-  items.push({ label: '我的', shortLabel: '我的', icon: '◍', path: '/settings' })
+  items.push({ label: '我的', shortLabel: '我的', icon: '◍', path: profilePath.value })
   return items
 })
 
 onMounted(() => {
   notif.connectRealtime()
   void notif.fetchUnreadCount()
+  void notif.fetchNotifications()
 })
 
 function handleLogout() {
@@ -155,7 +169,6 @@ function handleLogout() {
 function onPopoverShow(show: boolean) {
   if (show) {
     expandedNotificationIds.value = []
-    notif.fetchNotifications()
   }
 }
 
