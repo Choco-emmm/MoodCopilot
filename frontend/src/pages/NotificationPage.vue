@@ -14,7 +14,7 @@
           secondary
           :loading="markingAll"
           :disabled="markingAll"
-          @click="handleMarkAllRead"
+          @click="() => handleMarkAllRead()"
         >
           全部标为已读
         </n-button>
@@ -26,7 +26,7 @@
 
       <div v-else-if="notif.error && notif.items.length === 0" class="empty-state compact">
         <p>{{ notif.error }}</p>
-        <n-button type="primary" @click="loadNotifications">重试</n-button>
+        <n-button type="primary" @click="() => loadNotifications()">重试</n-button>
       </div>
 
       <n-empty v-else-if="notif.items.length === 0" description="暂无通知" class="notification-page-empty" />
