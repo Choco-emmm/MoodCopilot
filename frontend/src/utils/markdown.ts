@@ -26,6 +26,7 @@ export function renderSafeMarkdown(
         .replace(/\\\*/g, '*')                   // \*\* → **
         .replace(/^ {0,3}-(?=[^\s])/gm, '$& ')   // -X → - X
         .replace(/([。！？])(不过|但是|其实|所以|然而|总之)/g, '$1\n$2') // 句子+连词 → 换行
+        .replace(/([^\s\dA-Za-z])(-)([^\s\d])/g, '$1\n- $3') // AI 行内列表拆行：中文/emoji后- → 换行- 空格
 
     const html = marked.parse(processedText, { async: false }) as string
     return DOMPurify.sanitize(html, {
