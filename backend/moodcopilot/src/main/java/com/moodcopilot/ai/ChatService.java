@@ -156,7 +156,7 @@ public class ChatService {
                 message == null ? 0 : message.length());
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = ragMemoryService.buildRagContext(uid, message, 3);
+        String ragCtx = ragMemoryService.buildRagContext(uid, message, 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
         return chatChatClient.prompt()
                 .user(message)
                 .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT + ragCtx))
@@ -186,7 +186,7 @@ public class ChatService {
                 message == null ? 0 : message.length());
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = ragMemoryService.buildRagContext(uid, message, 3);
+        String ragCtx = ragMemoryService.buildRagContext(uid, message, 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
         String result = chatChatClient.prompt()
                 .user(message)
                 .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT + ragCtx))
@@ -214,7 +214,7 @@ public class ChatService {
             String history = formatChatHistory(request.memory());
             String enhancedContext = request.context() + buildTimeMetadata()
                     + buildReasoningDataContext(auth)
-                    + ragMemoryService.buildRagContext(userId, message, 5);
+                    + ragMemoryService.buildRagContext(userId, message, 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
 
             String userMessage;
             if (!history.isEmpty()) {
@@ -262,7 +262,7 @@ public class ChatService {
             String history = formatChatHistory(request.memory());
             String enhancedContext = request.context() + buildTimeMetadata()
                     + buildReasoningDataContext(auth)
-                    + ragMemoryService.buildRagContext(userId, message, 5);
+                    + ragMemoryService.buildRagContext(userId, message, 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
 
             String userMessage;
             if (!history.isEmpty()) {
