@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -325,8 +326,14 @@ public class RagMemoryService {
         return buf.array();
     }
 
+    @SuppressWarnings("unchecked")
     private RedisCommands<byte[], byte[]> getLettuceCommands() {
-        return connectionFactory.getNativeConnection().sync();
+        RedisConnection conn = connectionFactory.getConnection();
+        Object nativeConn = conn.getNativeConnection();
+        if (nativeConn instanceof io.lettuce.core.api.StatefulRedisConnection<?, ?> stateful) {
+            return (RedisCommands<byte[], byte[]>) stateful.sync();
+        }
+        throw new IllegalStateException("无法获取 Lettuce 同步连接，native: " + nativeConn.getClass().getName());
     }
 
     private String snippet(String content, int maxLen) {
