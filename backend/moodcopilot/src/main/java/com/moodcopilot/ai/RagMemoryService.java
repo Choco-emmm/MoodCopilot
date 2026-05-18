@@ -138,7 +138,7 @@ public class RagMemoryService {
         if (vec == null) {
             return;
         }
-        storeEmbedding("diary:" + diaryId, userId, snippet(content, 350), vec);
+        storeEmbedding("diary:" + diaryId, userId, snippet(content, 800), vec);
     }
 
     /**
@@ -371,7 +371,7 @@ public class RagMemoryService {
                 float[] vec = embed(item.content());
                 if (vec != null) {
                     storeEmbedding("diary:" + item.diaryId(), item.userId(),
-                            snippet(item.content(), 350), vec);
+                            snippet(item.content(), 800), vec);
                     count++;
                 }
                 // 控制频率，避免 SiliconFlow 限流
