@@ -130,7 +130,7 @@ public class RagMemoryService {
     /**
      * 异步：将日记内容 embedding 后存入 Redis vector index。
      */
-    @Async
+    @Async("aiExecutor")
     public void indexDiary(long userId, long diaryId, String content) {
         if (content == null || content.isBlank()) {
             log.debug("RAG 索引跳过：日记内容为空 diaryId={}", diaryId);
@@ -149,7 +149,7 @@ public class RagMemoryService {
      * 将用户长期画像按属性逐个索引到向量库（key: profile:{userId}:{attrKey}）。
      * 每个属性独立存储，便于语义检索时精准匹配。
      */
-    @Async
+    @Async("aiExecutor")
     public void indexUserProfile(long userId, List<UserProfileMemoryEntity> memories) {
         redis.delete(KEY_PREFIX + "profile:" + userId);
         if (memories == null || memories.isEmpty()) {
@@ -200,7 +200,7 @@ public class RagMemoryService {
     /**
      * 异步：将聊天消息 embedding 后存入 Redis vector index。
      */
-    @Async
+    @Async("aiExecutor")
     public void indexChatMessage(long userId, long conversationId, String content) {
         if (content == null || content.isBlank()) {
             return;
