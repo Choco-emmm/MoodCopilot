@@ -147,8 +147,9 @@ public class RagMemoryService {
      */
     @Async
     public void indexUserProfile(long userId, List<UserProfileMemoryEntity> memories) {
+        // 清理旧格式单 blob key（迁移兼容，后续可移除）
+        redis.delete(KEY_PREFIX + "profile:" + userId);
         if (memories == null || memories.isEmpty()) {
-            // 用户画像被清空，删除该用户所有画像向量
             List<String> keys = listProfileKeys(userId);
             if (!keys.isEmpty()) {
                 redis.delete(keys);
@@ -392,6 +393,8 @@ public class RagMemoryService {
         }
         int count = 0;
         for (var entry : grouped.entrySet()) {
+            // 清理旧格式单 blob key
+            redis.delete(KEY_PREFIX + "profile:" + entry.getKey());
             if (entry.getValue() == null || entry.getValue().isEmpty()) {
                 continue;
             }
