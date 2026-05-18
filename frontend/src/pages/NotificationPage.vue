@@ -20,13 +20,22 @@
         </n-button>
       </div>
 
-      <div v-if="notif.loading" class="empty-state compact">
+      <div v-if="notif.loading && notif.items.length === 0" class="empty-state compact">
         <n-spin size="medium">加载中...</n-spin>
+      </div>
+
+      <div v-else-if="notif.error && notif.items.length === 0" class="empty-state compact">
+        <p>{{ notif.error }}</p>
+        <n-button type="primary" @click="loadNotifications">重试</n-button>
       </div>
 
       <n-empty v-else-if="notif.items.length === 0" description="暂无通知" class="notification-page-empty" />
 
       <div v-else class="notification-page-list">
+        <div v-if="notif.error" class="notification-page-error">
+          <p>{{ notif.error }}</p>
+          <n-button size="small" text type="primary" @click="loadNotifications(true)">重新加载</n-button>
+        </div>
         <div
           v-for="item in notif.items"
           :key="item.id"
@@ -48,6 +57,12 @@
           </button>
           <span class="notif-time">{{ formatTime(item.createdAt) }}</span>
         </div>
+
+        <div v-if="hasMore" class="notification-page-load-more">
+          <n-button secondary block :loading="loadingMore" :disabled="loadingMore" @click="loadMore">
+            加载更多
+          </n-button>
+        </div>
       </div>
     </section>
   </main>
@@ -66,18 +81,22 @@ const notif = useNotificationStore()
 
 const expandedNotificationIds = ref<number[]>([])
 const markingAll = ref(false)
+const loadingMore = ref(false)
+const page = ref(1)
+const hasMore = ref(true)
+const PAGE_SIZE = 20
 const hasUnread = computed(() => notif.items.some((item) => !item.isRead))
 
 onMounted(() => {
   notif.connectRealtime()
   expandedNotificationIds.value = []
   void notif.fetchUnreadCount(true)
-  void notif.fetchNotifications()
+  void loadNotifications(true)
 })
 
-async function handleNotifClick(item: Notification) {
+function handleNotifClick(item: Notification) {
   if (!item.isRead) {
-    await notif.markRead(item.id)
+    void notif.markRead(item.id).catch(() => {})
   }
   if (item.type === 'SYSTEM' && !item.diaryId) {
     router.push('/')
@@ -88,6 +107,37 @@ async function handleNotifClick(item: Notification) {
     return
   }
   router.push('/')
+}
+
+async function loadNotifications(reset = false) {
+  if (reset) {
+    page.value = 1
+    const loaded = await notif.fetchNotifications(1, PAGE_SIZE)
+    if (loaded == null) {
+      hasMore.value = true
+      return
+    }
+    hasMore.value = loaded >= PAGE_SIZE
+    return
+  }
+
+  const nextPage = page.value + 1
+  const loaded = await notif.fetchNotifications(nextPage, PAGE_SIZE, true)
+  if (loaded == null) {
+    return
+  }
+  page.value = nextPage
+  hasMore.value = loaded >= PAGE_SIZE
+}
+
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  loadingMore.value = true
+  try {
+    await loadNotifications(false)
+  } finally {
+    loadingMore.value = false
+  }
 }
 
 async function handleMarkAllRead() {

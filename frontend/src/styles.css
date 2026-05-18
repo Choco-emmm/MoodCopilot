@@ -1313,6 +1313,23 @@ h2 {
   display: grid;
 }
 
+.notification-page-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-border) 82%);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-bg);
+  color: var(--color-text-secondary);
+}
+
+.notification-page-error p {
+  margin: 0;
+  font-size: 13px;
+}
+
 .notification-page-item {
   border-bottom: 1px solid var(--color-border);
 }
@@ -2595,6 +2612,11 @@ h2 {
 
   .notification-page {
     padding: 18px;
+  }
+
+  .notification-page-error {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .app-shell {

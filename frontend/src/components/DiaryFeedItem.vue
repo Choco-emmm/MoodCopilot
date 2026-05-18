@@ -20,6 +20,7 @@
         <button
           v-if="diary.authorUserId !== auth.userId && !hideFollowBtn"
           :class="['follow-btn', 'feed-follow-btn', { following: followStore.isFollowing(diary.authorUserId) }]"
+          :disabled="followStore.isPending(diary.authorUserId)"
           @mouseenter="hoveringId = diary.authorUserId"
           @mouseleave="hoveringId = null"
           @click.stop="toggleFollow(diary.authorUserId)"
@@ -183,11 +184,12 @@ onMounted(() => {
   }
 })
 
-function toggleFollow(userId: number) {
+async function toggleFollow(userId: number) {
+  if (followStore.isPending(userId)) return
   if (followStore.isFollowing(userId)) {
-    followStore.unfollow(userId)
+    await followStore.unfollow(userId)
   } else {
-    followStore.follow(userId)
+    await followStore.follow(userId)
   }
 }
 
@@ -199,6 +201,9 @@ function handleResonate(diary: Diary) {
 }
 
 function followBtnLabel(userId: number) {
+  if (followStore.isPending(userId)) {
+    return '处理中...'
+  }
   if (followStore.isFollowing(userId)) {
     return hoveringId.value === userId ? '取消关注' : '已关注'
   }

@@ -20,6 +20,7 @@ export const useNotificationStore = defineStore('notification', () => {
   const items = ref<Notification[]>([])
   const unreadCount = ref(0)
   const loading = ref(false)
+  const error = ref('')
   const unreadLoading = ref(false)
   const unreadFetchedAt = ref(0)
   const UNREAD_CACHE_MS = 30000
@@ -185,15 +186,21 @@ export const useNotificationStore = defineStore('notification', () => {
     }
   }
 
-  async function fetchNotifications() {
+  async function fetchNotifications(page = 1, size = 20, append = false) {
     loading.value = true
+    error.value = ''
     try {
-      const res = await notificationApi.list()
-      items.value = res.data.data
+      const res = await notificationApi.list(page, size)
+      const nextItems = res.data.data
         .filter((n: Notification) => n.createdAt !== 'null')
         .map((n: Notification) => ({ ...n, isRead: n.isRead ?? false }))
-    } catch {
-      items.value = []
+      items.value = append
+        ? [...items.value, ...nextItems.filter((item: Notification) => !items.value.some((existing) => existing.id === item.id))]
+        : nextItems
+      return nextItems.length
+    } catch (e: any) {
+      error.value = e?.response?.data?.message || '通知加载失败，请稍后重试。'
+      return null
     } finally {
       loading.value = false
     }
@@ -228,6 +235,7 @@ export const useNotificationStore = defineStore('notification', () => {
     items,
     unreadCount,
     loading,
+    error,
     fetchUnreadCount,
     fetchNotifications,
     markRead,

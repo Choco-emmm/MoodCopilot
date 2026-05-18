@@ -4,7 +4,7 @@ import { followApi } from '../api'
 
 export const useFollowStore = defineStore('follow', () => {
   const followingMap = ref<Record<number, boolean>>({})
-  const loading = ref(false)
+  const pendingMap = ref<Record<number, boolean>>({})
 
   async function checkStatus(userId: number) {
     try {
@@ -16,22 +16,24 @@ export const useFollowStore = defineStore('follow', () => {
   }
 
   async function follow(userId: number) {
-    loading.value = true
+    if (pendingMap.value[userId]) return
+    pendingMap.value[userId] = true
     try {
       await followApi.follow(userId)
       followingMap.value[userId] = true
     } finally {
-      loading.value = false
+      pendingMap.value[userId] = false
     }
   }
 
   async function unfollow(userId: number) {
-    loading.value = true
+    if (pendingMap.value[userId]) return
+    pendingMap.value[userId] = true
     try {
       await followApi.unfollow(userId)
       followingMap.value[userId] = false
     } finally {
-      loading.value = false
+      pendingMap.value[userId] = false
     }
   }
 
@@ -39,5 +41,9 @@ export const useFollowStore = defineStore('follow', () => {
     return followingMap.value[userId] ?? false
   }
 
-  return { followingMap, loading, checkStatus, follow, unfollow, isFollowing }
+  function isPending(userId: number) {
+    return pendingMap.value[userId] ?? false
+  }
+
+  return { followingMap, pendingMap, checkStatus, follow, unfollow, isFollowing, isPending }
 })
