@@ -132,6 +132,18 @@ public class DeepSeekReasoningClient {
                     HttpResponse<java.io.InputStream> response = streamClient.send(httpReq,
                             HttpResponse.BodyHandlers.ofInputStream());
 
+                    int statusCode = response.statusCode();
+                    if (statusCode >= 400) {
+                        String errorBody;
+                        try (java.util.Scanner s = new java.util.Scanner(response.body()).useDelimiter("\\A")) {
+                            errorBody = s.hasNext() ? s.next() : "";
+                        }
+                        log.warn("DeepSeek 推理模型流式请求失败 HTTP {}: {}", statusCode, errorBody);
+                        sink.error(new IllegalStateException(
+                                "DeepSeek reasoning API error " + statusCode));
+                        return;
+                    }
+
                     try (BufferedReader reader = new BufferedReader(
                             new InputStreamReader(response.body()))) {
                         String line;
