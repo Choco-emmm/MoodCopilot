@@ -487,7 +487,7 @@ public class DiaryService {
                 .toList();
         recordExposures(user.getId(), "SIMILAR_DIARIES", recommended);
         return recommended.stream()
-                .map(d -> buildDiaryView(d, true, analysisMap, Map.of()))
+                .map(d -> buildDiaryView(d, true, analysisMap, java.util.Collections.emptyMap(), false))
                 .toList();
     }
 
@@ -1511,7 +1511,8 @@ public class DiaryService {
                 .orElseGet(() -> moodMatches.stream().findFirst().orElse(null));
         if (selected != null) {
             recordExposures(user.getId(), "TODAY_MATCH", List.of(selected));
-            return buildDiaryView(selected, true, matchAnalysisMap, Map.of());
+            // 补上第5个参数 false，以及明确 Map 的类型
+            return buildDiaryView(selected, true, matchAnalysisMap, java.util.Collections.emptyMap(), false);
         }
         return null;
     }

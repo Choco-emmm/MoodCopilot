@@ -20,17 +20,17 @@ import { useAuthStore } from '../stores/auth'
 const auth = useAuthStore()
 
 const baseTabs = [
-  { path: '/', label: '广场', icon: '🏠' },
-  { path: '/write', label: '写日记', icon: '✏️' },
-  { path: '/chat', label: 'AI', icon: '💬' },
-  { path: '/following', label: '关注', icon: '👥' },
-  { path: '/report', label: '报告', icon: '📊' },
-  { path: '/settings', label: '我的', icon: '👤' },
+  { path: '/', label: '广场', icon: '览' },
+  { path: '/write', label: '写日记', icon: '写' },
+  { path: '/chat', label: 'AI', icon: '聊' },
+  { path: '/following', label: '关注', icon: '关' },
+  { path: '/report', label: '报告', icon: '报' },
+  { path: '/settings', label: '我的', icon: '己' },
 ]
 
 const visibleTabs = computed(() => {
   if (auth.isAdmin) {
-    return [...baseTabs, { path: '/admin/reports', label: '审核', icon: '🛡️' }]
+    return [...baseTabs, { path: '/admin/reports', label: '审核', icon: '审' }]
   }
   return baseTabs
 })
@@ -58,13 +58,14 @@ const visibleTabs = computed(() => {
 .bottom-tab-icon {
   display: grid;
   place-items: center;
-  font-size: 20px;
+  font-size: 22px;
+  font-weight: 800;
   line-height: 1;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 
 .bottom-tab-active {
-  color: var(--color-primary, #6366f1);
-  background: rgba(99, 102, 241, 0.08);
+  color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 </style>

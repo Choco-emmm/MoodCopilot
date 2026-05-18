@@ -16,6 +16,8 @@
           <p class="hero-subtitle">慢慢来，照顾好自己，每天都会好一点。</p>
         </div>
         <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" hidden @change="onFileChange" />
+
+        <n-button quaternary circle style="position: absolute; right: 16px; top: 16px; font-size: 22px; z-index: 10;" @click="showSettingsModal = true" title="设置">⚙️</n-button>
       </section>
 
       <!-- 裁切弹窗 -->
@@ -40,231 +42,221 @@
         </template>
       </n-modal>
 
-      <section class="settings-shortcuts">
-        <router-link to="/write" class="shortcut-card">
-          <span class="shortcut-kicker">记录</span>
-          <strong>继续写日记</strong>
-          <span>把今天的状态轻轻放下。</span>
-        </router-link>
-        <router-link to="/chat" class="shortcut-card">
-          <span class="shortcut-kicker">陪伴</span>
-          <strong>继续和 AI 聊聊</strong>
-          <span>围绕最近情绪继续展开。</span>
-        </router-link>
-        <router-link to="/report" class="shortcut-card">
-          <span class="shortcut-kicker">回顾</span>
-          <strong>查看本周报告</strong>
-          <span>看看趋势和关键变化。</span>
-        </router-link>
+      <!-- 我的日记列表 -->
+      <section style="margin-top: 20px;">
+        <MyDiaryList
+          :diaries="diaryStore.myDiaries"
+          @select="selectDiary"
+          @edit="editDiary"
+          @delete="handleDelete"
+        />
       </section>
 
-      <section class="settings-section">
-        <div class="section-head">
-          <p class="settings-label">头像设置</p>
-          <span class="section-tag">Profile</span>
-        </div>
-        <div class="settings-inline-tip">点击上方头像即可更换，支持 JPG/PNG/WEBP，最大 10MB。上传后可自定义裁切。</div>
-        <p v-if="uploadMsg" class="settings-hint">{{ uploadMsg }}</p>
-      </section>
+      <!-- Settings Modal -->
+      <n-modal v-model:show="showSettingsModal" preset="card" title="设置" style="width: 95%; max-width: 650px; max-height: 85vh;">
+        <div style="overflow-y: auto; max-height: calc(85vh - 100px); padding-right: 4px;">
 
-      <section class="settings-section">
-        <div class="section-head">
-          <label class="settings-label">用户名</label>
-          <span class="section-tag">Identity</span>
-        </div>
-        <div class="settings-row">
-          <n-input
-            v-model:value="editingName"
-            :disabled="savingName"
-            placeholder="输入新用户名"
-            @keyup.enter="saveName"
-          />
-          <n-button size="small" type="primary" :disabled="!editingName.trim() || editingName === auth.displayName || savingName" @click="saveName" class="save-btn">
-            保存
-          </n-button>
-        </div>
-        <p v-if="nameMsg" class="settings-hint">{{ nameMsg }}</p>
-      </section>
+          <section class="settings-section">
+            <div class="section-head">
+              <label class="settings-label">用户名</label>
+              <span class="section-tag">Identity</span>
+            </div>
+            <div class="settings-row">
+              <n-input
+                v-model:value="editingName"
+                :disabled="savingName"
+                placeholder="输入新用户名"
+                @keyup.enter="saveName"
+              />
+              <n-button size="small" type="primary" :disabled="!editingName.trim() || editingName === auth.displayName || savingName" @click="saveName" class="save-btn">
+                保存
+              </n-button>
+            </div>
+            <p v-if="nameMsg" class="settings-hint">{{ nameMsg }}</p>
+          </section>
 
-      <section class="settings-section">
-        <div class="section-head">
-          <label class="settings-label">个性签名</label>
-          <span class="section-tag">Profile</span>
-        </div>
-        <div class="settings-row settings-row-signature">
-          <n-input
-            v-model:value="editingSignature"
-            type="textarea"
-            :maxlength="160"
-            :autosize="{ minRows: 2, maxRows: 4 }"
-            placeholder="写一句你希望别人看到的状态（最多160字）"
-          />
-          <n-button
-            size="small"
-            type="primary"
-            :loading="savingSignature"
-            :disabled="(editingSignature ?? '').trim() === (auth.signature ?? '')"
-            @click="saveSignature"
-            class="save-btn"
-          >
-            保存签名
-          </n-button>
-        </div>
-        <p v-if="signatureMsg" class="settings-hint">{{ signatureMsg }}</p>
-      </section>
+          <section class="settings-section">
+            <div class="section-head">
+              <label class="settings-label">个性签名</label>
+              <span class="section-tag">Profile</span>
+            </div>
+            <div class="settings-row settings-row-signature">
+              <n-input
+                v-model:value="editingSignature"
+                type="textarea"
+                :maxlength="160"
+                :autosize="{ minRows: 2, maxRows: 4 }"
+                placeholder="写一句你希望别人看到的状态（最多160字）"
+              />
+              <n-button
+                size="small"
+                type="primary"
+                :loading="savingSignature"
+                :disabled="(editingSignature ?? '').trim() === (auth.signature ?? '')"
+                @click="saveSignature"
+                class="save-btn"
+              >
+                保存签名
+              </n-button>
+            </div>
+            <p v-if="signatureMsg" class="settings-hint">{{ signatureMsg }}</p>
+          </section>
 
-      <section class="settings-section">
-        <div class="section-head">
-          <label class="settings-label">邮箱账号</label>
-          <span class="section-tag">Account</span>
-        </div>
-        <div class="settings-inline-tip">{{ auth.email || '未获取到邮箱信息' }}</div>
-        <p class="settings-desc">邮箱账号当前仅用于登录和安全验证，暂不支持直接修改。</p>
-      </section>
+          <section class="settings-section">
+            <div class="section-head">
+              <label class="settings-label">邮箱账号</label>
+              <span class="section-tag">Account</span>
+            </div>
+            <div class="settings-inline-tip">{{ auth.email || '未获取到邮箱信息' }}</div>
+            <p class="settings-desc">邮箱账号当前仅用于登录和安全验证，暂不支持直接修改。</p>
+          </section>
 
-      <section class="settings-section">
-        <div class="section-head">
-          <label class="settings-label">提醒与陪伴</label>
-          <span class="section-tag">Routine</span>
-        </div>
-        <div class="settings-row notify-row">
-          <div>
-            <p class="notify-title">每日跟进通知</p>
-            <p class="settings-desc">每天在偏好时段推送一条情绪陪跑通知，计入当日 AI 额度</p>
-          </div>
-          <n-switch :value="auth.dailyNotifyEnabled" @update:value="toggleNotify" :disabled="toggling" />
-        </div>
-      </section>
+          <section class="settings-section">
+            <div class="section-head">
+              <label class="settings-label">提醒与陪伴</label>
+              <span class="section-tag">Routine</span>
+            </div>
+            <div class="settings-row notify-row">
+              <div>
+                <p class="notify-title">每日跟进通知</p>
+                <p class="settings-desc">每天在偏好时段推送一条情绪陪跑通知，计入当日 AI 额度</p>
+              </div>
+              <n-switch :value="auth.dailyNotifyEnabled" @update:value="toggleNotify" :disabled="toggling" />
+            </div>
+          </section>
 
-      <section class="settings-section">
-        <div class="section-head">
-          <p class="settings-label">内测邀请</p>
-          <span class="section-tag">Invite</span>
-        </div>
-        <div class="invite-info">
-          <div class="invite-code-box">
-            <span class="invite-label">你的邀请码</span>
-            <code class="invite-code-value">{{ auth.inviteCode || '暂无' }}</code>
-          </div>
-          <div class="invite-quota-box">
-            <span class="invite-label">剩余邀请名额</span>
-            <span class="invite-quota-value">{{ auth.inviteQuota }} 人</span>
-          </div>
-        </div>
-        <p class="settings-desc invite-desc">把这串邀请码发给朋友，他们就能加入内测。每个新用户默认获得 3 个邀请名额。</p>
-      </section>
+          <section class="settings-section">
+            <div class="section-head">
+              <p class="settings-label">内测邀请</p>
+              <span class="section-tag">Invite</span>
+            </div>
+            <div class="invite-info">
+              <div class="invite-code-box">
+                <span class="invite-label">你的邀请码</span>
+                <code class="invite-code-value">{{ auth.inviteCode || '暂无' }}</code>
+              </div>
+              <div class="invite-quota-box">
+                <span class="invite-label">剩余邀请名额</span>
+                <span class="invite-quota-value">{{ auth.inviteQuota }} 人</span>
+              </div>
+            </div>
+            <p class="settings-desc invite-desc">把这串邀请码发给朋友，他们就能加入内测。每个新用户默认获得 3 个邀请名额。</p>
+          </section>
 
-      <section class="settings-section">
-        <div class="section-head">
-          <p class="settings-label">我的记忆</p>
-          <span class="section-tag">Memory</span>
-        </div>
-        <p class="memory-desc">MoodCopilot 从你的日记和聊天中学习的长期画像，你可以编辑修正或删除不想要的部分。</p>
-        <div v-if="memoriesLoading" class="memory-loading">加载中...</div>
-        <div v-else-if="memories.length === 0" class="memory-empty">
-          MoodCopilot 正在默默观察你，多写点日记或和 AI 聊天吧。
-        </div>
-        <div v-else class="memory-list">
-          <div v-for="m in memories" :key="m.id" class="memory-item">
-            <div class="memory-content">
-              <span class="memory-key">{{ m.attributeKey }}</span>
-              <template v-if="editingMemoryId === m.id">
+          <section class="settings-section">
+            <div class="section-head">
+              <p class="settings-label">我的记忆</p>
+              <span class="section-tag">Memory</span>
+            </div>
+            <p class="memory-desc">MoodCopilot 从你的日记和聊天中学习的长期画像，你可以编辑修正或删除不想要的部分。</p>
+            <div v-if="memoriesLoading" class="memory-loading">加载中...</div>
+            <div v-else-if="memories.length === 0" class="memory-empty">
+              MoodCopilot 正在默默观察你，多写点日记或和 AI 聊天吧。
+            </div>
+            <div v-else class="memory-list">
+              <div v-for="m in memories" :key="m.id" class="memory-item">
+                <div class="memory-content">
+                  <span class="memory-key">{{ m.attributeKey }}</span>
+                  <template v-if="editingMemoryId === m.id">
+                    <n-input
+                      v-model:value="editingMemoryValue"
+                      size="small"
+                      class="memory-edit-input"
+                      :maxlength="500"
+                      @keyup.enter="saveMemory(m.id)"
+                      @keyup.escape="cancelEditMemory"
+                    />
+                  </template>
+                  <span v-else class="memory-value">{{ m.attributeValue }}</span>
+                </div>
+                <div class="memory-actions">
+                  <template v-if="editingMemoryId === m.id">
+                    <n-button size="tiny" text type="primary" :disabled="savingMemoryId === m.id" @click="saveMemory(m.id)">
+                      {{ savingMemoryId === m.id ? '...' : '保存' }}
+                    </n-button>
+                    <n-button size="tiny" text @click="cancelEditMemory">取消</n-button>
+                  </template>
+                  <template v-else>
+                    <n-button size="tiny" text type="info" @click="startEditMemory(m)">编辑</n-button>
+                    <n-button size="tiny" text type="error" :disabled="deletingMemoryId === m.id" @click="forgetMemory(m.id)">
+                      {{ deletingMemoryId === m.id ? '...' : '✕' }}
+                    </n-button>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section danger-zone">
+            <div class="section-head">
+              <p class="settings-label">账户安全</p>
+              <span class="section-tag">Security</span>
+            </div>
+            <p class="settings-desc">修改密码前会向当前账号邮箱发送验证码，验证通过后才会生效。</p>
+            <div class="password-change-panel">
+              <div class="password-row-inline">
                 <n-input
-                  v-model:value="editingMemoryValue"
-                  size="small"
-                  class="memory-edit-input"
-                  :maxlength="500"
-                  @keyup.enter="saveMemory(m.id)"
-                  @keyup.escape="cancelEditMemory"
+                  v-model:value="oldPassword"
+                  type="password"
+                  show-password-on="click"
+                  :maxlength="64"
+                  placeholder="输入当前密码"
                 />
-              </template>
-              <span v-else class="memory-value">{{ m.attributeValue }}</span>
-            </div>
-            <div class="memory-actions">
-              <template v-if="editingMemoryId === m.id">
-                <n-button size="tiny" text type="primary" :disabled="savingMemoryId === m.id" @click="saveMemory(m.id)">
-                  {{ savingMemoryId === m.id ? '...' : '保存' }}
+              </div>
+              <div class="password-row-inline">
+                <n-input
+                  v-model:value="newPassword"
+                  type="password"
+                  show-password-on="click"
+                  :maxlength="64"
+                  placeholder="输入新密码（至少6位）"
+                />
+              </div>
+              <div class="password-row-inline">
+                <n-input
+                  v-model:value="confirmNewPassword"
+                  type="password"
+                  show-password-on="click"
+                  :maxlength="64"
+                  placeholder="再次输入新密码"
+                />
+              </div>
+              <div class="password-row-inline password-code-row">
+                <n-input
+                  v-model:value="passwordVerificationCode"
+                  :maxlength="6"
+                  placeholder="输入邮箱验证码"
+                />
+                <n-button
+                  :disabled="passwordCodeCountdown > 0"
+                  :loading="sendingPasswordCode"
+                  @click="sendPasswordCode"
+                >
+                  {{ passwordCodeCountdown > 0 ? `${passwordCodeCountdown}s` : '发送验证码' }}
                 </n-button>
-                <n-button size="tiny" text @click="cancelEditMemory">取消</n-button>
-              </template>
-              <template v-else>
-                <n-button size="tiny" text type="info" @click="startEditMemory(m)">编辑</n-button>
-                <n-button size="tiny" text type="error" :disabled="deletingMemoryId === m.id" @click="forgetMemory(m.id)">
-                  {{ deletingMemoryId === m.id ? '...' : '✕' }}
-                </n-button>
-              </template>
+              </div>
+              <n-button
+                type="primary"
+                :loading="changingPassword"
+                :disabled="!oldPassword.trim() || !newPassword.trim() || !confirmNewPassword.trim() || !passwordVerificationCode.trim()"
+                @click="submitPasswordChange"
+              >
+                确认修改密码
+              </n-button>
+              <p v-if="passwordMsg" class="settings-hint">{{ passwordMsg }}</p>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      <section class="settings-section danger-zone">
-        <div class="section-head">
-          <p class="settings-label">账户安全</p>
-          <span class="section-tag">Security</span>
-        </div>
-        <p class="settings-desc">修改密码前会向当前账号邮箱发送验证码，验证通过后才会生效。</p>
-        <div class="password-change-panel">
-          <div class="password-row-inline">
-            <n-input
-              v-model:value="oldPassword"
-              type="password"
-              show-password-on="click"
-              :maxlength="64"
-              placeholder="输入当前密码"
-            />
-          </div>
-          <div class="password-row-inline">
-            <n-input
-              v-model:value="newPassword"
-              type="password"
-              show-password-on="click"
-              :maxlength="64"
-              placeholder="输入新密码（至少6位）"
-            />
-          </div>
-          <div class="password-row-inline">
-            <n-input
-              v-model:value="confirmNewPassword"
-              type="password"
-              show-password-on="click"
-              :maxlength="64"
-              placeholder="再次输入新密码"
-            />
-          </div>
-          <div class="password-row-inline password-code-row">
-            <n-input
-              v-model:value="passwordVerificationCode"
-              :maxlength="6"
-              placeholder="输入邮箱验证码"
-            />
-            <n-button
-              :disabled="passwordCodeCountdown > 0"
-              :loading="sendingPasswordCode"
-              @click="sendPasswordCode"
-            >
-              {{ passwordCodeCountdown > 0 ? `${passwordCodeCountdown}s` : '发送验证码' }}
-            </n-button>
-          </div>
-          <n-button
-            type="primary"
-            :loading="changingPassword"
-            :disabled="!oldPassword.trim() || !newPassword.trim() || !confirmNewPassword.trim() || !passwordVerificationCode.trim()"
-            @click="submitPasswordChange"
-          >
-            确认修改密码
-          </n-button>
-          <p v-if="passwordMsg" class="settings-hint">{{ passwordMsg }}</p>
-        </div>
-      </section>
+          <section class="settings-section danger-zone">
+            <div class="section-head">
+              <p class="settings-label">账户操作</p>
+              <span class="section-tag">Security</span>
+            </div>
+            <n-button type="error" @click="handleLogout" block>退出登录</n-button>
+          </section>
 
-      <section class="settings-section danger-zone">
-        <div class="section-head">
-          <p class="settings-label">账户操作</p>
-          <span class="section-tag">Security</span>
         </div>
-        <n-button type="error" @click="handleLogout" block>退出登录</n-button>
-      </section>
+      </n-modal>
     </div>
   </main>
 </template>
@@ -274,11 +266,32 @@ import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { NInput, NButton, NSwitch, NModal } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
+import MyDiaryList from '../components/MyDiaryList.vue'
 import { useAuthStore } from '../stores/auth'
+import { useDiaryStore, type Diary } from '../stores/diary'
 import { memoryApi } from '../api'
 
 const router = useRouter()
 const auth = useAuthStore()
+const diaryStore = useDiaryStore()
+
+const showSettingsModal = ref(false)
+
+// ---- diary list handlers ----
+function selectDiary(diary: Diary) {
+  router.push(`/diary/${diary.id}`)
+}
+
+function editDiary(diary: Diary) {
+  router.push(`/diary/${diary.id}?edit=1`)
+}
+
+async function handleDelete(diary: Diary) {
+  if (confirm('确定删除这篇日记吗？')) {
+    await diaryStore.deleteDiary(diary.id)
+  }
+}
+// ---- end diary list handlers ----
 
 // ---- memory management ----
 interface MemoryItem { id: number; attributeKey: string; attributeValue: string }
@@ -332,6 +345,7 @@ function cancelEditMemory() {
   editingMemoryValue.value = ''
 }
 // ---- end memory management ----
+
 const fileInput = ref<HTMLInputElement | null>(null)
 const editingName = ref('')
 const editingSignature = ref('')
@@ -373,6 +387,7 @@ onMounted(async () => {
   editingName.value = auth.displayName ?? ''
   editingSignature.value = auth.signature ?? ''
   loadMemories()
+  diaryStore.fetchDiaries()
 })
 
 function triggerUpload() {
@@ -383,7 +398,7 @@ async function onFileChange(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
   if (file.size > 10 * 1024 * 1024) {
-    uploadMsg.value = '\u6587\u4ef6\u5927\u5c0f\u4e0d\u80fd\u8d85\u8fc7 10MB'
+    uploadMsg.value = '文件大小不能超过 10MB'
     return
   }
   uploadMsg.value = ''
@@ -546,10 +561,10 @@ function handleCrop() {
     const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
     try {
       await auth.uploadAvatar(file)
-      uploadMsg.value = '\u5934\u50cf\u5df2\u66f4\u65b0'
+      uploadMsg.value = '头像已更新'
       showCropModal.value = false
     } catch {
-      uploadMsg.value = '\u4e0a\u4f20\u5931\u8d25'
+      uploadMsg.value = '上传失败'
     } finally {
       uploading.value = false
     }
@@ -674,9 +689,9 @@ function handleLogout() {
   padding: 22px 18px 14px;
   border-radius: 28px;
   background:
-    radial-gradient(120% 120% at 0% 0%, rgba(228, 205, 180, 0.26) 0%, rgba(228, 205, 180, 0) 44%),
-    linear-gradient(160deg, #f6eee5 0%, #f5efe7 46%, #f2ebe2 100%);
-  border: 1px solid rgba(150, 130, 110, 0.24);
+    radial-gradient(120% 120% at 0% 0%, var(--color-accent-bg) 0%, transparent 44%),
+    linear-gradient(160deg, var(--color-surface) 0%, var(--color-surface-soft) 46%, var(--color-bg) 100%);
+  border: 1px solid color-mix(in srgb, var(--color-border-strong) 24%, transparent 76%);
 }
 
 .settings-hero {
@@ -685,8 +700,8 @@ function handleLogout() {
   gap: 18px;
   padding: 14px 14px 18px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent 28%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-surface) 70%, transparent 30%);
 }
 
 .hero-avatar-wrap {
@@ -701,8 +716,8 @@ function handleLogout() {
   height: 84px;
   padding: 0;
   border-radius: 999px;
-  border: 2px solid rgba(67, 102, 76, 0.28);
-  background: #eff3ec;
+  border: 2px solid color-mix(in srgb, var(--color-primary) 28%, transparent 72%);
+  background: linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 70%, white 30%));
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -710,15 +725,15 @@ function handleLogout() {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.hero-avatar:focus-visible,
-.avatar-change-btn:focus-visible {
-  outline: 2px solid #4a745c;
-  outline-offset: 2px;
-}
-
 .hero-avatar:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(54, 74, 60, 0.18);
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--color-primary) 18%, transparent 82%);
+}
+
+.hero-avatar:focus-visible,
+.avatar-change-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .avatar-img {
@@ -730,13 +745,13 @@ function handleLogout() {
 .avatar-placeholder {
   font-size: 34px;
   font-weight: 700;
-  color: #335444;
+  color: #fff;
 }
 
 .avatar-change-btn {
-  border: 1px solid rgba(73, 108, 88, 0.35);
-  background: #f4faf6;
-  color: #3e6250;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 35%, transparent 65%);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
   font-size: 12px;
   font-weight: 700;
   padding: 3px 10px;
@@ -746,9 +761,9 @@ function handleLogout() {
 }
 
 .avatar-change-btn:hover {
-  background: #ebf4ee;
-  border-color: rgba(73, 108, 88, 0.5);
-  color: #2f5442;
+  background: var(--color-primary-light);
+  border-color: color-mix(in srgb, var(--color-primary) 50%, transparent 50%);
+  color: var(--color-primary-hover);
 }
 
 .hero-meta {
@@ -760,78 +775,31 @@ function handleLogout() {
   margin: 0;
   font-size: 22px;
   line-height: 1.2;
-  color: #2f2a24;
+  color: var(--color-text);
 }
 
 .hero-name {
   margin: 6px 0 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: #3d5247;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .hero-subtitle {
   margin: 8px 0 0;
   font-size: 13px;
-  color: #706558;
+  color: var(--color-text-secondary);
 }
 
 .settings-section {
   margin-top: 14px;
   padding: 16px;
   border-radius: 18px;
-  background: #ffffff;
-  border: 1px solid rgba(162, 142, 123, 0.2);
-  box-shadow: 0 10px 24px rgba(94, 70, 50, 0.08);
+  background: var(--color-surface);
+  border: 1px solid color-mix(in srgb, var(--color-border-strong) 20%, transparent 80%);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-text) 8%, transparent 92%);
   content-visibility: auto;
   contain-intrinsic-size: 180px;
-}
-
-.settings-shortcuts {
-  margin-top: 14px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.shortcut-card {
-  display: grid;
-  gap: 6px;
-  padding: 13px 12px;
-  border-radius: 14px;
-  text-decoration: none;
-  color: #3d443d;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86) 0%, rgba(246, 249, 245, 0.86) 100%);
-  border: 1px solid rgba(122, 144, 128, 0.24);
-  box-shadow: 0 8px 20px rgba(70, 88, 75, 0.08);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  content-visibility: auto;
-  contain-intrinsic-size: 120px;
-}
-
-.shortcut-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 26px rgba(63, 92, 74, 0.14);
-  border-color: rgba(72, 114, 89, 0.4);
-}
-
-.shortcut-kicker {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #62806e;
-  font-weight: 700;
-}
-
-.shortcut-card strong {
-  font-size: 14px;
-  color: #2d4034;
-}
-
-.shortcut-card span:last-child {
-  font-size: 12px;
-  line-height: 1.5;
-  color: #6b726a;
 }
 
 .section-head {
@@ -845,7 +813,7 @@ function handleLogout() {
   margin: 0;
   font-size: 14px;
   font-weight: 700;
-  color: #463e35;
+  color: var(--color-text);
 }
 
 .section-tag {
@@ -853,9 +821,9 @@ function handleLogout() {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #446454;
-  background: #edf4ef;
-  border: 1px solid rgba(68, 100, 84, 0.18);
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent 82%);
   border-radius: 999px;
   padding: 2px 9px;
 }
@@ -863,7 +831,7 @@ function handleLogout() {
 .settings-inline-tip {
   margin-top: 10px;
   font-size: 13px;
-  color: #6f6155;
+  color: var(--color-text-secondary);
   line-height: 1.6;
 }
 
@@ -891,21 +859,21 @@ function handleLogout() {
   margin: 0;
   font-size: 15px;
   font-weight: 700;
-  color: #2f443a;
+  color: var(--color-text);
 }
 
 .settings-desc {
   margin: 6px 0 0;
   font-size: 13px;
   line-height: 1.6;
-  color: #6f6256;
+  color: var(--color-text-secondary);
 }
 
 .settings-hint {
   margin: 10px 0 0;
   font-size: 13px;
-  color: #40624f;
-  background: #edf6f0;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
   border-radius: 10px;
   padding: 7px 10px;
 }
@@ -924,8 +892,8 @@ function handleLogout() {
   gap: 4px;
   padding: 10px 14px;
   border-radius: 12px;
-  background: #f4faf6;
-  border: 1px solid rgba(68, 100, 84, 0.16);
+  background: var(--color-primary-light);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 16%, transparent 84%);
   flex: 1;
   min-width: 140px;
 }
@@ -935,14 +903,14 @@ function handleLogout() {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #62806e;
+  color: var(--color-text-secondary);
 }
 
 .invite-code-value {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #2d4034;
+  color: var(--color-text);
   background: none;
   padding: 0;
 }
@@ -950,7 +918,7 @@ function handleLogout() {
 .invite-quota-value {
   font-size: 20px;
   font-weight: 700;
-  color: #2d4034;
+  color: var(--color-text);
 }
 
 .invite-desc {
@@ -961,14 +929,14 @@ function handleLogout() {
   margin: 10px 0 0;
   font-size: 13px;
   line-height: 1.6;
-  color: #6f6256;
+  color: var(--color-text-secondary);
 }
 
 .memory-loading,
 .memory-empty {
   margin-top: 10px;
   font-size: 13px;
-  color: #8f8278;
+  color: var(--color-text-muted);
 }
 
 .memory-list {
@@ -983,8 +951,8 @@ function handleLogout() {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: #f9f7f3;
-  border: 1px solid rgba(162, 142, 123, 0.14);
+  background: var(--color-surface-soft);
+  border: 1px solid color-mix(in srgb, var(--color-border-strong) 14%, transparent 86%);
 }
 
 .memory-content {
@@ -999,8 +967,8 @@ function handleLogout() {
 .memory-key {
   font-size: 12px;
   font-weight: 700;
-  color: #446454;
-  background: #edf4ef;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
   border-radius: 6px;
   padding: 2px 8px;
   white-space: nowrap;
@@ -1008,7 +976,7 @@ function handleLogout() {
 
 .memory-value {
   font-size: 13px;
-  color: #3d443d;
+  color: var(--color-text);
   line-height: 1.5;
   word-break: break-word;
 }
@@ -1046,8 +1014,8 @@ function handleLogout() {
 }
 
 .danger-zone {
-  background: linear-gradient(180deg, #ffffff 0%, #fff8f8 100%);
-  border-color: rgba(181, 90, 90, 0.2);
+  background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-accent-bg) 100%);
+  border-color: color-mix(in srgb, var(--color-accent) 20%, transparent 80%);
 }
 
 @media (max-width: 640px) {
@@ -1060,11 +1028,6 @@ function handleLogout() {
   .settings-hero {
     padding: 12px;
     gap: 12px;
-  }
-
-  .settings-shortcuts {
-    grid-template-columns: 1fr;
-    gap: 8px;
   }
 
   .hero-avatar {
@@ -1167,7 +1130,7 @@ function handleLogout() {
 
 .crop-zoom-label {
   font-size: 13px;
-  color: #666;
+  color: var(--color-text-muted);
 }
 
 .crop-action-row {
