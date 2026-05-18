@@ -363,10 +363,13 @@ public class RagMemoryService {
             scoreLog.append("]");
             log.debug(scoreLog.toString());
         }
-        // 过滤低分噪音 + 余弦距离→相似度转换（0=完全相同, 1=正交, 2=完全相反）
+        // 过滤：剔除 score≈0 的自我重复 + 余弦距离 >1.0 的噪音
         List<RagHit> qualityHits = hits.stream()
-                .filter(h -> h.score() != null && h.score() < 1.0)
+                .filter(h -> h.score() != null && h.score() > 0.001 && h.score() < 1.0)
                 .toList();
+        // Java 内存侧按余弦距离升序（越小越相似），确保最相关的排在 LLM 上下文最前面
+        qualityHits = new java.util.ArrayList<>(qualityHits);
+        qualityHits.sort(java.util.Comparator.comparing(RagHit::score, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
         if (qualityHits.isEmpty()) {
             log.debug("RAG 命中全部低于阈值，已过滤 userId={}", userId);
             return "";
