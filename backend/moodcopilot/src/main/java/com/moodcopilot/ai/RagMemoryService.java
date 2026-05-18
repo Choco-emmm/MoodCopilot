@@ -133,13 +133,16 @@ public class RagMemoryService {
     @Async
     public void indexDiary(long userId, long diaryId, String content) {
         if (content == null || content.isBlank()) {
+            log.debug("RAG 索引跳过：日记内容为空 diaryId={}", diaryId);
             return;
         }
         float[] vec = embed(content);
         if (vec == null) {
+            log.warn("RAG 索引失败：embedding 生成失败 diaryId={}", diaryId);
             return;
         }
         storeEmbedding("diary:" + diaryId, userId, snippet(content, 800), vec);
+        log.info("RAG 已索引日记 diaryId={} userId={} dim={}", diaryId, userId, vec.length);
     }
 
     /**
@@ -148,17 +151,18 @@ public class RagMemoryService {
      */
     @Async
     public void indexUserProfile(long userId, List<UserProfileMemoryEntity> memories) {
-        // 清理旧格式单 blob key（迁移兼容，后续可移除）
         redis.delete(KEY_PREFIX + "profile:" + userId);
         if (memories == null || memories.isEmpty()) {
             List<String> keys = listProfileKeys(userId);
             if (!keys.isEmpty()) {
                 redis.delete(keys);
+                log.info("RAG 画像已清空 userId={} deletedKeys={}", userId, keys.size());
             }
             return;
         }
         List<String> existingKeys = listProfileKeys(userId);
         Set<String> newKeys = new java.util.HashSet<>();
+        int indexed = 0;
         for (UserProfileMemoryEntity m : memories) {
             String attrKey = sanitizeKey(m.getAttributeKey());
             String text = "用户长期画像 - " + m.getAttributeKey() + ": " + m.getAttributeValue();
@@ -166,13 +170,17 @@ public class RagMemoryService {
             if (vec != null) {
                 storeEmbedding("profile:" + userId + ":" + attrKey, userId, text, vec);
                 newKeys.add("profile:" + userId + ":" + attrKey);
+                indexed++;
             }
         }
+        int deleted = 0;
         for (String oldKey : existingKeys) {
             if (!newKeys.contains(oldKey)) {
                 redis.delete(oldKey);
+                deleted++;
             }
         }
+        log.info("RAG 画像已更新 userId={} indexed={} deleted={}", userId, indexed, deleted);
     }
 
     private List<String> listProfileKeys(long userId) {
@@ -201,7 +209,9 @@ public class RagMemoryService {
         if (vec == null) {
             return;
         }
-        storeEmbedding("chat:" + conversationId, userId, snippet(content, 350), vec);
+        storeEmbedding("chat:" + conversationId + ":" + System.currentTimeMillis(),
+                userId, snippet(content, 350), vec);
+        log.info("RAG 已索引聊天消息 userId={} convId={}", userId, conversationId);
     }
 
     private void storeEmbedding(String id, long userId, String content, float[] embedding) {
@@ -262,19 +272,19 @@ public class RagMemoryService {
                 }
                 return null;
             });
+            log.info("RAG 搜索完成 userId={} queryLen={} topK={} hits={}", userId,
+                    query.length(), topK, hits.size());
             return hits;
         } catch (Exception e) {
-            log.debug("RAG 搜索失败: {}", e.getMessage());
+            log.warn("RAG 搜索失败 userId={}: {}", userId, e.getMessage());
             return List.of();
         }
     }
 
-    /**
-     * 为 ChatService 推理路径生成格式化上下文。
-     */
     public String buildRagContext(long userId, String query, int topK) {
         List<RagHit> hits = search(userId, query, topK);
         if (hits.isEmpty()) {
+            log.debug("RAG 上下文为空 userId={} queryLen={}", userId, query.length());
             return "";
         }
         StringBuilder sb = new StringBuilder("\n\n<rag_retrieved_context>\n");
@@ -426,7 +436,7 @@ public class RagMemoryService {
     public void deleteDiaryEmbedding(long diaryId) {
         String key = KEY_PREFIX + "diary:" + diaryId;
         redis.delete(key);
-        log.debug("已删除日记向量，diaryId={}", diaryId);
+        log.info("RAG 已删除日记向量 diaryId={}", diaryId);
     }
 
     public record BatchIndexItem(long userId, long diaryId, String content) {
