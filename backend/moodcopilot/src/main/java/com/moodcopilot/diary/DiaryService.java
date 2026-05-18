@@ -1421,26 +1421,23 @@ public class DiaryService {
         LocalDate today = LocalDate.now();
         LocalDateTime todayStart = today.atStartOfDay();
 
-        // 今天是否有日记
-        boolean todayExists = diaryMapper.exists(
+        // 一次查询获取最近 90 天有日记的日期，内存中计算连续天数（避免循环 SQL）
+        List<DiaryEntity> recentDiaries = diaryMapper.selectList(
                 new LambdaQueryWrapper<DiaryEntity>()
                         .eq(DiaryEntity::getAuthorUserId, user.getId())
-                        .ge(DiaryEntity::getCreatedAt, todayStart));
+                        .ge(DiaryEntity::getCreatedAt, today.minusDays(90).atStartOfDay())
+                        .select(DiaryEntity::getCreatedAt));
+        java.util.Set<LocalDate> datesWithDiary = recentDiaries.stream()
+                .map(e -> e.getCreatedAt().toLocalDate())
+                .collect(Collectors.toSet());
 
-        // 连续天数
+        boolean todayExists = datesWithDiary.contains(today);
+
         int streak = 0;
         LocalDate d = today;
-        while (true) {
-            boolean has = diaryMapper.exists(
-                    new LambdaQueryWrapper<DiaryEntity>()
-                            .eq(DiaryEntity::getAuthorUserId, user.getId())
-                            .ge(DiaryEntity::getCreatedAt, d.atStartOfDay())
-                            .lt(DiaryEntity::getCreatedAt, d.plusDays(1).atStartOfDay()));
-            if (has) {
-                streak++;
-                d = d.minusDays(1);
-            } else
-                break;
+        while (datesWithDiary.contains(d)) {
+            streak++;
+            d = d.minusDays(1);
         }
 
         // 昨天情绪
@@ -1664,20 +1661,23 @@ public class DiaryService {
 
     private void markReportsStale(long userId) {
         try {
+            // 确定性批量删除公开日记缓存，避免 KEYS 全扫描
+            List<String> keysToDelete = new ArrayList<>();
             for (int page = 0; page <= 5; page++) {
                 for (int size : List.of(10, 20, 50)) {
-                    redisTemplate.delete("public:diaries:%d:%d".formatted(page, size));
+                    keysToDelete.add("public:diaries:%d:%d".formatted(page, size));
                 }
             }
-            redisTemplate.delete("coaching:" + userId);
-            var weeklyKeys = redisTemplate.keys("report:" + userId + ":*");
-            if (weeklyKeys != null && !weeklyKeys.isEmpty()) {
-                redisTemplate.delete(weeklyKeys);
+            keysToDelete.add("coaching:" + userId);
+            // 删除当前及前后共 8 周的周报缓存（-4 到 +3 offset）
+            for (int offset = -4; offset <= 3; offset++) {
+                keysToDelete.add("report:%d:%d".formatted(userId, offset));
             }
-            var monthlyKeys = redisTemplate.keys("report:monthly:" + userId + ":*");
-            if (monthlyKeys != null && !monthlyKeys.isEmpty()) {
-                redisTemplate.delete(monthlyKeys);
+            // 删除当前及前后共 6 个月的月报缓存（-5 到 0 offset）
+            for (int offset = -5; offset <= 0; offset++) {
+                keysToDelete.add("report:monthly:%d:%d".formatted(userId, offset));
             }
+            redisTemplate.delete(keysToDelete);
         } catch (Exception e) {
             log.debug("Cache mark stale failed", e);
         }
