@@ -22,7 +22,18 @@
           <span v-else class="profile-avatar">{{ profileInitial }}</span>
         </div>
         <div class="profile-main">
-          <h2 class="profile-title">{{ profileLoading ? '加载中...' : (isOwner ? '我的日记' : profileName) }}</h2>
+          <div class="profile-title-row">
+            <h2 class="profile-title">{{ profileLoading ? '加载中...' : (isOwner ? '我的日记' : profileName) }}</h2>
+            <button
+              v-if="!isOwner && !profileLoading"
+              :class="['follow-btn', 'profile-follow-btn', { following: followStore.isFollowing(profileUserId) }]"
+              @mouseenter="profileFollowHover = true"
+              @mouseleave="profileFollowHover = false"
+              @click="toggleProfileFollow"
+            >
+              {{ profileFollowLabel }}
+            </button>
+          </div>
           <p class="profile-signature">{{ profileSignature || (isOwner ? '还没有写签名，去个人中心补一句吧。' : '这个人很低调，还没留下签名。') }}</p>
         </div>
       </div>
@@ -43,6 +54,7 @@
           :compact="true"
           :preview-limit="120"
           :show-expand-toggle="false"
+          :hide-follow-btn="!isOwner"
           @resonate="(d: Diary) => store.resonate(d.id)"
           @open-detail="(d: Diary) => router.push(`/diary/${d.id}`)"
         />
@@ -341,11 +353,13 @@ import DiaryFeedItem from '../components/DiaryFeedItem.vue'
 import { authApi, diaryApi, memoryApi } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useDiaryStore, type Diary } from '../stores/diary'
+import { useFollowStore } from '../stores/follow'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const store = useDiaryStore()
+const followStore = useFollowStore()
 
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -409,6 +423,20 @@ let drawRafId: number | null = null
 
 const profileUserId = computed(() => Number(route.params.userId))
 const isOwner = computed(() => auth.userId != null && auth.userId === profileUserId.value)
+const profileFollowHover = ref(false)
+const profileFollowLabel = computed(() => {
+  if (followStore.isFollowing(profileUserId.value)) {
+    return profileFollowHover.value ? '取消关注' : '已关注'
+  }
+  return '+ 关注'
+})
+function toggleProfileFollow() {
+  if (followStore.isFollowing(profileUserId.value)) {
+    followStore.unfollow(profileUserId.value)
+  } else {
+    followStore.follow(profileUserId.value)
+  }
+}
 const hasMore = computed(() => diaries.value.length < total.value)
 const profileInitial = computed(() => (profileName.value || '用').charAt(0))
 
@@ -455,6 +483,10 @@ async function reload() {
     const items = (data.items ?? []).map(store.normalize)
     diaries.value = items
     total.value = data.total ?? items.length
+
+    if (!isOwner.value) {
+      void followStore.checkStatus(profileUserId.value)
+    }
   } finally {
     profileLoading.value = false
     loading.value = false
@@ -920,6 +952,13 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.profile-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .profile-title {
   margin: 0;
   font-family: var(--font-body);
@@ -927,6 +966,28 @@ onBeforeUnmount(() => {
   font-size: clamp(24px, 4.8vw, 38px);
   line-height: 1.14;
   letter-spacing: -0.01em;
+}
+
+.profile-follow-btn {
+  flex-shrink: 0;
+  font-size: 13px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1.5px solid var(--color-accent);
+  background: transparent;
+  color: var(--color-accent);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: var(--font-body);
+}
+
+.profile-follow-btn.following {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.profile-follow-btn:hover {
+  opacity: 0.82;
 }
 
 .profile-signature {
