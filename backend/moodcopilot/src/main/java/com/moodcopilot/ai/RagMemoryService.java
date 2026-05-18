@@ -390,6 +390,15 @@ public class RagMemoryService {
         return count;
     }
 
+    /**
+     * 删除指定日记的向量（用户删除日记时调用）。
+     */
+    public void deleteDiaryEmbedding(long diaryId) {
+        String key = KEY_PREFIX + "diary:" + diaryId;
+        redis.delete(key);
+        log.debug("已删除日记向量，diaryId={}", diaryId);
+    }
+
     public record BatchIndexItem(long userId, long diaryId, String content) {
     }
 }
