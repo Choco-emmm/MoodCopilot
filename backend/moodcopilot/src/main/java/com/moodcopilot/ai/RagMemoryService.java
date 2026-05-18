@@ -342,6 +342,19 @@ public class RagMemoryService {
             log.debug("RAG 上下文为空 userId={} queryLen={}", userId, query.length());
             return "";
         }
+        // 调试日志：打印所有召回文档的真实余弦距离，用于观测 BGE-M3 距离分布和后续阈值调优
+        if (log.isDebugEnabled()) {
+            StringBuilder scoreLog = new StringBuilder("RAG 召回距离明细 userId=").append(userId).append(" [");
+            for (int i = 0; i < hits.size(); i++) {
+                RagHit h = hits.get(i);
+                if (i > 0) scoreLog.append(", ");
+                scoreLog.append(h.sourceId() != null ? h.sourceId() : "?")
+                        .append("=")
+                        .append(h.score() != null ? String.format("%.4f", h.score()) : "null");
+            }
+            scoreLog.append("]");
+            log.debug(scoreLog.toString());
+        }
         // 过滤低分噪音 + 余弦距离→相似度转换（0=完全相同, 1=正交, 2=完全相反）
         List<RagHit> qualityHits = hits.stream()
                 .filter(h -> h.score() != null && h.score() < 1.0)
@@ -405,9 +418,9 @@ public class RagMemoryService {
         String currentKey = null;
         for (int i = 1; i < raw.size(); i++) {
             Object item = raw.get(i);
-            // ByteArrayCodec 下 key 返回为 byte[]，必须解码
-            if (item instanceof byte[] b) {
-                currentKey = new String(b, StandardCharsets.UTF_8);
+            // 兼容不同 Lettuce 版本：key 可能是 byte[] 或 String
+            if (item instanceof byte[] || item instanceof String) {
+                currentKey = asString(item);
                 continue;
             }
             if (item instanceof List<?> fields) {
