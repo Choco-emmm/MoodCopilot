@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
@@ -42,6 +43,7 @@ public class RagMemoryService {
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
+    private final LettuceConnectionFactory connectionFactory;
 
     public RagMemoryService(
             @Value("${spring.ai.rag.embedding.api-url}") String embeddingApiUrl,
@@ -49,7 +51,8 @@ public class RagMemoryService {
             @Value("${spring.ai.rag.embedding.model:BAAI/bge-m3}") String embeddingModel,
             @Value("${spring.ai.rag.embedding.dimension:1024}") int embeddingDimension,
             StringRedisTemplate redis,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            LettuceConnectionFactory connectionFactory) {
         this.embeddingApiUrl = embeddingApiUrl;
         this.embeddingApiKey = embeddingApiKey == null ? "" : embeddingApiKey.trim();
         this.embeddingModel = embeddingModel == null || embeddingModel.isBlank() ? "BAAI/bge-m3" : embeddingModel.trim();
@@ -57,28 +60,25 @@ public class RagMemoryService {
         this.redis = redis;
         this.objectMapper = objectMapper;
         this.restClient = RestClient.builder().build();
+        this.connectionFactory = connectionFactory;
     }
 
     @PostConstruct
     void initIndex() {
         try {
-            redis.execute((RedisCallback<Object>) conn -> {
-                CommandArgs<byte[], byte[]> cargs = new CommandArgs<>(ByteArrayCodec.INSTANCE)
-                        .add(INDEX_NAME.getBytes(StandardCharsets.UTF_8))
-                        .add("ON").add("HASH").add("PREFIX").add("1").add(KEY_PREFIX)
-                        .add("SCHEMA")
-                        .add("user_id").add("NUMERIC").add("SORTABLE")
-                        .add("content").add("TEXT")
-                        .add("embedding").add("VECTOR").add("HNSW").add("6")
-                        .add("DIM").add(String.valueOf(embeddingDimension))
-                        .add("TYPE").add("FLOAT32").add("DISTANCE_METRIC").add("COSINE")
-                        .add("created_at").add("NUMERIC").add("SORTABLE");
-                RedisCommands<byte[], byte[]> cmds =
-                        getLettuceCommands(conn);
-                cmds.dispatch(CommandType.valueOf("FT.CREATE"),
-                        new StatusOutput<>(ByteArrayCodec.INSTANCE), cargs);
-                return null;
-            });
+            RedisCommands<byte[], byte[]> cmds = getLettuceCommands();
+            CommandArgs<byte[], byte[]> cargs = new CommandArgs<>(ByteArrayCodec.INSTANCE)
+                    .add(INDEX_NAME.getBytes(StandardCharsets.UTF_8))
+                    .add("ON").add("HASH").add("PREFIX").add("1").add(KEY_PREFIX)
+                    .add("SCHEMA")
+                    .add("user_id").add("NUMERIC").add("SORTABLE")
+                    .add("content").add("TEXT")
+                    .add("embedding").add("VECTOR").add("HNSW").add("6")
+                    .add("DIM").add(String.valueOf(embeddingDimension))
+                    .add("TYPE").add("FLOAT32").add("DISTANCE_METRIC").add("COSINE")
+                    .add("created_at").add("NUMERIC").add("SORTABLE");
+            cmds.dispatch(CommandType.valueOf("FT.CREATE"),
+                    new StatusOutput<>(ByteArrayCodec.INSTANCE), cargs);
             log.info("RAG 向量索引已创建，dimension={}", embeddingDimension);
         } catch (Exception e) {
             String msg = e.getMessage();
@@ -261,33 +261,29 @@ public class RagMemoryService {
 
         try {
             List<RagHit> hits = new ArrayList<>();
-            redis.execute((RedisCallback<Object>) conn -> {
-                RedisCommands<byte[], byte[]> cmds =
-                        getLettuceCommands(conn);
-                CommandArgs<byte[], byte[]> cargs = new CommandArgs<>(ByteArrayCodec.INSTANCE)
-                        .add(INDEX_NAME.getBytes(StandardCharsets.UTF_8))
-                        .add(q.getBytes(StandardCharsets.UTF_8))
-                        .add("PARAMS".getBytes(StandardCharsets.UTF_8))
-                        .add("2".getBytes(StandardCharsets.UTF_8))
-                        .add("vec".getBytes(StandardCharsets.UTF_8))
-                        .add(queryVector)
-                        .add("RETURN".getBytes(StandardCharsets.UTF_8))
-                        .add("2".getBytes(StandardCharsets.UTF_8))
-                        .add("content".getBytes(StandardCharsets.UTF_8))
-                        .add("_score".getBytes(StandardCharsets.UTF_8))
-                        .add("SORTBY".getBytes(StandardCharsets.UTF_8))
-                        .add("_score".getBytes(StandardCharsets.UTF_8))
-                        .add("DIALECT".getBytes(StandardCharsets.UTF_8))
-                        .add("2".getBytes(StandardCharsets.UTF_8));
-                List<Object> raw = cmds.dispatch(
-                        CommandType.valueOf("FT.SEARCH"),
-                        new io.lettuce.core.output.NestedMultiOutput<>(ByteArrayCodec.INSTANCE),
-                        cargs);
-                if (raw != null) {
-                    parseResults(raw, hits);
-                }
-                return null;
-            });
+            RedisCommands<byte[], byte[]> cmds = getLettuceCommands();
+            CommandArgs<byte[], byte[]> cargs = new CommandArgs<>(ByteArrayCodec.INSTANCE)
+                    .add(INDEX_NAME.getBytes(StandardCharsets.UTF_8))
+                    .add(q.getBytes(StandardCharsets.UTF_8))
+                    .add("PARAMS".getBytes(StandardCharsets.UTF_8))
+                    .add("2".getBytes(StandardCharsets.UTF_8))
+                    .add("vec".getBytes(StandardCharsets.UTF_8))
+                    .add(queryVector)
+                    .add("RETURN".getBytes(StandardCharsets.UTF_8))
+                    .add("2".getBytes(StandardCharsets.UTF_8))
+                    .add("content".getBytes(StandardCharsets.UTF_8))
+                    .add("_score".getBytes(StandardCharsets.UTF_8))
+                    .add("SORTBY".getBytes(StandardCharsets.UTF_8))
+                    .add("_score".getBytes(StandardCharsets.UTF_8))
+                    .add("DIALECT".getBytes(StandardCharsets.UTF_8))
+                    .add("2".getBytes(StandardCharsets.UTF_8));
+            List<Object> raw = cmds.dispatch(
+                    CommandType.valueOf("FT.SEARCH"),
+                    new NestedMultiOutput<>(ByteArrayCodec.INSTANCE),
+                    cargs);
+            if (raw != null) {
+                parseResults(raw, hits);
+            }
             log.info("RAG 搜索完成 userId={} queryLen={} topK={} hits={}", userId,
                     query.length(), topK, hits.size());
             return hits;
@@ -329,9 +325,8 @@ public class RagMemoryService {
         return buf.array();
     }
 
-    @SuppressWarnings("unchecked")
-    private static RedisCommands<byte[], byte[]> getLettuceCommands(RedisConnection conn) {
-        return (RedisCommands<byte[], byte[]>) conn.getNativeConnection();
+    private RedisCommands<byte[], byte[]> getLettuceCommands() {
+        return connectionFactory.getNativeConnection().sync();
     }
 
     private String snippet(String content, int maxLen) {
