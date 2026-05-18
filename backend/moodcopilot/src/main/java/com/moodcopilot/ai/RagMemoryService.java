@@ -61,18 +61,10 @@ public class RagMemoryService {
 
     @PostConstruct
     void initIndex() {
+        // 仅在索引不存在时创建，避免每次重启用 DD 清除所有持久化向量数据。
         try {
             redis.execute((RedisCallback<Object>) conn -> {
                 var cmds = getSyncCommands(conn);
-                // 删除旧版索引（无 source_type 字段）
-                try {
-                    cmds.dispatch(RediSearchCommand.FT_DROPINDEX,
-                            new StatusOutput<>(ByteArrayCodec.INSTANCE),
-                            new CommandArgs<>(ByteArrayCodec.INSTANCE)
-                                    .add(INDEX_NAME.getBytes(StandardCharsets.UTF_8))
-                                    .add("DD"));
-                } catch (Exception ignored) {
-                }
                 CommandArgs<byte[], byte[]> cargs = new CommandArgs<>(ByteArrayCodec.INSTANCE)
                         .add(INDEX_NAME.getBytes(StandardCharsets.UTF_8))
                         .add("ON").add("HASH").add("PREFIX").add("1").add(KEY_PREFIX)
