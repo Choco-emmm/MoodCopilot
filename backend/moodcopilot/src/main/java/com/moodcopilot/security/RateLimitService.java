@@ -21,9 +21,9 @@ public class RateLimitService {
     }
 
     public enum AiApiType {
-        CHAT(30),
-        ANALYSIS(10),
-        REPORT(5);
+        CHAT(15),
+        ANALYSIS(5),
+        REPORT(3);
 
         private final int dailyLimit;
 
