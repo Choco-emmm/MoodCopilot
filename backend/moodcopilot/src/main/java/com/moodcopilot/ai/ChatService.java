@@ -137,6 +137,7 @@ public class ChatService {
         }
         // 删除数据库记录
         conversationMapper.deleteById(conversationId);
+        ragMemoryService.deleteChatEmbeddings(conversationId);
     }
 
     // ---- 聊天 ----
