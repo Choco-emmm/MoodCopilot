@@ -3,7 +3,11 @@ package com.moodcopilot.ai;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.*;
+import com.moodcopilot.entity.UserProfileMemoryEntity;
 import com.moodcopilot.mapper.ChatConversationMapper;
+import com.moodcopilot.diary.DiaryService;
+import com.moodcopilot.diary.UserStatsRequest;
+import com.moodcopilot.diary.UserStatsResult;
 import com.moodcopilot.security.RateLimitService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +70,8 @@ public class ChatService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final RateLimitService rateLimitService;
+    private final DiaryService diaryService;
+    private final MemoryExtractionService memoryExtractionService;
 
     public ChatService(ChatClient chatChatClient,
             ChatConversationMapper conversationMapper,
@@ -74,7 +80,9 @@ public class ChatService {
             Cache<String, ChatMemory> userChatMemories,
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper,
-            RateLimitService rateLimitService) {
+            RateLimitService rateLimitService,
+            DiaryService diaryService,
+            MemoryExtractionService memoryExtractionService) {
         this.chatChatClient = chatChatClient;
         this.conversationMapper = conversationMapper;
         this.chatIntentRouter = chatIntentRouter;
@@ -83,6 +91,8 @@ public class ChatService {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.rateLimitService = rateLimitService;
+        this.diaryService = diaryService;
+        this.memoryExtractionService = memoryExtractionService;
     }
 
     // ---- 会话管理 ----
@@ -189,10 +199,8 @@ public class ChatService {
 
     private String callReasoningModel(ChatRequest request, String message, Authentication auth) {
         try {
-            // 为推理模型注入历史记忆，确保对话连续性。
-            // 将历史作为 User Message 的前缀，保持 System Context 的纯洁性。
             String history = formatChatHistory(request.memory());
-            String enhancedContext = request.context() + buildTimeMetadata();
+            String enhancedContext = request.context() + buildTimeMetadata() + buildReasoningDataContext(auth);
 
             String userMessage;
             if (!history.isEmpty()) {
@@ -233,7 +241,7 @@ public class ChatService {
     private Flux<String> callReasoningModelStream(ChatRequest request, String message, Authentication auth) {
         try {
             String history = formatChatHistory(request.memory());
-            String enhancedContext = request.context() + buildTimeMetadata();
+            String enhancedContext = request.context() + buildTimeMetadata() + buildReasoningDataContext(auth);
 
             String userMessage;
             if (!history.isEmpty()) {
@@ -425,6 +433,59 @@ public class ChatService {
         String currentTime = java.time.LocalDateTime.now()
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd EEEE"));
         return "\n\n<system_metadata>\n【当前系统时间】: " + currentTime + "\n</system_metadata>\n\n";
+    }
+
+    /**
+     * 为推理模型预取用户结构化数据（情绪统计 + 长期画像），
+     * 作为 <user_data_context> 注入 system prompt。
+     * 任何 DB 查询失败均降级为空字符串，不影响主流程。
+     */
+    private String buildReasoningDataContext(Authentication auth) {
+        SecurityContextHolder.getContext().setAuthentication(auth);
+        try {
+            StringBuilder sb = new StringBuilder();
+            sb.append("\n\n<user_data_context>\n");
+
+            try {
+                UserStatsResult stats = diaryService.getOwnMoodStats(new UserStatsRequest(14));
+                if (stats != null && stats.diaryCount() > 0) {
+                    sb.append("【最近 14 天情绪统计】\n");
+                    sb.append("日记数: ").append(stats.diaryCount()).append(" 篇\n");
+                    if (stats.moodCounts() != null && !stats.moodCounts().isEmpty()) {
+                        sb.append("情绪分布: ");
+                        stats.moodCounts().forEach((mood, count) ->
+                                sb.append(mood).append(" ").append(count).append("次 "));
+                        sb.append("\n");
+                    }
+                    if (stats.topTopics() != null && !stats.topTopics().isEmpty()) {
+                        sb.append("高频话题: ");
+                        stats.topTopics().forEach((topic, count) ->
+                                sb.append(topic).append("(").append(count).append(") "));
+                        sb.append("\n");
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("推理模型数据预取——情绪统计失败: {}", e.getMessage());
+            }
+
+            try {
+                List<UserProfileMemoryEntity> memories = memoryExtractionService.listCurrentUserMemories();
+                if (memories != null && !memories.isEmpty()) {
+                    sb.append("【用户长期画像】\n");
+                    for (UserProfileMemoryEntity m : memories) {
+                        sb.append("- ").append(m.getAttributeKey())
+                                .append(": ").append(m.getAttributeValue()).append("\n");
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("推理模型数据预取——长期画像失败: {}", e.getMessage());
+            }
+
+            sb.append("</user_data_context>");
+            return sb.length() > 50 ? sb.toString() : "";
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     /**
