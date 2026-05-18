@@ -215,6 +215,17 @@ button,
   background: var(--color-surface-hover);
 }
 
+.nav-notification-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.nav-notification-link-inner {
+  display: inline-flex;
+  align-items: center;
+}
+
 /* Logout link */
 .nav-logout {
   color: var(--color-text-muted) !important;
@@ -1280,6 +1291,38 @@ h2 {
 .notif-time {
   color: var(--color-text-muted);
   font-size: 12px;
+}
+
+.notification-page {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.notification-page-header {
+  align-items: center;
+}
+
+.notification-page-subtitle {
+  margin: 6px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.notification-page-list {
+  display: grid;
+}
+
+.notification-page-item {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.notification-page-item:last-child {
+  border-bottom: none;
+}
+
+.notification-page-empty {
+  padding: 24px 0;
 }
 
 /* ── Auth pages ── */
@@ -2548,6 +2591,10 @@ h2 {
     font-size: 13px;
     word-break: break-word;
     overflow-wrap: anywhere;
+  }
+
+  .notification-page {
+    padding: 18px;
   }
 
   .app-shell {

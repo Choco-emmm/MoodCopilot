@@ -37,15 +37,8 @@
               <p v-if="quotaError" style="margin: 6px 0 0; font-size: 11px; color: #b15454;">{{ quotaError }}</p>
             </div>
           </n-popover>
-          <n-popover
-            trigger="click"
-            placement="bottom-end"
-            :shift="8"
-            overlay-class="notif-popover-overlay"
-            :overlay-style="notifOverlayStyle"
-            @update:show="onPopoverShow"
-          >
-            <template #trigger>
+          <router-link to="/notifications" class="nav-notification-link" aria-label="通知">
+            <span class="nav-notification-link-inner">
               <n-badge :value="notif.unreadCount" :max="99" :show="notif.unreadCount > 0">
                 <n-button text size="small" class="nav-bell">
                   <template #icon>
@@ -53,32 +46,8 @@
                   </template>
                 </n-button>
               </n-badge>
-            </template>
-            <div class="notif-popover">
-              <div v-if="notif.items.length === 0" class="notif-empty">暂无通知</div>
-              <div
-                v-for="item in notif.items"
-                :key="item.id"
-                class="notif-item"
-                :class="{ unread: !item.isRead }"
-                @click="handleNotifClick(item)"
-              >
-                <div
-                  :class="['notif-msg', 'md-content', { 'notif-msg-collapsed': shouldCollapseNotification(item) && !isNotificationExpanded(item.id) }]"
-                  v-html="renderNotification(item)"
-                />
-                <button
-                  v-if="shouldCollapseNotification(item)"
-                  type="button"
-                  class="notif-expand-btn"
-                  @click.stop="toggleNotificationExpand(item.id)"
-                >
-                  {{ isNotificationExpanded(item.id) ? '收起' : '展开' }}
-                </button>
-                <span class="notif-time">{{ formatTime(item.createdAt) }}</span>
-              </div>
-            </div>
-          </n-popover>
+            </span>
+          </router-link>
           <router-link :to="profilePath" class="masthead-user-link">
             <img v-if="auth.avatar" :src="auth.avatar" class="avatar-sm-nav avatar-sm-nav-img" decoding="async" />
             <span v-else class="avatar-sm-nav">{{ auth.displayName?.charAt(0) }}</span>
@@ -115,9 +84,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { NButton, NBadge, NPopover } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
-import { useNotificationStore, type Notification } from '../stores/notification'
+import { useNotificationStore } from '../stores/notification'
 import { authApi } from '../api'
-import { renderSafeMarkdown } from '../utils/markdown'
 
 const router = useRouter()
 const route = useRoute()
@@ -126,13 +94,7 @@ const notif = useNotificationStore()
 
 const quotas = ref<Record<string, number>>({})
 const quotaError = ref('')
-const expandedNotificationIds = ref<number[]>([])
 const profilePath = computed(() => (auth.userId != null ? `/profile/${auth.userId}` : '/login'))
-const notifOverlayStyle = {
-  width: 'min(320px, calc(100vw - 24px))',
-  maxWidth: 'calc(100vw - 24px)',
-  boxSizing: 'border-box',
-}
 
 const navItems = computed(() => {
   const items = [
@@ -157,19 +119,12 @@ const mobileNavItems = computed(() => {
 onMounted(() => {
   notif.connectRealtime()
   void notif.fetchUnreadCount()
-  void notif.fetchNotifications()
 })
 
 function handleLogout() {
   notif.disconnectRealtime()
   auth.logout()
   router.push('/login')
-}
-
-function onPopoverShow(show: boolean) {
-  if (show) {
-    expandedNotificationIds.value = []
-  }
 }
 
 async function onQuotaPopoverShow(show: boolean) {
@@ -184,50 +139,9 @@ async function onQuotaPopoverShow(show: boolean) {
   }
 }
 
-function handleNotifClick(item: Notification) {
-  if (!item.isRead) notif.markRead(item.id)
-  if (item.type === 'SYSTEM' && !item.diaryId) {
-    router.push('/')
-  } else if (item.diaryId) {
-    router.push(`/diary/${item.diaryId}`)
-  }
-}
-
 function formatQuota(val: number | undefined): string {
   if (val == null) return '--'
   if (val < 0) return '不限'
   return val + ' 次'
-}
-
-function formatTime(value: string) {
-  if (!value || value === 'null') return ''
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-  }).format(new Date(value))
-}
-
-function renderNotification(item: Notification) {
-  if (!item?.message) return ''
-  if (item.isMarkdown === false) {
-    return renderSafeMarkdown(item.message.replace(/\n/g, '  \n'))
-  }
-  return renderSafeMarkdown(item.message)
-}
-
-function shouldCollapseNotification(item: Notification) {
-  if (!item?.message) return false
-  return item.message.length > 88 || item.message.includes('\n') || item.message.includes('**')
-}
-
-function isNotificationExpanded(id: number) {
-  return expandedNotificationIds.value.includes(id)
-}
-
-function toggleNotificationExpand(id: number) {
-  if (isNotificationExpanded(id)) {
-    expandedNotificationIds.value = expandedNotificationIds.value.filter((itemId) => itemId !== id)
-    return
-  }
-  expandedNotificationIds.value = [...expandedNotificationIds.value, id]
 }
 </script>

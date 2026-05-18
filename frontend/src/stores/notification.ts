@@ -208,6 +208,22 @@ export const useNotificationStore = defineStore('notification', () => {
     }
   }
 
+  async function markAllRead() {
+    const unreadIds = items.value
+      .filter((item) => !item.isRead)
+      .map((item) => item.id)
+
+    if (unreadIds.length === 0) return
+
+    await Promise.all(unreadIds.map((id) => notificationApi.markRead(id)))
+
+    items.value = items.value.map((item) => ({
+      ...item,
+      isRead: true,
+    }))
+    unreadCount.value = 0
+  }
+
   return {
     items,
     unreadCount,
@@ -215,6 +231,7 @@ export const useNotificationStore = defineStore('notification', () => {
     fetchUnreadCount,
     fetchNotifications,
     markRead,
+    markAllRead,
     connectRealtime,
     disconnectRealtime,
   }
