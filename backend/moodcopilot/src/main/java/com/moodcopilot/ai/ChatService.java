@@ -170,7 +170,7 @@ public class ChatService {
                 message == null ? 0 : message.length());
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = buildRagContextWithFallback(uid, message, 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
+        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
         return chatChatClient.prompt()
                 .user(message)
                 .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT + ragCtx))
@@ -200,7 +200,7 @@ public class ChatService {
                 message == null ? 0 : message.length());
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = buildRagContextWithFallback(uid, message, 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
+        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
         String result = chatChatClient.prompt()
                 .user(message)
                 .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT + ragCtx))
@@ -218,11 +218,13 @@ public class ChatService {
     }
 
     /**
-     * RAG 语义搜索 + SQL 关键词降级。RAG 空结果时回退到数据库 LIKE 搜索。
+     * RAG 语义搜索，query 经由 HyDE 重写（结合长期画像 + 最近对话历史）
+     * 以提升多轮对话中向量检索的语境感知能力。
      */
-    private String buildRagContextWithFallback(long userId, String message, int topK, String... sourceTypes) {
+    private String buildRagContextWithFallback(long userId, String message, ChatMemory memory, int topK, String... sourceTypes) {
         String memoryBg = memoryExtractionService.buildUserMemoryPrompt();
-        String searchQuery = aiAnalysisService.rewriteQueryForSearch(message, memoryBg);
+        String recentHistory = extractRecentChatHistory(memory);
+        String searchQuery = aiAnalysisService.rewriteQueryForSearch(message, memoryBg, recentHistory);
         if (!searchQuery.equals(message)) {
             log.info("RAG query 已重写: \"{}\" → \"{}\"", message, searchQuery);
         }
@@ -231,6 +233,29 @@ public class ChatService {
             log.info("RAG 无结果，将依赖模型的 diarySearchFunction 工具主动查询 userId={}", userId);
         }
         return ragCtx;
+    }
+
+    /** 提取最近 3 轮对话历史，格式化为纯文本供 HyDE 重写使用。 */
+    private String extractRecentChatHistory(ChatMemory memory) {
+        List<org.springframework.ai.chat.messages.Message> messages = memory.get("default", Integer.MAX_VALUE);
+        if (messages == null || messages.isEmpty()) {
+            return "";
+        }
+        int start = Math.max(0, messages.size() - 6); // 最近 3 轮（用户+AI 各 3 条）
+        StringBuilder sb = new StringBuilder();
+        for (int i = start; i < messages.size(); i++) {
+            var msg = messages.get(i);
+            String role = switch (msg.getMessageType()) {
+                case USER -> "用户";
+                case ASSISTANT -> "MoodCopilot";
+                default -> null;
+            };
+            if (role == null) continue;
+            String text = msg.getText();
+            if (text == null || text.isBlank()) continue;
+            sb.append("[").append(role).append("]: ").append(text.trim()).append("\n");
+        }
+        return sb.toString();
     }
 
     private boolean shouldUseReasoning(Long conversationId, String message, List<String> refs,
@@ -244,7 +269,7 @@ public class ChatService {
             String history = formatChatHistory(request.memory());
             String enhancedContext = request.context() + buildTimeMetadata()
                     + buildReasoningDataContext(auth)
-                    + buildRagContextWithFallback(userId, message, 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
+                    + buildRagContextWithFallback(userId, message, request.memory(), 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
 
             String userMessage;
             if (!history.isEmpty()) {
@@ -292,7 +317,7 @@ public class ChatService {
             String history = formatChatHistory(request.memory());
             String enhancedContext = request.context() + buildTimeMetadata()
                     + buildReasoningDataContext(auth)
-                    + buildRagContextWithFallback(userId, message, 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
+                    + buildRagContextWithFallback(userId, message, request.memory(), 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
 
             String userMessage;
             if (!history.isEmpty()) {
