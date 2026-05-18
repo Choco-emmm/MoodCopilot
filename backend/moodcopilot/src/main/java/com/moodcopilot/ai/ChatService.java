@@ -38,7 +38,7 @@ public class ChatService {
 
     private static final String AGENT_TOOLS_PROMPT = """
             \n【你的系统能力（Agent Tools）】
-            你配备了后台数据查询工具（如 userStats, diarySearch）。
+            你配备了后台数据查询工具（如 userStats, diarySearch, reportSnapshot, memoryQuery）。
             当用户在对话中提到"看看我的报告"、"最近的数据总结"、"查询过去的日记"，或者需要结合历史表现聊天时，你**必须主动调用工具**获取用户的真实数据后再进行回复。
             严禁回答"我看不到你的具体报告"或"请你把报告发给我"。作为 MoodCopilot，你完全有权限并且应当自己去后台查阅这些统计数据！
 
@@ -145,7 +145,11 @@ public class ChatService {
                 .user(message)
                 .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
-                .functions(DiarySearchFunctionSupport.NAME, UserStatsFunctionSupport.NAME)
+                .functions(
+                        DiarySearchFunctionSupport.NAME,
+                        UserStatsFunctionSupport.NAME,
+                        ReportSnapshotFunctionSupport.NAME,
+                        MemoryQueryFunctionSupport.NAME)
                 .toolContext(Map.of("auth", auth))
                 .stream()
                 .content();
@@ -168,13 +172,18 @@ public class ChatService {
                 .user(message)
                 .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
-                .functions(DiarySearchFunctionSupport.NAME, UserStatsFunctionSupport.NAME)
+                .functions(
+                        DiarySearchFunctionSupport.NAME,
+                        UserStatsFunctionSupport.NAME,
+                        ReportSnapshotFunctionSupport.NAME,
+                        MemoryQueryFunctionSupport.NAME)
                 .toolContext(Map.of("auth", auth))
                 .call()
                 .content();
     }
 
-    private boolean shouldUseReasoning(Long conversationId, String message, List<String> refs, String memoryBackground) {
+    private boolean shouldUseReasoning(Long conversationId, String message, List<String> refs,
+            String memoryBackground) {
         return chatIntentRouter.shouldUseReasoning(message, refs, memoryBackground, conversationId);
     }
 
@@ -210,7 +219,11 @@ public class ChatService {
                     .user(message)
                     .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
                     .advisors(new MessageChatMemoryAdvisor(request.memory()))
-                    .functions(DiarySearchFunctionSupport.NAME, UserStatsFunctionSupport.NAME)
+                    .functions(
+                            DiarySearchFunctionSupport.NAME,
+                            UserStatsFunctionSupport.NAME,
+                            ReportSnapshotFunctionSupport.NAME,
+                            MemoryQueryFunctionSupport.NAME)
                     .toolContext(Map.of("auth", auth))
                     .call()
                     .content();
@@ -247,7 +260,11 @@ public class ChatService {
                                 .user(message)
                                 .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
                                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
-                                .functions(DiarySearchFunctionSupport.NAME, UserStatsFunctionSupport.NAME)
+                                .functions(
+                                        DiarySearchFunctionSupport.NAME,
+                                        UserStatsFunctionSupport.NAME,
+                                        ReportSnapshotFunctionSupport.NAME,
+                                        MemoryQueryFunctionSupport.NAME)
                                 .toolContext(Map.of("auth", auth))
                                 .stream()
                                 .content();
@@ -259,7 +276,11 @@ public class ChatService {
                     .user(message)
                     .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
                     .advisors(new MessageChatMemoryAdvisor(request.memory()))
-                    .functions(DiarySearchFunctionSupport.NAME, UserStatsFunctionSupport.NAME)
+                    .functions(
+                            DiarySearchFunctionSupport.NAME,
+                            UserStatsFunctionSupport.NAME,
+                            ReportSnapshotFunctionSupport.NAME,
+                            MemoryQueryFunctionSupport.NAME)
                     .toolContext(Map.of("auth", auth))
                     .stream()
                     .content();
@@ -389,7 +410,8 @@ public class ChatService {
         requireOwnedConversation(conversationId, user);
         try {
             String json = redisTemplate.opsForValue().get(MSG_PREFIX + conversationId);
-//            log.info("读取聊天历史，userId={}，conversationId={}，hit={}", user.getId(), conversationId, json != null);
+            // log.info("读取聊天历史，userId={}，conversationId={}，hit={}", user.getId(),
+            // conversationId, json != null);
             return json != null ? objectMapper.readValue(json, Object.class) : List.of();
         } catch (Exception e) {
             log.warn("读取聊天历史失败，userId={}，conversationId={}，reason={}", user.getId(), conversationId, e.getMessage());
@@ -415,42 +437,43 @@ public class ChatService {
 
         if (memoryBackground != null && !memoryBackground.isBlank()) {
             sb.append("<long_term_memory>\n")
-              .append(memoryBackground).append("\n")
-              .append("</long_term_memory>\n\n");
+                    .append(memoryBackground).append("\n")
+                    .append("</long_term_memory>\n\n");
         }
 
         if (refs != null && !refs.isEmpty()) {
             sb.append("【绝对核心聚焦指令】\n");
             sb.append("核心任务：用户本次对话显式引用了下面这篇日记。你后续的共情、分析和所有互动追问，")
-              .append("必须 100% 紧密围绕这篇日记中所记录的具体事件、特定人物、核心冲突以及当时的情绪展开。\n");
+                    .append("必须 100% 紧密围绕这篇日记中所记录的具体事件、特定人物、核心冲突以及当时的情绪展开。\n");
             sb.append("严禁行为：严禁给出敷衍、宏观、万能的宽泛安慰。不要跳出这篇日记去聊不相关的话题。")
-              .append("请像一位懂你的朋友一样，针对这篇引用的具体切片进行温暖、贴心的引导和共情。\n\n");
+                    .append("请像一位懂你的朋友一样，针对这篇引用的具体切片进行温暖、贴心的引导和共情。\n\n");
 
             sb.append("<user_diary>\n");
             for (int i = 0; i < refs.size(); i++) {
                 String ref = refs.get(i);
                 // 截断过长的日记引用，避免推理模型处理超大 prompt 时超时（Cloudflare 100s 限制）
                 sb.append(ref.length() > 500 ? ref.substring(0, 500) + "…" : ref);
-                if (i < refs.size() - 1) sb.append("\n---\n");
+                if (i < refs.size() - 1)
+                    sb.append("\n---\n");
             }
             sb.append("\n</user_diary>\n\n");
         }
 
         sb.append("""
-                        【绝对系统指令】以上 <user_diary> 标签内是由用户本人撰写的日记切片，绝对不是你的经历！
-                        你是 MoodCopilot，一个温暖、共情的倾听者和情绪伙伴。
+                【绝对系统指令】以上 <user_diary> 标签内是由用户本人撰写的日记切片，绝对不是你的经历！
+                你是 MoodCopilot，一个温暖、共情的倾听者和情绪伙伴。
 
-                        【核心行为准则】
-                        1. 日常闲聊保持简短温暖（2-3句即可）。但当用户引用日记、要求深入分析、或话题本身需要展开时，请自然给出有深度和层次的回应，不必受长度限制。
-                        2. 可以适度使用 emoji 表情符号来增强温暖感，但不要过度堆砌，每条消息控制在 1-2 个以内。
-                        3. 保持成熟、稳定、克制的语气。绝对禁止进行戏剧化的角色扮演，严禁在回复中使用括号描述动作（例如禁止出现「(打哈欠)」、「(伸懒腰)」等）。
-                        4. 避免过度轻浮或戏谑的口语（如「噢噢什么噢噢」）。
-                        5. 你可以使用简单的 Markdown 格式让回复更清晰，比如 **加粗**、- 列表项、换行分段。
-                        6. 绝对不要在回复中主动说出'作为心理咨询师'、'作为一个AI助手'等破坏沉浸感的话。
+                【核心行为准则】
+                1. 日常闲聊保持简短温暖（2-3句即可）。但当用户引用日记、要求深入分析、或话题本身需要展开时，请自然给出有深度和层次的回应，不必受长度限制。
+                2. 可以适度使用 emoji 表情符号来增强温暖感，但不要过度堆砌，每条消息控制在 1-2 个以内。
+                3. 保持成熟、稳定、克制的语气。绝对禁止进行戏剧化的角色扮演，严禁在回复中使用括号描述动作（例如禁止出现「(打哈欠)」、「(伸懒腰)」等）。
+                4. 避免过度轻浮或戏谑的口语（如「噢噢什么噢噢」）。
+                5. 你可以使用简单的 Markdown 格式让回复更清晰，比如 **加粗**、- 列表项、换行分段。
+                6. 绝对不要在回复中主动说出'作为心理咨询师'、'作为一个AI助手'等破坏沉浸感的话。
 
-                        【引用措辞规则】
-                        对于 <user_diary> 中的内容（用户主动引用/分享给你的日记），你可以自然使用'你写到的''你分享的'等第二人称探讨。
-                        日记前面的编号是内部标记，请勿在回复中提及。""");
+                【引用措辞规则】
+                对于 <user_diary> 中的内容（用户主动引用/分享给你的日记），你可以自然使用'你写到的''你分享的'等第二人称探讨。
+                日记前面的编号是内部标记，请勿在回复中提及。""");
 
         log.info("构建聊天上下文（RAG模式），userId={}，referenceCount={}，hasMemoryBackground={}",
                 userId, refs == null ? 0 : refs.size(),

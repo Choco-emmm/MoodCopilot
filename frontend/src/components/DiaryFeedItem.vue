@@ -1,5 +1,5 @@
 <template>
-  <article class="feed-item">
+  <article class="feed-item" :class="{ 'feed-item-compact': compact }">
     <div class="feed-head">
       <div class="feed-head-left">
         <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-img" loading="lazy" decoding="async" />
@@ -35,7 +35,7 @@
       @keydown.enter.prevent="$emit('open-detail', diary)"
       @keydown.space.prevent="$emit('open-detail', diary)"
     >{{ visibleContent }}</p>
-    <button v-if="isLongContent" class="feed-expand" type="button" @click="expanded = !expanded">
+    <button v-if="isLongContent && showExpandToggle" class="feed-expand" type="button" @click="expanded = !expanded">
       {{ expanded ? '收起' : '展开' }}
     </button>
 
@@ -59,7 +59,7 @@
       </span>
     </div>
 
-    <div v-if="(diary.comments ?? []).length" class="comments">
+    <div v-if="enableComments && (diary.comments ?? []).length" class="comments">
       <div v-for="comment in diary.comments" :key="comment.id" class="comment-thread">
         <div class="comment-main">
           <p class="comment-text">
@@ -106,7 +106,7 @@
       </div>
     </div>
 
-    <div v-if="replyTo === null" class="comment-box comment-box-main">
+    <div v-if="enableComments && replyTo === null" class="comment-box comment-box-main">
       <n-input
         v-model:value="draft"
         size="small"
@@ -132,7 +132,18 @@ import { reportApi } from '../api'
 const store = useDiaryStore()
 const message = useMessage()
 
-const props = defineProps<{ diary: Diary }>()
+const props = withDefaults(defineProps<{
+  diary: Diary
+  enableComments?: boolean
+  compact?: boolean
+  previewLimit?: number
+  showExpandToggle?: boolean
+}>(), {
+  enableComments: true,
+  compact: false,
+  previewLimit: 180,
+  showExpandToggle: true,
+})
 const emit = defineEmits<{
   resonate: [diary: Diary]
   comment: [diary: Diary, content: string, parentCommentId?: number]
@@ -149,11 +160,15 @@ const replyDraft = ref('')
 const replyTo = ref<number | null>(null)
 const expanded = ref(false)
 
-const isLongContent = computed(() => (props.diary.content ?? '').length > 180)
+const enableComments = computed(() => props.enableComments)
+const compact = computed(() => props.compact)
+const showExpandToggle = computed(() => props.showExpandToggle)
+
+const isLongContent = computed(() => (props.diary.content ?? '').length > props.previewLimit)
 const visibleContent = computed(() => {
   const content = props.diary.content ?? ''
   if (expanded.value || !isLongContent.value) return content
-  return content.slice(0, 180) + '...'
+  return content.slice(0, props.previewLimit) + '...'
 })
 
 onMounted(() => {

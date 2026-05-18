@@ -5,32 +5,24 @@
     <div class="report-page">
       <h2>情绪报告</h2>
 
-      <!-- 顶级 Tab：常规报告 / 自定义总结 -->
-      <div class="main-tabs">
+      <!-- 单行切换：周报 / 月报 / 自定义总结 -->
+      <div class="report-switch-row">
         <button
-          :class="['main-tab', { active: mainTab === 'regular' }]"
-          @click="mainTab = 'regular'"
-        >常规报告</button>
+          :class="['report-switch-tab', { active: mainTab === 'regular' && mode === 'week' }]"
+          @click="setRegularMode('week')"
+        >周报</button>
         <button
-          :class="['main-tab', { active: mainTab === 'custom' }]"
+          :class="['report-switch-tab', { active: mainTab === 'regular' && mode === 'month' }]"
+          @click="setRegularMode('month')"
+        >月报</button>
+        <button
+          :class="['report-switch-tab', { active: mainTab === 'custom' }]"
           @click="mainTab = 'custom'"
         >自定义总结</button>
       </div>
 
       <!-- ==================== 常规报告 ==================== -->
       <template v-if="mainTab === 'regular'">
-        <!-- 周/月切换 -->
-        <div class="report-mode-tabs">
-        <button
-          :class="['mode-tab', { active: mode === 'week' }]"
-          @click="switchMode('week')"
-        >周报</button>
-        <button
-          :class="['mode-tab', { active: mode === 'month' }]"
-          @click="switchMode('month')"
-        >月报</button>
-      </div>
-
       <!-- ==================== 周报 ==================== -->
       <section v-if="mode === 'week'" class="report-section">
         <div class="report-header">
@@ -61,6 +53,26 @@
               <span v-if="report.generatedAt" class="report-meta-text">上次生成：{{ formatGeneratedAt(report.generatedAt) }}</span>
               <span v-if="report.needsRegenerate" class="report-meta-warning">有新日记未纳入，建议重新生成</span>
             </div>
+            <h4 class="focus-title">本期重点</h4>
+            <div class="insight-strip">
+              <div class="insight-card insight-card-dominant">
+                <p class="insight-label">主导象限</p>
+                <p class="insight-value">{{ report.moodDominantQuadrant || '暂无' }}</p>
+              </div>
+              <div class="insight-card">
+                <p class="insight-label">正向占比</p>
+                <p class="insight-value">{{ report.positiveRatioPercent ?? 0 }}%</p>
+              </div>
+              <div class="insight-card">
+                <p class="insight-label">高能量占比</p>
+                <p class="insight-value">{{ report.highEnergyRatioPercent ?? 0 }}%</p>
+              </div>
+            </div>
+
+            <div v-if="report.moodDistribution" class="quadrant-list">
+              <span v-for="(count, label) in report.moodDistribution" :key="label" class="quadrant-chip">{{ label }} {{ count }}</span>
+            </div>
+
             <h4>情绪趋势</h4>
             <div class="mood-chart">
               <div
@@ -151,6 +163,26 @@
               <span v-if="monthReport.generatedAt" class="report-meta-text">上次生成：{{ formatGeneratedAt(monthReport.generatedAt) }}</span>
               <span v-if="monthReport.needsRegenerate" class="report-meta-warning">有新日记未纳入，建议重新生成</span>
             </div>
+            <h4 class="focus-title">本期重点</h4>
+            <div class="insight-strip">
+              <div class="insight-card insight-card-dominant">
+                <p class="insight-label">主导象限</p>
+                <p class="insight-value">{{ monthReport.moodDominantQuadrant || '暂无' }}</p>
+              </div>
+              <div class="insight-card">
+                <p class="insight-label">正向占比</p>
+                <p class="insight-value">{{ monthReport.positiveRatioPercent ?? 0 }}%</p>
+              </div>
+              <div class="insight-card">
+                <p class="insight-label">高能量占比</p>
+                <p class="insight-value">{{ monthReport.highEnergyRatioPercent ?? 0 }}%</p>
+              </div>
+            </div>
+
+            <div v-if="monthReport.moodDistribution" class="quadrant-list">
+              <span v-for="(count, label) in monthReport.moodDistribution" :key="label" class="quadrant-chip">{{ label }} {{ count }}</span>
+            </div>
+
             <h4>情绪走向（纵轴=强度 1-5，越高表示情绪更强）</h4>
             <svg class="sparkline" :viewBox="'0 0 ' + sparklineW + ' 60'" preserveAspectRatio="xMidYMid meet">
               <polyline
@@ -175,19 +207,26 @@
                 <circle :cx="p.x" :cy="p.y" r="3.2" :fill="p.color" />
               </g>
             </svg>
-            <div v-if="activeMoods.length" class="trend-legend">
-              <span v-for="m in activeMoods" :key="m.label" class="legend-item">
+            <div v-if="activeMoodsTop.length" class="trend-legend">
+              <span v-for="m in activeMoodsTop" :key="m.label" class="legend-item">
                 <i class="legend-dot" :style="{ background: m.color }"></i>{{ m.label }}
               </span>
+              <span v-if="activeMoodsMoreCount > 0" class="legend-item legend-more">+{{ activeMoodsMoreCount }} 种</span>
             </div>
             <div class="sparkline-labels">
               <span>{{ sparklineFirst }}</span>
               <span>{{ sparklineLast }}</span>
             </div>
 
-            <div v-if="monthReport.dailyMoods?.length" class="mood-snippet-list">
+            <div v-if="monthReport.dailyMoods?.length" class="list-switch-row">
+              <n-button text size="small" @click="showAllMonthDetails = !showAllMonthDetails">
+                {{ showAllMonthDetails ? '收起明细' : '展开全部明细' }}
+              </n-button>
+            </div>
+
+            <div v-if="monthDisplayMoods.length" class="mood-snippet-list">
               <div
-                v-for="day in monthReport.dailyMoods"
+                v-for="day in monthDisplayMoods"
                 :key="day.date + '-' + (day.diaryIds?.[0] ?? '')"
                 class="mood-snippet-row"
                 @click="goDiary(day.diaryIds)"
@@ -337,6 +376,7 @@ const creating = ref(false)
 const startDate = ref<number | null>(null)
 const endDate = ref<number | null>(null)
 const summaries = ref<any[]>([])
+const showAllMonthDetails = ref(false)
 
 const report = computed(() => store.weeklyReport)
 const monthReport = computed(() => store.monthlyReport)
@@ -349,7 +389,8 @@ onMounted(() => {
 watch(weekOffset, (val) => { store.fetchWeeklyReport(val) })
 watch(monthOffset, (val) => { store.fetchMonthlyReport(val) })
 
-function switchMode(m: 'week' | 'month') {
+function setRegularMode(m: 'week' | 'month') {
+  mainTab.value = 'regular'
   mode.value = m
   if (m === 'month' && !store.monthlyReport && !store.monthLoading && !store.monthError) {
     store.fetchMonthlyReport(monthOffset.value)
@@ -432,6 +473,15 @@ const activeMoods = computed(() => {
     }
   }
   return result
+})
+
+const activeMoodsTop = computed(() => activeMoods.value.slice(0, 8))
+const activeMoodsMoreCount = computed(() => Math.max(0, activeMoods.value.length - activeMoodsTop.value.length))
+
+const monthDisplayMoods = computed(() => {
+  const moods = monthReport.value?.dailyMoods ?? []
+  if (showAllMonthDetails.value) return moods
+  return moods.slice(0, 12)
 })
 
 async function createCustom() {
@@ -567,7 +617,167 @@ function formatGeneratedAt(value?: string | Date | null) {
   line-height: 1.5;
 }
 
+.report-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.report-meta-text {
+  font-size: 13px;
+  color: #475569;
+}
+
+.report-meta-warning {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  color: #b45309;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.focus-title {
+  margin: 4px 0 10px;
+  font-size: 14px;
+  color: #334155;
+}
+
+.insight-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+
+.insight-card {
+  background: #f6f8f7;
+  border: 1px solid #e3e8e5;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.insight-card-dominant {
+  border-color: #9db8aa;
+  background: linear-gradient(180deg, #f2f7f4 0%, #eef5f1 100%);
+}
+
+.insight-label {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.insight-value {
+  margin: 6px 0 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.insight-card-dominant .insight-value {
+  color: #1f4b3d;
+}
+
+.quadrant-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.quadrant-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #dbe4df;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #4b5563;
+  background: #fbfdfc;
+}
+
+.list-switch-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 6px 0 4px;
+}
+
+.legend-more {
+  color: #6b7280;
+}
+
+.report-switch-row {
+  display: flex;
+  border: 1px solid var(--color-border, #d9e1dc);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f8fbf9;
+}
+
+.report-switch-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  min-height: 42px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5b6670;
+}
+
+.report-switch-tab + .report-switch-tab {
+  border-left: 1px solid var(--color-border, #d9e1dc);
+}
+
+.report-switch-tab.active {
+  background: var(--color-jade, #3f7a63);
+  color: #fff;
+}
+
 @media (max-width: 480px) {
+  .report-switch-tab {
+    min-height: 40px;
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .insight-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .insight-card {
+    padding: 9px 10px;
+  }
+
+  .insight-card-dominant {
+    grid-column: 1 / -1;
+  }
+
+  .insight-label {
+    font-size: 11px;
+  }
+
+  .insight-value {
+    font-size: 26px;
+    line-height: 1.1;
+  }
+
+  .report-meta-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .quadrant-list {
+    margin-bottom: 10px;
+  }
+
   .regenerate-banner {
     flex-direction: column;
     align-items: flex-start;

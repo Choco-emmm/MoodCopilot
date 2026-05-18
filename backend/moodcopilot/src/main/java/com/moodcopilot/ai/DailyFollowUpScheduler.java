@@ -114,7 +114,8 @@ public class DailyFollowUpScheduler {
                     DiaryAnalysisEntity a = analysisMap.get(d.getId());
                     if (a != null) {
                         analyses.add(new DiaryAnalysis(a.getMoodLabel(), a.getMoodIntensity(),
-                                a.getTopicLabelsJson(), a.getSecondaryMoodsJson() != null ? a.getSecondaryMoodsJson() : List.of(),
+                                a.getTopicLabelsJson(),
+                                a.getSecondaryMoodsJson() != null ? a.getSecondaryMoodsJson() : List.of(),
                                 a.getSummary(), a.getFeedback()));
                     } else {
                         analyses.add(null);
@@ -129,8 +130,9 @@ public class DailyFollowUpScheduler {
 
                 String coaching = aiAnalysisService.generateCoaching(contents, analyses);
 
+                String greeting = greetingByHour(currentHour);
                 String message = String.format(
-                        "早安！已连续记录 %d 天，昨天是「%s」。\n\n%s", streak, yesterdayMood, coaching);
+                        "%s！已连续记录 %d 天，昨天是「%s」。\n\n%s", greeting, streak, yesterdayMood, coaching);
 
                 notificationService.notifyDailyFollowUp(userId, message);
                 markSentToday(userId, today);
@@ -149,6 +151,16 @@ public class DailyFollowUpScheduler {
     private boolean isPreferredHour(long userId, int currentHour) {
         int assignedHour = (int) (userId % 17) + 6;
         return currentHour == assignedHour;
+    }
+
+    private String greetingByHour(int hour) {
+        if (hour >= 5 && hour < 12) {
+            return "早上好";
+        }
+        if (hour >= 12 && hour < 18) {
+            return "下午好";
+        }
+        return "晚上好";
     }
 
     private boolean alreadySentToday(long userId, String today) {
