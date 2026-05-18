@@ -32,13 +32,15 @@ services:
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: redis/redis-stack-server:latest
     expose:
       - "6379"
+    volumes:
+      - redis_data:/data
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 256M
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -62,6 +64,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-root}
       REDIS_HOST: redis
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY}
       JWT_SECRET: ${JWT_SECRET:-bW9vZGNvcGlsb3Qtc2VjcmV0LWtleS1mb3ItZGV2ZWxvcG1lbnQtb25seS0yMDI2}
       MAIL_HOST: ${MAIL_HOST:-smtp.qq.com}
       MAIL_PORT: ${MAIL_PORT:-465}
@@ -98,3 +101,4 @@ services:
 volumes:
   mysql_data:
   uploads_data:
+  redis_data:

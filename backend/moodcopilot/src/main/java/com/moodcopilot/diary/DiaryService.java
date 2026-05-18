@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.AiAnalysisService;
 import com.moodcopilot.ai.DiaryAnalysisCompletedEvent;
 import com.moodcopilot.ai.MemoryExtractionService;
+import com.moodcopilot.ai.RagMemoryService;
 import com.moodcopilot.common.ContentFilter;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.follow.FollowService;
@@ -82,6 +83,7 @@ public class DiaryService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final RagMemoryService ragMemoryService;
 
     public DiaryService(DiaryMapper diaryMapper,
             DiaryAnalysisMapper diaryAnalysisMapper,
@@ -97,7 +99,8 @@ public class DiaryService {
             DiarySummaryMapper diarySummaryMapper,
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            RagMemoryService ragMemoryService) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
@@ -113,6 +116,7 @@ public class DiaryService {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
+        this.ragMemoryService = ragMemoryService;
     }
 
     @Transactional
@@ -136,6 +140,7 @@ public class DiaryService {
         if ("PUBLIC".equals(diary.getVisibility())) {
             evictPublicDiaryCaches();
         }
+        ragMemoryService.indexDiary(user.getId(), diary.getId(), diary.getContent());
 
         return DiaryView.from(diary, List.of(), normalizeAvatar(user.getAvatar()), user.getDisplayName(), Map.of(),
                 false);
@@ -176,6 +181,7 @@ public class DiaryService {
 
         if (contentChanged) {
             log.info("日记内容已更新，触发分析与画像重建，diaryId={}，userId={}", diaryId, user.getId());
+            ragMemoryService.indexDiary(user.getId(), diaryId, filteredContent);
             DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent);
             DiaryAnalysisEntity existingAnalysis = diaryAnalysisMapper.selectById(diaryId);
             LocalDateTime now = LocalDateTime.now();
@@ -1178,19 +1184,30 @@ public class DiaryService {
         return buildDiaryView(diary, false);
     }
 
+    /**
+     * 组装日记列表视图（feed 模式）。跳过评论和作者信息批量加载以缩减响应体积。
+     */
     private List<DiaryView> buildDiaryViews(List<DiaryEntity> diaries, boolean isPublic) {
         List<Long> ids = diaries.stream().map(DiaryEntity::getId).toList();
         Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(ids);
-        Map<Long, List<DiaryCommentEntity>> commentMap = batchLoadComments(ids);
-        java.util.Set<Long> authorIds = new java.util.HashSet<>();
-        diaries.forEach(d -> authorIds.add(d.getAuthorUserId()));
-        commentMap.values().forEach(comments -> comments.forEach(c -> authorIds.add(c.getAuthorUserId())));
-        Map<Long, UserEntity> authorInfoMap = batchLoadAuthorInfo(authorIds);
         Set<Long> likedDiaryIds = batchLoadLikedDiaryIds(ids);
         return diaries.stream()
-                .map(diary -> buildDiaryView(diary, isPublic, analysisMap, commentMap, authorInfoMap,
-                        likedDiaryIds.contains(diary.getId())))
+                .map(diary -> buildFeedView(diary, isPublic, analysisMap, likedDiaryIds.contains(diary.getId())))
                 .toList();
+    }
+
+    private DiaryView buildFeedView(DiaryEntity diary, boolean isPublic,
+            Map<Long, DiaryAnalysisEntity> analysisMap, boolean likedByMe) {
+        DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
+        // feed 模式：内容裁切到 150 字，不加载评论
+        String feedContent = diary.getContent() != null && diary.getContent().length() > 150
+                ? diary.getContent().substring(0, 150) + "..."
+                : diary.getContent();
+        return isPublic
+                ? DiaryView.fromPublicFeed(diary, analysis, diary.getAuthorName(),
+                        resolveAuthorAvatar(diary.getAuthorUserId()), likedByMe, feedContent)
+                : DiaryView.fromFeed(diary, analysis, diary.getAuthorName(),
+                        resolveAuthorAvatar(diary.getAuthorUserId()), likedByMe, feedContent);
     }
 
     private DiaryView buildDiaryView(DiaryEntity diary, boolean isPublic) {

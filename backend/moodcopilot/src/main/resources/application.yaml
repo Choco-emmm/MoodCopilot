@@ -55,6 +55,12 @@ spring:
         options:
           model: ${DEEPSEEK_MODEL:deepseek-chat}
           max-tokens: 2048
+    rag:
+      embedding:
+        api-url: ${RAG_EMBEDDING_API_URL:https://api.siliconflow.cn/v1/embeddings}
+        api-key: ${SILICONFLOW_API_KEY:}
+        model: ${RAG_EMBEDDING_MODEL:BAAI/bge-m3}
+        dimension: 1024
   mail:
     host: ${MAIL_HOST:smtp.qq.com}
     port: ${MAIL_PORT:465}
