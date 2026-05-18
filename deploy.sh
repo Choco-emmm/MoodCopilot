@@ -7,20 +7,31 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$PROJECT_DIR/backend/moodcopilot"
 
-echo "[1/5] 进入项目目录: $PROJECT_DIR"
+echo "[1/6] 进入项目目录: $PROJECT_DIR"
 cd "$PROJECT_DIR"
 
-echo "[2/5] 拉取最新代码"
+echo "[2/6] 拉取最新代码"
 git pull --ff-only
 
 # 记录变更范围（与上一次部署比较）
 CHANGED=$(git diff --name-only ORIG_HEAD HEAD 2>/dev/null || echo "")
 FRONTEND_CHANGED=$(echo "$CHANGED" | grep -q '^frontend/' && echo true || echo false)
 BACKEND_CHANGED=$(echo "$CHANGED" | grep -q '^backend/' && echo true || echo false)
+INFRA_CHANGED=$(echo "$CHANGED" | grep -q 'docker-compose.yml' && echo true || echo false)
 
-# [3/5] 构建后端 JAR（精准指向 pom.xml 所在目录）
+# [3/6] 基础设施变更检测（Redis 镜像升级等）
+if $INFRA_CHANGED; then
+  echo "[3/6] docker-compose.yml 有变更，重建基础设施容器..."
+  docker compose up -d --build redis mysql
+  echo "  等待 Redis/MySQL 就绪..."
+  sleep 5
+else
+  echo "[3/6] 基础设施无变更，跳过"
+fi
+
+# [4/6] 构建后端 JAR
 if $BACKEND_CHANGED || [ ! -f "$BACKEND_DIR/target/"*.jar ]; then
-  echo "[3/5] 后端有变更，正在通过 Docker 编译..."
+  echo "[4/6] 后端有变更，正在通过 Docker 编译..."
   docker run --rm \
     -v "$PWD/backend/moodcopilot:/app" \
     -v "$HOME/.m2:/root/.m2" \
@@ -28,15 +39,14 @@ if $BACKEND_CHANGED || [ ! -f "$BACKEND_DIR/target/"*.jar ]; then
     maven:3.9-eclipse-temurin-21 \
     mvn clean package -Dmaven.test.skip=true
 else
-  echo "[3/5] 后端无变更，跳过编译"
+  echo "[4/6] 后端无变更，跳过编译"
 fi
 
-# [4/5] 重建并启动容器（仅重建有变更的服务，不重启 MySQL/Redis）
-echo "[4/5] 重建容器..."
+# [5/6] 重建并启动容器
+echo "[5/6] 重建容器..."
 if $FRONTEND_CHANGED; then
   echo "  前端有变更，重建 frontend..."
   docker compose up -d --build --no-deps frontend
-  # 先启动旧版前端，避免前端中断
 fi
 
 echo "  重建 backend..."
@@ -46,7 +56,7 @@ if ! $FRONTEND_CHANGED; then
   echo "  前端无变更，跳过"
 fi
 
-echo "[5/5] 输出服务状态"
+echo "[6/6] 输出服务状态"
 docker compose ps
 
 echo
