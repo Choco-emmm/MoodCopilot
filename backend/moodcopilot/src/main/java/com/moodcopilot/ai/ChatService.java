@@ -225,14 +225,15 @@ public class ChatService {
         }
         // RAG 语义检索 + SQL 关键词双路召回
         String ragCtx = ragMemoryService.buildRagContext(userId, searchQuery, topK, sourceTypes);
-        String sqlCtx = buildSqlFallbackContext(userId, message);
+        String sqlCtx = buildSqlFallbackContext(userId, searchQuery);
         return mergeRetrievalContexts(ragCtx, sqlCtx);
     }
 
-    private String buildSqlFallbackContext(long userId, String message) {
+    private String buildSqlFallbackContext(long userId, String keywords) {
         try {
-            var request = new com.moodcopilot.diary.DiarySearchRequest(
-                    message.length() > 20 ? message.substring(0, 20) : message, null, null);
+            // 取重写后的第一个关键词做 SQL LIKE 搜索
+            String keyword = keywords.length() > 20 ? keywords.substring(0, 20) : keywords;
+            var request = new com.moodcopilot.diary.DiarySearchRequest(keyword, null, null);
             var result = diaryService.searchOwnDiarySummaries(request);
             if (result != null && result.total() > 0) {
                 StringBuilder sb = new StringBuilder("\n\n<sql_retrieved_context>\n");
