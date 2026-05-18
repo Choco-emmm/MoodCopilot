@@ -50,6 +50,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/notifications',
+      name: 'notifications',
+      component: () => import('../pages/NotificationPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/diary/:id',
       name: 'diary-detail',
       component: () => import('../pages/DiaryDetailPage.vue'),
