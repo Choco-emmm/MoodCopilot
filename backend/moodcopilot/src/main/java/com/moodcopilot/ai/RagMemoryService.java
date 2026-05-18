@@ -142,24 +142,49 @@ public class RagMemoryService {
     }
 
     /**
-     * 将用户长期画像条目合并为文本后存入向量库（key: profile:{userId}）。
+     * 将用户长期画像按属性逐个索引到向量库（key: profile:{userId}:{attrKey}）。
+     * 每个属性独立存储，便于语义检索时精准匹配。
      */
     @Async
     public void indexUserProfile(long userId, List<UserProfileMemoryEntity> memories) {
         if (memories == null || memories.isEmpty()) {
+            // 用户画像被清空，删除该用户所有画像向量
+            List<String> keys = listProfileKeys(userId);
+            if (!keys.isEmpty()) {
+                redis.delete(keys);
+            }
             return;
         }
-        StringBuilder sb = new StringBuilder("用户长期画像：");
+        List<String> existingKeys = listProfileKeys(userId);
+        Set<String> newKeys = new java.util.HashSet<>();
         for (UserProfileMemoryEntity m : memories) {
-            sb.append(m.getAttributeKey()).append(" ").append(m.getAttributeValue()).append("，");
+            String attrKey = sanitizeKey(m.getAttributeKey());
+            String text = "用户长期画像 - " + m.getAttributeKey() + ": " + m.getAttributeValue();
+            float[] vec = embed(text);
+            if (vec != null) {
+                storeEmbedding("profile:" + userId + ":" + attrKey, userId, text, vec);
+                newKeys.add("profile:" + userId + ":" + attrKey);
+            }
         }
-        String text = sb.toString();
-        float[] vec = embed(text);
-        if (vec == null) {
-            return;
+        for (String oldKey : existingKeys) {
+            if (!newKeys.contains(oldKey)) {
+                redis.delete(oldKey);
+            }
         }
-        // 覆盖写入，每个用户只保留最新一条画像记录
-        storeEmbedding("profile:" + userId, userId, snippet(text, 500), vec);
+    }
+
+    private List<String> listProfileKeys(long userId) {
+        String pattern = KEY_PREFIX + "profile:" + userId + ":*";
+        try {
+            var keys = redis.keys(pattern);
+            return keys != null ? new ArrayList<>(keys) : List.of();
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    private String sanitizeKey(String raw) {
+        return raw.replaceAll("[^a-zA-Z0-9_\\-\\u4e00-\\u9fff]", "_");
     }
 
     /**
@@ -370,23 +395,24 @@ public class RagMemoryService {
             if (entry.getValue() == null || entry.getValue().isEmpty()) {
                 continue;
             }
-            StringBuilder sb = new StringBuilder("用户长期画像：");
             for (UserProfileMemoryEntity m : entry.getValue()) {
-                sb.append(m.getAttributeKey()).append(" ").append(m.getAttributeValue()).append("，");
-            }
-            float[] vec = embed(sb.toString());
-            if (vec != null) {
-                storeEmbedding("profile:" + entry.getKey(), entry.getKey(), snippet(sb.toString(), 500), vec);
-                count++;
-            }
-            try {
-                Thread.sleep(50);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
+                String text = "用户长期画像 - " + m.getAttributeKey() + ": " + m.getAttributeValue();
+                float[] vec = embed(text);
+                if (vec != null) {
+                    String attrKey = sanitizeKey(m.getAttributeKey());
+                    storeEmbedding("profile:" + entry.getKey() + ":" + attrKey,
+                            entry.getKey(), text, vec);
+                    count++;
+                }
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return count;
+                }
             }
         }
-        log.info("批量画像向量化完成：{}/{} 个用户", count, grouped.size());
+        log.info("批量画像向量化完成：{} 条属性", count);
         return count;
     }
 
