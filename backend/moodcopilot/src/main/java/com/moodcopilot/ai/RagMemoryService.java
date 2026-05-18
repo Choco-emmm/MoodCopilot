@@ -6,7 +6,6 @@ import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.output.NestedMultiOutput;
 import io.lettuce.core.output.StatusOutput;
 import io.lettuce.core.protocol.CommandArgs;
-import io.lettuce.core.protocol.CommandType;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,7 +71,7 @@ public class RagMemoryService {
                         .add("DIM").add(String.valueOf(embeddingDimension))
                         .add("TYPE").add("FLOAT32").add("DISTANCE_METRIC").add("COSINE")
                         .add("created_at").add("NUMERIC").add("SORTABLE");
-                cmds.dispatch(CommandType.valueOf("FT.CREATE"),
+                cmds.dispatch(RediSearchCommand.FT_CREATE,
                         new StatusOutput<>(ByteArrayCodec.INSTANCE), cargs);
                 return null;
             });
@@ -276,7 +275,7 @@ public class RagMemoryService {
                         .add("DIALECT".getBytes(StandardCharsets.UTF_8))
                         .add("2".getBytes(StandardCharsets.UTF_8));
                 List<Object> raw = cmds.dispatch(
-                        CommandType.valueOf("FT.SEARCH"),
+                        RediSearchCommand.FT_SEARCH,
                         new NestedMultiOutput<>(ByteArrayCodec.INSTANCE),
                         cargs);
                 if (raw != null) {
@@ -372,6 +371,22 @@ public class RagMemoryService {
                     out.add(new RagHit(content, score));
                 }
             }
+        }
+    }
+
+    private enum RediSearchCommand implements io.lettuce.core.protocol.ProtocolKeyword {
+        FT_CREATE("FT.CREATE"),
+        FT_SEARCH("FT.SEARCH");
+
+        private final byte[] bytes;
+
+        RediSearchCommand(String name) {
+            this.bytes = name.getBytes(StandardCharsets.US_ASCII);
+        }
+
+        @Override
+        public byte[] getBytes() {
+            return bytes;
         }
     }
 
