@@ -469,8 +469,9 @@ public class RagMemoryService {
 
     /**
      * 批量回填已有日记的向量索引（管理员触发）。
+     * 分块策略与日常增量 indexDiary 保持一致：≤500 字单块，>500 字按 400 字/块 + 50 字重叠切分。
      * @param items 待索引的 (userId, diaryId, content) 列表
-     * @return 成功索引的数量
+     * @return 成功索引的日记数量
      */
     public int batchIndexDiaries(List<BatchIndexItem> items) {
         if (embeddingApiKey.isBlank()) {
@@ -483,14 +484,42 @@ public class RagMemoryService {
                 continue;
             }
             try {
-                float[] vec = embed(item.content());
-                if (vec != null) {
-                    storeEmbedding("diary:" + item.diaryId(), item.userId(),
-                            SOURCE_DIARY, snippet(item.content(), 800), vec);
-                    count++;
+                // 幂等：先清理可能存在的旧索引，防止重复或脏数据
+                deleteDiaryEmbedding(item.diaryId());
+
+                String content = item.content();
+                if (content.length() <= 500) {
+                    float[] vec = embed(content);
+                    if (vec != null) {
+                        storeEmbedding("diary:" + item.diaryId(), item.userId(),
+                                SOURCE_DIARY, content, vec);
+                        count++;
+                    }
+                } else {
+                    boolean stored = false;
+                    int start = 0;
+                    int ci = 0;
+                    while (start < content.length()) {
+                        int end = Math.min(start + CHUNK_SIZE, content.length());
+                        String chunk = content.substring(start, end);
+                        float[] vec = embed(chunk);
+                        if (vec != null) {
+                            storeEmbedding("diary:" + item.diaryId() + ":" + ci, item.userId(),
+                                    SOURCE_DIARY, chunk, vec);
+                            ci++;
+                            stored = true;
+                        }
+                        start += CHUNK_SIZE - CHUNK_OVERLAP;
+                    }
+                    if (stored) {
+                        count++;
+                    }
                 }
                 // 控制频率，避免 SiliconFlow 限流
                 Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
             } catch (Exception e) {
                 log.warn("批量向量化失败 diaryId={}: {}", item.diaryId(), e.getMessage());
             }
@@ -501,6 +530,7 @@ public class RagMemoryService {
 
     /**
      * 同步批量索引用户画像（供 admin reindex 使用）。
+     * 回填前彻底清理该用户所有新旧格式的索引 key，确保向量库与传入数据完全同步，不留孤儿数据。
      */
     public int batchIndexProfiles(Map<Long, List<UserProfileMemoryEntity>> grouped) {
         if (embeddingApiKey.isBlank()) {
@@ -508,8 +538,14 @@ public class RagMemoryService {
         }
         int count = 0;
         for (var entry : grouped.entrySet()) {
-            // 清理旧格式单 blob key
-            redis.delete(KEY_PREFIX + "profile:" + entry.getKey());
+            long userId = entry.getKey();
+            // 彻底清理该用户所有旧索引（新格式属性 key + 旧格式单 blob key）
+            List<String> existingKeys = listProfileKeys(userId);
+            if (!existingKeys.isEmpty()) {
+                redis.delete(existingKeys);
+            }
+            redis.delete(KEY_PREFIX + "profile:" + userId);
+
             if (entry.getValue() == null || entry.getValue().isEmpty()) {
                 continue;
             }
@@ -518,8 +554,8 @@ public class RagMemoryService {
                 float[] vec = embed(text);
                 if (vec != null) {
                     String attrKey = sanitizeKey(m.getAttributeKey());
-                    storeEmbedding("profile:" + entry.getKey() + ":" + attrKey,
-                            entry.getKey(), SOURCE_PROFILE, text, vec);
+                    storeEmbedding("profile:" + userId + ":" + attrKey,
+                            userId, SOURCE_PROFILE, text, vec);
                     count++;
                 }
                 try {
@@ -536,11 +572,23 @@ public class RagMemoryService {
 
     /**
      * 删除指定日记的向量（用户删除日记时调用）。
+     * 同时清理未分块的 key（短日记）和分块 key（长日记）。
      */
     public void deleteDiaryEmbedding(long diaryId) {
-        String key = KEY_PREFIX + "diary:" + diaryId;
-        redis.delete(key);
-        log.info("RAG 已删除日记向量 diaryId={}", diaryId);
+        String baseKey = KEY_PREFIX + "diary:" + diaryId;
+        String pattern = KEY_PREFIX + "diary:" + diaryId + ":*";
+        try {
+            redis.delete(baseKey);
+            var keys = redis.keys(pattern);
+            if (keys != null && !keys.isEmpty()) {
+                redis.delete(keys);
+                log.info("RAG 已删除日记向量 diaryId={} totalKeys={}", diaryId, keys.size() + 1);
+            } else {
+                log.info("RAG 已删除日记向量 diaryId={}", diaryId);
+            }
+        } catch (Exception e) {
+            log.warn("RAG 删除日记向量失败 diaryId={}: {}", diaryId, e.getMessage());
+        }
     }
 
     public void deleteChatEmbeddings(long conversationId) {
