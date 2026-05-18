@@ -231,8 +231,9 @@ public class ChatService {
 
     private String buildSqlFallbackContext(long userId, String keywords) {
         try {
-            // 取重写后的第一个关键词做 SQL LIKE 搜索
-            String keyword = keywords.length() > 20 ? keywords.substring(0, 20) : keywords;
+            // 取重写后的第一个关键词做 SQL LIKE 搜索（空格分割，单关键词匹配率更高）
+            String firstKeyword = keywords.split("\\s+")[0];
+            String keyword = firstKeyword.length() > 10 ? firstKeyword.substring(0, 10) : firstKeyword;
             var request = new com.moodcopilot.diary.DiarySearchRequest(keyword, null, null);
             var result = diaryService.searchOwnDiarySummaries(request);
             if (result != null && result.total() > 0) {
