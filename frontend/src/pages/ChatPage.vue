@@ -3,6 +3,51 @@
     <AppHeader />
 
     <div class="chat-layout">
+        <!-- AI 状态速览入口按钮（移动端悬浮/顶部，PC端可放侧边）-->
+        <n-button
+          class="ai-status-entry"
+          size="small"
+          circle
+          @click="showStatusPanel = true"
+          style="position: fixed; right: 16px; bottom: 120px; z-index: 99; box-shadow: 0 2px 8px #0001;"
+        >
+          <template #icon>
+            <n-icon><BarChartOutline /></n-icon>
+          </template>
+        </n-button>
+
+        <n-drawer v-model:show="showStatusPanel" placement="bottom" :height="statusPanelHeight" :mask-closable="true">
+          <template #header>
+            <div style="font-weight: bold;">AI 状态速览</div>
+          </template>
+          <template v-if="showStatusPanel">
+          <div class="ai-status-cards">
+            <n-card class="ai-status-card" v-if="moodStats">
+              <div class="card-title">本周情绪趋势</div>
+              <div class="card-content">{{ moodStats.trendSummary || '暂无数据' }}</div>
+              <n-button size="tiny" @click="quickAsk('最近情绪趋势')">追问</n-button>
+            </n-card>
+            <n-card class="ai-status-card" v-if="moodStats">
+              <div class="card-title">高频话题</div>
+              <div class="card-content">{{ moodStats.topTopics?.join('、') || '暂无数据' }}</div>
+              <n-button size="tiny" @click="quickAsk('最近高频话题')">追问</n-button>
+            </n-card>
+            <n-card class="ai-status-card" v-if="reportSummary">
+              <div class="card-title">AI 报告摘要</div>
+              <div class="card-content">{{ reportSummary }}</div>
+              <n-button size="tiny" @click="quickAsk('帮我解读下本周报告')">追问</n-button>
+            </n-card>
+            <n-card class="ai-status-card" v-if="memories && memories.length">
+              <div class="card-title">长期记忆</div>
+              <ul class="card-content">
+                <li v-for="m in memories.slice(0, 3)" :key="m.id">{{ m.attributeKey }}：{{ m.attributeValue }}</li>
+              </ul>
+              <n-button size="tiny" @click="quickAsk('结合我的长期记忆聊聊')">追问</n-button>
+            </n-card>
+            <div v-if="!moodStats && !reportSummary && (!memories || !memories.length)" style="text-align:center;color:#888;">暂无可用数据</div>
+          </div>
+          </template>
+        </n-drawer>
       <!-- 会话列表侧边栏 -->
       <aside class="chat-sidebar">
         <div class="sidebar-head">
@@ -143,8 +188,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { NButton, NInput } from 'naive-ui'
+import { ref, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
+import { NButton, NInput, NDrawer, NCard, NIcon } from 'naive-ui'
+import { BarChartOutline } from '@vicons/ionicons5'
 import AppHeader from '../components/AppHeader.vue'
 import ReferenceBar from '../components/ReferenceBar.vue'
 import { chatApi, diaryApi } from '../api'
@@ -173,8 +219,13 @@ interface ChatReference {
   diaryId?: number
 }
 
+const mdCache = new Map<string, string>()
 function renderMd(text: string) {
-  return renderSafeMarkdown(text)
+  let cached = mdCache.get(text)
+  if (cached) return cached
+  cached = renderSafeMarkdown(text)
+  mdCache.set(text, cached)
+  return cached
 }
 
 const conversations = ref<Conversation[]>([])
@@ -198,6 +249,34 @@ const viewportBaseHeight = ref(0)
 const creatingConversation = ref(false)
 const syncCooldownUntil = ref(0)
 let syncTimer: number | null = null
+// AI 状态速览相关
+const showStatusPanel = ref(false)
+const statusPanelHeight = computed(() => window.innerWidth < 600 ? '70vh' : '420px')
+const moodStats = ref<any>(null) // { trendSummary: string, topTopics: string[] }
+const reportSummary = ref<string>('')
+const memories = ref<any[]>([])
+
+function quickAsk(type: string) {
+  // 追问时自动填充输入框并聚焦
+  draft.value = type
+  showStatusPanel.value = false
+  nextTick(() => {
+    const input = document.querySelector('.chat-input-row input') as HTMLInputElement
+    if (input) input.focus()
+  })
+}
+
+// TODO: 实际项目中应在 onMounted 时请求后端接口加载数据
+onMounted(() => {
+  // 示例数据，后续替换为实际 API 请求
+  moodStats.value = { trendSummary: '本周整体情绪较为平稳，偶有波动', topTopics: ['工作', '成长', '压力'] }
+  reportSummary.value = '你本周的情绪以平稳为主，积极话题占比提升，建议继续保持良好作息。'
+  memories.value = [
+    { id: 1, attributeKey: '性格', attributeValue: '温和理性' },
+    { id: 2, attributeKey: '目标', attributeValue: '考研上岸' },
+    { id: 3, attributeKey: '压力源', attributeValue: '家庭期望' }
+  ]
+})
 let convListSyncTick = 0
 let msgIdCounter = 0
 let streamAbortCtrl: AbortController | null = null
@@ -774,3 +853,23 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   font-size: 0.9em;
 }
 </style>
+
+/* AI 状态速览入口按钮样式 */
+.ai-status-entry {
+  background: #fff;
+  color: #4caf50;
+  z-index: 99;
+  box-shadow: 0 2px 8px #0001;
+  transition: bottom 0.2s;
+}
+@media (max-width: 600px) {
+  .ai-status-entry {
+    right: 10px !important;
+    bottom: 72px !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    z-index: 99 !important;
+  }
+}
