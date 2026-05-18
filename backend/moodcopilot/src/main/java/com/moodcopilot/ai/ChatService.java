@@ -148,12 +148,13 @@ public class ChatService {
         if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
             log.info("聊天路由结果：reasoning（流式），conversationId={}，messageLength={}", conversationId,
                     message == null ? 0 : message.length());
-            return callReasoningModelStream(request, message, auth);
+            return callReasoningModelStream(request, message, auth, conversationId);
         }
 
         log.info("聊天路由结果：normal，conversationId={}，messageLength={}", conversationId,
                 message == null ? 0 : message.length());
 
+        long uid = ((UserEntity) auth.getPrincipal()).getId();
         return chatChatClient.prompt()
                 .user(message)
                 .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
@@ -165,7 +166,8 @@ public class ChatService {
                         MemoryQueryFunctionSupport.NAME)
                 .toolContext(Map.of("auth", auth))
                 .stream()
-                .content();
+                .content()
+                .doFinally(sig -> ragMemoryService.indexChatMessage(uid, conversationId, message));
     }
 
     public String reply(Long conversationId, String message, List<String> refs, String memoryBackground) {
@@ -175,13 +177,14 @@ public class ChatService {
         if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
             log.info("非流式聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
                     message == null ? 0 : message.length());
-            return callReasoningModel(request, message, auth);
+            return callReasoningModel(request, message, auth, conversationId);
         }
 
         log.info("非流式聊天路由结果：normal，conversationId={}，messageLength={}", conversationId,
                 message == null ? 0 : message.length());
 
-        return chatChatClient.prompt()
+        long uid = ((UserEntity) auth.getPrincipal()).getId();
+        String result = chatChatClient.prompt()
                 .user(message)
                 .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
@@ -193,6 +196,8 @@ public class ChatService {
                 .toolContext(Map.of("auth", auth))
                 .call()
                 .content();
+        ragMemoryService.indexChatMessage(uid, conversationId, message);
+        return result;
     }
 
     private boolean shouldUseReasoning(Long conversationId, String message, List<String> refs,
@@ -200,10 +205,10 @@ public class ChatService {
         return chatIntentRouter.shouldUseReasoning(message, refs, memoryBackground, conversationId);
     }
 
-    private String callReasoningModel(ChatRequest request, String message, Authentication auth) {
+    private String callReasoningModel(ChatRequest request, String message, Authentication auth, long conversationId) {
+        long userId = ((UserEntity) auth.getPrincipal()).getId();
         try {
             String history = formatChatHistory(request.memory());
-            long userId = ((UserEntity) auth.getPrincipal()).getId();
             String enhancedContext = request.context() + buildTimeMetadata()
                     + buildReasoningDataContext(auth)
                     + ragMemoryService.buildRagContext(userId, message, 5);
@@ -220,16 +225,16 @@ public class ChatService {
                     message == null ? 0 : message.length());
             String response = reasoningClient.generate(enhancedContext, userMessage);
 
-            // 手动回写消息到 ChatMemory，填补 Advisors 缺席导致的记忆断层
             request.memory().add("default", List.of(
                     new UserMessage(message),
                     new AssistantMessage(response)));
+            ragMemoryService.indexChatMessage(userId, conversationId, message);
 
             return response;
         } catch (Exception e) {
             log.warn("reasoning model failed in stream path, fallback to chat model: {}", e.getMessage());
             log.info("思考模型失败后回退到普通模型，messageLength={}", message == null ? 0 : message.length());
-            return chatChatClient.prompt()
+            String fallback = chatChatClient.prompt()
                     .user(message)
                     .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
                     .advisors(new MessageChatMemoryAdvisor(request.memory()))
@@ -241,13 +246,16 @@ public class ChatService {
                     .toolContext(Map.of("auth", auth))
                     .call()
                     .content();
+            ragMemoryService.indexChatMessage(userId, conversationId, message);
+            return fallback;
         }
     }
 
-    private Flux<String> callReasoningModelStream(ChatRequest request, String message, Authentication auth) {
+    private Flux<String> callReasoningModelStream(ChatRequest request, String message, Authentication auth,
+            long conversationId) {
+        long userId = ((UserEntity) auth.getPrincipal()).getId();
         try {
             String history = formatChatHistory(request.memory());
-            long userId = ((UserEntity) auth.getPrincipal()).getId();
             String enhancedContext = request.context() + buildTimeMetadata()
                     + buildReasoningDataContext(auth)
                     + ragMemoryService.buildRagContext(userId, message, 5);
@@ -270,6 +278,7 @@ public class ChatService {
                         request.memory().add("default", List.of(
                                 new UserMessage(message),
                                 new AssistantMessage(fullResponse.toString())));
+                        ragMemoryService.indexChatMessage(userId, conversationId, message);
                     })
                     .onErrorResume(e -> {
                         log.warn("思考模型流式调用失败，回退到普通模型: {}", e.getMessage());
@@ -284,7 +293,8 @@ public class ChatService {
                                         MemoryQueryFunctionSupport.NAME)
                                 .toolContext(Map.of("auth", auth))
                                 .stream()
-                                .content();
+                                .content()
+                                .doFinally(sig -> ragMemoryService.indexChatMessage(userId, conversationId, message));
                     });
         } catch (Exception e) {
             log.warn("reasoning model failed in stream path, fallback to chat model: {}", e.getMessage());
@@ -300,7 +310,8 @@ public class ChatService {
                             MemoryQueryFunctionSupport.NAME)
                     .toolContext(Map.of("auth", auth))
                     .stream()
-                    .content();
+                    .content()
+                    .doFinally(sig -> ragMemoryService.indexChatMessage(userId, conversationId, message));
         }
     }
 
