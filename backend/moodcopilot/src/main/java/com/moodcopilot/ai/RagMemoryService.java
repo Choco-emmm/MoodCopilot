@@ -2,7 +2,9 @@ package com.moodcopilot.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.UserProfileMemoryEntity;
+import io.lettuce.core.api.sync.RedisCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
+import io.lettuce.core.output.NestedMultiOutput;
 import io.lettuce.core.output.StatusOutput;
 import io.lettuce.core.protocol.CommandArgs;
 import io.lettuce.core.protocol.CommandType;
@@ -10,8 +12,6 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.connection.RedisConnection;
-import org.springframework.data.redis.connection.lettuce.LettuceRedisConnection;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -73,8 +73,8 @@ public class RagMemoryService {
                         .add("DIM").add(String.valueOf(embeddingDimension))
                         .add("TYPE").add("FLOAT32").add("DISTANCE_METRIC").add("COSINE")
                         .add("created_at").add("NUMERIC").add("SORTABLE");
-                io.lettuce.core.api.sync.RedisCommands<byte[], byte[]> cmds =
-                        ((LettuceRedisConnection) conn).getNativeConnection();
+                RedisCommands<byte[], byte[]> cmds =
+                        getLettuceCommands(conn);
                 cmds.dispatch(CommandType.valueOf("FT.CREATE"),
                         new StatusOutput<>(ByteArrayCodec.INSTANCE), cargs);
                 return null;
@@ -262,8 +262,8 @@ public class RagMemoryService {
         try {
             List<RagHit> hits = new ArrayList<>();
             redis.execute((RedisCallback<Object>) conn -> {
-                io.lettuce.core.api.sync.RedisCommands<byte[], byte[]> cmds =
-                        ((LettuceRedisConnection) conn).getNativeConnection();
+                RedisCommands<byte[], byte[]> cmds =
+                        getLettuceCommands(conn);
                 CommandArgs<byte[], byte[]> cargs = new CommandArgs<>(ByteArrayCodec.INSTANCE)
                         .add(INDEX_NAME.getBytes(StandardCharsets.UTF_8))
                         .add(q.getBytes(StandardCharsets.UTF_8))
@@ -327,6 +327,11 @@ public class RagMemoryService {
             buf.putFloat(f);
         }
         return buf.array();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static RedisCommands<byte[], byte[]> getLettuceCommands(RedisConnection conn) {
+        return (RedisCommands<byte[], byte[]>) conn.getNativeConnection();
     }
 
     private String snippet(String content, int maxLen) {
