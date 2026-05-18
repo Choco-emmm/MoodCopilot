@@ -324,6 +324,8 @@ public class RagMemoryService {
                     log.info("RAG Redis底层原始命中数: {}", rawCount);
                     parseResults(raw, hits);
                 }
+                // 无 SORTBY 下 Redis 返回顺序不一定严格升序，Java 侧按余弦距离升序保证 topScore 准确
+                hits.sort(java.util.Comparator.comparing(RagHit::score, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
                 if (!hits.isEmpty()) {
                     double topScore = hits.get(0).score() != null ? hits.get(0).score() : -1;
                     double avgScore = hits.stream().filter(h -> h.score() != null)
