@@ -405,21 +405,21 @@ public class RagMemoryService {
         String currentKey = null;
         for (int i = 1; i < raw.size(); i++) {
             Object item = raw.get(i);
-            if (item instanceof String s) {
-                currentKey = s; // FT.SEARCH 返回的 key（如 rag:diary:123）
+            // ByteArrayCodec 下 key 返回为 byte[]，必须解码
+            if (item instanceof byte[] b) {
+                currentKey = new String(b, StandardCharsets.UTF_8);
                 continue;
             }
             if (item instanceof List<?> fields) {
                 String content = null;
                 Double score = null;
                 for (int j = 0; j + 1 < fields.size(); j += 2) {
-                    String fname = String.valueOf(fields.get(j));
-                    Object fval = fields.get(j + 1);
+                    String fname = asString(fields.get(j));
                     if ("content".equals(fname)) {
-                        content = fval instanceof byte[] b ? new String(b, StandardCharsets.UTF_8) : String.valueOf(fval);
+                        content = asString(fields.get(j + 1));
                     } else if ("_score".equals(fname)) {
                         try {
-                            score = Double.parseDouble(String.valueOf(fval));
+                            score = Double.parseDouble(asString(fields.get(j + 1)));
                         } catch (NumberFormatException ignored) {
                         }
                     }
@@ -431,6 +431,13 @@ public class RagMemoryService {
                 currentKey = null;
             }
         }
+    }
+
+    private static String asString(Object obj) {
+        if (obj instanceof byte[] b) {
+            return new String(b, StandardCharsets.UTF_8);
+        }
+        return String.valueOf(obj);
     }
 
     private String extractSourceId(String key) {
