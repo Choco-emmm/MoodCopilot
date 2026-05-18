@@ -3,6 +3,7 @@ FROM eclipse-temurin:21-jre
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+RUN mkdir -p uploads
 COPY target/*.jar app.jar
 
 EXPOSE 18080
