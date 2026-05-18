@@ -432,7 +432,7 @@ function formatTime(value: string) {
 }
 
 async function handleFollow() {
-  if (!diary.value || followStore.loading) return
+  if (!diary.value || followStore.isPending(diary.value.authorUserId)) return
   const authorId = diary.value.authorUserId
   if (followStore.isFollowing(authorId)) {
     await followStore.unfollow(authorId)
