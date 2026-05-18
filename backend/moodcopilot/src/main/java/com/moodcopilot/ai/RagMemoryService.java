@@ -313,15 +313,15 @@ public class RagMemoryService {
                         .add("2".getBytes(StandardCharsets.UTF_8))
                         .add("content".getBytes(StandardCharsets.UTF_8))
                         .add("_score".getBytes(StandardCharsets.UTF_8))
-                        .add("SORTBY".getBytes(StandardCharsets.UTF_8))
-                        .add("_score".getBytes(StandardCharsets.UTF_8))
                         .add("DIALECT".getBytes(StandardCharsets.UTF_8))
                         .add("2".getBytes(StandardCharsets.UTF_8));
                 List<Object> raw = cmds.dispatch(
                         RediSearchCommand.FT_SEARCH,
                         new NestedMultiOutput<>(ByteArrayCodec.INSTANCE),
                         cargs);
-                if (raw != null) {
+                if (raw != null && !raw.isEmpty()) {
+                    Object rawCount = raw.get(0);
+                    log.info("RAG Redis底层原始命中数: {}", rawCount);
                     parseResults(raw, hits);
                 }
                 if (!hits.isEmpty()) {
