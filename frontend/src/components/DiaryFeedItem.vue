@@ -18,7 +18,7 @@
       </div>
       <div class="feed-head-right">
         <button
-          v-if="diary.authorUserId !== auth.userId"
+          v-if="diary.authorUserId !== auth.userId && !hideFollowBtn"
           :class="['follow-btn', 'feed-follow-btn', { following: followStore.isFollowing(diary.authorUserId) }]"
           @mouseenter="hoveringId = diary.authorUserId"
           @mouseleave="hoveringId = null"
@@ -136,11 +136,13 @@ const props = withDefaults(defineProps<{
   compact?: boolean
   previewLimit?: number
   showExpandToggle?: boolean
+  hideFollowBtn?: boolean
 }>(), {
   enableComments: true,
   compact: false,
   previewLimit: 180,
   showExpandToggle: true,
+  hideFollowBtn: false,
 })
 const emit = defineEmits<{
   resonate: [diary: Diary]
@@ -152,6 +154,7 @@ const emit = defineEmits<{
 const followStore = useFollowStore()
 const auth = useAuthStore()
 const hoveringId = ref<number | null>(null)
+const hideFollowBtn = computed(() => props.hideFollowBtn)
 
 const draft = ref('')
 const replyDraft = ref('')
