@@ -59,7 +59,7 @@
     </n-alert>
 
     <!-- 分析完成弹窗 -->
-    <n-modal :show="showAnalysisModal" :mask-closable="false" @update:show="closeModal">
+    <n-modal :show="showAnalysisModal" :mask-closable="false" @update:show="(val) => { if (!val) closeModal() }">
       <div class="analysis-modal">
         <div class="modal-header">
           <h3>分析完成</h3>
