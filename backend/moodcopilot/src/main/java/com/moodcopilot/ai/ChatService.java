@@ -536,6 +536,8 @@ public class ChatService {
      * 任何 DB 查询失败均降级为空字符串，不影响主流程。
      */
     private String buildReasoningDataContext(Authentication auth) {
+        // 暂存原 auth，finally 中还原，避免破坏后续调用链（如 buildRagContextWithFallback）
+        Authentication originalAuth = SecurityContextHolder.getContext().getAuthentication();
         SecurityContextHolder.getContext().setAuthentication(auth);
         try {
             StringBuilder sb = new StringBuilder();
@@ -579,7 +581,12 @@ public class ChatService {
             sb.append("</user_data_context>");
             return sb.length() > 50 ? sb.toString() : "";
         } finally {
-            SecurityContextHolder.clearContext();
+            // 还原为原来的 auth，而不是暴力 clear
+            if (originalAuth != null) {
+                SecurityContextHolder.getContext().setAuthentication(originalAuth);
+            } else {
+                SecurityContextHolder.clearContext();
+            }
         }
     }
 
