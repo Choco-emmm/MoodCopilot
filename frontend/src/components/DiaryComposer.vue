@@ -59,7 +59,7 @@
     </n-alert>
 
     <!-- 分析完成弹窗 -->
-    <n-modal :show="showAnalysisModal" :mask-closable="false" @update:show="(val) => { if (!val) closeModal() }">
+    <n-modal :show="showAnalysisModal" :mask-closable="false" @update:show="onModalUpdate">
       <div class="analysis-modal">
         <div class="modal-header">
           <h3>分析完成</h3>
@@ -166,6 +166,10 @@ watch(() => store.analysisStatus, (status) => {
     showAnalysisModal.value = true
   }
 })
+
+function onModalUpdate(show: boolean) {
+  if (!show) closeModal()
+}
 
 function closeModal() {
   showAnalysisModal.value = false
