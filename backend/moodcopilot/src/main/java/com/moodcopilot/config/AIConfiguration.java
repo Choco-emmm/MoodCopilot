@@ -1,7 +1,13 @@
 package com.moodcopilot.config;
 
 import com.moodcopilot.ai.DiarySearchFunctionSupport;
+import com.moodcopilot.ai.MemoryExtractionService;
+import com.moodcopilot.ai.MemoryQueryFunctionSupport;
+import com.moodcopilot.ai.MemoryQueryRequest;
+import com.moodcopilot.ai.MemoryQueryResult;
+import com.moodcopilot.ai.ReportSnapshotFunctionSupport;
 import com.moodcopilot.ai.UserStatsFunctionSupport;
+import com.moodcopilot.diary.ReportSnapshotRequest;
 import com.moodcopilot.diary.DiarySearchRequest;
 import com.moodcopilot.diary.DiaryService;
 import com.moodcopilot.diary.UserStatsRequest;
@@ -31,6 +37,8 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -67,6 +75,8 @@ public class AIConfiguration {
                         你拥有以下工具来查询用户的历史数据：
                         - diarySearchFunction：按关键词或日期范围检索用户的日记摘要
                         - userStatsFunction：统计用户最近 N 天的日记数量与情绪分布
+                        - reportSnapshotFunction：读取周报/月报的关键指标（主导象限、正向占比、高能量占比）
+                        - memoryQueryFunction：读取用户当前长期画像条目
 
                         关键行为准则：
                         当用户提到"最近"、"之前"、"上周"、"上个月"、"以前"、或者你需要核对用户的历史状态时，必须主动调用工具查询事实，不要盲目猜测。
@@ -126,6 +136,62 @@ public class AIConfiguration {
                 .build();
     }
 
+    @Bean(name = ReportSnapshotFunctionSupport.NAME)
+    public FunctionCallback reportSnapshotFunction(@Lazy DiaryService diaryService) {
+        log.info("注册 Function Calling 工具：{}", ReportSnapshotFunctionSupport.NAME);
+        return FunctionCallback.builder()
+                .function(ReportSnapshotFunctionSupport.NAME,
+                        (ReportSnapshotRequest input, ToolContext toolContext) -> {
+                            Authentication auth = (Authentication) toolContext.getContext().get("auth");
+                            if (auth != null) {
+                                SecurityContextHolder.getContext().setAuthentication(auth);
+                            }
+                            try {
+                                return diaryService.getOwnReportSnapshot(input);
+                            } finally {
+                                SecurityContextHolder.clearContext();
+                            }
+                        })
+                .description("读取当前登录用户周报或月报的关键指标。period 可选 week/month，offset 可选（默认0）。返回主导象限、正向占比、高能量占比和日记数。")
+                .inputType(ReportSnapshotRequest.class)
+                .build();
+    }
+
+    @Bean(name = MemoryQueryFunctionSupport.NAME)
+    public FunctionCallback memoryQueryFunction(@Lazy MemoryExtractionService memoryExtractionService) {
+        log.info("注册 Function Calling 工具：{}", MemoryQueryFunctionSupport.NAME);
+        return FunctionCallback.builder()
+                .function(MemoryQueryFunctionSupport.NAME,
+                        (MemoryQueryRequest input, ToolContext toolContext) -> {
+                            Authentication auth = (Authentication) toolContext.getContext().get("auth");
+                            if (auth != null) {
+                                SecurityContextHolder.getContext().setAuthentication(auth);
+                            }
+                            try {
+                                int limit = input != null && input.limit() != null ? input.limit() : 20;
+                                int clampedLimit = Math.min(50, Math.max(1, limit));
+                                List<MemoryQueryResult.MemoryItem> items = memoryExtractionService
+                                        .listCurrentUserMemories().stream()
+                                        .sorted(Comparator.comparing(
+                                                m -> m.getUpdateTime(),
+                                                Comparator.nullsLast(Comparator.reverseOrder())))
+                                        .limit(clampedLimit)
+                                        .map(m -> new MemoryQueryResult.MemoryItem(
+                                                m.getAttributeKey(),
+                                                m.getAttributeValue(),
+                                                m.getUpdateTime() != null ? m.getUpdateTime().toString() : null))
+                                        .toList();
+                                return new MemoryQueryResult(items.size(), items,
+                                        items.isEmpty() ? "当前暂无长期画像条目" : "已返回当前长期画像条目");
+                            } finally {
+                                SecurityContextHolder.clearContext();
+                            }
+                        })
+                .description("读取当前登录用户的长期画像条目列表。limit 可选，默认 20，最大 50。返回条目 key/value 和更新时间。")
+                .inputType(MemoryQueryRequest.class)
+                .build();
+    }
+
     @Bean
     public WebClientCustomizer deepseekWebClientCustomizer(com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         log.info("注册 DeepSeek 稳定版拦截器 (Jackson 树模型精准注入，彻底终结 400 梦魇)");
@@ -137,27 +203,44 @@ public class AIConfiguration {
             // 1. 声明数据捕获容器
             final class BodyCaptureMessage implements org.springframework.http.ReactiveHttpOutputMessage {
                 private final org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-                private org.reactivestreams.Publisher<? extends org.springframework.core.io.buffer.DataBuffer> bodyPublisher = reactor.core.publisher.Mono.empty();
+                private org.reactivestreams.Publisher<? extends org.springframework.core.io.buffer.DataBuffer> bodyPublisher = reactor.core.publisher.Mono
+                        .empty();
 
                 @Override
-                public org.springframework.http.HttpHeaders getHeaders() { return this.headers; }
-                @Override
-                public org.springframework.core.io.buffer.DataBufferFactory bufferFactory() { return org.springframework.core.io.buffer.DefaultDataBufferFactory.sharedInstance; }
-                @Override
-                public void beforeCommit(java.util.function.Supplier<? extends reactor.core.publisher.Mono<Void>> action) {}
-                @Override
-                public boolean isCommitted() { return false; }
-                @Override
-                public reactor.core.publisher.Mono<Void> setComplete() { return reactor.core.publisher.Mono.empty(); }
+                public org.springframework.http.HttpHeaders getHeaders() {
+                    return this.headers;
+                }
 
                 @Override
-                public reactor.core.publisher.Mono<Void> writeWith(org.reactivestreams.Publisher<? extends org.springframework.core.io.buffer.DataBuffer> body) {
+                public org.springframework.core.io.buffer.DataBufferFactory bufferFactory() {
+                    return org.springframework.core.io.buffer.DefaultDataBufferFactory.sharedInstance;
+                }
+
+                @Override
+                public void beforeCommit(
+                        java.util.function.Supplier<? extends reactor.core.publisher.Mono<Void>> action) {
+                }
+
+                @Override
+                public boolean isCommitted() {
+                    return false;
+                }
+
+                @Override
+                public reactor.core.publisher.Mono<Void> setComplete() {
+                    return reactor.core.publisher.Mono.empty();
+                }
+
+                @Override
+                public reactor.core.publisher.Mono<Void> writeWith(
+                        org.reactivestreams.Publisher<? extends org.springframework.core.io.buffer.DataBuffer> body) {
                     this.bodyPublisher = body;
                     return reactor.core.publisher.Mono.empty();
                 }
 
                 @Override
-                public reactor.core.publisher.Mono<Void> writeAndFlushWith(org.reactivestreams.Publisher<? extends org.reactivestreams.Publisher<? extends org.springframework.core.io.buffer.DataBuffer>> body) {
+                public reactor.core.publisher.Mono<Void> writeAndFlushWith(
+                        org.reactivestreams.Publisher<? extends org.reactivestreams.Publisher<? extends org.springframework.core.io.buffer.DataBuffer>> body) {
                     this.bodyPublisher = reactor.core.publisher.Flux.from(body).flatMap(p -> p);
                     return reactor.core.publisher.Mono.empty();
                 }
@@ -167,80 +250,83 @@ public class AIConfiguration {
 
             // 2. 触发 Spring AI 默认的 POJO -> JSON 序列化
             @SuppressWarnings("unchecked")
-            org.springframework.web.reactive.function.BodyInserter<Object, org.springframework.http.ReactiveHttpOutputMessage> rawInserter =
-                (org.springframework.web.reactive.function.BodyInserter<Object, org.springframework.http.ReactiveHttpOutputMessage>) (Object) request.body();
+            org.springframework.web.reactive.function.BodyInserter<Object, org.springframework.http.ReactiveHttpOutputMessage> rawInserter = (org.springframework.web.reactive.function.BodyInserter<Object, org.springframework.http.ReactiveHttpOutputMessage>) (Object) request
+                    .body();
 
-            return rawInserter.insert(captureMessage, new org.springframework.web.reactive.function.BodyInserter.Context() {
-                @Override
-                public java.util.List<org.springframework.http.codec.HttpMessageWriter<?>> messageWriters() {
-                    java.util.List<org.springframework.http.codec.HttpMessageWriter<?>> writers = new java.util.ArrayList<>();
-                    writers.add(new org.springframework.http.codec.EncoderHttpMessageWriter<>(
-                        new org.springframework.http.codec.json.Jackson2JsonEncoder(objectMapper, org.springframework.http.MediaType.APPLICATION_JSON)
-                    ));
-                    writers.addAll(org.springframework.web.reactive.function.client.ExchangeStrategies.withDefaults().messageWriters());
-                    return writers;
-                }
+            return rawInserter
+                    .insert(captureMessage, new org.springframework.web.reactive.function.BodyInserter.Context() {
+                        @Override
+                        public java.util.List<org.springframework.http.codec.HttpMessageWriter<?>> messageWriters() {
+                            java.util.List<org.springframework.http.codec.HttpMessageWriter<?>> writers = new java.util.ArrayList<>();
+                            writers.add(new org.springframework.http.codec.EncoderHttpMessageWriter<>(
+                                    new org.springframework.http.codec.json.Jackson2JsonEncoder(objectMapper,
+                                            org.springframework.http.MediaType.APPLICATION_JSON)));
+                            writers.addAll(org.springframework.web.reactive.function.client.ExchangeStrategies
+                                    .withDefaults().messageWriters());
+                            return writers;
+                        }
 
-                @Override
-                public java.util.Optional<org.springframework.http.server.reactive.ServerHttpRequest> serverRequest() {
-                    return java.util.Optional.empty();
-                }
+                        @Override
+                        public java.util.Optional<org.springframework.http.server.reactive.ServerHttpRequest> serverRequest() {
+                            return java.util.Optional.empty();
+                        }
 
-                @Override
-                public java.util.Map<String, Object> hints() {
-                    return java.util.Map.of();
-                }
-            }).then(reactor.core.publisher.Mono.defer(() -> {
-                // 3. 融合并拦截原始字节流
-                return org.springframework.core.io.buffer.DataBufferUtils.join(captureMessage.bodyPublisher)
-                        .flatMap(dataBuffer -> {
-                            byte[] bytes = new byte[dataBuffer.readableByteCount()];
-                            dataBuffer.read(bytes);
-                            org.springframework.core.io.buffer.DataBufferUtils.release(dataBuffer);
+                        @Override
+                        public java.util.Map<String, Object> hints() {
+                            return java.util.Map.of();
+                        }
+                    }).then(reactor.core.publisher.Mono.defer(() -> {
+                        // 3. 融合并拦截原始字节流
+                        return org.springframework.core.io.buffer.DataBufferUtils.join(captureMessage.bodyPublisher)
+                                .flatMap(dataBuffer -> {
+                                    byte[] bytes = new byte[dataBuffer.readableByteCount()];
+                                    dataBuffer.read(bytes);
+                                    org.springframework.core.io.buffer.DataBufferUtils.release(dataBuffer);
 
-                            String bodyStr = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                                    String bodyStr = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
 
-                            try {
-                                // 4. 面向对象的高级修改：利用 Jackson 语法树精准清洗历史消息
-                                com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(bodyStr);
-                                if (root.has("messages") && root.get("messages").isArray()) {
-                                    com.fasterxml.jackson.databind.node.ArrayNode messages =
-                                        (com.fasterxml.jackson.databind.node.ArrayNode) root.get("messages");
+                                    try {
+                                        // 4. 面向对象的高级修改：利用 Jackson 语法树精准清洗历史消息
+                                        com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(bodyStr);
+                                        if (root.has("messages") && root.get("messages").isArray()) {
+                                            com.fasterxml.jackson.databind.node.ArrayNode messages = (com.fasterxml.jackson.databind.node.ArrayNode) root
+                                                    .get("messages");
 
-                                    for (com.fasterxml.jackson.databind.JsonNode msg : messages) {
-                                        if (msg.isObject()) {
-                                            com.fasterxml.jackson.databind.node.ObjectNode msgObj =
-                                                (com.fasterxml.jackson.databind.node.ObjectNode) msg;
+                                            for (com.fasterxml.jackson.databind.JsonNode msg : messages) {
+                                                if (msg.isObject()) {
+                                                    com.fasterxml.jackson.databind.node.ObjectNode msgObj = (com.fasterxml.jackson.databind.node.ObjectNode) msg;
 
-                                            String role = msgObj.path("role").asText();
-                                            // 斩断死穴：只要是携带工具调用的助理历史消息，必须强制补齐空字符串参数
-                                            if ("assistant".equals(role) && msgObj.has("tool_calls")) {
-                                                msgObj.put("content", "");
-                                                msgObj.put("reasoning_content", "");
+                                                    String role = msgObj.path("role").asText();
+                                                    // 斩断死穴：只要是携带工具调用的助理历史消息，必须强制补齐空字符串参数
+                                                    if ("assistant".equals(role) && msgObj.has("tool_calls")) {
+                                                        msgObj.put("content", "");
+                                                        msgObj.put("reasoning_content", "");
+                                                    }
+                                                }
                                             }
+                                            bodyStr = objectMapper.writeValueAsString(root);
                                         }
+                                    } catch (Exception e) {
+                                        log.error("DeepSeek 拦截器解析修改 JSON 异常，执行原样降级抛出", e);
                                     }
-                                    bodyStr = objectMapper.writeValueAsString(root);
-                                }
-                            } catch (Exception e) {
-                                log.error("DeepSeek 拦截器解析修改 JSON 异常，执行原样降级抛出", e);
-                            }
 
-                            byte[] modifiedBytes = bodyStr.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                                    byte[] modifiedBytes = bodyStr.getBytes(java.nio.charset.StandardCharsets.UTF_8);
 
-                            // 5. 组装物理请求，完美承接原有包含 API KEY 的 Authorization 头
-                            org.springframework.web.reactive.function.client.ClientRequest finalRequest =
-                                org.springframework.web.reactive.function.client.ClientRequest.from(request)
-                                    .headers(headers -> {
-                                        headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
-                                        headers.setContentLength(modifiedBytes.length);
-                                    })
-                                    .body(org.springframework.web.reactive.function.BodyInserters.fromValue(modifiedBytes))
-                                    .build();
+                                    // 5. 组装物理请求，完美承接原有包含 API KEY 的 Authorization 头
+                                    org.springframework.web.reactive.function.client.ClientRequest finalRequest = org.springframework.web.reactive.function.client.ClientRequest
+                                            .from(request)
+                                            .headers(headers -> {
+                                                headers.setContentType(
+                                                        org.springframework.http.MediaType.APPLICATION_JSON);
+                                                headers.setContentLength(modifiedBytes.length);
+                                            })
+                                            .body(org.springframework.web.reactive.function.BodyInserters
+                                                    .fromValue(modifiedBytes))
+                                            .build();
 
-                            return next.exchange(finalRequest);
-                        });
-            }));
+                                    return next.exchange(finalRequest);
+                                });
+                    }));
         });
     }
 

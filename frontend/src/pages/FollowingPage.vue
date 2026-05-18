@@ -20,9 +20,12 @@
           v-for="diary in diaries"
           :key="diary.id"
           :diary="diary"
+          :enable-comments="false"
+          :compact="true"
+          :preview-limit="120"
+          :show-expand-toggle="false"
           @resonate="(d: Diary) => store.resonate(d.id)"
-          @comment="(d: Diary, c: string, pid?: number) => store.addComment(d.id, c, pid)"
-          @delete-comment="(d: Diary, commentId: number) => store.deleteComment(d.id, commentId)"
+          @open-detail="(d: Diary) => router.push(`/diary/${d.id}`)"
         />
 
         <div v-if="loading" class="loading-hint">加载中...</div>

@@ -60,6 +60,11 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class DiaryService {
 
+    private static final String Q_POS_HIGH = "正向高能量";
+    private static final String Q_POS_LOW = "正向低能量";
+    private static final String Q_NEG_HIGH = "负向高能量";
+    private static final String Q_NEG_LOW = "负向低能量";
+
     private final DiaryMapper diaryMapper;
     private final DiaryAnalysisMapper diaryAnalysisMapper;
     private final DiaryCommentMapper diaryCommentMapper;
@@ -356,6 +361,32 @@ public class DiaryService {
         return new UserStatsResult(clampedDays, diaries.size(), moodCounts, topTopics, note);
     }
 
+    public ReportSnapshotResult getOwnReportSnapshot(ReportSnapshotRequest request) {
+        String period = request != null && request.period() != null ? request.period().trim().toLowerCase(Locale.ROOT)
+                : "week";
+        int offset = request != null && request.offset() != null ? request.offset() : 0;
+
+        WeeklyReportView report = "month".equals(period)
+                ? monthlyReport(offset)
+                : weeklyReport(offset);
+
+        String normalizedPeriod = "month".equals(period) ? "month" : "week";
+        String note = report.diaryCount() == 0
+                ? "该周期暂无日记记录"
+                : "已返回该周期报告关键指标";
+
+        return new ReportSnapshotResult(
+                normalizedPeriod,
+                offset,
+                report.weekLabel(),
+                report.diaryCount(),
+                report.moodDominantQuadrant(),
+                report.positiveRatioPercent(),
+                report.highEnergyRatioPercent(),
+                report.generatedAt() != null ? report.generatedAt().toString() : null,
+                note);
+    }
+
     public Page<DiaryView> publicDiaries(int page, int size) {
         int cappedPage = Math.max(1, page);
         int cappedSize = Math.min(50, Math.max(1, size));
@@ -520,7 +551,8 @@ public class DiaryService {
             if (dbReport != null) {
                 dbReport = withFreshness(dbReport, userId, monthOffset, true);
                 try {
-                    redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(dbReport), Duration.ofDays(30));
+                    redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(dbReport),
+                            Duration.ofDays(30));
                 } catch (Exception e) {
                     log.debug("Cache write failed for {}", cacheKey, e);
                 }
@@ -574,7 +606,8 @@ public class DiaryService {
                         analysisEntity.getMoodLabel(),
                         analysisEntity.getMoodIntensity(),
                         analysisEntity.getTopicLabelsJson(),
-                        analysisEntity.getSecondaryMoodsJson() != null ? analysisEntity.getSecondaryMoodsJson() : List.of(),
+                        analysisEntity.getSecondaryMoodsJson() != null ? analysisEntity.getSecondaryMoodsJson()
+                                : List.of(),
                         analysisEntity.getSummary(),
                         analysisEntity.getFeedback());
                 analyses.add(analysis);
@@ -613,11 +646,20 @@ public class DiaryService {
             followUpPrompt = guidance.followUpPrompt();
         }
 
+        Map<String, Integer> moodDistribution = buildMoodDistribution(dailyMoods);
+        String dominantQuadrant = dominantQuadrant(moodDistribution);
+        int positiveRatioPercent = calculatePositiveRatioPercent(moodDistribution);
+        int highEnergyRatioPercent = calculateHighEnergyRatioPercent(moodDistribution);
+
         return new WeeklyReportView(
                 monthLabel,
                 diaries.size(),
                 dailyMoods,
                 sortedTopics,
+                moodDistribution,
+                dominantQuadrant,
+                positiveRatioPercent,
+                highEnergyRatioPercent,
                 aiSummary,
                 insights,
                 suggestions,
@@ -665,7 +707,8 @@ public class DiaryService {
             if (dbReport != null) {
                 dbReport = withFreshness(dbReport, userId, weekOffset, false);
                 try {
-                    redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(dbReport), Duration.ofDays(7));
+                    redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(dbReport),
+                            Duration.ofDays(7));
                 } catch (Exception e) {
                     log.debug("Cache write failed for {}", cacheKey, e);
                 }
@@ -719,7 +762,8 @@ public class DiaryService {
                         analysisEntity.getMoodLabel(),
                         analysisEntity.getMoodIntensity(),
                         analysisEntity.getTopicLabelsJson(),
-                        analysisEntity.getSecondaryMoodsJson() != null ? analysisEntity.getSecondaryMoodsJson() : List.of(),
+                        analysisEntity.getSecondaryMoodsJson() != null ? analysisEntity.getSecondaryMoodsJson()
+                                : List.of(),
                         analysisEntity.getSummary(),
                         analysisEntity.getFeedback());
                 analyses.add(analysis);
@@ -758,11 +802,20 @@ public class DiaryService {
             followUpPrompt = guidance.followUpPrompt();
         }
 
+        Map<String, Integer> moodDistribution = buildMoodDistribution(dailyMoods);
+        String dominantQuadrant = dominantQuadrant(moodDistribution);
+        int positiveRatioPercent = calculatePositiveRatioPercent(moodDistribution);
+        int highEnergyRatioPercent = calculateHighEnergyRatioPercent(moodDistribution);
+
         return new WeeklyReportView(
                 weekLabel,
                 diaries.size(),
                 dailyMoods,
                 sortedTopics,
+                moodDistribution,
+                dominantQuadrant,
+                positiveRatioPercent,
+                highEnergyRatioPercent,
                 aiSummary,
                 insights,
                 suggestions,
@@ -776,14 +829,14 @@ public class DiaryService {
     private LocalDate[] weekDates(int weekOffset) {
         LocalDate today = LocalDate.now();
         LocalDate monday = today.with(DayOfWeek.MONDAY).plusWeeks(weekOffset);
-        return new LocalDate[]{monday, monday.plusDays(6)};
+        return new LocalDate[] { monday, monday.plusDays(6) };
     }
 
     private LocalDate[] monthDates(int monthOffset) {
         LocalDate today = LocalDate.now();
         LocalDate firstOfMonth = today.withDayOfMonth(1).plusMonths(monthOffset);
         LocalDate lastOfMonth = firstOfMonth.withDayOfMonth(firstOfMonth.lengthOfMonth());
-        return new LocalDate[]{firstOfMonth, lastOfMonth};
+        return new LocalDate[] { firstOfMonth, lastOfMonth };
     }
 
     private void saveReportToDb(long userId, WeeklyReportView report, int offset, boolean monthly) {
@@ -808,9 +861,11 @@ public class DiaryService {
             entity.setEndDate(endDate);
             entity.setAiSummary(report.aiSummary());
             entity.setInsightsJson(report.insights() != null && !report.insights().isEmpty()
-                    ? objectMapper.writeValueAsString(report.insights()) : null);
+                    ? objectMapper.writeValueAsString(report.insights())
+                    : null);
             entity.setSuggestionsJson(report.suggestions() != null && !report.suggestions().isEmpty()
-                    ? objectMapper.writeValueAsString(report.suggestions()) : null);
+                    ? objectMapper.writeValueAsString(report.suggestions())
+                    : null);
             entity.setFollowUpPrompt(report.followUpPrompt());
             entity.setMoodsJson(objectMapper.writeValueAsString(report.dailyMoods()));
             entity.setTopicsJson(objectMapper.writeValueAsString(report.topicCounts()));
@@ -839,14 +894,17 @@ public class DiaryService {
                             .eq(DiarySummaryEntity::getEndDate, dates[1])
                             .eq(DiarySummaryEntity::getReportType, reportType));
 
-            if (entity == null || entity.getAiSummary() == null) return null;
+            if (entity == null || entity.getAiSummary() == null)
+                return null;
 
             List<WeeklyReportView.DailyMood> dailyMoods = objectMapper.readValue(
                     entity.getMoodsJson(),
-                    objectMapper.getTypeFactory().constructCollectionType(List.class, WeeklyReportView.DailyMood.class));
+                    objectMapper.getTypeFactory().constructCollectionType(List.class,
+                            WeeklyReportView.DailyMood.class));
 
             Map<String, Integer> topicCounts = objectMapper.readValue(
-                    entity.getTopicsJson(), new TypeReference<Map<String, Integer>>() {});
+                    entity.getTopicsJson(), new TypeReference<Map<String, Integer>>() {
+                    });
 
             List<String> insights = entity.getInsightsJson() != null
                     ? objectMapper.readValue(entity.getInsightsJson(),
@@ -863,6 +921,10 @@ public class DiaryService {
                     entity.getDiaryCount(),
                     dailyMoods,
                     topicCounts,
+                    buildMoodDistribution(dailyMoods),
+                    dominantQuadrant(buildMoodDistribution(dailyMoods)),
+                    calculatePositiveRatioPercent(buildMoodDistribution(dailyMoods)),
+                    calculateHighEnergyRatioPercent(buildMoodDistribution(dailyMoods)),
                     entity.getAiSummary(),
                     insights,
                     suggestions,
@@ -875,7 +937,8 @@ public class DiaryService {
         }
     }
 
-    public boolean hasUnreportedDiaries(long userId, LocalDate startDate, LocalDate endDate, LocalDateTime generatedAt) {
+    public boolean hasUnreportedDiaries(long userId, LocalDate startDate, LocalDate endDate,
+            LocalDateTime generatedAt) {
         if (generatedAt == null) {
             return true;
         }
@@ -908,17 +971,93 @@ public class DiaryService {
         }
 
         boolean needsRegenerate = hasUnreportedDiaries(userId, startDate, endDate, report.generatedAt());
+        Map<String, Integer> moodDistribution = report.moodDistribution() != null
+                ? report.moodDistribution()
+                : buildMoodDistribution(report.dailyMoods());
+        String dominantQuadrant = report.moodDominantQuadrant() != null
+                ? report.moodDominantQuadrant()
+                : dominantQuadrant(moodDistribution);
+        Integer positiveRatioPercent = report.positiveRatioPercent() != null
+                ? report.positiveRatioPercent()
+                : calculatePositiveRatioPercent(moodDistribution);
+        Integer highEnergyRatioPercent = report.highEnergyRatioPercent() != null
+                ? report.highEnergyRatioPercent()
+                : calculateHighEnergyRatioPercent(moodDistribution);
         return new WeeklyReportView(
                 report.weekLabel(),
                 report.diaryCount(),
                 report.dailyMoods(),
                 report.topicCounts(),
+                moodDistribution,
+                dominantQuadrant,
+                positiveRatioPercent,
+                highEnergyRatioPercent,
                 report.aiSummary(),
                 report.insights(),
                 report.suggestions(),
                 report.followUpPrompt(),
                 report.generatedAt(),
                 needsRegenerate);
+    }
+
+    private Map<String, Integer> buildMoodDistribution(List<WeeklyReportView.DailyMood> dailyMoods) {
+        Map<String, Integer> distribution = new LinkedHashMap<>();
+        distribution.put(Q_POS_HIGH, 0);
+        distribution.put(Q_POS_LOW, 0);
+        distribution.put(Q_NEG_HIGH, 0);
+        distribution.put(Q_NEG_LOW, 0);
+
+        if (dailyMoods == null) {
+            return distribution;
+        }
+        for (WeeklyReportView.DailyMood mood : dailyMoods) {
+            if (mood == null || mood.moodLabel() == null) {
+                continue;
+            }
+            String quadrant = classifyMoodQuadrant(mood.moodLabel());
+            distribution.put(quadrant, distribution.getOrDefault(quadrant, 0) + 1);
+        }
+        return distribution;
+    }
+
+    private String dominantQuadrant(Map<String, Integer> distribution) {
+        return distribution.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(Q_POS_LOW);
+    }
+
+    private int calculatePositiveRatioPercent(Map<String, Integer> distribution) {
+        int total = distribution.values().stream().mapToInt(Integer::intValue).sum();
+        if (total <= 0) {
+            return 0;
+        }
+        int positive = distribution.getOrDefault(Q_POS_HIGH, 0) + distribution.getOrDefault(Q_POS_LOW, 0);
+        return (int) Math.round((positive * 100.0) / total);
+    }
+
+    private int calculateHighEnergyRatioPercent(Map<String, Integer> distribution) {
+        int total = distribution.values().stream().mapToInt(Integer::intValue).sum();
+        if (total <= 0) {
+            return 0;
+        }
+        int highEnergy = distribution.getOrDefault(Q_POS_HIGH, 0) + distribution.getOrDefault(Q_NEG_HIGH, 0);
+        return (int) Math.round((highEnergy * 100.0) / total);
+    }
+
+    private String classifyMoodQuadrant(String moodLabel) {
+        if (isPositiveMood(moodLabel)) {
+            return isHighEnergyMood(moodLabel) ? Q_POS_HIGH : Q_POS_LOW;
+        }
+        return isHighEnergyMood(moodLabel) ? Q_NEG_HIGH : Q_NEG_LOW;
+    }
+
+    private boolean isPositiveMood(String moodLabel) {
+        return Set.of("喜悦", "期待", "兴奋", "自豪", "轻松", "平静", "感恩", "满足").contains(moodLabel);
+    }
+
+    private boolean isHighEnergyMood(String moodLabel) {
+        return Set.of("喜悦", "期待", "兴奋", "自豪", "烦躁", "愤怒", "焦虑", "害怕").contains(moodLabel);
     }
 
     @Transactional
@@ -1002,8 +1141,7 @@ public class DiaryService {
         Map<Long, List<DiaryCommentEntity>> commentMap = batchLoadComments(ids);
         java.util.Set<Long> authorIds = new java.util.HashSet<>();
         diaries.forEach(d -> authorIds.add(d.getAuthorUserId()));
-        commentMap.values().forEach(comments ->
-                comments.forEach(c -> authorIds.add(c.getAuthorUserId())));
+        commentMap.values().forEach(comments -> comments.forEach(c -> authorIds.add(c.getAuthorUserId())));
         Map<Long, UserEntity> authorInfoMap = batchLoadAuthorInfo(authorIds);
         return diaries.stream()
                 .map(diary -> buildDiaryView(diary, isPublic, analysisMap, commentMap, authorInfoMap))
@@ -1348,7 +1486,8 @@ public class DiaryService {
             DiaryAnalysisEntity a = analysisMap.get(d.getId());
             if (a != null)
                 analyses.add(new DiaryAnalysis(a.getMoodLabel(), a.getMoodIntensity(),
-                        a.getTopicLabelsJson(), a.getSecondaryMoodsJson() != null ? a.getSecondaryMoodsJson() : List.of(),
+                        a.getTopicLabelsJson(),
+                        a.getSecondaryMoodsJson() != null ? a.getSecondaryMoodsJson() : List.of(),
                         a.getSummary(), a.getFeedback()));
             else
                 analyses.add(null);

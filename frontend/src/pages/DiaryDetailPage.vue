@@ -94,6 +94,7 @@
             :disabled="sending"
             clearable
             @focus="handleCommentFocus"
+            @blur="handleCommentBlur"
             @keyup.enter="submitComment(null)"
           />
           <n-button type="primary" size="small" :disabled="!commentDraft.trim() || sending" @click="submitComment(null)">
@@ -152,6 +153,7 @@
                 :disabled="sending"
                 size="small"
                 @focus="handleCommentFocus"
+                @blur="handleCommentBlur"
                 @keyup.enter="submitComment(replyParentId)"
               />
               <n-button size="tiny" type="primary" :disabled="!replyDraft.trim() || sending" @click="submitComment(replyParentId)">
@@ -163,7 +165,7 @@
       </section>
 
       <!-- 同频推荐（保留） -->
-      <SimilarDiariesPanel :diaries="store.similarDiaries" @select="selectDiary" />
+      <SimilarDiariesPanel v-if="!hideSimilarOnMobileInput" :diaries="store.similarDiaries" @select="selectDiary" />
     </div>
     <n-empty v-else description="日记不存在" />
   </main>
@@ -203,6 +205,8 @@ const editVisibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
 const savingEdit = ref(false)
 const editError = ref('')
 const pinning = ref(false)
+const hideSimilarOnMobileInput = ref(false)
+let inputBlurTimer: ReturnType<typeof setTimeout> | null = null
 
 const isOwner = computed(() => auth.userId != null && diary.value != null && auth.userId === diary.value.authorUserId)
 
@@ -418,7 +422,31 @@ async function handleFollow() {
 }
 
 function handleCommentFocus() {
+  if (isMobileViewport()) {
+    hideSimilarOnMobileInput.value = true
+  }
   ensureCommentInputVisible()
+}
+
+function handleCommentBlur() {
+  if (inputBlurTimer) {
+    clearTimeout(inputBlurTimer)
+  }
+  inputBlurTimer = setTimeout(() => {
+    const active = document.activeElement as HTMLElement | null
+    const isTypingElement = Boolean(active && (
+      active.tagName === 'INPUT' ||
+      active.tagName === 'TEXTAREA' ||
+      active.getAttribute('contenteditable') === 'true'
+    ))
+    if (!isTypingElement) {
+      hideSimilarOnMobileInput.value = false
+    }
+  }, 120)
+}
+
+function isMobileViewport() {
+  return window.matchMedia('(max-width: 768px)').matches
 }
 
 function ensureCommentInputVisible() {

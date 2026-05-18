@@ -31,6 +31,10 @@ export interface WeeklyReport {
   diaryCount: number
   dailyMoods: DailyMood[]
   topicCounts: Record<string, number>
+  moodDistribution?: Record<string, number>
+  moodDominantQuadrant?: string
+  positiveRatioPercent?: number
+  highEnergyRatioPercent?: number
   aiSummary: string
   insights?: string[]
   suggestions?: string[]

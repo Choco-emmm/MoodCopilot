@@ -13,10 +13,12 @@
         v-for="diary in diaries"
         :key="diary.id"
         :diary="diary"
+        :enable-comments="false"
+        :compact="true"
+        :preview-limit="120"
+        :show-expand-toggle="false"
         @resonate="$emit('resonate', $event)"
         @open-detail="$emit('open-detail', $event)"
-        @comment="(d, c, pid) => $emit('comment', d, c, pid)"
-        @delete-comment="(d, commentId) => $emit('delete-comment', d, commentId)"
       />
       <div v-if="hasMore" ref="sentinel" class="scroll-sentinel" />
       <n-spin v-if="loading && diaries.length" size="small" />
@@ -38,8 +40,6 @@ const emit = defineEmits<{
   refresh: []
   resonate: [diary: Diary]
   'open-detail': [diary: Diary]
-  comment: [diary: Diary, content: string, parentCommentId?: number]
-  'delete-comment': [diary: Diary, commentId: number]
   loadMore: []
 }>()
 

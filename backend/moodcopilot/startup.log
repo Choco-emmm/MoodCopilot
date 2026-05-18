@@ -9,40 +9,148 @@
 [INFO] 
 [INFO] --- resources:3.3.1:resources (default-resources) @ moodcopilot-backend ---
 [INFO] Copying 2 resources from src\main\resources to target\classes
-[INFO] Copying 15 resources from src\main\resources to target\classes
+[INFO] Copying 17 resources from src\main\resources to target\classes
 [INFO] 
 [INFO] --- compiler:3.14.1:compile (default-compile) @ moodcopilot-backend ---
 [WARNING]  Parameter 'compilerVersion' (user property 'maven.compiler.compilerVersion') is deprecated: This parameter is no longer evaluated by the underlying compilers, instead the actual version of the javac binary is automatically retrieved.
-[INFO] Recompiling the module because of changed source code.
-[INFO] Compiling 77 source files with javac [debug parameters release 21] to target\classes
+[INFO] Recompiling the module because of added or removed source files.
+[INFO] Compiling 82 source files with javac [debug parameters release 21] to target\classes
 [INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/main/java/com/moodcopilot/ai/ChatService.java: 某些输入文件使用或覆盖了已过时的 API。
 [INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/main/java/com/moodcopilot/ai/ChatService.java: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
 [INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/main/java/com/moodcopilot/diary/DiaryService.java: D:\Code\MoodCopilot\backend\moodcopilot\src\main\java\com\moodcopilot\diary\DiaryService.java使用了未经检查或不安全的操作。
 [INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/main/java/com/moodcopilot/diary/DiaryService.java: 有关详细信息, 请使用 -Xlint:unchecked 重新编译。
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ moodcopilot-backend ---
+[INFO] Copying 1 resource from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ moodcopilot-backend ---
+[WARNING]  Parameter 'compilerVersion' (user property 'maven.compiler.compilerVersion') is deprecated: This parameter is no longer evaluated by the underlying compilers, instead the actual version of the javac binary is automatically retrieved.
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 11 source files with javac [debug parameters release 21] to target\test-classes
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/ChatServiceTest.java: 某些输入文件使用或覆盖了已过时的 API。
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/ChatServiceTest.java: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。
+[INFO] -------------------------------------------------------------
+[WARNING] COMPILATION WARNING : 
+[INFO] -------------------------------------------------------------
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/admin/AdminReportControllerMockMvcTest.java:[36,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/admin/AdminReportControllerMockMvcTest.java:[39,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/admin/AdminReportControllerMockMvcTest.java:[42,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/ChatControllerMockMvcTest.java:[34,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/ChatControllerMockMvcTest.java:[37,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/ChatControllerMockMvcTest.java:[40,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/ChatControllerMockMvcTest.java:[43,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/auth/AuthControllerMockMvcTest.java:[38,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/auth/AuthControllerMockMvcTest.java:[41,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/auth/AuthControllerMockMvcTest.java:[44,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/auth/AuthControllerMockMvcTest.java:[47,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/diary/DiaryControllerMockMvcTest.java:[40,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/diary/DiaryControllerMockMvcTest.java:[43,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/diary/DiaryControllerMockMvcTest.java:[46,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/report/ReportControllerMockMvcTest.java:[31,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/report/ReportControllerMockMvcTest.java:[34,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[WARNING] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/report/ReportControllerMockMvcTest.java:[37,6] org.springframework.boot.test.mock.mockito 中的 org.springframework.boot.test.mock.mockito.MockBean 已过时, 且标记为待删除
+[INFO] 17 warnings 
+[INFO] -------------------------------------------------------------
 [INFO] -------------------------------------------------------------
 [ERROR] COMPILATION ERROR : 
 [INFO] -------------------------------------------------------------
-[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/main/java/com/moodcopilot/diary/DiaryController.java:[66,43] 找不到符号
-  符号:   方法 generateWeeklyAiSummary(int)
-  位置: 类型为com.moodcopilot.diary.DiaryService的变量 diaryService
-[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/main/java/com/moodcopilot/diary/DiaryController.java:[78,43] 找不到符号
-  符号:   方法 generateMonthlyAiSummary(int)
-  位置: 类型为com.moodcopilot.diary.DiaryService的变量 diaryService
-[INFO] 2 errors 
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[56,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+  需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+  找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+  原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[86,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+  需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+  找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+  原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[118,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+  需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+  找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+  原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[146,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+  需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+  找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+  原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[171,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+  需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+  找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+  原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[195,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+  需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+  找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+  原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[217,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+  需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+  找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+  原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/diary/DiaryControllerMockMvcTest.java:[167,33] 无法将记录 com.moodcopilot.diary.DiaryView中的构造器 DiaryView应用到给定类型;
+  需要: long,long,java.lang.String,java.lang.String,java.lang.String,com.moodcopilot.diary.DiaryVisibility,com.moodcopilot.diary.DiaryAnalysis,java.time.LocalDateTime,int,java.util.List<com.moodcopilot.diary.DiaryComment>
+  找到:    long,long,java.lang.String,java.lang.String,com.moodcopilot.diary.DiaryVisibility,com.moodcopilot.diary.DiaryAnalysis,java.time.LocalDateTime,int,java.util.List<com.moodcopilot.diary.DiaryComment>
+  原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/diary/DiaryControllerMockMvcTest.java:[197,29] 无法将记录 com.moodcopilot.diary.DiaryView中的构造器 DiaryView应用到给定类型;
+  需要: long,long,java.lang.String,java.lang.String,java.lang.String,com.moodcopilot.diary.DiaryVisibility,com.moodcopilot.diary.DiaryAnalysis,java.time.LocalDateTime,int,java.util.List<com.moodcopilot.diary.DiaryComment>
+  找到:    long,long,java.lang.String,java.lang.String,com.moodcopilot.diary.DiaryVisibility,com.moodcopilot.diary.DiaryAnalysis,java.time.LocalDateTime,int,java.util.List<java.lang.Object>
+  原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/diary/DiaryControllerMockMvcTest.java:[216,16] 无法将记录 com.moodcopilot.diary.DiaryView中的构造器 DiaryView应用到给定类型;
+  需要: long,long,java.lang.String,java.lang.String,java.lang.String,com.moodcopilot.diary.DiaryVisibility,com.moodcopilot.diary.DiaryAnalysis,java.time.LocalDateTime,int,java.util.List<com.moodcopilot.diary.DiaryComment>
+  找到:    long,long,java.lang.String,java.lang.String,com.moodcopilot.diary.DiaryVisibility,com.moodcopilot.diary.DiaryAnalysis,java.time.LocalDateTime,int,java.util.List<java.lang.Object>
+  原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/diary/DiaryRecommendationServiceTest.java:[161,16] 无法将类 com.moodcopilot.diary.DiaryService中的构造器 DiaryService应用到给定类型;
+  需要: com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiaryCommentMapper,com.moodcopilot.mapper.DiaryResonanceMapper,com.moodcopilot.mapper.DiaryHideMapper,com.moodcopilot.mapper.DiaryRecommendationExposureMapper,com.moodcopilot.mapper.UserMapper,com.moodcopilot.ai.AiAnalysisService,com.moodcopilot.ai.MemoryExtractionService,com.moodcopilot.notification.NotificationService,com.moodcopilot.follow.FollowService,org.springframework.data.redis.core.StringRedisTemplate,com.fasterxml.jackson.databind.ObjectMapper
+  找到:    com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiaryCommentMapper,com.moodcopilot.mapper.DiaryResonanceMapper,com.moodcopilot.mapper.DiaryHideMapper,com.moodcopilot.mapper.DiaryRecommendationExposureMapper,com.moodcopilot.ai.AiAnalysisService,com.moodcopilot.ai.MemoryExtractionService,com.moodcopilot.notification.NotificationService,com.moodcopilot.follow.FollowService,org.springframework.data.redis.core.StringRedisTemplate,com.fasterxml.jackson.databind.ObjectMapper
+  原因: 实际参数列表和形式参数列表长度不同
+[INFO] 11 errors 
 [INFO] -------------------------------------------------------------
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD FAILURE
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time:  2.338 s
-[INFO] Finished at: 2026-05-13T22:36:08+08:00
+[INFO] Total time:  4.183 s
+[INFO] Finished at: 2026-05-14T22:56:25+08:00
 [INFO] ------------------------------------------------------------------------
-[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.14.1:compile (default-compile) on project moodcopilot-backend: Compilation failure: Compilation failure: 
-[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/main/java/com/moodcopilot/diary/DiaryController.java:[66,43] 找不到符号
-[ERROR]   符号:   方法 generateWeeklyAiSummary(int)
-[ERROR]   位置: 类型为com.moodcopilot.diary.DiaryService的变量 diaryService
-[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/main/java/com/moodcopilot/diary/DiaryController.java:[78,43] 找不到符号
-[ERROR]   符号:   方法 generateMonthlyAiSummary(int)
-[ERROR]   位置: 类型为com.moodcopilot.diary.DiaryService的变量 diaryService
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.14.1:testCompile (default-testCompile) on project moodcopilot-backend: Compilation failure: Compilation failure: 
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[56,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+[ERROR]   需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+[ERROR]   找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+[ERROR]   原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[86,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+[ERROR]   需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+[ERROR]   找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+[ERROR]   原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[118,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+[ERROR]   需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+[ERROR]   找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+[ERROR]   原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[146,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+[ERROR]   需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+[ERROR]   找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+[ERROR]   原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[171,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+[ERROR]   需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+[ERROR]   找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+[ERROR]   原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[195,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+[ERROR]   需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+[ERROR]   找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+[ERROR]   原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/MemoryExtractionServiceTest.java:[217,59] 无法将类 com.moodcopilot.ai.MemoryExtractionService中的构造器 MemoryExtractionService应用到给定类型;
+[ERROR]   需要: org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiarySummaryMapper,com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.UserMapper,org.springframework.data.redis.core.StringRedisTemplate
+[ERROR]   找到:    org.springframework.ai.chat.client.ChatClient,com.moodcopilot.mapper.UserProfileMemoryMapper,com.fasterxml.jackson.databind.ObjectMapper,org.springframework.transaction.support.TransactionOperations
+[ERROR]   原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/diary/DiaryControllerMockMvcTest.java:[167,33] 无法将记录 com.moodcopilot.diary.DiaryView中的构造器 DiaryView应用到给定类型;
+[ERROR]   需要: long,long,java.lang.String,java.lang.String,java.lang.String,com.moodcopilot.diary.DiaryVisibility,com.moodcopilot.diary.DiaryAnalysis,java.time.LocalDateTime,int,java.util.List<com.moodcopilot.diary.DiaryComment>
+[ERROR]   找到:    long,long,java.lang.String,java.lang.String,com.moodcopilot.diary.DiaryVisibility,com.moodcopilot.diary.DiaryAnalysis,java.time.LocalDateTime,int,java.util.List<com.moodcopilot.diary.DiaryComment>
+[ERROR]   原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/diary/DiaryControllerMockMvcTest.java:[197,29] 无法将记录 com.moodcopilot.diary.DiaryView中的构造器 DiaryView应用到给定类型;
+[ERROR]   需要: long,long,java.lang.String,java.lang.String,java.lang.String,com.moodcopilot.diary.DiaryVisibility,com.moodcopilot.diary.DiaryAnalysis,java.time.LocalDateTime,int,java.util.List<com.moodcopilot.diary.DiaryComment>
+[ERROR]   找到:    long,long,java.lang.String,java.lang.String,com.moodcopilot.diary.DiaryVisibility,com.moodcopilot.diary.DiaryAnalysis,java.time.LocalDateTime,int,java.util.List<java.lang.Object>
+[ERROR]   原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/diary/DiaryControllerMockMvcTest.java:[216,16] 无法将记录 com.moodcopilot.diary.DiaryView中的构造器 DiaryView应用到给定类型;
+[ERROR]   需要: long,long,java.lang.String,java.lang.String,java.lang.String,com.moodcopilot.diary.DiaryVisibility,com.moodcopilot.diary.DiaryAnalysis,java.time.LocalDateTime,int,java.util.List<com.moodcopilot.diary.DiaryComment>
+[ERROR]   找到:    long,long,java.lang.String,java.lang.String,com.moodcopilot.diary.DiaryVisibility,com.moodcopilot.diary.DiaryAnalysis,java.time.LocalDateTime,int,java.util.List<java.lang.Object>
+[ERROR]   原因: 实际参数列表和形式参数列表长度不同
+[ERROR] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/diary/DiaryRecommendationServiceTest.java:[161,16] 无法将类 com.moodcopilot.diary.DiaryService中的构造器 DiaryService应用到给定类型;
+[ERROR]   需要: com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiaryCommentMapper,com.moodcopilot.mapper.DiaryResonanceMapper,com.moodcopilot.mapper.DiaryHideMapper,com.moodcopilot.mapper.DiaryRecommendationExposureMapper,com.moodcopilot.mapper.UserMapper,com.moodcopilot.ai.AiAnalysisService,com.moodcopilot.ai.MemoryExtractionService,com.moodcopilot.notification.NotificationService,com.moodcopilot.follow.FollowService,org.springframework.data.redis.core.StringRedisTemplate,com.fasterxml.jackson.databind.ObjectMapper
+[ERROR]   找到:    com.moodcopilot.mapper.DiaryMapper,com.moodcopilot.mapper.DiaryAnalysisMapper,com.moodcopilot.mapper.DiaryCommentMapper,com.moodcopilot.mapper.DiaryResonanceMapper,com.moodcopilot.mapper.DiaryHideMapper,com.moodcopilot.mapper.DiaryRecommendationExposureMapper,com.moodcopilot.ai.AiAnalysisService,com.moodcopilot.ai.MemoryExtractionService,com.moodcopilot.notification.NotificationService,com.moodcopilot.follow.FollowService,org.springframework.data.redis.core.StringRedisTemplate,com.fasterxml.jackson.databind.ObjectMapper
+[ERROR]   原因: 实际参数列表和形式参数列表长度不同
 [ERROR] -> [Help 1]
 [ERROR] 
 [ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.

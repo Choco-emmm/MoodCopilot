@@ -102,6 +102,7 @@ public class AiAnalysisService {
             }
             prompt.append("\n");
         }
+        prompt.append("\n").append(buildQuadrantHint(analyses));
 
         try {
             return analysisChatClient.prompt()
@@ -199,6 +200,7 @@ public class AiAnalysisService {
             }
             prompt.append("\n");
         }
+        prompt.append("\n").append(buildQuadrantHint(analyses));
 
         try {
             return analysisChatClient.prompt()
@@ -290,7 +292,8 @@ public class AiAnalysisService {
     private String topMood(List<DiaryAnalysis> analyses) {
         Map<String, Double> weighted = new HashMap<>();
         for (DiaryAnalysis a : analyses) {
-            if (a == null || a.moodLabel() == null) continue;
+            if (a == null || a.moodLabel() == null)
+                continue;
             weighted.merge(a.moodLabel(), 1.0, Double::sum);
             if (a.secondaryMoods() != null) {
                 for (String s : a.secondaryMoods()) {
@@ -494,6 +497,57 @@ public class AiAnalysisService {
 
         String topMood = topMood(analyses);
         return String.format("本周共记录了 %d 篇日记，主要情绪为「%s」。继续记录，你会慢慢看清自己的节奏。", count, topMood);
+    }
+
+    private String buildQuadrantHint(List<DiaryAnalysis> analyses) {
+        if (analyses == null || analyses.isEmpty()) {
+            return "情绪四象限分布：暂无数据";
+        }
+
+        int posHigh = 0;
+        int posLow = 0;
+        int negHigh = 0;
+        int negLow = 0;
+
+        for (DiaryAnalysis analysis : analyses) {
+            if (analysis == null || analysis.moodLabel() == null) {
+                continue;
+            }
+            String mood = analysis.moodLabel();
+            boolean positive = isPositiveMood(mood);
+            boolean highEnergy = isHighEnergyMood(mood);
+            if (positive && highEnergy)
+                posHigh++;
+            if (positive && !highEnergy)
+                posLow++;
+            if (!positive && highEnergy)
+                negHigh++;
+            if (!positive && !highEnergy)
+                negLow++;
+        }
+
+        int total = posHigh + posLow + negHigh + negLow;
+        if (total == 0) {
+            return "情绪四象限分布：暂无数据";
+        }
+
+        int positiveRatio = (int) Math.round(((posHigh + posLow) * 100.0) / total);
+        int highEnergyRatio = (int) Math.round(((posHigh + negHigh) * 100.0) / total);
+
+        return "情绪四象限分布："
+                + "正向高能量=" + posHigh + "，"
+                + "正向低能量=" + posLow + "，"
+                + "负向高能量=" + negHigh + "，"
+                + "负向低能量=" + negLow + "。"
+                + "正向占比=" + positiveRatio + "%；高能量占比=" + highEnergyRatio + "%";
+    }
+
+    private boolean isPositiveMood(String moodLabel) {
+        return List.of("喜悦", "期待", "兴奋", "自豪", "轻松", "平静", "感恩", "满足").contains(moodLabel);
+    }
+
+    private boolean isHighEnergyMood(String moodLabel) {
+        return List.of("喜悦", "期待", "兴奋", "自豪", "烦躁", "愤怒", "焦虑", "害怕").contains(moodLabel);
     }
 
     // ══════════════════════════════════════════════
