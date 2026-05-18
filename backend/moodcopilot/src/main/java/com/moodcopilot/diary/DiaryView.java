@@ -80,6 +80,33 @@ public record DiaryView(
                 return from(diary, null, comments, authorAvatar, authorName, commentAuthorNames, likedByMe);
         }
 
+        /** Feed 模式公开视图：无评论、裁切内容、仅暴露情绪标签和主题 */
+        static DiaryView fromPublicFeed(DiaryEntity diary, DiaryAnalysisEntity analysis,
+                String authorName, String authorAvatar, boolean likedByMe, String feedContent) {
+            DiaryAnalysis va = analysis != null
+                    ? new DiaryAnalysis(analysis.getMoodLabel(), 0, analysis.getTopicLabelsJson(), null, null)
+                    : null;
+            return new DiaryView(diary.getId(), diary.getAuthorUserId(), authorName, authorAvatar,
+                    feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
+                    diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
+                    Boolean.TRUE.equals(diary.getIsPinned()), List.of());
+        }
+
+        /** Feed 模式个人视图：无评论、裁切内容、完整分析 */
+        static DiaryView fromFeed(DiaryEntity diary, DiaryAnalysisEntity analysis,
+                String authorName, String authorAvatar, boolean likedByMe, String feedContent) {
+            DiaryAnalysis va = analysis != null
+                    ? new DiaryAnalysis(analysis.getMoodLabel(), analysis.getMoodIntensity(),
+                            analysis.getTopicLabelsJson(),
+                            analysis.getSecondaryMoodsJson() != null ? analysis.getSecondaryMoodsJson() : List.of(),
+                            analysis.getSummary(), analysis.getFeedback())
+                    : null;
+            return new DiaryView(diary.getId(), diary.getAuthorUserId(), authorName, authorAvatar,
+                    feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
+                    diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
+                    Boolean.TRUE.equals(diary.getIsPinned()), List.of());
+        }
+
         private static List<DiaryComment> buildCommentTree(List<DiaryCommentEntity> entities,
                         Map<Long, String> commentAuthorNames) {
                 var topLevel = entities.stream()

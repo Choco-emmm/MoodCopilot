@@ -72,6 +72,7 @@ public class ChatService {
     private final RateLimitService rateLimitService;
     private final DiaryService diaryService;
     private final MemoryExtractionService memoryExtractionService;
+    private final RagMemoryService ragMemoryService;
 
     public ChatService(ChatClient chatChatClient,
             ChatConversationMapper conversationMapper,
@@ -82,7 +83,8 @@ public class ChatService {
             ObjectMapper objectMapper,
             RateLimitService rateLimitService,
             DiaryService diaryService,
-            MemoryExtractionService memoryExtractionService) {
+            MemoryExtractionService memoryExtractionService,
+            RagMemoryService ragMemoryService) {
         this.chatChatClient = chatChatClient;
         this.conversationMapper = conversationMapper;
         this.chatIntentRouter = chatIntentRouter;
@@ -93,6 +95,7 @@ public class ChatService {
         this.rateLimitService = rateLimitService;
         this.diaryService = diaryService;
         this.memoryExtractionService = memoryExtractionService;
+        this.ragMemoryService = ragMemoryService;
     }
 
     // ---- 会话管理 ----
@@ -200,7 +203,10 @@ public class ChatService {
     private String callReasoningModel(ChatRequest request, String message, Authentication auth) {
         try {
             String history = formatChatHistory(request.memory());
-            String enhancedContext = request.context() + buildTimeMetadata() + buildReasoningDataContext(auth);
+            long userId = ((UserEntity) auth.getPrincipal()).getId();
+            String enhancedContext = request.context() + buildTimeMetadata()
+                    + buildReasoningDataContext(auth)
+                    + ragMemoryService.buildRagContext(userId, message, 5);
 
             String userMessage;
             if (!history.isEmpty()) {
@@ -241,7 +247,10 @@ public class ChatService {
     private Flux<String> callReasoningModelStream(ChatRequest request, String message, Authentication auth) {
         try {
             String history = formatChatHistory(request.memory());
-            String enhancedContext = request.context() + buildTimeMetadata() + buildReasoningDataContext(auth);
+            long userId = ((UserEntity) auth.getPrincipal()).getId();
+            String enhancedContext = request.context() + buildTimeMetadata()
+                    + buildReasoningDataContext(auth)
+                    + ragMemoryService.buildRagContext(userId, message, 5);
 
             String userMessage;
             if (!history.isEmpty()) {
