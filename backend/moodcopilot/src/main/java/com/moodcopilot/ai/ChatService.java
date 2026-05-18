@@ -226,7 +226,7 @@ public class ChatService {
         String recentHistory = extractRecentChatHistory(memory);
         String searchQuery = aiAnalysisService.rewriteQueryForSearch(message, memoryBg, recentHistory);
         if (!searchQuery.equals(message)) {
-            log.info("RAG query 已重写: \"{}\" → \"{}\"", message, searchQuery);
+            log.info("RAG query 已重写 userId={} origLen={} rewrittenLen={}", userId, message.length(), searchQuery.length());
         }
         String ragCtx = ragMemoryService.buildRagContext(userId, searchQuery, topK, sourceTypes);
         if (ragCtx.isBlank()) {

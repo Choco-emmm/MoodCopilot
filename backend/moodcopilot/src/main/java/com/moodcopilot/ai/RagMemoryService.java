@@ -350,15 +350,12 @@ public class RagMemoryService {
             log.debug("RAG 上下文为空 userId={} queryLen={}", userId, query.length());
             return "";
         }
-        // 调试日志：打印所有召回文档的真实余弦距离，用于观测 BGE-M3 距离分布和后续阈值调优
+        // 调试日志：仅输出余弦距离分布，不记录 sourceId 以保护用户隐私
         if (log.isDebugEnabled()) {
-            StringBuilder scoreLog = new StringBuilder("RAG 召回距离明细 userId=").append(userId).append(" [");
+            StringBuilder scoreLog = new StringBuilder("RAG 召回距离分布 userId=").append(userId).append(" [");
             for (int i = 0; i < hits.size(); i++) {
-                RagHit h = hits.get(i);
                 if (i > 0) scoreLog.append(", ");
-                scoreLog.append(h.sourceId() != null ? h.sourceId() : "?")
-                        .append("=")
-                        .append(h.score() != null ? String.format("%.4f", h.score()) : "null");
+                scoreLog.append(hits.get(i).score() != null ? String.format("%.4f", hits.get(i).score()) : "null");
             }
             scoreLog.append("]");
             log.debug(scoreLog.toString());
@@ -426,27 +423,8 @@ public class RagMemoryService {
         if (raw == null || raw.isEmpty()) {
             return;
         }
-        // 打印出 Redis 真实的返回结构，方便排查
-        log.info("RAG Redis 原始返回结构: {}", dump(raw));
-
         // 智能提取：兼容 RESP2 (数组) 和 RESP3 (Map) 格式
         extractHitsHeuristically(raw, out);
-    }
-
-    private String dump(Object obj) {
-        if (obj instanceof List<?> list) {
-            StringBuilder sb = new StringBuilder("[");
-            for (int i = 0; i < list.size(); i++) {
-                sb.append(dump(list.get(i)));
-                if (i < list.size() - 1) sb.append(", ");
-            }
-            sb.append("]");
-            return sb.toString();
-        } else if (obj instanceof byte[] b) {
-            return new String(b, StandardCharsets.UTF_8);
-        } else {
-            return String.valueOf(obj);
-        }
     }
 
     private void extractHitsHeuristically(List<?> list, List<RagHit> out) {
