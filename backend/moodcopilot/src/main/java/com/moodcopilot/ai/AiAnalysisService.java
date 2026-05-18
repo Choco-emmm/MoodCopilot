@@ -80,11 +80,16 @@ public class AiAnalysisService {
 
     // ── Weekly report ──
 
-    public String generateWeeklySummary(List<String> diaryContents, List<DiaryAnalysis> analyses) {
+    public String generateWeeklySummary(List<String> diaryContents, List<DiaryAnalysis> analyses,
+            String memoryContext) {
         if (diaryContents.isEmpty())
             return "本周还没有记录日记，去写一篇吧～";
 
-        StringBuilder prompt = new StringBuilder("本周日记摘要：\n");
+        StringBuilder prompt = new StringBuilder();
+        if (memoryContext != null && !memoryContext.isBlank()) {
+            prompt.append("<user_profile>\n").append(memoryContext).append("\n</user_profile>\n\n");
+        }
+        prompt.append("本周日记摘要：\n");
         for (int i = 0; i < diaryContents.size(); i++) {
             DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
             prompt.append("- ");
@@ -178,11 +183,16 @@ public class AiAnalysisService {
             3. Offers gentle encouragement and a forward-looking perspective
             Return ONLY the Chinese text. You are encouraged to use simple Markdown (like **bold**, lists, and line breaks) for a beautiful and clear layout. No JSON, no explanation.""";
 
-    public String generateMonthlySummary(List<String> diaryContents, List<DiaryAnalysis> analyses) {
+    public String generateMonthlySummary(List<String> diaryContents, List<DiaryAnalysis> analyses,
+            String memoryContext) {
         if (diaryContents.isEmpty())
             return "本月还没有记录日记，去写一篇吧～";
 
-        StringBuilder prompt = new StringBuilder("本月日记摘要：\n");
+        StringBuilder prompt = new StringBuilder();
+        if (memoryContext != null && !memoryContext.isBlank()) {
+            prompt.append("<user_profile>\n").append(memoryContext).append("\n</user_profile>\n\n");
+        }
+        prompt.append("本月日记摘要：\n");
         for (int i = 0; i < diaryContents.size(); i++) {
             DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
             prompt.append("- ");

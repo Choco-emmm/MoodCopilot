@@ -18,6 +18,7 @@ import com.moodcopilot.entity.DiaryRecommendationExposureEntity;
 import com.moodcopilot.entity.DiaryResonanceEntity;
 import com.moodcopilot.entity.DiarySummaryEntity;
 import com.moodcopilot.entity.UserEntity;
+import com.moodcopilot.entity.UserProfileMemoryEntity;
 import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.DiaryCommentMapper;
 import com.moodcopilot.mapper.DiaryHideMapper;
@@ -680,7 +681,8 @@ public class DiaryService {
         String followUpPrompt = null;
 
         if (forceGenerate && !contents.isEmpty()) {
-            aiSummary = aiAnalysisService.generateMonthlySummary(contents, analyses);
+            String memCtx = buildMemoryContext(userId);
+            aiSummary = aiAnalysisService.generateMonthlySummary(contents, analyses, memCtx);
             AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateMonthlyGuidance(contents, analyses);
             insights = guidance.insights();
             suggestions = guidance.suggestions();
@@ -836,7 +838,8 @@ public class DiaryService {
         String followUpPrompt = null;
 
         if (forceGenerate && !contents.isEmpty()) {
-            aiSummary = aiAnalysisService.generateWeeklySummary(contents, analyses);
+            String memCtx = buildMemoryContext(userId);
+            aiSummary = aiAnalysisService.generateWeeklySummary(contents, analyses, memCtx);
             AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateWeeklyGuidance(contents, analyses);
             insights = guidance.insights();
             suggestions = guidance.suggestions();
@@ -1745,5 +1748,19 @@ public class DiaryService {
             }
         }
         return score;
+    }
+
+    private String buildMemoryContext(long userId) {
+        try {
+            List<UserProfileMemoryEntity> memories = memoryExtractionService.listUserMemories(userId);
+            if (memories == null || memories.isEmpty()) return "";
+            StringBuilder sb = new StringBuilder();
+            for (UserProfileMemoryEntity m : memories) {
+                sb.append(m.getAttributeKey()).append(": ").append(m.getAttributeValue()).append("; ");
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return "";
+        }
     }
 }
