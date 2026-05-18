@@ -3,6 +3,7 @@
     <AppHeader />
 
     <section class="panel profile-head">
+      <n-button v-if="isOwner" quaternary circle style="position: absolute; right: 16px; top: 16px; font-size: 20px;" @click="router.push('/settings')">⚙️</n-button>
       <div class="profile-hero">
         <div class="profile-avatar-wrap">
           <div v-if="profileLoading" class="profile-avatar">
@@ -102,7 +103,7 @@ async function reload() {
   try {
     const [profileRes, diaryRes] = await Promise.all([
       authApi.profile(profileUserId.value),
-      diaryApi.byUser(profileUserId.value, 1, 20),
+      isOwner.value ? diaryApi.mine(1, 20) : diaryApi.byUser(profileUserId.value, 1, 20),
     ])
     const profile = profileRes.data.data
     profileName.value = profile?.displayName || (isOwner.value ? auth.displayName || '我' : '用户')
@@ -124,7 +125,9 @@ async function loadMore() {
   loadingMore.value = true
   try {
     const nextPage = page.value + 1
-    const res = await diaryApi.byUser(profileUserId.value, nextPage, 20)
+    const res = isOwner.value
+      ? await diaryApi.mine(nextPage, 20)
+      : await diaryApi.byUser(profileUserId.value, nextPage, 20)
     const data = res.data.data
     const items = (data.items ?? []).map(store.normalize)
     const existing = new Set(diaries.value.map(d => d.id))
@@ -139,6 +142,7 @@ async function loadMore() {
 
 <style scoped>
 .profile-head {
+  position: relative;
   margin-bottom: 12px;
   padding: 16px;
 }
@@ -162,9 +166,9 @@ async function loadMore() {
   justify-content: center;
   font-size: 24px;
   font-weight: 700;
-  color: var(--color-jade);
-  background: color-mix(in srgb, var(--color-jade-light) 72%, white 28%);
-  border: 1px solid color-mix(in srgb, var(--color-jade) 30%, transparent 70%);
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-primary), #5A9470);
+  border: 1px solid rgba(59, 107, 79, 0.35);
 }
 
 .profile-avatar-img {
@@ -177,6 +181,7 @@ async function loadMore() {
 
 .profile-title {
   margin: 0;
+  font-family: var(--font-body);
   color: var(--color-text);
   font-size: clamp(24px, 4.8vw, 38px);
   line-height: 1.14;

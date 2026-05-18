@@ -1,42 +1,47 @@
 /* ═══════════════════════════════════════════
-   MoodCopilot — Warm Precision
-   设计方向：温暖、中性、克制、移动端优先
+   MoodCopilot — 书香暖阁
+   设计方向：文学感、温暖、深度、克制
+   "一间洒满午后阳光的书房，一本摊开的皮面日记"
    ═══════════════════════════════════════════ */
 
 :root {
-  --color-bg: #f8f6f1;
-  --color-surface: #fffdf8;
-  --color-surface-hover: #f1eee6;
-  --color-surface-soft: #f6f2ea;
+  --color-bg: #F6F2EA;
+  --color-surface: #FEFBF6;
+  --color-surface-hover: #F3EDE2;
+  --color-surface-soft: #F8F3E9;
 
-  --color-text: #20201d;
-  --color-text-secondary: #67645d;
-  --color-text-muted: #98938a;
+  --color-text: #2D241A;
+  --color-text-secondary: #6B5F52;
+  --color-text-muted: #9E8F7E;
 
-  --color-accent: #a94b45;
-  --color-accent-light: #d9827a;
-  --color-accent-bg: #fff1ef;
+  --color-accent: #C1663B;
+  --color-accent-light: #E8956D;
+  --color-accent-bg: #FDF0E8;
 
-  --color-jade: #3f7a63;
-  --color-jade-light: #e7f0eb;
-  --color-jade-hover: #326a54;
+  --color-primary: #3B6B4F;
+  --color-primary-light: #E8F0EA;
+  --color-primary-hover: #2F5840;
 
-  --color-border: #e3ded3;
-  --color-border-strong: #cdc5b6;
+  /* 旧 Jade 别名，保持兼容 */
+  --color-jade: var(--color-primary);
+  --color-primary-light: var(--color-primary-light);
+  --color-jade-hover: var(--color-primary-hover);
 
-  --font-display: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  --font-body: "Inter", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", system-ui, sans-serif;
+  --color-border: #E8E0D4;
+  --color-border-strong: #D4C8B4;
 
-  --shadow-sm: 0 1px 3px rgba(32, 32, 29, 0.05);
-  --shadow-md: 0 8px 24px rgba(32, 32, 29, 0.07);
-  --shadow-lg: 0 14px 40px rgba(32, 32, 29, 0.09);
+  --font-display: "Noto Serif SC", "STSong", "Songti SC", "KaiTi", "SimSun", serif;
+  --font-body: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
 
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --shadow-sm: 0 1px 4px rgba(45, 36, 26, 0.06);
+  --shadow-md: 0 8px 28px rgba(45, 36, 26, 0.09);
+  --shadow-lg: 0 16px 48px rgba(45, 36, 26, 0.11);
+
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
 
   color: var(--color-text);
-  background: var(--color-bg);
   font-family: var(--font-body);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -55,6 +60,10 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background:
+    radial-gradient(80% 60% at 50% 0%, rgba(210, 185, 150, 0.14) 0%, transparent 70%),
+    radial-gradient(60% 50% at 100% 100%, rgba(180, 155, 125, 0.08) 0%, transparent 60%),
+    var(--color-bg);
 }
 
 button,
@@ -113,9 +122,10 @@ button,
   align-items: center;
   gap: 8px;
   color: var(--color-accent);
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   text-decoration: none;
   transition: opacity 0.15s;
 }
@@ -255,7 +265,7 @@ button,
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: linear-gradient(135deg, var(--color-jade), #78a18e);
+  background: linear-gradient(135deg, var(--color-primary), #5A9470);
   color: #fff;
   font-size: 12px;
   font-weight: 700;
@@ -304,18 +314,19 @@ h2 {
 }
 
 h1 {
-  font-family: var(--font-display);
-  font-size: clamp(32px, 5vw, 46px);
-  line-height: 1.12;
-  font-weight: 760;
+  font-family: var(--font-body);
+  font-size: clamp(28px, 5vw, 42px);
+  line-height: 1.18;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--color-text);
 }
 
 h2 {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 20px;
   line-height: 1.3;
-  font-weight: 720;
+  font-weight: 700;
   color: var(--color-text);
 }
 
@@ -330,9 +341,9 @@ h2 {
 /* ── Panel / Card ── */
 .panel {
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), var(--shadow-sm);
 }
 
 .feed-panel {
@@ -362,7 +373,7 @@ h2 {
   padding: 10px 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-jade-light);
+  background: var(--color-primary-light);
   color: var(--color-text-secondary);
   font-size: 13px;
   line-height: 1.6;
@@ -436,7 +447,7 @@ h2 {
   height: 7px;
   border-radius: 50%;
   background: var(--color-jade);
-  box-shadow: 0 0 0 3px var(--color-jade-light);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
 }
 
 .analysis-grid,
@@ -468,7 +479,7 @@ h2 {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-light));
+  background: linear-gradient(135deg, var(--color-primary), #5A9470);
   color: #fff;
   font-size: 14px;
   font-weight: 700;
@@ -587,7 +598,7 @@ h2 {
   border: 1px solid var(--color-jade);
   border-radius: var(--radius-md);
   background: linear-gradient(180deg, #fffdf9 0%, #f8f4eb 100%);
-  box-shadow: 0 0 0 3px var(--color-jade-light);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
   overflow: hidden;
 }
 
@@ -622,9 +633,13 @@ h2 {
 .similar-item span,
 .my-diary span,
 .my-diary small,
-.feed-head span {
+.feed-head span:not(.avatar) {
   color: var(--color-text-muted);
   font-size: 13px;
+}
+
+.feed-head .avatar {
+  color: #fff;
 }
 
 .similar-item strong,
@@ -649,7 +664,7 @@ h2 {
 
 .my-diary-active {
   border-color: var(--color-jade);
-  box-shadow: 0 0 0 3px var(--color-jade-light);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
 }
 
 .my-diary-entry-active .my-diary {
@@ -797,8 +812,9 @@ h2 {
   gap: 12px;
   padding: 16px 18px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
   content-visibility: auto;
   contain-intrinsic-size: 320px;
@@ -807,7 +823,7 @@ h2 {
 .feed-item:hover {
   border-color: var(--color-border-strong);
   box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
 
 .feed-item.feed-item-compact {
@@ -873,8 +889,8 @@ h2 {
 }
 
 .like-btn:hover {
-  border-color: color-mix(in srgb, var(--color-jade) 40%, var(--color-border) 60%);
-  background: color-mix(in srgb, var(--color-jade-light) 25%, white 75%);
+  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-border) 60%);
+  background: color-mix(in srgb, var(--color-primary-light) 40%, white 60%);
 }
 
 .like-btn:hover .like-btn-icon {
@@ -904,13 +920,13 @@ h2 {
 }
 
 .like-btn.liked {
-  border-color: var(--color-jade);
-  background: color-mix(in srgb, var(--color-jade-light) 55%, white 45%);
-  color: var(--color-jade);
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary-light) 60%, white 40%);
+  color: var(--color-primary);
 }
 
 .like-btn.liked .like-btn-icon {
-  color: var(--color-jade);
+  color: var(--color-primary);
 }
 
 @keyframes like-pop {
@@ -1088,7 +1104,7 @@ h2 {
 .comments p {
   padding: 10px 12px;
   border-radius: var(--radius-md);
-  background: var(--color-jade-light);
+  background: var(--color-primary-light);
   line-height: 1.5;
 }
 
@@ -1108,7 +1124,7 @@ h2 {
   gap: 4px;
   padding: 9px 10px;
   border-radius: var(--radius-md);
-  background: var(--color-jade-light);
+  background: var(--color-primary-light);
 }
 
 .comment-main .comment-body,
@@ -1187,7 +1203,7 @@ h2 {
 }
 
 .notif-item.unread {
-  background: var(--color-jade-light);
+  background: var(--color-primary-light);
 }
 
 .notif-msg {
@@ -1261,7 +1277,7 @@ h2 {
 }
 
 .auth-title {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 2rem;
   font-weight: 700;
   color: var(--color-accent);
@@ -1279,7 +1295,7 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 16px;
   font-weight: 700;
   color: var(--color-accent);
@@ -1319,7 +1335,7 @@ h2 {
 }
 
 .report-page>h2 {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 24px;
   margin-bottom: 4px;
 }
@@ -1476,7 +1492,7 @@ h2 {
 .report-section h3 {
   margin: 0;
   color: var(--color-text);
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 17px;
   font-weight: 700;
 }
@@ -1878,7 +1894,7 @@ h2 {
 }
 
 .conv-item.active {
-  background: var(--color-jade-light);
+  background: var(--color-primary-light);
 }
 
 .conv-title {
@@ -1918,7 +1934,7 @@ h2 {
 }
 
 .chat-window .chat-header-title {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 24px;
   font-weight: 700;
   color: var(--color-text);
@@ -2075,14 +2091,14 @@ h2 {
 
 .chat-user {
   justify-self: end;
-  background: var(--color-jade);
+  background: var(--color-primary);
   color: #fff;
   border-bottom-right-radius: 6px;
 }
 
 .chat-ai {
   justify-self: start;
-  background: #f4f3ee;
+  background: #F3F0E8;
   color: var(--color-text);
   border-bottom-left-radius: 6px;
   border-left: 3px solid var(--color-jade);
@@ -2195,7 +2211,7 @@ h2 {
 
 .today-status-dot.filled {
   background: var(--color-jade);
-  box-shadow: 0 0 0 3px var(--color-jade-light);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
 }
 
 .today-status-label {
@@ -2288,7 +2304,7 @@ h2 {
   font-size: 13px;
   color: var(--color-text-secondary);
   line-height: 1.6;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
 }
 
 .today-side-text {
@@ -2309,7 +2325,7 @@ h2 {
   padding: 14px 18px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--color-jade-light), #e6f2ed);
+  background: linear-gradient(135deg, var(--color-primary-light), #e6f2ed);
   text-decoration: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -2362,7 +2378,7 @@ h2 {
   gap: 4px;
   padding: 3px 10px;
   border-radius: 12px;
-  background: var(--color-jade-light);
+  background: var(--color-primary-light);
   font-size: 12px;
   color: var(--color-jade);
 }
@@ -2606,7 +2622,7 @@ h2 {
 
   .mobile-nav-link.active {
     color: var(--color-jade);
-    background: color-mix(in srgb, var(--color-jade-light) 78%, white 22%);
+    background: color-mix(in srgb, var(--color-primary-light) 78%, white 22%);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-jade) 28%, transparent 72%);
   }
 
@@ -2739,7 +2755,7 @@ h2 {
 
   .feed-item:active {
     border-color: color-mix(in srgb, var(--color-jade) 20%, var(--color-border) 80%);
-    background: color-mix(in srgb, var(--color-surface) 88%, var(--color-jade-light) 12%);
+    background: color-mix(in srgb, var(--color-surface) 88%, var(--color-primary-light) 12%);
   }
 
   .feed-item .feed-head {
