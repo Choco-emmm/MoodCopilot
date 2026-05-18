@@ -1,41 +1,39 @@
 /* ═══════════════════════════════════════════
-   MoodCopilot — 书香暖阁
-   设计方向：文学感、温暖、深度、克制
-   "一间洒满午后阳光的书房，一本摊开的皮面日记"
-   ═══════════════════════════════════════════ */
+  MoodCopilot — 绿意轻盈
+  设计方向：温和、克制、轻呼吸
+  ═══════════════════════════════════════════ */
 
 :root {
-  --color-bg: #F6F2EA;
-  --color-surface: #FEFBF6;
-  --color-surface-hover: #F3EDE2;
-  --color-surface-soft: #F8F3E9;
+  --color-bg: #f8f6f1;
+  --color-surface: #fffdf8;
+  --color-surface-hover: #f1eee6;
+  --color-surface-soft: #f6f2ea;
 
-  --color-text: #2D241A;
-  --color-text-secondary: #6B5F52;
-  --color-text-muted: #9E8F7E;
+  --color-text: #20201d;
+  --color-text-secondary: #67645d;
+  --color-text-muted: #98938a;
 
-  --color-accent: #C1663B;
-  --color-accent-light: #E8956D;
-  --color-accent-bg: #FDF0E8;
+  --color-accent: #a94b45;
+  --color-accent-light: #d9827a;
+  --color-accent-bg: #fff1ef;
 
-  --color-primary: #3B6B4F;
-  --color-primary-light: #E8F0EA;
-  --color-primary-hover: #2F5840;
+  --color-primary: #4a7c62;
+  --color-primary-light: #e7f0eb;
+  --color-primary-hover: #326a54;
 
   /* 旧 Jade 别名，保持兼容 */
   --color-jade: var(--color-primary);
-  --color-primary-light: var(--color-primary-light);
   --color-jade-hover: var(--color-primary-hover);
 
-  --color-border: #E8E0D4;
-  --color-border-strong: #D4C8B4;
+  --color-border: #e3ded3;
+  --color-border-strong: #cdc5b6;
 
   --font-display: "Noto Serif SC", "STSong", "Songti SC", "KaiTi", "SimSun", serif;
   --font-body: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
 
-  --shadow-sm: 0 1px 4px rgba(45, 36, 26, 0.06);
-  --shadow-md: 0 8px 28px rgba(45, 36, 26, 0.09);
-  --shadow-lg: 0 16px 48px rgba(45, 36, 26, 0.11);
+  --shadow-sm: 0 1px 3px rgba(32, 32, 29, 0.05);
+  --shadow-md: 0 8px 24px rgba(32, 32, 29, 0.07);
+  --shadow-lg: 0 14px 40px rgba(32, 32, 29, 0.09);
 
   --radius-sm: 6px;
   --radius-md: 12px;
@@ -60,10 +58,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background:
-    radial-gradient(80% 60% at 50% 0%, rgba(210, 185, 150, 0.14) 0%, transparent 70%),
-    radial-gradient(60% 50% at 100% 100%, rgba(180, 155, 125, 0.08) 0%, transparent 60%),
-    var(--color-bg);
+  background: var(--color-bg);
 }
 
 button,
@@ -116,7 +111,7 @@ button,
   background: transparent;
 }
 
-/* Brand mark — seal-red, links to home */
+/* Brand mark — links to home */
 .brand-mark {
   display: inline-flex;
   align-items: center;
@@ -182,7 +177,7 @@ button,
   background: var(--color-jade);
 }
 
-/* AI chat nav pill — standout treatment */
+/* AI chat nav pill */
 .nav-link-ai {
   color: var(--color-jade);
   font-weight: 700;
@@ -265,7 +260,7 @@ button,
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: linear-gradient(135deg, var(--color-primary), #5A9470);
+  background: var(--color-primary);
   color: #fff;
   font-size: 12px;
   font-weight: 700;
@@ -297,7 +292,7 @@ button,
   margin: 0;
   color: var(--color-accent);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -343,7 +338,7 @@ h2 {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7), var(--shadow-sm);
+  box-shadow: var(--shadow-sm);
 }
 
 .feed-panel {
@@ -597,8 +592,8 @@ h2 {
   gap: 0;
   border: 1px solid var(--color-jade);
   border-radius: var(--radius-md);
-  background: linear-gradient(180deg, #fffdf9 0%, #f8f4eb 100%);
-  box-shadow: 0 0 0 3px var(--color-primary-light);
+  background: var(--color-surface-soft);
+  box-shadow: 0 0 0 2px var(--color-primary-light);
   overflow: hidden;
 }
 
@@ -756,7 +751,7 @@ h2 {
   gap: 12px;
   padding: 14px 18px 18px 64px;
   border-top: 1px solid rgba(74, 124, 98, 0.16);
-  background: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .my-diary-expanded .section-title.compact {
@@ -814,16 +809,16 @@ h2 {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  box-shadow: none;
+  transition: border-color 0.25s, box-shadow 0.25s, transform 0.25s;
   content-visibility: auto;
   contain-intrinsic-size: 320px;
 }
 
 .feed-item:hover {
   border-color: var(--color-border-strong);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
 }
 
 .feed-item.feed-item-compact {
@@ -930,9 +925,17 @@ h2 {
 }
 
 @keyframes like-pop {
-  0%   { transform: scale(1); }
-  40%  { transform: scale(1.25); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+
+  40% {
+    transform: scale(1.25);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .like-btn.just-liked .like-btn-icon {
@@ -1144,7 +1147,7 @@ h2 {
   padding: 8px 10px;
   border-radius: var(--radius-md);
   background: var(--color-surface-hover);
-  border: 1px solid rgba(122, 144, 128, 0.16);
+  border: 1px solid rgba(138, 147, 163, 0.22);
 }
 
 .reply-to {
@@ -1175,10 +1178,27 @@ h2 {
 
 /* ── Notifications ── */
 .notif-popover {
-  width: min(340px, calc(100vw - 24px));
+  width: min(320px, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
   max-height: 360px;
   overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.notif-popover-overlay {
+  max-width: calc(100vw - 24px) !important;
+  width: min(320px, calc(100vw - 24px)) !important;
+  box-sizing: border-box;
+}
+
+.notif-popover-overlay * {
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+.notif-popover * {
+  max-width: 100%;
   box-sizing: border-box;
 }
 
@@ -1235,6 +1255,12 @@ h2 {
   margin: 0;
 }
 
+.notif-msg :is(pre, code) {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
 .notif-msg a {
   word-break: break-all;
 }
@@ -1263,13 +1289,13 @@ h2 {
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  background: radial-gradient(ellipse at 50% 35%, #f0ebe0 0%, var(--color-bg) 70%);
+  background: var(--color-bg);
 }
 
 .auth-card {
   width: 100%;
   max-width: 420px;
-  padding: 2.8rem 2.5rem;
+  padding: 2.3rem 2.2rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -1280,7 +1306,7 @@ h2 {
   font-family: var(--font-body);
   font-size: 2rem;
   font-weight: 700;
-  color: var(--color-accent);
+  color: var(--color-primary);
   margin-bottom: 0.15rem;
   text-align: center;
   letter-spacing: 0.06em;
@@ -1290,7 +1316,7 @@ h2 {
   width: 36px;
   height: 36px;
   margin: 8px auto 12px;
-  border: 2px solid var(--color-accent);
+  border: 2px solid var(--color-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1298,7 +1324,7 @@ h2 {
   font-family: var(--font-body);
   font-size: 16px;
   font-weight: 700;
-  color: var(--color-accent);
+  color: var(--color-primary);
   transform: rotate(-8deg);
 }
 
@@ -1852,7 +1878,7 @@ h2 {
 .chat-sidebar {
   display: grid;
   gap: 0;
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, white 20%);
   border-radius: var(--radius-md);
   background: var(--color-surface);
   overflow: hidden;
@@ -1894,7 +1920,8 @@ h2 {
 }
 
 .conv-item.active {
-  background: var(--color-primary-light);
+  background: color-mix(in srgb, var(--color-primary-light) 68%, white 32%);
+  box-shadow: inset 2px 0 0 var(--color-primary);
 }
 
 .conv-title {
@@ -2048,7 +2075,7 @@ h2 {
   padding: 20px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  background: linear-gradient(180deg, var(--color-surface) 0%, #f9f6f0 100%);
+  background: var(--color-surface);
 }
 
 .chat-empty {
@@ -2098,7 +2125,7 @@ h2 {
 
 .chat-ai {
   justify-self: start;
-  background: #F3F0E8;
+  background: #f4f3ee;
   color: var(--color-text);
   border-bottom-left-radius: 6px;
   border-left: 3px solid var(--color-jade);
@@ -2275,7 +2302,7 @@ h2 {
   display: grid;
   gap: 0;
   border-left: 1px solid var(--color-border);
-  background: linear-gradient(180deg, #fdfbf7 0%, #f9f5ed 100%);
+  background: var(--color-surface-soft);
   padding: 14px;
   align-content: start;
   gap: 16px;
@@ -2325,7 +2352,7 @@ h2 {
   padding: 14px 18px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--color-primary-light), #e6f2ed);
+  background: var(--color-surface-soft);
   text-decoration: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -2501,9 +2528,26 @@ h2 {
   }
 
   .notif-popover {
-    width: calc(100vw - 20px);
-    max-width: 320px;
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
     max-height: min(62vh, 420px);
+    overflow-x: hidden;
+    padding-right: 0;
+  }
+
+  .notif-popover-overlay {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  .notif-item {
+    padding: 9px 10px;
+  }
+
+  .notif-msg {
+    font-size: 13px;
+    word-break: break-word;
+    overflow-wrap: anywhere;
   }
 
   .app-shell {
