@@ -110,7 +110,9 @@ public class AIConfiguration {
                             }
                         })
                 .description(
-                        "检索当前登录用户自己的历史日记摘要。keyword、startDate、endDate 都可选，日期格式为 YYYY-MM-DD。返回日期和内容片段，适合回答「上周为什么不开心」之类的历史问题。")
+                        "检索当前登录用户自己的历史日记摘要。keyword、startDate、endDate 都可选，日期格式为 YYYY-MM-DD。"
+                                + "keyword 参数：要搜索的关键词。**绝对不要传入完整的疑问句（如'我喜欢吃什么'），必须提取出最核心的 1-2 个名词或形容词（如'吃'、'美食'、'好吃'）进行模糊搜索。**"
+                                + "如果用户意图宽泛，可以传入空字符串，结合时间参数查询。返回日期和内容片段。")
                 .inputType(DiarySearchRequest.class)
                 .build();
     }
