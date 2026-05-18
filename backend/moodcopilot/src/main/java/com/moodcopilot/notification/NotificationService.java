@@ -1,6 +1,7 @@
 package com.moodcopilot.notification;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.moodcopilot.entity.NotificationEntity;
 import com.moodcopilot.entity.UserEntity;
@@ -45,12 +46,14 @@ public class NotificationService {
 
     @Transactional
     public void markAsRead(Long notificationId, Long recipientUserId) {
-        NotificationEntity notification = notificationMapper.selectById(notificationId);
-        if (notification != null && notification.getRecipientUserId().equals(recipientUserId)) {
-            notification.setIsRead(true);
-            notification.setReadAt(LocalDateTime.now());
-            notificationMapper.updateById(notification);
-        }
+        notificationMapper.update(
+                null,
+                new LambdaUpdateWrapper<NotificationEntity>()
+                        .eq(NotificationEntity::getId, notificationId)
+                        .eq(NotificationEntity::getRecipientUserId, recipientUserId)
+                        .eq(NotificationEntity::getIsRead, false)
+                        .set(NotificationEntity::getIsRead, true)
+                        .set(NotificationEntity::getReadAt, LocalDateTime.now()));
     }
 
     public void notifyComment(UserEntity actor, Long diaryId, Long recipientUserId, Long commentId, String snippet) {

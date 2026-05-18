@@ -14,8 +14,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -23,6 +26,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 public class FollowService {
 
     private static final Logger log = LoggerFactory.getLogger(FollowService.class);
+    private static final Duration FOLLOWING_IDS_CACHE_TTL = Duration.ofMinutes(10);
 
     private final FollowMapper followMapper;
     private final NotificationService notificationService;
@@ -70,20 +74,32 @@ public class FollowService {
 
     public boolean isFollowing(long userId) {
         UserEntity actor = currentUser();
+        List<Long> followingIds = getCachedFollowingIds(actor.getId());
+        if (followingIds != null) {
+            return followingIds.contains(userId);
+        }
         return followMapper.exists(new LambdaQueryWrapper<FollowEntity>()
                 .eq(FollowEntity::getFollowerId, actor.getId())
                 .eq(FollowEntity::getFollowedId, userId));
     }
 
     public List<Long> getFollowingIds(long userId) {
+        List<Long> cached = getCachedFollowingIds(userId);
+        if (cached != null) {
+            return cached;
+        }
+
         List<FollowEntity> follows = followMapper.selectList(
                 new LambdaQueryWrapper<FollowEntity>()
                         .eq(FollowEntity::getFollowerId, userId));
-        return follows.stream().map(FollowEntity::getFollowedId).toList();
+        List<Long> followingIds = follows.stream().map(FollowEntity::getFollowedId).toList();
+        cacheFollowingIds(userId, followingIds);
+        return followingIds;
     }
 
     private void evictFollowingCache(long userId) {
         try {
+            redisTemplate.delete(followingIdsCacheKey(userId));
             for (int page = 1; page <= 20; page++) {
                 for (int size : List.of(10, 20, 50)) {
                     redisTemplate.delete("following:%d:%d:%d".formatted(userId, page, size));
@@ -92,6 +108,41 @@ public class FollowService {
         } catch (Exception e) {
             log.debug("Failed to evict following cache for user {}", userId, e);
         }
+    }
+
+    private List<Long> getCachedFollowingIds(long userId) {
+        try {
+            String cached = redisTemplate.opsForValue().get(followingIdsCacheKey(userId));
+            if (cached == null) {
+                return null;
+            }
+            if (cached.isBlank()) {
+                return List.of();
+            }
+            return Arrays.stream(cached.split(","))
+                    .map(String::trim)
+                    .filter(value -> !value.isEmpty())
+                    .map(Long::valueOf)
+                    .toList();
+        } catch (Exception e) {
+            log.debug("Failed to read following ids cache for user {}", userId, e);
+            return null;
+        }
+    }
+
+    private void cacheFollowingIds(long userId, List<Long> followingIds) {
+        try {
+            String payload = followingIds.stream()
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(","));
+            redisTemplate.opsForValue().set(followingIdsCacheKey(userId), payload, FOLLOWING_IDS_CACHE_TTL);
+        } catch (Exception e) {
+            log.debug("Failed to cache following ids for user {}", userId, e);
+        }
+    }
+
+    private String followingIdsCacheKey(long userId) {
+        return "following:ids:%d".formatted(userId);
     }
 
     private UserEntity currentUser() {

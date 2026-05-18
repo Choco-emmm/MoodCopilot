@@ -27,6 +27,7 @@
             <button
               v-if="!isOwner && !profileLoading"
               :class="['follow-btn', 'profile-follow-btn', { following: followStore.isFollowing(profileUserId) }]"
+              :disabled="followStore.isPending(profileUserId)"
               @mouseenter="profileFollowHover = true"
               @mouseleave="profileFollowHover = false"
               @click="toggleProfileFollow"
@@ -425,16 +426,20 @@ const profileUserId = computed(() => Number(route.params.userId))
 const isOwner = computed(() => auth.userId != null && auth.userId === profileUserId.value)
 const profileFollowHover = ref(false)
 const profileFollowLabel = computed(() => {
+  if (followStore.isPending(profileUserId.value)) {
+    return '处理中...'
+  }
   if (followStore.isFollowing(profileUserId.value)) {
     return profileFollowHover.value ? '取消关注' : '已关注'
   }
   return '+ 关注'
 })
-function toggleProfileFollow() {
+async function toggleProfileFollow() {
+  if (followStore.isPending(profileUserId.value)) return
   if (followStore.isFollowing(profileUserId.value)) {
-    followStore.unfollow(profileUserId.value)
+    await followStore.unfollow(profileUserId.value)
   } else {
-    followStore.follow(profileUserId.value)
+    await followStore.follow(profileUserId.value)
   }
 }
 const hasMore = computed(() => diaries.value.length < total.value)

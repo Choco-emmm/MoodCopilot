@@ -41,7 +41,8 @@
               size="tiny"
               :type="followStore.isFollowing(diary.authorUserId) ? 'default' : 'primary'"
               :secondary="!followStore.isFollowing(diary.authorUserId)"
-              :loading="followStore.loading"
+              :loading="followStore.isPending(diary.authorUserId)"
+              :disabled="followStore.isPending(diary.authorUserId)"
               @click="handleFollow"
               style="margin-left: 8px;"
             >
