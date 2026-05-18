@@ -290,7 +290,8 @@ public class RagMemoryService {
             filter = sb.toString();
         }
         String knn = "=>[KNN " + topK + " @embedding $vec AS _score]";
-        String q = "(" + filter + ")" + knn;
+        String q = filter + " " + knn;
+        log.info("RAG 执行 FT.SEARCH, query: {}", q);
 
         try {
             return redis.execute((RedisCallback<List<RagHit>>) conn -> {
@@ -418,9 +419,12 @@ public class RagMemoryService {
         String currentKey = null;
         for (int i = 1; i < raw.size(); i++) {
             Object item = raw.get(i);
-            // 兼容不同 Lettuce 版本：key 可能是 byte[] 或 String
-            if (item instanceof byte[] || item instanceof String) {
-                currentKey = asString(item);
+            // 兼容不同 Lettuce 版本：key 可能是 byte[] 或 String，显式分支兜底
+            if (item instanceof byte[] b) {
+                currentKey = new String(b, StandardCharsets.UTF_8);
+                continue;
+            } else if (item instanceof String s) {
+                currentKey = s;
                 continue;
             }
             if (item instanceof List<?> fields) {
