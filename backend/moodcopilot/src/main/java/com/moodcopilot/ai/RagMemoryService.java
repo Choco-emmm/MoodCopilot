@@ -29,8 +29,11 @@ import java.util.Set;
 public class RagMemoryService {
 
     private static final Logger log = LoggerFactory.getLogger(RagMemoryService.class);
-    private static final String INDEX_NAME = "idx:rag_embeddings";
+    private static final String INDEX_NAME = "idx:rag_v2";
     private static final String KEY_PREFIX = "rag:";
+    public static final String SOURCE_DIARY = "diary";
+    public static final String SOURCE_CHAT = "chat";
+    public static final String SOURCE_PROFILE = "profile";
 
     private final String embeddingApiUrl;
     private final String embeddingApiKey;
@@ -61,11 +64,21 @@ public class RagMemoryService {
         try {
             redis.execute((RedisCallback<Object>) conn -> {
                 var cmds = getSyncCommands(conn);
+                // 删除旧版索引（无 source_type 字段）
+                try {
+                    cmds.dispatch(RediSearchCommand.FT_DROPINDEX,
+                            new StatusOutput<>(ByteArrayCodec.INSTANCE),
+                            new CommandArgs<>(ByteArrayCodec.INSTANCE)
+                                    .add(INDEX_NAME.getBytes(StandardCharsets.UTF_8))
+                                    .add("DD"));
+                } catch (Exception ignored) {
+                }
                 CommandArgs<byte[], byte[]> cargs = new CommandArgs<>(ByteArrayCodec.INSTANCE)
                         .add(INDEX_NAME.getBytes(StandardCharsets.UTF_8))
                         .add("ON").add("HASH").add("PREFIX").add("1").add(KEY_PREFIX)
                         .add("SCHEMA")
                         .add("user_id").add("NUMERIC").add("SORTABLE")
+                        .add("source_type").add("TAG")
                         .add("content").add("TEXT")
                         .add("embedding").add("VECTOR").add("HNSW").add("6")
                         .add("DIM").add(String.valueOf(embeddingDimension))
@@ -75,7 +88,7 @@ public class RagMemoryService {
                         new StatusOutput<>(ByteArrayCodec.INSTANCE), cargs);
                 return null;
             });
-            log.info("RAG 向量索引已创建，dimension={}", embeddingDimension);
+            log.info("RAG 向量索引已创建（v2，含 source_type），dimension={}", embeddingDimension);
         } catch (Exception e) {
             String msg = e.getMessage();
             if (msg != null && msg.contains("Index already exists")) {
@@ -147,7 +160,7 @@ public class RagMemoryService {
             log.warn("RAG 索引失败：embedding 生成失败 diaryId={}", diaryId);
             return;
         }
-        storeEmbedding("diary:" + diaryId, userId, snippet(content, 800), vec);
+        storeEmbedding("diary:" + diaryId, userId, SOURCE_DIARY, snippet(content, 800), vec);
         log.info("RAG 已索引日记 diaryId={} userId={} dim={}", diaryId, userId, vec.length);
     }
 
@@ -174,7 +187,7 @@ public class RagMemoryService {
             String text = "用户长期画像 - " + m.getAttributeKey() + ": " + m.getAttributeValue();
             float[] vec = embed(text);
             if (vec != null) {
-                storeEmbedding("profile:" + userId + ":" + attrKey, userId, text, vec);
+                storeEmbedding("profile:" + userId + ":" + attrKey, userId, SOURCE_PROFILE, text, vec);
                 newKeys.add("profile:" + userId + ":" + attrKey);
                 indexed++;
             }
@@ -216,22 +229,24 @@ public class RagMemoryService {
             return;
         }
         storeEmbedding("chat:" + conversationId + ":" + System.currentTimeMillis(),
-                userId, snippet(content, 350), vec);
+                userId, SOURCE_CHAT, snippet(content, 350), vec);
         log.info("RAG 已索引聊天消息 userId={} convId={}", userId, conversationId);
     }
 
-    private void storeEmbedding(String id, long userId, String content, float[] embedding) {
+    private void storeEmbedding(String id, long userId, String sourceType, String content, float[] embedding) {
         String key = KEY_PREFIX + id;
         byte[] rawKey = key.getBytes(StandardCharsets.UTF_8);
         byte[] vecBytes = floatsToBytes(embedding);
 
         redis.execute((RedisCallback<Object>) conn -> {
             byte[] uid = "user_id".getBytes(StandardCharsets.UTF_8);
+            byte[] st = "source_type".getBytes(StandardCharsets.UTF_8);
             byte[] cnt = "content".getBytes(StandardCharsets.UTF_8);
             byte[] emb = "embedding".getBytes(StandardCharsets.UTF_8);
             byte[] cat = "created_at".getBytes(StandardCharsets.UTF_8);
 
             conn.hashCommands().hSet(rawKey, uid, String.valueOf(userId).getBytes(StandardCharsets.UTF_8));
+            conn.hashCommands().hSet(rawKey, st, sourceType.getBytes(StandardCharsets.UTF_8));
             conn.hashCommands().hSet(rawKey, cnt, content.getBytes(StandardCharsets.UTF_8));
             conn.hashCommands().hSet(rawKey, emb, vecBytes);
             conn.hashCommands().hSet(rawKey, cat,
@@ -245,13 +260,23 @@ public class RagMemoryService {
      * 向量相似搜索：用 query embedding 在用户的历史内容中检索 topK 最相关片段。
      */
     @SuppressWarnings("unchecked")
-    public List<RagHit> search(long userId, String query, int topK) {
+    public List<RagHit> search(long userId, String query, int topK, String... sourceTypes) {
         float[] queryVec = embed(query);
         if (queryVec == null || queryVec.length == 0) {
             return List.of();
         }
         byte[] queryVector = floatsToBytes(queryVec);
         String filter = "@user_id:[" + userId + " " + userId + "]";
+        if (sourceTypes.length > 0) {
+            StringBuilder sb = new StringBuilder("(@user_id:[").append(userId).append(" ").append(userId).append("]) ");
+            sb.append("(@source_type:{");
+            for (int i = 0; i < sourceTypes.length; i++) {
+                if (i > 0) sb.append("|");
+                sb.append(sourceTypes[i]);
+            }
+            sb.append("})");
+            filter = sb.toString();
+        }
         String knn = "=> [KNN " + topK + " @embedding $vec AS _score]";
         String q = filter + " " + knn;
 
@@ -291,8 +316,8 @@ public class RagMemoryService {
         }
     }
 
-    public String buildRagContext(long userId, String query, int topK) {
-        List<RagHit> hits = search(userId, query, topK);
+    public String buildRagContext(long userId, String query, int topK, String... sourceTypes) {
+        List<RagHit> hits = search(userId, query, topK, sourceTypes);
         if (hits.isEmpty()) {
             log.debug("RAG 上下文为空 userId={} queryLen={}", userId, query.length());
             return "";
@@ -376,7 +401,8 @@ public class RagMemoryService {
 
     private enum RediSearchCommand implements io.lettuce.core.protocol.ProtocolKeyword {
         FT_CREATE("FT.CREATE"),
-        FT_SEARCH("FT.SEARCH");
+        FT_SEARCH("FT.SEARCH"),
+        FT_DROPINDEX("FT.DROPINDEX");
 
         private final byte[] bytes;
 
@@ -412,7 +438,7 @@ public class RagMemoryService {
                 float[] vec = embed(item.content());
                 if (vec != null) {
                     storeEmbedding("diary:" + item.diaryId(), item.userId(),
-                            snippet(item.content(), 800), vec);
+                            SOURCE_DIARY, snippet(item.content(), 800), vec);
                     count++;
                 }
                 // 控制频率，避免 SiliconFlow 限流
@@ -445,7 +471,7 @@ public class RagMemoryService {
                 if (vec != null) {
                     String attrKey = sanitizeKey(m.getAttributeKey());
                     storeEmbedding("profile:" + entry.getKey() + ":" + attrKey,
-                            entry.getKey(), text, vec);
+                            entry.getKey(), SOURCE_PROFILE, text, vec);
                     count++;
                 }
                 try {

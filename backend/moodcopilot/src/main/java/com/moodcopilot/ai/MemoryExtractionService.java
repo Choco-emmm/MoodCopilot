@@ -132,7 +132,8 @@ public class MemoryExtractionService {
             log.info("开始提取长期画像，userId={}，旧属性数={}，日记长度={}", userId, existing.size(),
                     diaryContent == null ? 0 : diaryContent.length());
             // RAG 检索与当前日记语义相关的历史内容，帮助 LLM 发现跨日记的模式
-            String ragContext = ragMemoryService.buildRagContext(userId, diaryContent, 3);
+            String ragContext = ragMemoryService.buildRagContext(userId, diaryContent, 3,
+                    RagMemoryService.SOURCE_DIARY);
             String prompt = buildExtractionUserPrompt(diaryContent, existing, ragContext);
             String json = analysisChatClient.prompt()
                     .system(MEMORY_EXTRACTION_PROMPT)
