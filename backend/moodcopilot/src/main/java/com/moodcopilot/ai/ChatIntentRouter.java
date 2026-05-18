@@ -122,6 +122,7 @@ public class ChatIntentRouter {
                 }
             } catch (Exception e) {
                 log.debug("LLM 意图分类调用失败: {}", e.getMessage());
+                throw new RuntimeException(e);
             }
             return false;
         }, aiExecutor);

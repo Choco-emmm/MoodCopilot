@@ -228,6 +228,7 @@ public class ChatService {
             request.memory().add("default", List.of(
                     new UserMessage(message),
                     new AssistantMessage(response)));
+            persistChatMemory(conversationId, request.memory());
             ragMemoryService.indexChatMessage(userId, conversationId, message);
 
             return response;
@@ -278,6 +279,7 @@ public class ChatService {
                         request.memory().add("default", List.of(
                                 new UserMessage(message),
                                 new AssistantMessage(fullResponse.toString())));
+                        persistChatMemory(conversationId, request.memory());
                         ragMemoryService.indexChatMessage(userId, conversationId, message);
                     })
                     .onErrorResume(e -> {
@@ -337,6 +339,31 @@ public class ChatService {
             }
         }
         return sb.append("</chat_history>\n\n").toString();
+    }
+
+    /**
+     * 将 ChatMemory 中的对话历史持久化到 Redis（7 天 TTL）。
+     * 推理模型路径不经过 Spring AI 的 advisor，需手动调用。
+     */
+    private void persistChatMemory(long conversationId, ChatMemory memory) {
+        try {
+            List<Message> messages = memory.get("default", Integer.MAX_VALUE);
+            if (messages == null || messages.isEmpty()) {
+                return;
+            }
+            List<Map<String, String>> payload = new java.util.ArrayList<>();
+            for (Message msg : messages) {
+                String role = msg.getMessageType() == MessageType.USER ? "user" : "assistant";
+                String text = msg.getText();
+                if (text != null && !text.isBlank()) {
+                    payload.add(Map.of("role", role, "content", text));
+                }
+            }
+            String json = objectMapper.writeValueAsString(payload);
+            redisTemplate.opsForValue().set(MSG_PREFIX + conversationId, json, Duration.ofDays(7));
+        } catch (Exception e) {
+            log.warn("持久化推理模型对话历史到 Redis 失败: {}", e.getMessage());
+        }
     }
 
     /**
