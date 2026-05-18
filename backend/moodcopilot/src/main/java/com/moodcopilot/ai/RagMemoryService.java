@@ -495,6 +495,19 @@ public class RagMemoryService {
         log.info("RAG 已删除日记向量 diaryId={}", diaryId);
     }
 
+    public void deleteChatEmbeddings(long conversationId) {
+        String pattern = KEY_PREFIX + "chat:" + conversationId + ":*";
+        try {
+            var keys = redis.keys(pattern);
+            if (keys != null && !keys.isEmpty()) {
+                redis.delete(keys);
+                log.info("RAG 已删除聊天向量 convId={} count={}", conversationId, keys.size());
+            }
+        } catch (Exception e) {
+            log.warn("RAG 删除聊天向量失败 convId={}: {}", conversationId, e.getMessage());
+        }
+    }
+
     public record BatchIndexItem(long userId, long diaryId, String content) {
     }
 }
