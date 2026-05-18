@@ -21,10 +21,11 @@ export function renderSafeMarkdown(
 ) {
     if (!text) return ''
 
-    // 预处理：修复 AI 常见的 Markdown 语法笔误
+    // 预处理：修复 AI 常见笔误
     const processedText = text
-        .replace(/\\\*/g, '*')                   // \*\* → **（转义星号复原）
-        .replace(/^ {0,3}-(?=[^\s])/gm, '$& ')   // -X → - X（列表项补空格）
+        .replace(/\\\*/g, '*')                   // \*\* → **
+        .replace(/^ {0,3}-(?=[^\s])/gm, '$& ')   // -X → - X
+        .replace(/([。！？])(不过|但是|其实|所以|然而|总之)/g, '$1\n$2') // 句子+连词 → 换行
 
     const html = marked.parse(processedText, { async: false }) as string
     return DOMPurify.sanitize(html, {
