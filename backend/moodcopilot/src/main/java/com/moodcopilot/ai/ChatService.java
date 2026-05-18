@@ -217,8 +217,9 @@ public class ChatService {
      * RAG 语义搜索 + SQL 关键词降级。RAG 空结果时回退到数据库 LIKE 搜索。
      */
     private String buildRagContextWithFallback(long userId, String message, int topK, String... sourceTypes) {
-        // Query 重写：口语化输入 → 精准检索关键词
-        String searchQuery = aiAnalysisService.rewriteQueryForSearch(message, null);
+        // Query 重写：口语化输入 → 精准检索关键词（结合用户画像）
+        String memoryBg = memoryExtractionService.buildUserMemoryPrompt();
+        String searchQuery = aiAnalysisService.rewriteQueryForSearch(message, memoryBg);
         if (!searchQuery.equals(message)) {
             log.info("RAG query 已重写: \"{}\" → \"{}\"", message, searchQuery);
         }
