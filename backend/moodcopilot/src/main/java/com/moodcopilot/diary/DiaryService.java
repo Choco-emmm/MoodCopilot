@@ -1190,24 +1190,29 @@ public class DiaryService {
     private List<DiaryView> buildDiaryViews(List<DiaryEntity> diaries, boolean isPublic) {
         List<Long> ids = diaries.stream().map(DiaryEntity::getId).toList();
         Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(ids);
+        Set<Long> authorIds = diaries.stream().map(DiaryEntity::getAuthorUserId).collect(Collectors.toSet());
+        Map<Long, UserEntity> authorInfoMap = batchLoadAuthorInfo(authorIds);
         Set<Long> likedDiaryIds = batchLoadLikedDiaryIds(ids);
         return diaries.stream()
-                .map(diary -> buildFeedView(diary, isPublic, analysisMap, likedDiaryIds.contains(diary.getId())))
+                .map(diary -> buildFeedView(diary, isPublic, analysisMap, authorInfoMap,
+                        likedDiaryIds.contains(diary.getId())))
                 .toList();
     }
 
     private DiaryView buildFeedView(DiaryEntity diary, boolean isPublic,
-            Map<Long, DiaryAnalysisEntity> analysisMap, boolean likedByMe) {
+            Map<Long, DiaryAnalysisEntity> analysisMap, Map<Long, UserEntity> authorInfoMap,
+            boolean likedByMe) {
         DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
-        // feed 模式：内容裁切到 150 字，不加载评论
+        UserEntity author = authorInfoMap.get(diary.getAuthorUserId());
+        String authorName = author != null ? author.getDisplayName() : diary.getAuthorName();
+        String authorAvatar = author != null ? normalizeAvatar(author.getAvatar())
+                : resolveAuthorAvatar(diary.getAuthorUserId());
         String feedContent = diary.getContent() != null && diary.getContent().length() > 150
                 ? diary.getContent().substring(0, 150) + "..."
                 : diary.getContent();
         return isPublic
-                ? DiaryView.fromPublicFeed(diary, analysis, diary.getAuthorName(),
-                        resolveAuthorAvatar(diary.getAuthorUserId()), likedByMe, feedContent)
-                : DiaryView.fromFeed(diary, analysis, diary.getAuthorName(),
-                        resolveAuthorAvatar(diary.getAuthorUserId()), likedByMe, feedContent);
+                ? DiaryView.fromPublicFeed(diary, analysis, authorName, authorAvatar, likedByMe, feedContent)
+                : DiaryView.fromFeed(diary, analysis, authorName, authorAvatar, likedByMe, feedContent);
     }
 
     private DiaryView buildDiaryView(DiaryEntity diary, boolean isPublic) {
