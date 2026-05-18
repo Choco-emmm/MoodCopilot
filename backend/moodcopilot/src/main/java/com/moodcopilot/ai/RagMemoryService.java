@@ -301,4 +301,39 @@ public class RagMemoryService {
 
     public record RagHit(String content, Double score) {
     }
+
+    /**
+     * 批量回填已有日记的向量索引（管理员触发）。
+     * @param items 待索引的 (userId, diaryId, content) 列表
+     * @return 成功索引的数量
+     */
+    public int batchIndexDiaries(List<BatchIndexItem> items) {
+        if (embeddingApiKey.isBlank()) {
+            log.warn("SILICONFLOW_API_KEY 未配置，跳过批量向量化");
+            return 0;
+        }
+        int count = 0;
+        for (BatchIndexItem item : items) {
+            if (item.content() == null || item.content().isBlank()) {
+                continue;
+            }
+            try {
+                float[] vec = embed(item.content());
+                if (vec != null) {
+                    storeEmbedding("diary:" + item.diaryId(), item.userId(),
+                            snippet(item.content(), 350), vec);
+                    count++;
+                }
+                // 控制频率，避免 SiliconFlow 限流
+                Thread.sleep(50);
+            } catch (Exception e) {
+                log.warn("批量向量化失败 diaryId={}: {}", item.diaryId(), e.getMessage());
+            }
+        }
+        log.info("批量向量化完成：{}/{} 条", count, items.size());
+        return count;
+    }
+
+    public record BatchIndexItem(long userId, long diaryId, String content) {
+    }
 }
