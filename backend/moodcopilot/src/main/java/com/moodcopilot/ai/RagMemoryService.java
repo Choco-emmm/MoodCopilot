@@ -418,40 +418,85 @@ public class RagMemoryService {
 
     @SuppressWarnings("unchecked")
     private void parseResults(List<?> raw, List<RagHit> out) {
-        if (raw.size() <= 1) {
+        if (raw == null || raw.isEmpty()) {
             return;
         }
-        String currentKey = null;
-        for (int i = 1; i < raw.size(); i++) {
-            Object item = raw.get(i);
-            // 兼容不同 Lettuce 版本：key 可能是 byte[] 或 String，显式分支兜底
-            if (item instanceof byte[] b) {
-                currentKey = new String(b, StandardCharsets.UTF_8);
-                continue;
-            } else if (item instanceof String s) {
-                currentKey = s;
-                continue;
+        // 打印出 Redis 真实的返回结构，方便排查
+        log.info("RAG Redis 原始返回结构: {}", dump(raw));
+
+        // 智能提取：兼容 RESP2 (数组) 和 RESP3 (Map) 格式
+        extractHitsHeuristically(raw, out);
+    }
+
+    private String dump(Object obj) {
+        if (obj instanceof List<?> list) {
+            StringBuilder sb = new StringBuilder("[");
+            for (int i = 0; i < list.size(); i++) {
+                sb.append(dump(list.get(i)));
+                if (i < list.size() - 1) sb.append(", ");
             }
-            if (item instanceof List<?> fields) {
+            sb.append("]");
+            return sb.toString();
+        } else if (obj instanceof byte[] b) {
+            return new String(b, StandardCharsets.UTF_8);
+        } else {
+            return String.valueOf(obj);
+        }
+    }
+
+    private void extractHitsHeuristically(List<?> list, List<RagHit> out) {
+        String currentKey = null;
+        for (int i = 0; i < list.size(); i++) {
+            Object item = list.get(i);
+
+            // 识别 RESP2 的 key
+            if ((item instanceof byte[] || item instanceof String) && i + 1 < list.size() && list.get(i + 1) instanceof List<?>) {
+                currentKey = asString(item);
+            }
+
+            if (item instanceof List<?> subList) {
                 String content = null;
                 Double score = null;
-                for (int j = 0; j + 1 < fields.size(); j += 2) {
-                    String fname = asString(fields.get(j));
-                    if ("content".equals(fname)) {
-                        content = asString(fields.get(j + 1));
-                    } else if ("_score".equals(fname)) {
-                        try {
-                            score = Double.parseDouble(asString(fields.get(j + 1)));
-                        } catch (NumberFormatException ignored) {
+                String resp3Id = null;
+
+                // 尝试提取 content 和 _score
+                for (int j = 0; j + 1 < subList.size(); j += 2) {
+                    String k = asString(subList.get(j));
+                    if ("id".equals(k)) { // RESP3 的 key
+                        resp3Id = asString(subList.get(j + 1));
+                    } else if ("extra_attributes".equals(k) && subList.get(j + 1) instanceof List<?> extra) {
+                        // RESP3 的字段嵌套在 extra_attributes 中
+                        for (int k2 = 0; k2 + 1 < extra.size(); k2 += 2) {
+                            String ek = asString(extra.get(k2));
+                            if ("content".equals(ek)) {
+                                content = asString(extra.get(k2 + 1));
+                            } else if ("_score".equals(ek)) {
+                                score = parseScore(extra.get(k2 + 1));
+                            }
                         }
+                    } else if ("content".equals(k)) { // RESP2 的字段
+                        content = asString(subList.get(j + 1));
+                    } else if ("_score".equals(k)) {
+                        score = parseScore(subList.get(j + 1));
                     }
                 }
-                if (content != null && !content.isBlank()) {
-                    String sourceId = extractSourceId(currentKey);
-                    out.add(new RagHit(content, score, sourceId));
+
+                String finalKey = resp3Id != null ? resp3Id : currentKey;
+                if (content != null && finalKey != null) {
+                    out.add(new RagHit(content, score, extractSourceId(finalKey)));
+                } else {
+                    // 如果当前子列表不是文档，继续向下递归寻找
+                    extractHitsHeuristically(subList, out);
                 }
-                currentKey = null;
             }
+        }
+    }
+
+    private Double parseScore(Object obj) {
+        try {
+            return Double.parseDouble(asString(obj));
+        } catch (Exception e) {
+            return null;
         }
     }
 
