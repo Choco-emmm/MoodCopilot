@@ -51,6 +51,8 @@ services:
     build: ./backend/moodcopilot
     expose:
       - "18080"
+    volumes:
+      - uploads_data:/app/uploads
     environment:
       SPRING_PROFILES_ACTIVE: docker
       DB_HOST: mysql
@@ -95,3 +97,4 @@ services:
 
 volumes:
   mysql_data:
+  uploads_data:
