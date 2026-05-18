@@ -738,4 +738,35 @@ public class AiAnalysisService {
         }
         return false;
     }
+
+    private static final String QUERY_REWRITE_PROMPT = """
+            你是一个搜索关键词提取专家。用户的输入可能非常口语化、简短或情绪化。
+            请结合用户的长期画像背景（如果有），将用户的当前输入转化为 3-5 个适合去日记库中进行精准向量检索的核心关键词。
+            规则：
+            1. 去除语气词，提炼核心情绪、可能的人际关系或事件实体。
+            2. 只要输出关键词，用空格隔开，不要解释，不要标点。
+            用户输入：""";
+
+    /**
+     * 将用户口语化输入改写为精准检索关键词（HyDE 变体）。
+     */
+    public String rewriteQueryForSearch(String userMessage, String memoryBackground) {
+        try {
+            StringBuilder prompt = new StringBuilder(QUERY_REWRITE_PROMPT);
+            if (memoryBackground != null && !memoryBackground.isBlank()) {
+                prompt.append("\n用户长期画像：").append(memoryBackground).append("\n");
+            }
+            prompt.append("\n用户输入：").append(userMessage);
+            String result = analysisChatClient.prompt()
+                    .user(prompt.toString())
+                    .call()
+                    .content();
+            if (result != null && !result.isBlank()) {
+                return result.trim();
+            }
+        } catch (Exception e) {
+            log.debug("Query 重写失败: {}", e.getMessage());
+        }
+        return userMessage; // 降级：返回原始输入
+    }
 }
