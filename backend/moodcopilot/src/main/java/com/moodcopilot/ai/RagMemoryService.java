@@ -278,19 +278,24 @@ public class RagMemoryService {
             return List.of();
         }
         byte[] queryVector = floatsToBytes(queryVec);
-        String filter = "@user_id:[" + userId + " " + userId + "]";
+        // 严格遵循 RediSearch Hybrid Query 语法：所有过滤条件必须在同一对括号内，且 => 前无空格
+        String filter;
         if (sourceTypes.length > 0) {
-            StringBuilder sb = new StringBuilder("(@user_id:[").append(userId).append(" ").append(userId).append("]) ");
-            sb.append("(@source_type:{");
+            StringBuilder sb = new StringBuilder("(@user_id:[").append(userId).append(" ").append(userId).append("]");
+            sb.append(" @source_type:{");
             for (int i = 0; i < sourceTypes.length; i++) {
                 if (i > 0) sb.append("|");
                 sb.append(sourceTypes[i]);
             }
             sb.append("})");
             filter = sb.toString();
+        } else {
+            filter = "(@user_id:[" + userId + " " + userId + "])";
         }
+
         String knn = "=>[KNN " + topK + " @embedding $vec AS _score]";
-        String q = filter + " " + knn;
+        String q = filter + knn; // 绝对不能有空格
+
         log.info("RAG 执行 FT.SEARCH, query: {}", q);
 
         try {
