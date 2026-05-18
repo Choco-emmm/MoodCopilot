@@ -306,6 +306,7 @@ public class MemoryExtractionService {
         userProfileMemoryMapper.deleteById(memoryId);
         log.info("用户手动删除长期画像属性，userId={}，memoryId={}，attributeKey={}", user.getId(), memoryId,
                 entity.getAttributeKey());
+        reindexUserProfile(user.getId());
     }
 
     public void updateMemory(long memoryId, String newValue) {
@@ -323,6 +324,12 @@ public class MemoryExtractionService {
         userProfileMemoryMapper.updateById(entity);
         log.info("用户手动编辑长期画像属性，userId={}，memoryId={}，attributeKey={}", user.getId(), memoryId,
                 entity.getAttributeKey());
+        reindexUserProfile(user.getId());
+    }
+
+    private void reindexUserProfile(long userId) {
+        List<UserProfileMemoryEntity> latest = listUserMemories(userId);
+        ragMemoryService.indexUserProfile(userId, latest);
     }
 
     // ---- 私有方法 ----
