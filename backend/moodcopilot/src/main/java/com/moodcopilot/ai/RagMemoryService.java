@@ -372,9 +372,11 @@ public class RagMemoryService {
         if (raw.size() <= 1) {
             return;
         }
+        String currentKey = null;
         for (int i = 1; i < raw.size(); i++) {
             Object item = raw.get(i);
-            if (item instanceof String) {
+            if (item instanceof String s) {
+                currentKey = s; // FT.SEARCH 返回的 key（如 rag:diary:123）
                 continue;
             }
             if (item instanceof List<?> fields) {
@@ -393,10 +395,18 @@ public class RagMemoryService {
                     }
                 }
                 if (content != null && !content.isBlank()) {
-                    out.add(new RagHit(content, score));
+                    String sourceId = extractSourceId(currentKey);
+                    out.add(new RagHit(content, score, sourceId));
                 }
+                currentKey = null;
             }
         }
+    }
+
+    private String extractSourceId(String key) {
+        if (key == null) return null;
+        // rag:diary:123 → "diary:123" ； rag:chat:101:123456 → "chat:101" ； rag:profile:1113:性格 → "profile:1113"
+        return key.substring(KEY_PREFIX.length());
     }
 
     private enum RediSearchCommand implements io.lettuce.core.protocol.ProtocolKeyword {
@@ -416,7 +426,7 @@ public class RagMemoryService {
         }
     }
 
-    public record RagHit(String content, Double score) {
+    public record RagHit(String content, Double score, String sourceId) {
     }
 
     /**

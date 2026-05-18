@@ -74,6 +74,7 @@ public class ChatService {
     private final DiaryService diaryService;
     private final MemoryExtractionService memoryExtractionService;
     private final RagMemoryService ragMemoryService;
+    private final AiAnalysisService aiAnalysisService;
 
     public ChatService(ChatClient chatChatClient,
             ChatConversationMapper conversationMapper,
@@ -85,7 +86,8 @@ public class ChatService {
             RateLimitService rateLimitService,
             DiaryService diaryService,
             MemoryExtractionService memoryExtractionService,
-            RagMemoryService ragMemoryService) {
+            RagMemoryService ragMemoryService,
+            AiAnalysisService aiAnalysisService) {
         this.chatChatClient = chatChatClient;
         this.conversationMapper = conversationMapper;
         this.chatIntentRouter = chatIntentRouter;
@@ -97,6 +99,7 @@ public class ChatService {
         this.diaryService = diaryService;
         this.memoryExtractionService = memoryExtractionService;
         this.ragMemoryService = ragMemoryService;
+        this.aiAnalysisService = aiAnalysisService;
     }
 
     // ---- 会话管理 ----
@@ -208,12 +211,18 @@ public class ChatService {
      * RAG 语义搜索 + SQL 关键词降级。RAG 空结果时回退到数据库 LIKE 搜索。
      */
     private String buildRagContextWithFallback(long userId, String message, int topK, String... sourceTypes) {
-        String ragCtx = ragMemoryService.buildRagContext(userId, message, topK, sourceTypes);
-        if (!ragCtx.isBlank()) {
-            return ragCtx;
+        // Query 重写：口语化输入 → 精准检索关键词
+        String searchQuery = aiAnalysisService.rewriteQueryForSearch(message, null);
+        if (!searchQuery.equals(message)) {
+            log.info("RAG query 已重写: \"{}\" → \"{}\"", message, searchQuery);
         }
-        // RAG 空结果，降级到 SQL 关键词搜索
-        log.info("RAG 无结果，降级到 SQL 关键词搜索 userId={} queryLen={}", userId, message.length());
+        // RAG 语义检索 + SQL 关键词双路召回
+        String ragCtx = ragMemoryService.buildRagContext(userId, searchQuery, topK, sourceTypes);
+        String sqlCtx = buildSqlFallbackContext(userId, message);
+        return mergeRetrievalContexts(ragCtx, sqlCtx);
+    }
+
+    private String buildSqlFallbackContext(long userId, String message) {
         try {
             var request = new com.moodcopilot.diary.DiarySearchRequest(
                     message.length() > 20 ? message.substring(0, 20) : message, null, null);
@@ -232,6 +241,18 @@ public class ChatService {
             }
         } catch (Exception e) {
             log.debug("SQL 关键词搜索降级失败: {}", e.getMessage());
+        }
+        return "";
+    }
+
+    /** 合并 RAG 和 SQL 两路检索结果，保留双路都命中时只显示 RAG */
+    private String mergeRetrievalContexts(String ragCtx, String sqlCtx) {
+        if (!ragCtx.isBlank()) {
+            return ragCtx; // RAG 命中优先
+        }
+        if (!sqlCtx.isBlank()) {
+            log.info("RAG 无结果，使用 SQL 降级结果");
+            return sqlCtx;
         }
         return "";
     }
