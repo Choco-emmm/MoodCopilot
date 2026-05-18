@@ -1,6 +1,7 @@
 package com.moodcopilot.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moodcopilot.entity.UserProfileMemoryEntity;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,7 +17,9 @@ import org.springframework.web.client.RestClient;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class RagMemoryService {
@@ -136,6 +139,27 @@ public class RagMemoryService {
             return;
         }
         storeEmbedding("diary:" + diaryId, userId, snippet(content, 350), vec);
+    }
+
+    /**
+     * 将用户长期画像条目合并为文本后存入向量库（key: profile:{userId}）。
+     */
+    @Async
+    public void indexUserProfile(long userId, List<UserProfileMemoryEntity> memories) {
+        if (memories == null || memories.isEmpty()) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder("用户长期画像：");
+        for (UserProfileMemoryEntity m : memories) {
+            sb.append(m.getAttributeKey()).append(" ").append(m.getAttributeValue()).append("，");
+        }
+        String text = sb.toString();
+        float[] vec = embed(text);
+        if (vec == null) {
+            return;
+        }
+        // 覆盖写入，每个用户只保留最新一条画像记录
+        storeEmbedding("profile:" + userId, userId, snippet(text, 500), vec);
     }
 
     /**
@@ -331,6 +355,38 @@ public class RagMemoryService {
             }
         }
         log.info("批量向量化完成：{}/{} 条", count, items.size());
+        return count;
+    }
+
+    /**
+     * 同步批量索引用户画像（供 admin reindex 使用）。
+     */
+    public int batchIndexProfiles(Map<Long, List<UserProfileMemoryEntity>> grouped) {
+        if (embeddingApiKey.isBlank()) {
+            return 0;
+        }
+        int count = 0;
+        for (var entry : grouped.entrySet()) {
+            if (entry.getValue() == null || entry.getValue().isEmpty()) {
+                continue;
+            }
+            StringBuilder sb = new StringBuilder("用户长期画像：");
+            for (UserProfileMemoryEntity m : entry.getValue()) {
+                sb.append(m.getAttributeKey()).append(" ").append(m.getAttributeValue()).append("，");
+            }
+            float[] vec = embed(sb.toString());
+            if (vec != null) {
+                storeEmbedding("profile:" + entry.getKey(), entry.getKey(), snippet(sb.toString(), 500), vec);
+                count++;
+            }
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        log.info("批量画像向量化完成：{}/{} 个用户", count, grouped.size());
         return count;
     }
 

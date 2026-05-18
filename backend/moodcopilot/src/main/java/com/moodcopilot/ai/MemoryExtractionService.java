@@ -101,6 +101,7 @@ public class MemoryExtractionService {
     private final DiaryMapper diaryMapper;
     private final UserMapper userMapper;
     private final StringRedisTemplate redisTemplate;
+    private final RagMemoryService ragMemoryService;
 
     public MemoryExtractionService(ChatClient analysisChatClient,
             UserProfileMemoryMapper userProfileMemoryMapper,
@@ -108,7 +109,8 @@ public class MemoryExtractionService {
             TransactionOperations transactionOperations,
             DiaryMapper diaryMapper,
             UserMapper userMapper,
-            StringRedisTemplate redisTemplate) {
+            StringRedisTemplate redisTemplate,
+            RagMemoryService ragMemoryService) {
         this.analysisChatClient = analysisChatClient;
         this.userProfileMemoryMapper = userProfileMemoryMapper;
         this.objectMapper = objectMapper;
@@ -116,6 +118,7 @@ public class MemoryExtractionService {
         this.diaryMapper = diaryMapper;
         this.userMapper = userMapper;
         this.redisTemplate = redisTemplate;
+        this.ragMemoryService = ragMemoryService;
     }
 
     /**
@@ -500,6 +503,12 @@ public class MemoryExtractionService {
         log.info("长期画像已同步，userId={}，inserted={}，updated={}，deleted={}，finalEstimatedCount~{}",
                 userId, insertedCount, updatedCount, deletedCount,
                 existing.size() + insertedCount - deletedCount);
+
+        // 异步索引最新画像到 RAG 向量库
+        List<UserProfileMemoryEntity> latest = listUserMemories(userId);
+        if (!latest.isEmpty()) {
+            ragMemoryService.indexUserProfile(userId, latest);
+        }
     }
 
     private UserEntity currentUser() {

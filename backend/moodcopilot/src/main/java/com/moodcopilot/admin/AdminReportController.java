@@ -6,7 +6,9 @@ import com.moodcopilot.ai.RagMemoryService;
 import com.moodcopilot.ai.RagMemoryService.BatchIndexItem;
 import com.moodcopilot.common.ApiResponse;
 import com.moodcopilot.entity.DiaryEntity;
+import com.moodcopilot.entity.UserProfileMemoryEntity;
 import com.moodcopilot.mapper.DiaryMapper;
+import com.moodcopilot.mapper.UserProfileMemoryMapper;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,13 +26,16 @@ public class AdminReportController {
 
     private final AdminReportService adminReportService;
     private final DiaryMapper diaryMapper;
+    private final UserProfileMemoryMapper userProfileMemoryMapper;
     private final RagMemoryService ragMemoryService;
 
     public AdminReportController(AdminReportService adminReportService,
             DiaryMapper diaryMapper,
+            UserProfileMemoryMapper userProfileMemoryMapper,
             RagMemoryService ragMemoryService) {
         this.adminReportService = adminReportService;
         this.diaryMapper = diaryMapper;
+        this.userProfileMemoryMapper = userProfileMemoryMapper;
         this.ragMemoryService = ragMemoryService;
     }
 
@@ -92,5 +97,18 @@ public class AdminReportController {
                 .toList();
         int count = ragMemoryService.batchIndexDiaries(items);
         return ApiResponse.ok(Map.of("total", diaries.size(), "indexed", count));
+    }
+
+    /**
+     * 批量回填所有用户长期画像到 RAG 向量库。
+     */
+    @PostMapping("/rag/reindex-memories")
+    public ApiResponse<Map<String, Object>> reindexMemoriesRag() {
+        List<UserProfileMemoryEntity> allMemories = userProfileMemoryMapper.selectList(
+                new LambdaQueryWrapper<>());
+        Map<Long, List<UserProfileMemoryEntity>> grouped = allMemories.stream()
+                .collect(java.util.stream.Collectors.groupingBy(UserProfileMemoryEntity::getUserId));
+        int count = ragMemoryService.batchIndexProfiles(grouped);
+        return ApiResponse.ok(Map.of("users", count, "total_memories", allMemories.size()));
     }
 }
