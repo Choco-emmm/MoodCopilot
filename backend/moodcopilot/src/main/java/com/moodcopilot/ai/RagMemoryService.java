@@ -2,10 +2,16 @@ package com.moodcopilot.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.UserProfileMemoryEntity;
+import io.lettuce.core.codec.ByteArrayCodec;
+import io.lettuce.core.output.StatusOutput;
+import io.lettuce.core.protocol.CommandArgs;
+import io.lettuce.core.protocol.CommandType;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.lettuce.LettuceRedisConnection;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -56,17 +62,21 @@ public class RagMemoryService {
     @PostConstruct
     void initIndex() {
         try {
-            byte[][] args = strs(INDEX_NAME,
-                    "ON", "HASH", "PREFIX", "1", KEY_PREFIX,
-                    "SCHEMA",
-                    "user_id", "NUMERIC", "SORTABLE",
-                    "content", "TEXT",
-                    "embedding", "VECTOR", "HNSW", "6",
-                    "DIM", String.valueOf(embeddingDimension),
-                    "TYPE", "FLOAT32", "DISTANCE_METRIC", "COSINE",
-                    "created_at", "NUMERIC", "SORTABLE");
             redis.execute((RedisCallback<Object>) conn -> {
-                conn.execute("FT.CREATE", args);
+                CommandArgs<byte[], byte[]> cargs = new CommandArgs<>(ByteArrayCodec.INSTANCE)
+                        .add(INDEX_NAME.getBytes(StandardCharsets.UTF_8))
+                        .add("ON").add("HASH").add("PREFIX").add("1").add(KEY_PREFIX)
+                        .add("SCHEMA")
+                        .add("user_id").add("NUMERIC").add("SORTABLE")
+                        .add("content").add("TEXT")
+                        .add("embedding").add("VECTOR").add("HNSW").add("6")
+                        .add("DIM").add(String.valueOf(embeddingDimension))
+                        .add("TYPE").add("FLOAT32").add("DISTANCE_METRIC").add("COSINE")
+                        .add("created_at").add("NUMERIC").add("SORTABLE");
+                io.lettuce.core.api.sync.RedisCommands<byte[], byte[]> cmds =
+                        ((LettuceRedisConnection) conn).getNativeConnection();
+                cmds.dispatch(CommandType.valueOf("FT.CREATE"),
+                        new StatusOutput<>(ByteArrayCodec.INSTANCE), cargs);
                 return null;
             });
             log.info("RAG 向量索引已创建，dimension={}", embeddingDimension);
@@ -238,6 +248,7 @@ public class RagMemoryService {
     /**
      * 向量相似搜索：用 query embedding 在用户的历史内容中检索 topK 最相关片段。
      */
+    @SuppressWarnings("unchecked")
     public List<RagHit> search(long userId, String query, int topK) {
         float[] queryVec = embed(query);
         if (queryVec == null || queryVec.length == 0) {
@@ -251,23 +262,28 @@ public class RagMemoryService {
         try {
             List<RagHit> hits = new ArrayList<>();
             redis.execute((RedisCallback<Object>) conn -> {
-                byte[][] args = {
-                        INDEX_NAME.getBytes(StandardCharsets.UTF_8),
-                        q.getBytes(StandardCharsets.UTF_8),
-                        "PARAMS".getBytes(StandardCharsets.UTF_8),
-                        "2".getBytes(StandardCharsets.UTF_8),
-                        "vec".getBytes(StandardCharsets.UTF_8),
-                        queryVector,
-                        "RETURN".getBytes(StandardCharsets.UTF_8),
-                        "2".getBytes(StandardCharsets.UTF_8),
-                        "content".getBytes(StandardCharsets.UTF_8),
-                        "_score".getBytes(StandardCharsets.UTF_8),
-                        "SORTBY".getBytes(StandardCharsets.UTF_8),
-                        "_score".getBytes(StandardCharsets.UTF_8),
-                        "DIALECT".getBytes(StandardCharsets.UTF_8),
-                        "2".getBytes(StandardCharsets.UTF_8) };
-                Object result = conn.execute("FT.SEARCH", args);
-                if (result instanceof List<?> raw) {
+                io.lettuce.core.api.sync.RedisCommands<byte[], byte[]> cmds =
+                        ((LettuceRedisConnection) conn).getNativeConnection();
+                CommandArgs<byte[], byte[]> cargs = new CommandArgs<>(ByteArrayCodec.INSTANCE)
+                        .add(INDEX_NAME.getBytes(StandardCharsets.UTF_8))
+                        .add(q.getBytes(StandardCharsets.UTF_8))
+                        .add("PARAMS".getBytes(StandardCharsets.UTF_8))
+                        .add("2".getBytes(StandardCharsets.UTF_8))
+                        .add("vec".getBytes(StandardCharsets.UTF_8))
+                        .add(queryVector)
+                        .add("RETURN".getBytes(StandardCharsets.UTF_8))
+                        .add("2".getBytes(StandardCharsets.UTF_8))
+                        .add("content".getBytes(StandardCharsets.UTF_8))
+                        .add("_score".getBytes(StandardCharsets.UTF_8))
+                        .add("SORTBY".getBytes(StandardCharsets.UTF_8))
+                        .add("_score".getBytes(StandardCharsets.UTF_8))
+                        .add("DIALECT".getBytes(StandardCharsets.UTF_8))
+                        .add("2".getBytes(StandardCharsets.UTF_8));
+                List<Object> raw = cmds.dispatch(
+                        CommandType.valueOf("FT.SEARCH"),
+                        new io.lettuce.core.output.NestedMultiOutput<>(ByteArrayCodec.INSTANCE),
+                        cargs);
+                if (raw != null) {
                     parseResults(raw, hits);
                 }
                 return null;
@@ -311,14 +327,6 @@ public class RagMemoryService {
             buf.putFloat(f);
         }
         return buf.array();
-    }
-
-    private static byte[][] strs(String... strs) {
-        byte[][] out = new byte[strs.length][];
-        for (int i = 0; i < strs.length; i++) {
-            out[i] = strs[i].getBytes(StandardCharsets.UTF_8);
-        }
-        return out;
     }
 
     private String snippet(String content, int maxLen) {
