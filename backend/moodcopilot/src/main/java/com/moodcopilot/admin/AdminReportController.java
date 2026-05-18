@@ -1,7 +1,12 @@
 package com.moodcopilot.admin;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.moodcopilot.ai.RagMemoryService;
+import com.moodcopilot.ai.RagMemoryService.BatchIndexItem;
 import com.moodcopilot.common.ApiResponse;
+import com.moodcopilot.entity.DiaryEntity;
+import com.moodcopilot.mapper.DiaryMapper;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -10,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -17,9 +23,15 @@ import java.util.Map;
 public class AdminReportController {
 
     private final AdminReportService adminReportService;
+    private final DiaryMapper diaryMapper;
+    private final RagMemoryService ragMemoryService;
 
-    public AdminReportController(AdminReportService adminReportService) {
+    public AdminReportController(AdminReportService adminReportService,
+            DiaryMapper diaryMapper,
+            RagMemoryService ragMemoryService) {
         this.adminReportService = adminReportService;
+        this.diaryMapper = diaryMapper;
+        this.ragMemoryService = ragMemoryService;
     }
 
     @GetMapping
@@ -63,5 +75,22 @@ public class AdminReportController {
 
     private String note(Map<String, String> body) {
         return body == null ? null : body.get("note");
+    }
+
+    /**
+     * 批量回填所有已有日记到 RAG 向量库。只索引有内容且未删除的日记。
+     */
+    @PostMapping("/rag/reindex")
+    public ApiResponse<Map<String, Object>> reindexRag() {
+        List<DiaryEntity> diaries = diaryMapper.selectList(
+                new LambdaQueryWrapper<DiaryEntity>()
+                        .eq(DiaryEntity::getIsDeleted, false)
+                        .isNotNull(DiaryEntity::getContent)
+                        .ne(DiaryEntity::getContent, ""));
+        List<BatchIndexItem> items = diaries.stream()
+                .map(d -> new BatchIndexItem(d.getAuthorUserId(), d.getId(), d.getContent()))
+                .toList();
+        int count = ragMemoryService.batchIndexDiaries(items);
+        return ApiResponse.ok(Map.of("total", diaries.size(), "indexed", count));
     }
 }
