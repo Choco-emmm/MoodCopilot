@@ -21,12 +21,14 @@ export function renderSafeMarkdown(
 ) {
     if (!text) return ''
 
-    // 预处理：修复 AI 常见笔误
+    // 预处理：修复 AI 常见笔误与 CommonMark 兼容性问题
     const processedText = text
         .replace(/\\\*/g, '*')                   // \*\* → **
         .replace(/^ {0,3}-(?=[^\s])/gm, '$& ')   // -X → - X
         .replace(/([。！？])(不过|但是|其实|所以|然而|总之)/g, '$1\n$2') // 句子+连词 → 换行
         .replace(/([^\s\dA-Za-z])(-)([^\s\d])/g, '$1\n- $3') // AI 行内列表拆行：中文/emoji后- → 换行- 空格
+        .replace(/\*\*([""“])/g, '**​$1')   // **" → 零宽空格绕过左边界定界符限制
+        .replace(/([""”])\*\*/g, '$1​**')   // "** → 零宽空格绕过右边界定界符限制
 
     const html = marked.parse(processedText, { async: false }) as string
     return DOMPurify.sanitize(html, {
