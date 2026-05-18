@@ -277,8 +277,8 @@ public class RagMemoryService {
             sb.append("})");
             filter = sb.toString();
         }
-        String knn = "=> [KNN " + topK + " @embedding $vec AS _score]";
-        String q = filter + " " + knn;
+        String knn = "=>[KNN " + topK + " @embedding $vec AS _score]";
+        String q = "(" + filter + ")" + knn;
 
         try {
             return redis.execute((RedisCallback<List<RagHit>>) conn -> {
