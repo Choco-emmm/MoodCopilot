@@ -1197,7 +1197,15 @@ public class DiaryService {
             if (!actor.getId().equals(diary.getAuthorUserId())) {
                 notificationService.notifyResonance(actor, diaryId, diary.getAuthorUserId(),
                         toDiarySnippet(diary.getContent()));
-                userGrowthService.addExp(actor.getId(), ExpAction.LIKE, null);
+                // 防刷：同一日记对同一用户当天只给一次 EXP
+                String expKey = "resonance:exp:" + diaryId + ":" + userId;
+                if (Boolean.FALSE.equals(redisTemplate.hasKey(expKey))) {
+                    long secondsUntilMidnight = java.time.LocalDateTime.now().until(
+                            java.time.LocalDate.now().plusDays(1).atStartOfDay(),
+                            java.time.temporal.ChronoUnit.SECONDS);
+                    redisTemplate.opsForValue().set(expKey, "1", Duration.ofSeconds(secondsUntilMidnight));
+                    userGrowthService.addExp(actor.getId(), ExpAction.LIKE, null);
+                }
             }
         } else {
             redisTemplate.opsForSet().remove(setKey, String.valueOf(userId));
