@@ -32,7 +32,6 @@ public class RagMemoryService {
     private static final String INDEX_NAME = "idx:rag_v2";
     private static final String KEY_PREFIX = "rag:";
     public static final String SOURCE_DIARY = "diary";
-    public static final String SOURCE_CHAT = "chat";
     public static final String SOURCE_PROFILE = "profile";
 
     private final String embeddingApiUrl;
@@ -226,23 +225,6 @@ public class RagMemoryService {
 
     private String sanitizeKey(String raw) {
         return raw.replaceAll("[^a-zA-Z0-9_\\-\\u4e00-\\u9fff]", "_");
-    }
-
-    /**
-     * 异步：将聊天消息 embedding 后存入 Redis vector index。
-     */
-    @Async("aiExecutor")
-    public void indexChatMessage(long userId, long conversationId, String content) {
-        if (content == null || content.isBlank()) {
-            return;
-        }
-        float[] vec = embed(content);
-        if (vec == null) {
-            return;
-        }
-        storeEmbedding("chat:" + conversationId + ":" + System.currentTimeMillis(),
-                userId, SOURCE_CHAT, snippet(content, 350), vec);
-        log.info("RAG 已索引聊天消息 userId={} convId={}", userId, conversationId);
     }
 
     private void storeEmbedding(String id, long userId, String sourceType, String content, float[] embedding) {
@@ -640,18 +622,6 @@ public class RagMemoryService {
         }
     }
 
-    public void deleteChatEmbeddings(long conversationId) {
-        String pattern = KEY_PREFIX + "chat:" + conversationId + ":*";
-        try {
-            var keys = redis.keys(pattern);
-            if (keys != null && !keys.isEmpty()) {
-                redis.delete(keys);
-                log.info("RAG 已删除聊天向量 convId={} count={}", conversationId, keys.size());
-            }
-        } catch (Exception e) {
-            log.warn("RAG 删除聊天向量失败 convId={}: {}", conversationId, e.getMessage());
-        }
-    }
 
     public record BatchIndexItem(long userId, long diaryId, String content) {
     }

@@ -25,24 +25,20 @@
             <n-card class="ai-status-card" v-if="moodStats">
               <div class="card-title">本周情绪趋势</div>
               <div class="card-content">{{ moodStats.trendSummary || '暂无数据' }}</div>
-              <n-button size="tiny" @click="quickAsk('最近情绪趋势')">追问</n-button>
             </n-card>
             <n-card class="ai-status-card" v-if="moodStats">
               <div class="card-title">高频话题</div>
               <div class="card-content">{{ moodStats.topTopics?.join('、') || '暂无数据' }}</div>
-              <n-button size="tiny" @click="quickAsk('最近高频话题')">追问</n-button>
             </n-card>
             <n-card class="ai-status-card" v-if="reportSummary">
               <div class="card-title">AI 报告摘要</div>
               <div class="card-content">{{ reportSummary }}</div>
-              <n-button size="tiny" @click="quickAsk('帮我解读下本周报告')">追问</n-button>
             </n-card>
             <n-card class="ai-status-card" v-if="memories && memories.length">
               <div class="card-title">长期记忆</div>
               <ul class="card-content">
                 <li v-for="m in memories.slice(0, 3)" :key="m.id">{{ m.attributeKey }}：{{ m.attributeValue }}</li>
               </ul>
-              <n-button size="tiny" @click="quickAsk('结合我的长期记忆聊聊')">追问</n-button>
             </n-card>
             <div v-if="!moodStats && !reportSummary && (!memories || !memories.length)" style="text-align:center;color:#888;">暂无可用数据</div>
           </div>
@@ -255,16 +251,6 @@ const statusPanelHeight = computed(() => window.innerWidth < 600 ? '70vh' : '420
 const moodStats = ref<any>(null) // { trendSummary: string, topTopics: string[] }
 const reportSummary = ref<string>('')
 const memories = ref<any[]>([])
-
-function quickAsk(type: string) {
-  // 追问时自动填充输入框并聚焦
-  draft.value = type
-  showStatusPanel.value = false
-  nextTick(() => {
-    const input = document.querySelector('.chat-input-row input') as HTMLInputElement
-    if (input) input.focus()
-  })
-}
 
 // TODO: 实际项目中应在 onMounted 时请求后端接口加载数据
 onMounted(() => {
