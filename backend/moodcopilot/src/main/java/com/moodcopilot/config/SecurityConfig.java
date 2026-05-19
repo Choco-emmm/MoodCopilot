@@ -1,6 +1,7 @@
 package com.moodcopilot.config;
 
 import com.moodcopilot.mapper.UserMapper;
+import com.moodcopilot.security.IpRateLimitFilter;
 import com.moodcopilot.security.JwtAuthenticationFilter;
 import com.moodcopilot.security.JwtTokenProvider;
 import jakarta.servlet.DispatcherType;
@@ -8,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -25,18 +27,33 @@ public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final UserMapper userMapper;
+    private final StringRedisTemplate stringRedisTemplate;
     private final String allowedOrigins;
 
     public SecurityConfig(JwtTokenProvider jwtTokenProvider, UserMapper userMapper,
+            StringRedisTemplate stringRedisTemplate,
             @Value("${cors.allowed-origins:http://localhost:5173}") String allowedOrigins) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userMapper = userMapper;
+        this.stringRedisTemplate = stringRedisTemplate;
         this.allowedOrigins = allowedOrigins;
+    }
+
+    @Bean
+    public IpRateLimitFilter ipRateLimitFilter() {
+        return new IpRateLimitFilter(stringRedisTemplate);
     }
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter() {
         return new JwtAuthenticationFilter(jwtTokenProvider, userMapper);
+    }
+
+    @Bean
+    public FilterRegistrationBean<IpRateLimitFilter> ipRateLimitFilterRegistration(IpRateLimitFilter filter) {
+        FilterRegistrationBean<IpRateLimitFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean
@@ -70,6 +87,7 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/diaries/**").authenticated()
                         .anyRequest().authenticated())
+                .addFilterBefore(ipRateLimitFilter(), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())

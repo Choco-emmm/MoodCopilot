@@ -1365,7 +1365,9 @@ h2 {
 .turnstile-widget {
   display: flex;
   justify-content: center;
+  width: 100%;
   min-height: 65px;
+  margin-bottom: 16px;
 }
 
 .auth-title {
