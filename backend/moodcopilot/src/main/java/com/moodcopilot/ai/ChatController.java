@@ -70,7 +70,7 @@ public class ChatController {
         String message = (String) body.get("message");
         @SuppressWarnings("unchecked")
         List<String> references = (List<String>) body.get("references");
-        String memoryBackground = memoryExtractionService.buildUserMemoryPrompt();
+        String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
         log.info("收到流式聊天请求，conversationId={}，messageLength={}，referenceCount={}",
                 id, message == null ? 0 : message.length(), references == null ? 0 : references.size());
         // 在异步流开始前捕获 userId 和 Authentication，避免异步回调中 SecurityContext 丢失
@@ -120,7 +120,7 @@ public class ChatController {
         String message = (String) body.get("message");
         @SuppressWarnings("unchecked")
         List<String> references = (List<String>) body.get("references");
-        String memoryBackground = memoryExtractionService.buildUserMemoryPrompt();
+        String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
         log.info("收到非流式聊天请求，conversationId={}，messageLength={}，referenceCount={}",
                 id, message == null ? 0 : message.length(), references == null ? 0 : references.size());
         UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();

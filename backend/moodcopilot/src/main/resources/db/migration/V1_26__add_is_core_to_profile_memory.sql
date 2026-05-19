@@ -1,0 +1,1 @@
+ALTER TABLE user_profile_memory ADD COLUMN is_core TINYINT(1) NOT NULL DEFAULT 0;
