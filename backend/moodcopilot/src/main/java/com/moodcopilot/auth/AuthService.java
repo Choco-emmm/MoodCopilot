@@ -124,7 +124,7 @@ public class AuthService {
         log.info("生成验证码: email={}, code={}", normalizedEmail, code);
 
         try {
-            sendCodeEmail(normalizedEmail, code, "MoodCopilot 登录验证码", "下面是你的登录验证码，输入即可完成注册：");
+            sendCodeEmail(normalizedEmail, code, "MoodCopilot 注册验证码", "下面是你的注册验证码：");
             log.info("邮件发送成功: email={}", normalizedEmail);
         } catch (Exception e) {
             log.error("邮件发送失败: email={}", normalizedEmail, e);
