@@ -9,6 +9,7 @@ import com.moodcopilot.ai.DiaryAnalysisCompletedEvent;
 import com.moodcopilot.ai.MemoryExtractionService;
 import com.moodcopilot.ai.RagMemoryService;
 import com.moodcopilot.common.ContentFilter;
+import com.moodcopilot.security.RateLimitService;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.follow.FollowService;
 import com.moodcopilot.entity.DiaryCommentEntity;
@@ -85,6 +86,7 @@ public class DiaryService {
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final RagMemoryService ragMemoryService;
+    private final RateLimitService rateLimitService;
 
     public DiaryService(DiaryMapper diaryMapper,
             DiaryAnalysisMapper diaryAnalysisMapper,
@@ -101,7 +103,8 @@ public class DiaryService {
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper,
             ApplicationEventPublisher eventPublisher,
-            RagMemoryService ragMemoryService) {
+            RagMemoryService ragMemoryService,
+            RateLimitService rateLimitService) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
@@ -118,6 +121,7 @@ public class DiaryService {
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
         this.ragMemoryService = ragMemoryService;
+        this.rateLimitService = rateLimitService;
     }
 
     @Transactional
@@ -182,6 +186,7 @@ public class DiaryService {
 
         if (contentChanged) {
             log.info("日记内容已更新，触发分析与画像重建，diaryId={}，userId={}", diaryId, user.getId());
+            rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.ANALYSIS, user.getRole());
             ragMemoryService.indexDiary(user.getId(), diaryId, filteredContent);
             DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent);
             DiaryAnalysisEntity existingAnalysis = diaryAnalysisMapper.selectById(diaryId);
@@ -226,9 +231,10 @@ public class DiaryService {
 
     @Async
     @Transactional
-    public void runAiAnalysis(long diaryId, long userId, String content) {
+    public void runAiAnalysis(long diaryId, long userId, String content, String role) {
         log.info("开始执行日记 AI 分析，diaryId={}，userId={}，contentLength={}", diaryId, userId,
                 content == null ? 0 : content.length());
+        rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.ANALYSIS, role);
         DiaryAnalysis analysis = aiAnalysisService.analyze(content);
 
         DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
@@ -562,9 +568,10 @@ public class DiaryService {
     }
 
     public WeeklyReportView generateMonthlyAiSummary(int monthOffset) {
-        Long userId = currentUser().getId();
-        log.info("强制生成月报摘要，userId={}，monthOffset={}", userId, monthOffset);
-        return loadOrComputeMonthlyReport(monthOffset, userId, true);
+        UserEntity user = currentUser();
+        log.info("强制生成月报摘要，userId={}，monthOffset={}", user.getId(), monthOffset);
+        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.REPORT, user.getRole());
+        return loadOrComputeMonthlyReport(monthOffset, user.getId(), true);
     }
 
     public WeeklyReportView generateMonthlyAiSummaryForUser(long userId, int monthOffset) {
@@ -719,9 +726,10 @@ public class DiaryService {
     }
 
     public WeeklyReportView generateWeeklyAiSummary(int weekOffset) {
-        Long userId = currentUser().getId();
-        log.info("强制生成周报摘要，userId={}，weekOffset={}", userId, weekOffset);
-        return loadOrComputeWeeklyReport(weekOffset, userId, true);
+        UserEntity user = currentUser();
+        log.info("强制生成周报摘要，userId={}，weekOffset={}", user.getId(), weekOffset);
+        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.REPORT, user.getRole());
+        return loadOrComputeWeeklyReport(weekOffset, user.getId(), true);
     }
 
     public WeeklyReportView generateWeeklyAiSummaryForUser(long userId, int weekOffset) {

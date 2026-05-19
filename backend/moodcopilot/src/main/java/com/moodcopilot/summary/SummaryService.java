@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.AiAnalysisService;
 import com.moodcopilot.diary.DiaryAnalysis;
+import com.moodcopilot.security.RateLimitService;
 import com.moodcopilot.diary.DiaryService;
 import com.moodcopilot.diary.WeeklyReportView.DailyMood;
 import com.moodcopilot.entity.*;
@@ -36,17 +37,20 @@ public class SummaryService {
     private final DiaryAnalysisMapper diaryAnalysisMapper;
     private final AiAnalysisService aiAnalysisService;
     private final ObjectMapper objectMapper;
+    private final RateLimitService rateLimitService;
 
     public SummaryService(DiarySummaryMapper summaryMapper,
                           DiaryMapper diaryMapper,
                           DiaryAnalysisMapper diaryAnalysisMapper,
                           AiAnalysisService aiAnalysisService,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          RateLimitService rateLimitService) {
         this.summaryMapper = summaryMapper;
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.aiAnalysisService = aiAnalysisService;
         this.objectMapper = objectMapper;
+        this.rateLimitService = rateLimitService;
     }
 
     @Transactional
@@ -101,6 +105,7 @@ public class SummaryService {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("M/d");
         String title = startDate.format(fmt) + " - " + endDate.format(fmt);
 
+        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.REPORT, user.getRole());
         String aiSummary = aiAnalysisService.generateCustomSummary(contents, analyses);
         AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateCustomGuidance(
                 title, contents, analyses);
