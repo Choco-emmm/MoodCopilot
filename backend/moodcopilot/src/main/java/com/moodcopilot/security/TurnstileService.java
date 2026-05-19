@@ -23,7 +23,7 @@ public class TurnstileService {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
-    public TurnstileService(@Value("${turnstile.secret-key}") String secretKey,
+    public TurnstileService(@Value("${turnstile.secret-key:}") String secretKey,
             ObjectMapper objectMapper) {
         this.secretKey = secretKey;
         this.objectMapper = objectMapper;
