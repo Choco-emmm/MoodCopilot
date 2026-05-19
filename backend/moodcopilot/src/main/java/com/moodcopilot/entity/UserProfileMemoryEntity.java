@@ -15,6 +15,7 @@ public class UserProfileMemoryEntity {
     private String attributeKey;
     private String attributeValue;
     private LocalDateTime updateTime;
+    private Boolean isCore = false;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -30,4 +31,7 @@ public class UserProfileMemoryEntity {
 
     public LocalDateTime getUpdateTime() { return updateTime; }
     public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
+
+    public Boolean getIsCore() { return isCore; }
+    public void setIsCore(Boolean isCore) { this.isCore = isCore; }
 }
