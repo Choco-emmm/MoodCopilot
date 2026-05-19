@@ -1,10 +1,12 @@
 package com.moodcopilot.diary;
 
 import com.moodcopilot.common.ApiResponse;
+import com.moodcopilot.entity.UserEntity;
 
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,7 +29,9 @@ public class DiaryController {
     @PostMapping
     public ApiResponse<DiaryView> create(@RequestBody CreateDiaryRequest request) {
         DiaryView diary = diaryService.create(request);
-        diaryService.runAiAnalysis(diary.id(), diary.authorUserId(), diary.content());
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        String role = (auth != null && auth.getPrincipal() instanceof UserEntity u) ? u.getRole() : null;
+        diaryService.runAiAnalysis(diary.id(), diary.authorUserId(), diary.content(), role);
         return ApiResponse.ok(diary);
     }
 

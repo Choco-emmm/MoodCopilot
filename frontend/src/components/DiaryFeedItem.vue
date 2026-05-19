@@ -6,12 +6,12 @@
         <span v-else class="avatar">{{ diary.authorName.charAt(0) }}</span>
         <div>
           <div class="author-row">
-            <n-tag v-if="diary.isPinned" type="warning" size="small" round style="margin-right: 8px;">
-              📌 置顶公告
-            </n-tag>
             <button type="button" class="author-name-link" @click.stop="openAuthorProfile(diary.authorUserId)">
               {{ diary.authorName }}
             </button>
+            <n-tag v-if="diary.isPinned" type="warning" size="small" round style="margin-left: 8px;">
+              📌 置顶公告
+            </n-tag>
           </div>
           <span class="feed-time">
             {{ formatTime(diary.createdAt) }}

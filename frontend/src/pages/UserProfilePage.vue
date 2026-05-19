@@ -300,6 +300,17 @@
           </div>
         </section>
 
+        <section class="settings-section support-donate-section">
+          <div class="section-head">
+            <p class="settings-label">请开发者喝杯奶茶</p>
+            <span class="section-tag">🧋</span>
+          </div>
+          <p class="settings-desc">如果 MoodCopilot 帮到了你，欢迎请开发者喝杯奶茶～</p>
+          <n-button quaternary type="primary" @click="showSettingsModal = false; router.push('/support')">
+            去看看 →
+          </n-button>
+        </section>
+
         <section class="settings-section danger-zone">
           <div class="section-head">
             <p class="settings-label">账户操作</p>
@@ -1063,6 +1074,13 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   max-height: calc(85vh - 100px);
   padding-right: 4px;
+}
+
+.support-donate-section {
+  text-align: center;
+}
+.support-donate-section .section-head {
+  justify-content: center;
 }
 
 .settings-section {

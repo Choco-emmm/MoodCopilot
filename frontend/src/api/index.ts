@@ -134,6 +134,16 @@ export const summaryApi = {
   delete: (id: number) => api.delete(`/summaries/${id}`),
 }
 
+export const supportApi = {
+  images: () => api.get('/support-images'),
+  uploadImage: (type: string, file: File) => {
+    const form = new FormData()
+    form.append('type', type)
+    form.append('file', file)
+    return api.post('/admin/support-images', form)
+  },
+}
+
 export const memoryApi = {
   getAll: () => api.get('/memory'),
   forget: (id: number) => api.delete(`/memory/${id}`),
