@@ -16,7 +16,7 @@
         <div class="qr-card" v-for="method in paymentMethods" :key="method.type">
           <img
             v-if="images[method.type]"
-            :src="images[method.type]"
+            :src="imageSrc(method.type)"
             :alt="method.name + '收款码'"
             class="qr-image"
           />
@@ -27,17 +27,27 @@
           </div>
           <p class="qr-name">{{ method.name }}</p>
 
-          <div v-if="auth.isAdmin" class="qr-admin-upload">
-            <n-button size="tiny" quaternary @click="triggerUpload(method.type)">
-              {{ images[method.type] ? '更换' : '上传' }}
-            </n-button>
-            <input
-              :ref="(el: any) => fileInputs[method.type] = el"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              hidden
-              @change="(e: Event) => onFileChange(method.type, e)"
-            />
+          <div class="qr-actions">
+            <a
+              v-if="images[method.type]"
+              :href="images[method.type]"
+              download
+              class="qr-save-btn"
+            >保存图片</a>
+
+            <template v-if="auth.isAdmin">
+              <n-button size="tiny" quaternary @click="triggerUpload(method.type)">
+                {{ images[method.type] ? '更换' : '上传' }}
+              </n-button>
+              <input
+                :ref="(el: any) => fileInputs[method.type] = el"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+                @change="(e: Event) => onFileChange(method.type, e)"
+              />
+              <span v-if="uploadMsg" class="qr-upload-msg">{{ uploadMsg }}</span>
+            </template>
           </div>
         </div>
       </div>
@@ -53,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { reactive, onMounted, ref } from 'vue'
 import { NButton } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import { useAuthStore } from '../stores/auth'
@@ -62,6 +72,8 @@ import { supportApi } from '../api'
 const auth = useAuthStore()
 const images = reactive<Record<string, string>>({})
 const fileInputs = reactive<Record<string, HTMLInputElement | null>>({})
+const cacheBusters = reactive<Record<string, number>>({})
+const uploadMsg = ref('')
 
 const paymentMethods = [
   { type: 'wechat', name: '微信赞赏码', icon: '💚', hint: '保存图片扫码' },
@@ -74,7 +86,15 @@ onMounted(async () => {
   } catch { /* ignore */ }
 })
 
+function imageSrc(type: string): string {
+  const url = images[type]
+  if (!url) return ''
+  const t = cacheBusters[type]
+  return t ? `${url}?t=${t}` : url
+}
+
 function triggerUpload(type: string) {
+  uploadMsg.value = ''
   fileInputs[type]?.click()
 }
 
@@ -82,11 +102,17 @@ async function onFileChange(type: string, event: Event) {
   const input = event.target as HTMLInputElement
   const file = input?.files?.[0]
   if (!file) return
+  uploadMsg.value = ''
   try {
     await supportApi.uploadImage(type, file)
     const res = await supportApi.images()
     Object.assign(images, res.data.data ?? {})
-  } catch { /* ignore */ }
+    cacheBusters[type] = Date.now()
+    uploadMsg.value = '已更新'
+    setTimeout(() => { uploadMsg.value = '' }, 2000)
+  } catch {
+    uploadMsg.value = '上传失败'
+  }
   input.value = ''
 }
 </script>
@@ -193,12 +219,32 @@ async function onFileChange(type: string, event: Event) {
   margin: 0;
 }
 
-.qr-admin-upload {
-  opacity: 0.5;
-  transition: opacity 0.15s;
+.qr-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
-.qr-admin-upload:hover {
-  opacity: 1;
+
+.qr-save-btn {
+  font-size: 12px;
+  color: var(--color-jade, #3f7a63);
+  text-decoration: none;
+  padding: 2px 8px;
+  border: 1px solid var(--color-jade, #3f7a63);
+  border-radius: 12px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.qr-save-btn:hover {
+  background: var(--color-jade, #3f7a63);
+  color: #fff;
+}
+
+.qr-upload-msg {
+  font-size: 11px;
+  color: var(--color-text-muted, #999);
 }
 
 .support-footer {
