@@ -4,6 +4,7 @@ import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.security.JwtAuthenticationFilter;
 import com.moodcopilot.security.JwtTokenProvider;
 import jakarta.servlet.DispatcherType;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,10 +25,13 @@ public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final UserMapper userMapper;
+    private final String allowedOrigins;
 
-    public SecurityConfig(JwtTokenProvider jwtTokenProvider, UserMapper userMapper) {
+    public SecurityConfig(JwtTokenProvider jwtTokenProvider, UserMapper userMapper,
+            @Value("${cors.allowed-origins:http://localhost:5173}") String allowedOrigins) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userMapper = userMapper;
+        this.allowedOrigins = allowedOrigins;
     }
 
     @Bean
@@ -69,6 +73,12 @@ public class SecurityConfig {
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
+                .headers(headers -> headers
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:"))
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31536000)))
                 .build();
     }
 
@@ -79,10 +89,11 @@ public class SecurityConfig {
 
     private CorsConfigurationSource corsConfigSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
-        config.setAllowedMethods(List.of("*"));
+        config.setAllowedOriginPatterns(List.of(allowedOrigins.split(",")));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
+        config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;

@@ -1,4 +1,4 @@
 package com.moodcopilot.auth;
 
-public record LoginRequest(String email, String password) {
+public record LoginRequest(String email, String password, String turnstileToken) {
 }
