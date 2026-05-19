@@ -16,9 +16,7 @@
             我已知晓 MoodCopilot 提供的 AI 对话与情绪分析仅供参考与心理疏导，不构成任何专业医疗诊断。开发者不对 AI 生成的内容承担法律责任。
           </n-checkbox>
         </n-form-item>
-        <n-form-item>
-          <div ref="turnstileRef" class="turnstile-widget"></div>
-        </n-form-item>
+        <div ref="turnstileRef" class="turnstile-widget"></div>
         <n-button type="primary" block :loading="loading" @click="handleLogin">登录</n-button>
       </n-form>
       <p class="auth-switch">
