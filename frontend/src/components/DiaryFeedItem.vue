@@ -13,7 +13,12 @@
               {{ diary.authorName }}
             </button>
           </div>
-          <span class="feed-time">{{ formatTime(diary.createdAt) }}</span>
+          <span class="feed-time">
+            {{ formatTime(diary.createdAt) }}
+            <span :class="['vis-tag', diary.visibility === 'PUBLIC' ? 'vis-tag-public' : 'vis-tag-private']">
+              {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
+            </span>
+          </span>
         </div>
       </div>
       <div class="feed-head-right">

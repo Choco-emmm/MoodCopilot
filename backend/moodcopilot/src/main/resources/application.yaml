@@ -84,7 +84,7 @@ jwt:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:https://moodcopilot.dpdns.org,http://localhost:5173}
 turnstile:
-  secret-key: ${TURNSTILE_SECRET_KEY}
+  secret-key: ${TURNSTILE_SECRET_KEY:}
   site-key: ${TURNSTILE_SITE_KEY:}
 #Mybatis相关配置
 mybatis-plus:

@@ -60,8 +60,9 @@
           @open-detail="(d: Diary) => router.push(`/diary/${d.id}`)"
         />
 
-        <div v-if="hasMore" class="profile-load-more">
-          <n-button secondary block :loading="loadingMore" @click="loadMore">加载更多</n-button>
+        <div v-if="hasMore" ref="sentinel" class="profile-load-more">
+          <n-spin v-if="loadingMore" size="small" />
+          <n-button v-else secondary block @click="loadMore">加载更多</n-button>
         </div>
       </div>
 
@@ -346,7 +347,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NEmpty, NInput, NModal, NSpin, NSwitch } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
@@ -442,11 +443,30 @@ async function toggleProfileFollow() {
     await followStore.follow(profileUserId.value)
   }
 }
+const sentinel = ref<HTMLElement | null>(null)
 const hasMore = computed(() => diaries.value.length < total.value)
 const profileInitial = computed(() => (profileName.value || '用').charAt(0))
 
+let io: IntersectionObserver | null = null
+
 onMounted(() => {
   void reload()
+  if (typeof IntersectionObserver !== 'undefined') {
+    io = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMore.value && !loadingMore.value) {
+        loadMore()
+      }
+    }, { rootMargin: '300px' })
+  }
+})
+
+onUnmounted(() => {
+  io?.disconnect()
+})
+
+watch(sentinel, (el) => {
+  io?.disconnect()
+  if (el) io?.observe(el)
 })
 
 watch(() => route.params.userId, () => {
@@ -1233,6 +1253,8 @@ onBeforeUnmount(() => {
   margin-top: 10px;
   display: grid;
   gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
 }
 
 .memory-item {
