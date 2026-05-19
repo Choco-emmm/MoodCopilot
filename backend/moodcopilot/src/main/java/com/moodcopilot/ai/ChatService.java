@@ -40,6 +40,22 @@ public class ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
     private static final String MSG_PREFIX = "chat:msgs:";
+    private static final String SUMMARY_PREFIX = "chat:summary:";
+    private static final int COMPRESSION_TRIGGER_MSG_COUNT = 20;
+    private static final int KEEP_RECENT_MSG_COUNT = 10;
+
+    private static final String COMPRESSION_SYSTEM_PROMPT = """
+            你是对话摘要助手。请将以下聊天记录压缩为简洁摘要，保留关键信息以便后续对话延续。
+
+            规则：
+            1. 保留用户分享的重要事实：生活事件、情绪变化、决定、偏好、人际关系动态
+            2. 保留对话的核心主题和情感走向
+            3. 保留你（AI）给出的重要建议或分析结论
+            4. 忽略日常寒暄和纯闲聊内容
+            5. 如果下方提供了"历史摘要"，请将新旧信息自然合并为一份连贯的摘要
+            6. 输出 150-400 字的简洁中文摘要，不要评价，不要解释
+            7. 只输出纯文本摘要，不要 markdown 格式，不要 JSON
+            """;
 
     private static final String AGENT_TOOLS_PROMPT = """
             \n【你的系统能力（Agent Tools）】
@@ -74,6 +90,7 @@ public class ChatService {
             """;
 
     private final ChatClient chatChatClient;
+    private final ChatClient analysisChatClient;
     private final ChatConversationMapper conversationMapper;
     private final ChatIntentRouter chatIntentRouter;
     private final DeepSeekReasoningClient reasoningClient;
@@ -87,6 +104,7 @@ public class ChatService {
     private final AiAnalysisService aiAnalysisService;
 
     public ChatService(ChatClient chatChatClient,
+            ChatClient analysisChatClient,
             ChatConversationMapper conversationMapper,
             ChatIntentRouter chatIntentRouter,
             DeepSeekReasoningClient reasoningClient,
@@ -99,6 +117,7 @@ public class ChatService {
             RagMemoryService ragMemoryService,
             AiAnalysisService aiAnalysisService) {
         this.chatChatClient = chatChatClient;
+        this.analysisChatClient = analysisChatClient;
         this.conversationMapper = conversationMapper;
         this.chatIntentRouter = chatIntentRouter;
         this.reasoningClient = reasoningClient;
@@ -148,9 +167,13 @@ public class ChatService {
             redisTemplate.delete(MSG_PREFIX + conversationId);
         } catch (Exception ignored) {
         }
+        // 清除压缩摘要
+        try {
+            redisTemplate.delete(SUMMARY_PREFIX + conversationId);
+        } catch (Exception ignored) {
+        }
         // 删除数据库记录
         conversationMapper.deleteById(conversationId);
-        ragMemoryService.deleteChatEmbeddings(conversationId);
     }
 
     // ---- 聊天 ----
@@ -170,10 +193,19 @@ public class ChatService {
                 message == null ? 0 : message.length());
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
+        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY);
         return chatChatClient.prompt()
                 .user(message)
-                .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT + ragCtx))
+                .system(s -> {
+                    StringBuilder sys = new StringBuilder();
+                    if (request.summary() != null && !request.summary().isBlank()) {
+                        sys.append("<conversation_summary>\n")
+                           .append(request.summary())
+                           .append("\n</conversation_summary>\n\n");
+                    }
+                    sys.append(request.context()).append(buildTimeMetadata()).append(AGENT_TOOLS_PROMPT).append(ragCtx);
+                    s.text(sys.toString());
+                })
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
                 .functions(
                         DiarySearchFunctionSupport.NAME,
@@ -182,8 +214,7 @@ public class ChatService {
                         MemoryQueryFunctionSupport.NAME)
                 .toolContext(Map.of("auth", auth))
                 .stream()
-                .content()
-                .doFinally(sig -> ragMemoryService.indexChatMessage(uid, conversationId, message));
+                .content();
     }
 
     public String reply(Long conversationId, String message, List<String> refs, String memoryBackground) {
@@ -200,10 +231,19 @@ public class ChatService {
                 message == null ? 0 : message.length());
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
+        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY);
         String result = chatChatClient.prompt()
                 .user(message)
-                .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT + ragCtx))
+                .system(s -> {
+                    StringBuilder sys = new StringBuilder();
+                    if (request.summary() != null && !request.summary().isBlank()) {
+                        sys.append("<conversation_summary>\n")
+                           .append(request.summary())
+                           .append("\n</conversation_summary>\n\n");
+                    }
+                    sys.append(request.context()).append(buildTimeMetadata()).append(AGENT_TOOLS_PROMPT).append(ragCtx);
+                    s.text(sys.toString());
+                })
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
                 .functions(
                         DiarySearchFunctionSupport.NAME,
@@ -213,8 +253,7 @@ public class ChatService {
                 .toolContext(Map.of("auth", auth))
                 .call()
                 .content();
-        ragMemoryService.indexChatMessage(uid, conversationId, message);
-        return result;
+                return result;
     }
 
     /**
@@ -267,9 +306,13 @@ public class ChatService {
         long userId = ((UserEntity) auth.getPrincipal()).getId();
         try {
             String history = formatChatHistory(request.memory());
+            String summaryBlock = (request.summary() != null && !request.summary().isBlank())
+                    ? "\n\n<conversation_summary>\n" + request.summary() + "\n</conversation_summary>"
+                    : "";
             String enhancedContext = request.context() + buildTimeMetadata()
                     + buildReasoningDataContext(auth)
-                    + buildRagContextWithFallback(userId, message, request.memory(), 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
+                    + summaryBlock
+                    + buildRagContextWithFallback(userId, message, request.memory(), 5, RagMemoryService.SOURCE_DIARY);
 
             String userMessage;
             if (!history.isEmpty()) {
@@ -287,7 +330,6 @@ public class ChatService {
                     new UserMessage(message),
                     new AssistantMessage(response)));
             persistChatMemory(conversationId, request.memory());
-            ragMemoryService.indexChatMessage(userId, conversationId, message);
 
             return response;
         } catch (Exception e) {
@@ -295,7 +337,16 @@ public class ChatService {
             log.info("思考模型失败后回退到普通模型，messageLength={}", message == null ? 0 : message.length());
             String fallback = chatChatClient.prompt()
                     .user(message)
-                    .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
+                    .system(s -> {
+                        StringBuilder sys = new StringBuilder();
+                        if (request.summary() != null && !request.summary().isBlank()) {
+                            sys.append("<conversation_summary>\n")
+                               .append(request.summary())
+                               .append("\n</conversation_summary>\n\n");
+                        }
+                        sys.append(request.context()).append(buildTimeMetadata()).append(AGENT_TOOLS_PROMPT);
+                        s.text(sys.toString());
+                    })
                     .advisors(new MessageChatMemoryAdvisor(request.memory()))
                     .functions(
                             DiarySearchFunctionSupport.NAME,
@@ -305,7 +356,6 @@ public class ChatService {
                     .toolContext(Map.of("auth", auth))
                     .call()
                     .content();
-            ragMemoryService.indexChatMessage(userId, conversationId, message);
             return fallback;
         }
     }
@@ -315,9 +365,13 @@ public class ChatService {
         long userId = ((UserEntity) auth.getPrincipal()).getId();
         try {
             String history = formatChatHistory(request.memory());
+            String summaryBlock = (request.summary() != null && !request.summary().isBlank())
+                    ? "\n\n<conversation_summary>\n" + request.summary() + "\n</conversation_summary>"
+                    : "";
             String enhancedContext = request.context() + buildTimeMetadata()
                     + buildReasoningDataContext(auth)
-                    + buildRagContextWithFallback(userId, message, request.memory(), 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_CHAT);
+                    + summaryBlock
+                    + buildRagContextWithFallback(userId, message, request.memory(), 5, RagMemoryService.SOURCE_DIARY);
 
             String userMessage;
             if (!history.isEmpty()) {
@@ -338,13 +392,21 @@ public class ChatService {
                                 new UserMessage(message),
                                 new AssistantMessage(fullResponse.toString())));
                         persistChatMemory(conversationId, request.memory());
-                        ragMemoryService.indexChatMessage(userId, conversationId, message);
-                    })
+                                })
                     .onErrorResume(e -> {
                         log.warn("思考模型流式调用失败，回退到普通模型: {}", e.getMessage());
                         return chatChatClient.prompt()
                                 .user(message)
-                                .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
+                                .system(s -> {
+                        StringBuilder sys = new StringBuilder();
+                        if (request.summary() != null && !request.summary().isBlank()) {
+                            sys.append("<conversation_summary>\n")
+                               .append(request.summary())
+                               .append("\n</conversation_summary>\n\n");
+                        }
+                        sys.append(request.context()).append(buildTimeMetadata()).append(AGENT_TOOLS_PROMPT);
+                        s.text(sys.toString());
+                    })
                                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
                                 .functions(
                                         DiarySearchFunctionSupport.NAME,
@@ -353,15 +415,23 @@ public class ChatService {
                                         MemoryQueryFunctionSupport.NAME)
                                 .toolContext(Map.of("auth", auth))
                                 .stream()
-                                .content()
-                                .doFinally(sig -> ragMemoryService.indexChatMessage(userId, conversationId, message));
+                                .content();
                     });
         } catch (Exception e) {
             log.warn("reasoning model failed in stream path, fallback to chat model: {}", e.getMessage());
             log.info("思考模型失败后回退到普通模型（流式），messageLength={}", message == null ? 0 : message.length());
             return chatChatClient.prompt()
                     .user(message)
-                    .system(s -> s.text(request.context() + buildTimeMetadata() + AGENT_TOOLS_PROMPT))
+                    .system(s -> {
+                        StringBuilder sys = new StringBuilder();
+                        if (request.summary() != null && !request.summary().isBlank()) {
+                            sys.append("<conversation_summary>\n")
+                               .append(request.summary())
+                               .append("\n</conversation_summary>\n\n");
+                        }
+                        sys.append(request.context()).append(buildTimeMetadata()).append(AGENT_TOOLS_PROMPT);
+                        s.text(sys.toString());
+                    })
                     .advisors(new MessageChatMemoryAdvisor(request.memory()))
                     .functions(
                             DiarySearchFunctionSupport.NAME,
@@ -370,8 +440,7 @@ public class ChatService {
                             MemoryQueryFunctionSupport.NAME)
                     .toolContext(Map.of("auth", auth))
                     .stream()
-                    .content()
-                    .doFinally(sig -> ragMemoryService.indexChatMessage(userId, conversationId, message));
+                    .content();
         }
     }
 
@@ -444,6 +513,100 @@ public class ChatService {
     }
 
     /**
+     * 压缩聊天历史：当 ChatMemory 中消息数超过阈值时，将旧消息压缩为摘要存入 Redis，
+     * 并裁剪 ChatMemory 和 Redis chat:msgs: 只保留最近 KEEP_RECENT_MSG_COUNT 条消息。
+     */
+    private String compressChatHistory(Long conversationId, ChatMemory memory) {
+        List<Message> messages = memory.get("default", Integer.MAX_VALUE);
+        if (messages == null || messages.size() < COMPRESSION_TRIGGER_MSG_COUNT) {
+            return null;
+        }
+
+        int totalMsgs = messages.size();
+        int middleEndIndex = totalMsgs - KEEP_RECENT_MSG_COUNT;
+        if (middleEndIndex <= 0) {
+            return null;
+        }
+
+        StringBuilder toCompress = new StringBuilder();
+        for (int i = 0; i < middleEndIndex; i++) {
+            Message msg = messages.get(i);
+            String role = msg.getMessageType() == MessageType.USER ? "用户" : "AI";
+            String text = msg.getText();
+            if (text != null && !text.isBlank()) {
+                toCompress.append("[").append(role).append("]: ").append(text.trim()).append("\n");
+            }
+        }
+
+        if (toCompress.isEmpty()) {
+            return null;
+        }
+
+        String existingSummary = loadSummary(conversationId);
+
+        StringBuilder compressionInput = new StringBuilder();
+        if (existingSummary != null && !existingSummary.isBlank()) {
+            compressionInput.append("<历史摘要>\n")
+                    .append(existingSummary)
+                    .append("\n</历史摘要>\n\n");
+        }
+        compressionInput.append("<待压缩聊天记录>\n")
+                .append(toCompress)
+                .append("\n</待压缩聊天记录>");
+
+        try {
+            String newSummary = analysisChatClient.prompt()
+                    .system(COMPRESSION_SYSTEM_PROMPT)
+                    .user(compressionInput.toString())
+                    .call()
+                    .content();
+
+            if (newSummary == null || newSummary.isBlank()) {
+                log.warn("压缩 LLM 返回空摘要，跳过压缩 conversationId={}", conversationId);
+                return null;
+            }
+
+            newSummary = newSummary.trim();
+
+            saveSummary(conversationId, newSummary);
+
+            List<Message> recentMessages = new ArrayList<>();
+            for (int i = middleEndIndex; i < totalMsgs; i++) {
+                recentMessages.add(messages.get(i));
+            }
+            memory.clear("default");
+            memory.add("default", recentMessages);
+
+            persistChatMemory(conversationId, memory);
+
+            log.info("聊天历史已压缩 conversationId={} 原始消息数={} 保留消息数={} 摘要长度={}",
+                    conversationId, totalMsgs, recentMessages.size(), newSummary.length());
+
+            return newSummary;
+        } catch (Exception e) {
+            log.warn("压缩聊天历史失败，跳过压缩 conversationId={} reason={}", conversationId, e.getMessage());
+            return null;
+        }
+    }
+
+    private String loadSummary(Long conversationId) {
+        try {
+            return redisTemplate.opsForValue().get(SUMMARY_PREFIX + conversationId);
+        } catch (Exception e) {
+            log.warn("读取聊天摘要失败 conversationId={} reason={}", conversationId, e.getMessage());
+            return null;
+        }
+    }
+
+    private void saveSummary(Long conversationId, String summary) {
+        try {
+            redisTemplate.opsForValue().set(SUMMARY_PREFIX + conversationId, summary, Duration.ofDays(7));
+        } catch (Exception e) {
+            log.warn("保存聊天摘要失败 conversationId={} reason={}", conversationId, e.getMessage());
+        }
+    }
+
+    /**
      * 统一准备聊天请求所需的三类上下文：
      * 1. 当前用户的长期画像背景；
      * 2. 用户主动引用的资料；
@@ -462,6 +625,14 @@ public class ChatService {
         ChatMemory memory = userChatMemories.get(memKey, k -> new InMemoryChatMemory());
         // 如果 ChatMemory 为空（刚启动、Caffeine 过期、或新会话），尝试从 Redis 恢复历史上下文
         restoreChatMemoryFromRedis(conversationId, memory);
+
+        String summary = null;
+        try {
+            summary = compressChatHistory(conversationId, memory);
+        } catch (Exception e) {
+            log.warn("聊天历史压缩异常，跳过压缩 conversationId={}", conversationId, e);
+        }
+
         log.info("准备聊天请求，userId={}，conversationId={}，messageLength={}，referenceCount={}，hasMemoryBackground={}",
                 user.getId(), conversationId, message == null ? 0 : message.length(), refs == null ? 0 : refs.size(),
                 memoryBackground != null && !memoryBackground.isBlank());
@@ -473,10 +644,10 @@ public class ChatService {
         conv.setUpdatedAt(java.time.LocalDateTime.now());
         conversationMapper.updateById(conv);
 
-        return new ChatRequest(context, memory);
+        return new ChatRequest(context, memory, summary);
     }
 
-    private record ChatRequest(String context, ChatMemory memory) {
+    private record ChatRequest(String context, ChatMemory memory, String summary) {
     }
 
     /**
