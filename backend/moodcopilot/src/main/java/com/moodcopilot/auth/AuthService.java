@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.security.JwtTokenProvider;
+import com.moodcopilot.security.TurnstileService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -18,6 +19,12 @@ import org.springframework.web.server.ResponseStatusException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,7 +32,13 @@ import java.nio.file.StandardOpenOption;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Iterator;
 import java.util.Locale;
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageOutputStream;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
@@ -35,7 +48,9 @@ import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 @Service
 public class AuthService {
 
-    private static final long MAX_AVATAR_SIZE = 10L * 1024 * 1024;
+    private static final long MAX_AVATAR_SIZE = 2L * 1024 * 1024;
+    private static final int AVATAR_MAX_DIMENSION = 800;
+    private static final float AVATAR_JPEG_QUALITY = 0.82f;
 
     private final UserMapper userMapper;
     private final JwtTokenProvider jwtTokenProvider;
@@ -43,26 +58,31 @@ public class AuthService {
     private final Path uploadRoot;
     private final JavaMailSender javaMailSender;
     private final StringRedisTemplate stringRedisTemplate;
+    private final TurnstileService turnstileService;
+    private final boolean turnstileEnabled;
 
     @Autowired
     public AuthService(UserMapper userMapper, JwtTokenProvider jwtTokenProvider,
             PasswordEncoder passwordEncoder, JavaMailSender javaMailSender,
-            StringRedisTemplate stringRedisTemplate,
-            @Value("${spring.mail.username}") String mailFrom) {
+            StringRedisTemplate stringRedisTemplate, TurnstileService turnstileService,
+            @Value("${spring.mail.username}") String mailFrom,
+            @Value("${turnstile.secret-key:}") String turnstileSecretKey) {
         this(userMapper, jwtTokenProvider, passwordEncoder, Path.of("uploads"),
-                javaMailSender, stringRedisTemplate, mailFrom);
+                javaMailSender, stringRedisTemplate, turnstileService, mailFrom, turnstileSecretKey);
     }
 
     AuthService(UserMapper userMapper, JwtTokenProvider jwtTokenProvider,
             PasswordEncoder passwordEncoder, Path uploadRoot,
             JavaMailSender javaMailSender, StringRedisTemplate stringRedisTemplate,
-            String mailFrom) {
+            TurnstileService turnstileService, String mailFrom, String turnstileSecretKey) {
         this.userMapper = userMapper;
         this.jwtTokenProvider = jwtTokenProvider;
         this.passwordEncoder = passwordEncoder;
         this.uploadRoot = uploadRoot;
         this.javaMailSender = javaMailSender;
         this.stringRedisTemplate = stringRedisTemplate;
+        this.turnstileService = turnstileService;
+        this.turnstileEnabled = turnstileSecretKey != null && !turnstileSecretKey.isBlank();
         this.mailFrom = mailFrom;
     }
 
@@ -71,6 +91,10 @@ public class AuthService {
     private static final int INVITE_CODE_LENGTH = 6;
     private static final String INVITE_CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private static final int INVITE_CODE_MAX_RETRIES = 10;
+    private static final int LOGIN_MAX_ATTEMPTS = 5;
+    private static final int LOGIN_LOCK_MINUTES = 15;
+    private static final String LOGIN_FAIL_PREFIX = "login:fail:";
+    private static final String LOGIN_LOCK_PREFIX = "login:locked:";
     private final SecureRandom secureRandom = new SecureRandom();
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private final String mailFrom;
@@ -242,6 +266,9 @@ public class AuthService {
             throw new ResponseStatusException(BAD_REQUEST, "内测阶段需要邀请码才能注册");
         }
 
+        if (turnstileEnabled && !turnstileService.verify(request.turnstileToken())) {
+            throw new ResponseStatusException(BAD_REQUEST, "人机验证失败，请刷新页面后重试");
+        }
         if (request.verificationCode() == null || request.verificationCode().isBlank()) {
             throw new ResponseStatusException(BAD_REQUEST, "验证码不能为空");
         }
@@ -320,21 +347,62 @@ public class AuthService {
         if (request.password() == null || request.password().isBlank()) {
             throw new ResponseStatusException(BAD_REQUEST, "请输入密码");
         }
+        if (turnstileEnabled && !turnstileService.verify(request.turnstileToken())) {
+            throw new ResponseStatusException(BAD_REQUEST, "人机验证失败，请刷新页面后重试");
+        }
+
+        String normalizedEmail = request.email().trim().toLowerCase();
+
+        // 检查是否已被锁定
+        String lockKey = LOGIN_LOCK_PREFIX + normalizedEmail;
+        String lockTtl = stringRedisTemplate.opsForValue().get(lockKey);
+        if (lockTtl != null) {
+            throw new ResponseStatusException(UNAUTHORIZED,
+                    "账户因多次登录失败已临时锁定，请 " + lockTtl + " 分钟后重试");
+        }
 
         UserEntity user = userMapper.selectOne(
-                new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, request.email().trim().toLowerCase()));
+                new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, normalizedEmail));
         if (user == null) {
+            recordLoginFailure(normalizedEmail);
             throw new ResponseStatusException(UNAUTHORIZED, "邮箱或密码错误");
         }
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            recordLoginFailure(normalizedEmail);
             throw new ResponseStatusException(UNAUTHORIZED, "邮箱或密码错误");
         }
         if (user.getStatus() != null && user.getStatus() == 0) {
             throw new ResponseStatusException(FORBIDDEN, "您的账号已被封禁，无法登录");
         }
 
+        // 登录成功，清除失败记录
+        stringRedisTemplate.delete(LOGIN_FAIL_PREFIX + normalizedEmail);
+        stringRedisTemplate.delete(lockKey);
+
         String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail());
         return response(token, user);
+    }
+
+    private void recordLoginFailure(String email) {
+        try {
+            String failKey = LOGIN_FAIL_PREFIX + email;
+            Long attempts = stringRedisTemplate.opsForValue().increment(failKey);
+            if (attempts == 1) {
+                stringRedisTemplate.expire(failKey, Duration.ofMinutes(LOGIN_LOCK_MINUTES));
+            }
+            if (attempts != null && attempts >= LOGIN_MAX_ATTEMPTS) {
+                String lockKey = LOGIN_LOCK_PREFIX + email;
+                long remainingMinutes = stringRedisTemplate.getExpire(failKey);
+                if (remainingMinutes > 0) {
+                    stringRedisTemplate.opsForValue().set(lockKey,
+                            String.valueOf(remainingMinutes / 60 + 1),
+                            Duration.ofMillis(remainingMinutes));
+                }
+                log.warn("账户已临时锁定 email={} attempts={}", email, attempts);
+            }
+        } catch (Exception e) {
+            log.warn("登录失败计数异常 email={}: {}", email, e.getMessage());
+        }
     }
 
     public AuthResponse updateProfile(Long userId, String displayName, String avatar, String signature) {
@@ -387,23 +455,39 @@ public class AuthService {
     }
 
     public String uploadAvatar(Long userId, MultipartFile file) {
-        if (file.isEmpty() || file.getSize() > MAX_AVATAR_SIZE) {
-            throw new ResponseStatusException(BAD_REQUEST, "文件大小不能超过 2MB");
+        if (file.isEmpty()) {
+            throw new ResponseStatusException(BAD_REQUEST, "文件不能为空");
         }
         String contentType = file.getContentType();
         if (contentType == null || (!contentType.equals("image/jpeg") && !contentType.equals("image/png")
                 && !contentType.equals("image/webp"))) {
             throw new ResponseStatusException(BAD_REQUEST, "仅支持 JPEG/PNG/WebP 格式");
         }
-        String ext = contentType.equals("image/png") ? "png" : contentType.equals("image/webp") ? "webp" : "jpg";
-        String filename = userId + "-" + System.currentTimeMillis() + "." + ext;
+
+        byte[] imageBytes;
+        try {
+            imageBytes = file.getBytes();
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "头像读取失败");
+        }
+
+        // 尝试压缩，失败则使用原始字节
+        byte[] compressed = compressImage(imageBytes, contentType);
+        if (compressed == null || compressed.length == 0) {
+            compressed = imageBytes;
+        }
+        if (compressed.length > MAX_AVATAR_SIZE) {
+            throw new ResponseStatusException(BAD_REQUEST, "文件过大，请选择更小的图片（上限 2MB）");
+        }
+
+        String filename = userId + "-" + System.currentTimeMillis() + ".jpg";
         Path uploadDir = uploadRoot.resolve("avatars");
         try {
             Files.createDirectories(uploadDir);
-            Files.write(uploadDir.resolve(filename), file.getBytes(), StandardOpenOption.CREATE,
+            Files.write(uploadDir.resolve(filename), compressed, StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING);
         } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "头像上传失败");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "头像保存失败");
         }
         String avatarUrl = "/api/uploads/avatars/" + filename;
         UserEntity user = userMapper.selectById(userId);
@@ -411,6 +495,66 @@ public class AuthService {
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
         return avatarUrl;
+    }
+
+    /**
+     * 压缩图片：缩放到 AVATAR_MAX_DIMENSION 以内，输出为 JPEG。
+     * 如果 ImageIO 无法解码（如 WebP），返回 null，调用方回退到原始字节。
+     */
+    private byte[] compressImage(byte[] input, String contentType) {
+        try {
+            BufferedImage original = ImageIO.read(new ByteArrayInputStream(input));
+            if (original == null) {
+                return null; // 无法解码（WebP 等），回退
+            }
+
+            int w = original.getWidth();
+            int h = original.getHeight();
+            int maxDim = Math.max(w, h);
+            if (maxDim > AVATAR_MAX_DIMENSION) {
+                double scale = (double) AVATAR_MAX_DIMENSION / maxDim;
+                w = (int) (w * scale);
+                h = (int) (h * scale);
+            } else {
+                // 尺寸不超标，如果原始文件已经在 2MB 以内就直接返回
+                if (input.length <= MAX_AVATAR_SIZE) {
+                    return input;
+                }
+            }
+
+            BufferedImage scaled = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = scaled.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, w, h);
+            g.drawImage(original, 0, 0, w, h, null);
+            g.dispose();
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
+            if (writers.hasNext()) {
+                ImageWriter writer = writers.next();
+                ImageWriteParam param = writer.getDefaultWriteParam();
+                param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                param.setCompressionQuality(AVATAR_JPEG_QUALITY);
+                try (ImageOutputStream ios = ImageIO.createImageOutputStream(out)) {
+                    writer.setOutput(ios);
+                    writer.write(null, new IIOImage(scaled, null, null), param);
+                }
+                writer.dispose();
+            } else {
+                ImageIO.write(scaled, "jpg", out);
+            }
+
+            byte[] result = out.toByteArray();
+            log.info("头像压缩完成 origSize={} compressedSize={} origDim={}x{} newDim={}x{}",
+                    input.length, result.length, original.getWidth(), original.getHeight(), w, h);
+            return result;
+        } catch (Exception e) {
+            log.warn("头像压缩异常，回退原始文件: {}", e.getMessage());
+            return null;
+        }
     }
 
     public AuthResponse me(Long userId) {

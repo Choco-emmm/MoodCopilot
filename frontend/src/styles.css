@@ -1362,6 +1362,12 @@ h2 {
   box-shadow: var(--shadow-lg);
 }
 
+.turnstile-widget {
+  display: flex;
+  justify-content: center;
+  min-height: 65px;
+}
+
 .auth-title {
   font-family: var(--font-body);
   font-size: 2rem;
