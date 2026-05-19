@@ -75,6 +75,25 @@ public class NotificationService {
         }
     }
 
+    public void notifyCommentReply(UserEntity actor, Long diaryId, Long recipientUserId, Long commentId, String snippet) {
+        try {
+            NotificationEntity n = new NotificationEntity();
+            n.setRecipientUserId(recipientUserId);
+            n.setActorUserId(actor.getId());
+            n.setDiaryId(diaryId);
+            n.setCommentId(commentId);
+            n.setType("COMMENT");
+            n.setMessage(actor.getDisplayName() + " 回复了你的评论：" + snippet);
+            n.setIsMarkdown(false);
+            n.setIsRead(false);
+            n.setCreatedAt(LocalDateTime.now());
+            notificationMapper.insert(n);
+            notificationWebSocketHandler.pushNotification(recipientUserId, n);
+        } catch (Exception e) {
+            log.warn("Failed to create comment reply notification", e);
+        }
+    }
+
     public void notifyFollow(UserEntity actor, Long followedUserId) {
         try {
             NotificationEntity n = new NotificationEntity();

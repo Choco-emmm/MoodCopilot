@@ -27,14 +27,24 @@
               {{ diary.isPinned ? '📌 取消置顶' : '📌 置顶' }}
             </n-button>
             <n-button
-              v-if="auth.isAdmin"
+              v-if="isOwner"
               size="tiny"
               type="error"
               text
-              @click="handleAdminDeleteDiary"
+              @click="handleDeleteDiary"
               style="margin-left: 8px; font-weight: bold;"
             >
-              🗑️ 强制删除日记
+              🗑️ 删除日记
+            </n-button>
+            <n-button
+              v-if="auth.isAdmin && !isOwner"
+              size="tiny"
+              type="error"
+              text
+              @click="handleAdminForceDelete"
+              style="margin-left: 8px; font-weight: bold;"
+            >
+              🗑️ 管理员删除
             </n-button>
             <n-button
               v-if="!isOwner"
@@ -184,6 +194,7 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NInput, NTag, NEmpty, useMessage } from 'naive-ui'
 import { diaryApi, reportApi } from '../api'
+import { tryExpToast } from '../utils/toast'
 import { useAuthStore } from '../stores/auth'
 import AppHeader from '../components/AppHeader.vue'
 import AiAnalysisCard from '../components/AiAnalysisCard.vue'
@@ -266,6 +277,7 @@ async function submitComment(parentId: number | null) {
   try {
     const res = await diaryApi.addComment(diary.value.id, content, parentId ?? undefined)
     diary.value = store.normalize(res.data.data)
+    tryExpToast('comment', '回复 +3 EXP')
     commentDraft.value = ''
     replyDraft.value = ''
     commentError.value = ''
@@ -353,12 +365,25 @@ async function togglePin() {
   }
 }
 
-async function handleAdminDeleteDiary() {
+async function handleDeleteDiary() {
+  if (!diary.value) return
+  if (window.confirm('确定要删除这篇日记吗？此操作不可撤销。')) {
+    try {
+      await store.deleteDiary(diary.value.id)
+      message.success('日记已删除')
+      router.push('/')
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '删除失败')
+    }
+  }
+}
+
+async function handleAdminForceDelete() {
   if (!diary.value) return
   if (window.confirm('您正在以管理员身份强制删除这篇日记，此操作不可逆，确定吗？')) {
     try {
       await store.deleteDiary(diary.value.id)
-      message.success('日记已成功强制删除')
+      message.success('日记已强制删除')
       router.push('/')
     } catch (e: any) {
       message.error(e?.response?.data?.message || '强制删除失败')
@@ -380,6 +405,7 @@ async function resonateDiary() {
   try {
     const res = await diaryApi.resonate(diary.value.id)
     diary.value = store.normalize(res.data.data)
+    if (diary.value.likedByMe) tryExpToast('like', '点赞 +2 EXP')
   } finally {
     resonating.value = false
   }

@@ -25,7 +25,14 @@ export const useAuthStore = defineStore('auth', () => {
   const role = ref<string>(localStorage.getItem('role') || 'USER')
   const inviteCode = ref<string | null>(null)
   const inviteQuota = ref<number>(0)
+  const exp = ref<number>(0)
+  const level = ref<number>(1)
+  const proExpireTime = ref<string | null>(null)
 
+  const isPro = computed(() => {
+    if (!proExpireTime.value) return false
+    return new Date(proExpireTime.value) > new Date()
+  })
   const isAuthenticated = computed(() => !!token.value)
   const isAdmin = computed(() => role.value === 'ADMIN')
 
@@ -41,6 +48,9 @@ export const useAuthStore = defineStore('auth', () => {
       dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
       inviteCode.value = data.inviteCode ?? null
       inviteQuota.value = data.inviteQuota ?? 0
+      exp.value = data.exp ?? 0
+      level.value = data.level ?? 1
+      proExpireTime.value = data.proExpireTime ?? null
       saveRole(data.role)
     } catch { /* ignore */ }
   }
@@ -74,6 +84,9 @@ export const useAuthStore = defineStore('auth', () => {
     dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
     inviteCode.value = data.inviteCode ?? null
     inviteQuota.value = data.inviteQuota ?? 0
+    exp.value = data.exp ?? 0
+    level.value = data.level ?? 1
+    proExpireTime.value = data.proExpireTime ?? null
     saveRole(data.role)
     if (data.token) localStorage.setItem('token', data.token)
   }
@@ -119,7 +132,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    token, userId, displayName, email, avatar, signature, dailyNotifyEnabled, role, inviteCode, inviteQuota, isAuthenticated, isAdmin,
+    token, userId, displayName, email, avatar, signature, dailyNotifyEnabled, role, inviteCode, inviteQuota, exp, level, proExpireTime, isPro, isAuthenticated, isAdmin,
     fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout, sendCode, sendPasswordChangeCode, changePassword
   }
 })

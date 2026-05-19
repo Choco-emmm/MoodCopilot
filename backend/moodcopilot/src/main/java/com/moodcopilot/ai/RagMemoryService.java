@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+// TODO: 跨用户共鸣检索（RESONANCE）必须强制添加过滤条件，仅检索 Visibility=PUBLIC 的日记，严禁越权搜索他人私密日记。
 @Service
 public class RagMemoryService {
 

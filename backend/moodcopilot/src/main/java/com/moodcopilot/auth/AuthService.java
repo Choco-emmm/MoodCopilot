@@ -569,7 +569,8 @@ public class AuthService {
         String role = user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole();
         return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getEmail(),
                 normalizeAvatar(user.getAvatar()), user.getSignature(),
-                user.getDailyNotifyEnabled(), role, user.getInviteCode(), user.getInviteQuota());
+                user.getDailyNotifyEnabled(), role, user.getInviteCode(), user.getInviteQuota(),
+                user.getExp(), user.getLevel(), user.getProExpireTime());
     }
 
     private String normalizeAvatar(String avatar) {

@@ -23,7 +23,7 @@
         </div>
         <div class="profile-main">
           <div class="profile-title-row">
-            <h2 class="profile-title">{{ profileLoading ? '加载中...' : (isOwner ? '我的日记' : profileName) }}</h2>
+            <h2 class="profile-title">{{ profileLoading ? '加载中...' : (isOwner ? (auth.displayName || '我的日记') : profileName) }}</h2>
             <button
               v-if="!isOwner && !profileLoading"
               :class="['follow-btn', 'profile-follow-btn', { following: followStore.isFollowing(profileUserId) }]"
@@ -246,7 +246,13 @@
             <span class="section-tag">Security</span>
           </div>
           <p class="settings-desc">修改密码前会向当前账号邮箱发送验证码，验证通过后才会生效。</p>
-          <div class="password-change-panel">
+          <n-button v-if="!showPasswordChange" secondary size="small" @click="showPasswordChange = true" class="change-password-btn">
+            <template #icon>
+              <span style="font-size: 14px">🔒</span>
+            </template>
+            修改密码
+          </n-button>
+          <div v-if="showPasswordChange" class="password-change-panel">
             <div class="password-row-inline">
               <n-input
                 v-model:value="oldPassword"
@@ -416,6 +422,7 @@ const sendingPasswordCode = ref(false)
 const changingPassword = ref(false)
 const passwordCodeCountdown = ref(0)
 const passwordMsg = ref('')
+const showPasswordChange = ref(false)
 let passwordCodeTimer: number | null = null
 
 const showCropModal = ref(false)
@@ -1321,6 +1328,10 @@ onBeforeUnmount(() => {
 .memory-edit-input {
   flex: 1;
   min-width: 0;
+}
+
+.change-password-btn {
+  margin-top: 4px;
 }
 
 .password-change-panel {

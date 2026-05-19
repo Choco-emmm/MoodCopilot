@@ -1121,6 +1121,17 @@ h3 {
   color: var(--color-jade);
 }
 
+.diary-author-level {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-jade);
+  background: color-mix(in srgb, var(--color-jade) 12%, transparent);
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
 .feed-follow-btn {
   flex-shrink: 0;
   align-self: flex-start;

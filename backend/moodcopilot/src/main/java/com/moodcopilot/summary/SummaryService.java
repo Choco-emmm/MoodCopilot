@@ -105,7 +105,7 @@ public class SummaryService {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("M/d");
         String title = startDate.format(fmt) + " - " + endDate.format(fmt);
 
-        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.REPORT, user.getRole());
+        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REPORT);
         String aiSummary = aiAnalysisService.generateCustomSummary(contents, analyses);
         AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateCustomGuidance(
                 title, contents, analyses);
