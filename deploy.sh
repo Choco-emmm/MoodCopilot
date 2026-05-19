@@ -7,10 +7,30 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$PROJECT_DIR/backend/moodcopilot"
 
-echo "[1/6] 进入项目目录: $PROJECT_DIR"
+echo "[1/7] 进入项目目录: $PROJECT_DIR"
 cd "$PROJECT_DIR"
 
-echo "[2/6] 拉取最新代码"
+# 从 .env 加载环境变量
+if [ -f .env ]; then
+  set -a && source .env && set +a
+fi
+
+# 关键变量校验
+required_vars="JWT_SECRET TURNSTILE_SECRET_KEY TURNSTILE_SITE_KEY"
+missing=""
+for var in $required_vars; do
+  if [ -z "${!var:-}" ]; then
+    missing="$missing $var"
+  fi
+done
+if [ -n "$missing" ]; then
+  echo "❌ 缺少必需的环境变量:$missing"
+  echo "   请在 .env 文件中配置后重试"
+  exit 1
+fi
+echo "✅ 环境变量检查通过"
+
+echo "[2/7] 拉取最新代码"
 git pull --ff-only
 
 # 记录变更范围（与上一次部署比较）
@@ -19,19 +39,19 @@ FRONTEND_CHANGED=$(echo "$CHANGED" | grep -q '^frontend/' && echo true || echo f
 BACKEND_CHANGED=$(echo "$CHANGED" | grep -q '^backend/' && echo true || echo false)
 INFRA_CHANGED=$(echo "$CHANGED" | grep -q 'docker-compose.yml' && echo true || echo false)
 
-# [3/6] 基础设施变更检测（Redis 镜像升级等）
+# [3/7] 基础设施变更检测（Redis 镜像升级等）
 if $INFRA_CHANGED; then
-  echo "[3/6] docker-compose.yml 有变更，重建基础设施容器..."
+  echo "[3/7] docker-compose.yml 有变更，重建基础设施容器..."
   docker compose up -d --build redis mysql
   echo "  等待 Redis/MySQL 就绪..."
   sleep 5
 else
-  echo "[3/6] 基础设施无变更，跳过"
+  echo "[3/7] 基础设施无变更，跳过"
 fi
 
-# [4/6] 构建后端 JAR
+# [4/7] 构建后端 JAR
 if $BACKEND_CHANGED || [ ! -f "$BACKEND_DIR/target/"*.jar ]; then
-  echo "[4/6] 后端有变更，正在通过 Docker 编译..."
+  echo "[4/7] 后端有变更，正在通过 Docker 编译..."
   docker run --rm \
     -v "$PWD/backend/moodcopilot:/app" \
     -v "$HOME/.m2:/root/.m2" \
@@ -39,11 +59,11 @@ if $BACKEND_CHANGED || [ ! -f "$BACKEND_DIR/target/"*.jar ]; then
     maven:3.9-eclipse-temurin-21 \
     mvn clean package -Dmaven.test.skip=true
 else
-  echo "[4/6] 后端无变更，跳过编译"
+  echo "[4/7] 后端无变更，跳过编译"
 fi
 
-# [5/6] 重建并启动容器
-echo "[5/6] 重建容器..."
+# [5/7] 重建并启动容器
+echo "[5/7] 重建容器..."
 if $FRONTEND_CHANGED; then
   echo "  前端有变更，重建 frontend..."
   docker compose up -d --build --no-deps frontend
@@ -56,7 +76,7 @@ if ! $FRONTEND_CHANGED; then
   echo "  前端无变更，跳过"
 fi
 
-echo "[6/6] 输出服务状态"
+echo "[6/7] 输出服务状态"
 docker compose ps
 
 echo
