@@ -23,6 +23,9 @@ public class UserEntity {
     private String inviteCode;
     private Integer inviteQuota;
     private Long invitedBy;
+    private Integer exp = 0;
+    private Integer level = 1;
+    private LocalDateTime proExpireTime;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -128,6 +131,30 @@ public class UserEntity {
 
     public void setInvitedBy(Long invitedBy) {
         this.invitedBy = invitedBy;
+    }
+
+    public Integer getExp() {
+        return exp;
+    }
+
+    public void setExp(Integer exp) {
+        this.exp = exp;
+    }
+
+    public Integer getLevel() {
+        return level;
+    }
+
+    public void setLevel(Integer level) {
+        this.level = level;
+    }
+
+    public LocalDateTime getProExpireTime() {
+        return proExpireTime;
+    }
+
+    public void setProExpireTime(LocalDateTime proExpireTime) {
+        this.proExpireTime = proExpireTime;
     }
 
     public LocalDateTime getCreatedAt() {

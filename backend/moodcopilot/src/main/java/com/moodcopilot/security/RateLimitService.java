@@ -1,12 +1,14 @@
 package com.moodcopilot.security;
 
 import com.moodcopilot.common.RateLimitException;
+import com.moodcopilot.entity.UserEntity;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -21,59 +23,135 @@ public class RateLimitService {
     }
 
     public enum AiApiType {
-        CHAT(15),
-        ANALYSIS(5),
-        REPORT(3);
+        CHAT(ResetPeriod.DAILY),
+        ANALYSIS(ResetPeriod.DAILY),
+        REASONING(ResetPeriod.DAILY),
+        RESONANCE(ResetPeriod.DAILY),
+        REPORT(ResetPeriod.MONTHLY);
 
-        private final int dailyLimit;
+        public enum ResetPeriod { DAILY, MONTHLY }
 
-        AiApiType(int dailyLimit) {
-            this.dailyLimit = dailyLimit;
+        private final ResetPeriod resetPeriod;
+
+        AiApiType(ResetPeriod resetPeriod) {
+            this.resetPeriod = resetPeriod;
         }
 
-        public int getDailyLimit() {
-            return dailyLimit;
+        public ResetPeriod getResetPeriod() {
+            return resetPeriod;
         }
     }
 
+    // Row 0 = Pro, Row 1..6 = Lv.1..Lv.6
+    // Col order must match AiApiType enum: CHAT, ANALYSIS, REASONING, RESONANCE, REPORT
+    private static final int[][] QUOTA = {
+            {300, 50, 50, 50, 999},  // Pro
+            {15,  3,  3,  0,  0},    // Lv.1
+            {30,  5,  5,  3,  0},    // Lv.2
+            {60,  8,  10, 5,  4},    // Lv.3
+            {100, 12, 15, 10, 6},    // Lv.4
+            {150, 20, 20, 15, 10},   // Lv.5
+            {200, 30, 30, 20, 999},  // Lv.6
+    };
+
+    public static int getDynamicLimit(AiApiType type, int level, boolean isPro) {
+        int row = isPro ? 0 : Math.clamp(level, 1, 6);
+        return QUOTA[row][type.ordinal()];
+    }
+
+    private static boolean isPro(UserEntity user) {
+        return user.getProExpireTime() != null && user.getProExpireTime().isAfter(LocalDateTime.now());
+    }
+
+    // ── tryAcquire ──
+
+    /** Convenience overload for system/scheduler calls: defaults to non-Pro Lv.1. */
     public void tryAcquire(Long userId, AiApiType type) {
-        tryAcquire(userId, type, null);
+        int limit = getDynamicLimit(type, 1, false);
+        tryAcquireInternal(userId, type, limit, false);
     }
 
-    public void tryAcquire(Long userId, AiApiType type, String role) {
-        if ("ADMIN".equalsIgnoreCase(role)) {
+    /** Main entry point for user-initiated calls. */
+    public void tryAcquire(UserEntity user, AiApiType type) {
+        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
             return;
+        }
+        int limit = getDynamicLimit(type, user.getLevel(), isPro(user));
+        tryAcquireInternal(user.getId(), type, limit, false);
+    }
+
+    private void tryAcquireInternal(Long userId, AiApiType type, int limit, boolean adminBypass) {
+        if (limit <= 0) {
+            throw new RateLimitException(type.name(),
+                    "当前等级暂未解锁" + typeLabel(type) + "功能，升级后即可使用～");
         }
         String key = buildKey(userId, type);
         Long count = redis.opsForValue().increment(key);
         if (count == 1) {
-            long secondsUntilMidnight = LocalDateTime.now().until(
-                    LocalDate.now().plusDays(1).atStartOfDay(), ChronoUnit.SECONDS);
-            redis.expire(key, Duration.ofSeconds(secondsUntilMidnight));
+            long secondsUntilReset = secondsUntilReset(type.getResetPeriod());
+            redis.expire(key, Duration.ofSeconds(secondsUntilReset));
         }
-        if (count > type.getDailyLimit()) {
-            throw new RateLimitException(type.name(),
-                    "今日" + typeLabel(type) + "次数已用完（" + type.getDailyLimit() + "次/天），明天再来吧～");
+        if (count > limit) {
+            boolean isMonthly = type.getResetPeriod() == AiApiType.ResetPeriod.MONTHLY;
+            String msg = isMonthly
+                    ? "本月" + typeLabel(type) + "次数已用完（" + limit + "次/月），下个月再来吧～"
+                    : "今日" + typeLabel(type) + "次数已用完（" + limit + "次/天），明天再来吧～";
+            throw new RateLimitException(type.name(), msg);
         }
     }
+
+    // ── getRemaining ──
 
     public long getRemaining(Long userId, AiApiType type) {
-        return getRemaining(userId, type, null);
+        return getRemainingInternal(userId, type, getDynamicLimit(type, 1, false));
     }
 
-    public long getRemaining(Long userId, AiApiType type, String role) {
-        if ("ADMIN".equalsIgnoreCase(role)) {
+    public long getRemaining(UserEntity user, AiApiType type) {
+        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
             return -1;
         }
+        int limit = getDynamicLimit(type, user.getLevel(), isPro(user));
+        return getRemainingInternal(user.getId(), type, limit);
+    }
+
+    private long getRemainingInternal(Long userId, AiApiType type, int limit) {
         try {
             String key = buildKey(userId, type);
             String val = redis.opsForValue().get(key);
             long used = parseUsedCount(val);
-            return Math.max(0, type.getDailyLimit() - used);
+            return Math.max(0, limit - used);
         } catch (Exception ignored) {
-            return type.getDailyLimit();
+            return limit;
         }
     }
+
+    // ── getAllRemaining ──
+
+    public Map<String, Long> getAllRemaining(Long userId) {
+        return getAllRemaining(userId, 1, false);
+    }
+
+    public Map<String, Long> getAllRemaining(UserEntity user) {
+        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
+            Map<String, Long> result = new LinkedHashMap<>();
+            for (AiApiType type : AiApiType.values()) {
+                result.put(type.name(), -1L);
+            }
+            return result;
+        }
+        return getAllRemaining(user.getId(), user.getLevel(), isPro(user));
+    }
+
+    private Map<String, Long> getAllRemaining(Long userId, int level, boolean isPro) {
+        Map<String, Long> result = new LinkedHashMap<>();
+        for (AiApiType type : AiApiType.values()) {
+            int limit = getDynamicLimit(type, level, isPro);
+            result.put(type.name(), getRemainingInternal(userId, type, limit));
+        }
+        return result;
+    }
+
+    // ── build helpers ──
 
     private long parseUsedCount(String raw) {
         if (raw == null || raw.isBlank()) {
@@ -86,26 +164,29 @@ public class RateLimitService {
         return Long.parseLong(value);
     }
 
-    public Map<String, Long> getAllRemaining(Long userId) {
-        return getAllRemaining(userId, null);
-    }
-
-    public Map<String, Long> getAllRemaining(Long userId, String role) {
-        Map<String, Long> result = new LinkedHashMap<>();
-        for (AiApiType type : AiApiType.values()) {
-            result.put(type.name(), getRemaining(userId, type, role));
-        }
-        return result;
-    }
-
     private String buildKey(Long userId, AiApiType type) {
-        return "ratelimit:" + userId + ":" + LocalDate.now() + ":" + type.name();
+        String period = switch (type.getResetPeriod()) {
+            case DAILY -> LocalDate.now().toString();
+            case MONTHLY -> YearMonth.now().toString();
+        };
+        return "ratelimit:" + userId + ":" + period + ":" + type.name();
+    }
+
+    private long secondsUntilReset(AiApiType.ResetPeriod period) {
+        return switch (period) {
+            case DAILY -> LocalDateTime.now().until(
+                    LocalDate.now().plusDays(1).atStartOfDay(), ChronoUnit.SECONDS);
+            case MONTHLY -> LocalDateTime.now().until(
+                    YearMonth.now().plusMonths(1).atDay(1).atStartOfDay(), ChronoUnit.SECONDS);
+        };
     }
 
     private String typeLabel(AiApiType type) {
         return switch (type) {
             case CHAT -> "聊天";
             case ANALYSIS -> "日记分析";
+            case REASONING -> "深度思考";
+            case RESONANCE -> "共鸣检索";
             case REPORT -> "报告生成";
         };
     }

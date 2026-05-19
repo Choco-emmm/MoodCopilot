@@ -8,17 +8,15 @@ import com.moodcopilot.notification.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -26,7 +24,6 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 public class FollowService {
 
     private static final Logger log = LoggerFactory.getLogger(FollowService.class);
-    private static final Duration FOLLOWING_IDS_CACHE_TTL = Duration.ofMinutes(10);
 
     private final FollowMapper followMapper;
     private final NotificationService notificationService;
@@ -40,109 +37,104 @@ public class FollowService {
         this.redisTemplate = redisTemplate;
     }
 
-    @Transactional
+    @jakarta.annotation.PostConstruct
+    private void migrateFollowsToRedis() {
+        try {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey("follow:migrated"))) {
+                log.info("关注数据已迁移到 Redis，跳过");
+                return;
+            }
+            List<FollowEntity> all = followMapper.selectList(null);
+            log.info("开始迁移关注数据到 Redis，共 {} 条", all.size());
+            for (FollowEntity f : all) {
+                String followerKey = "following:" + f.getFollowerId();
+                String followedKey = "followers:" + f.getFollowedId();
+                redisTemplate.opsForSet().add(followerKey, String.valueOf(f.getFollowedId()));
+                redisTemplate.opsForSet().add(followedKey, String.valueOf(f.getFollowerId()));
+            }
+            redisTemplate.opsForValue().set("follow:migrated", "1");
+            log.info("关注数据迁移完成");
+        } catch (Exception e) {
+            log.warn("关注数据迁移失败，将在下次启动重试: {}", e.getMessage());
+        }
+    }
+
     public void follow(long followedUserId) {
         UserEntity actor = currentUser();
         if (actor.getId().equals(followedUserId)) {
-            throw new ResponseStatusException(BAD_REQUEST, "不能关注自己");
+            throw new org.springframework.web.server.ResponseStatusException(BAD_REQUEST, "不能关注自己");
         }
 
-        boolean exists = followMapper.exists(new LambdaQueryWrapper<FollowEntity>()
-                .eq(FollowEntity::getFollowerId, actor.getId())
-                .eq(FollowEntity::getFollowedId, followedUserId));
-        if (exists)
-            return;
+        String followerKey = "following:" + actor.getId();
+        String followedKey = "followers:" + followedUserId;
+        String uid = String.valueOf(followedUserId);
+        String actorId = String.valueOf(actor.getId());
 
-        FollowEntity follow = new FollowEntity();
-        follow.setFollowerId(actor.getId());
-        follow.setFollowedId(followedUserId);
-        follow.setCreatedAt(LocalDateTime.now());
-        followMapper.insert(follow);
-        evictFollowingCache(actor.getId());
-
-        notificationService.notifyFollow(actor, followedUserId);
+        Long added = redisTemplate.opsForSet().add(followerKey, uid);
+        if (added != null && added > 0) {
+            redisTemplate.opsForSet().add(followedKey, actorId);
+            asyncPersistFollow(actor.getId(), followedUserId, true);
+            notificationService.notifyFollow(actor, followedUserId);
+        }
+        evictFeedCaches(actor.getId());
     }
 
-    @Transactional
     public void unfollow(long followedUserId) {
         UserEntity actor = currentUser();
-        followMapper.delete(new LambdaQueryWrapper<FollowEntity>()
-                .eq(FollowEntity::getFollowerId, actor.getId())
-                .eq(FollowEntity::getFollowedId, followedUserId));
-        evictFollowingCache(actor.getId());
+        String followerKey = "following:" + actor.getId();
+        String followedKey = "followers:" + followedUserId;
+        String uid = String.valueOf(followedUserId);
+        String actorId = String.valueOf(actor.getId());
+
+        redisTemplate.opsForSet().remove(followerKey, uid);
+        redisTemplate.opsForSet().remove(followedKey, actorId);
+        asyncPersistFollow(actor.getId(), followedUserId, false);
+        evictFeedCaches(actor.getId());
     }
 
     public boolean isFollowing(long userId) {
         UserEntity actor = currentUser();
-        List<Long> followingIds = getCachedFollowingIds(actor.getId());
-        if (followingIds != null) {
-            return followingIds.contains(userId);
-        }
-        return followMapper.exists(new LambdaQueryWrapper<FollowEntity>()
-                .eq(FollowEntity::getFollowerId, actor.getId())
-                .eq(FollowEntity::getFollowedId, userId));
+        return Boolean.TRUE.equals(
+                redisTemplate.opsForSet().isMember("following:" + actor.getId(), String.valueOf(userId)));
     }
 
     public List<Long> getFollowingIds(long userId) {
-        List<Long> cached = getCachedFollowingIds(userId);
-        if (cached != null) {
-            return cached;
+        Set<String> members = redisTemplate.opsForSet().members("following:" + userId);
+        if (members == null || members.isEmpty()) {
+            return List.of();
         }
-
-        List<FollowEntity> follows = followMapper.selectList(
-                new LambdaQueryWrapper<FollowEntity>()
-                        .eq(FollowEntity::getFollowerId, userId));
-        List<Long> followingIds = follows.stream().map(FollowEntity::getFollowedId).toList();
-        cacheFollowingIds(userId, followingIds);
-        return followingIds;
+        return members.stream().map(Long::valueOf).toList();
     }
 
-    private void evictFollowingCache(long userId) {
+    private void evictFeedCaches(long userId) {
         try {
-            redisTemplate.delete(followingIdsCacheKey(userId));
             for (int page = 1; page <= 20; page++) {
                 for (int size : List.of(10, 20, 50)) {
                     redisTemplate.delete("following:%d:%d:%d".formatted(userId, page, size));
                 }
             }
         } catch (Exception e) {
-            log.debug("Failed to evict following cache for user {}", userId, e);
+            log.debug("Failed to evict following feed cache for user {}", userId, e);
         }
     }
 
-    private List<Long> getCachedFollowingIds(long userId) {
+    @Async
+    private void asyncPersistFollow(long followerId, long followedId, boolean isFollow) {
         try {
-            String cached = redisTemplate.opsForValue().get(followingIdsCacheKey(userId));
-            if (cached == null) {
-                return null;
+            if (isFollow) {
+                FollowEntity f = new FollowEntity();
+                f.setFollowerId(followerId);
+                f.setFollowedId(followedId);
+                f.setCreatedAt(LocalDateTime.now());
+                followMapper.insert(f);
+            } else {
+                followMapper.delete(new LambdaQueryWrapper<FollowEntity>()
+                        .eq(FollowEntity::getFollowerId, followerId)
+                        .eq(FollowEntity::getFollowedId, followedId));
             }
-            if (cached.isBlank()) {
-                return List.of();
-            }
-            return Arrays.stream(cached.split(","))
-                    .map(String::trim)
-                    .filter(value -> !value.isEmpty())
-                    .map(Long::valueOf)
-                    .toList();
         } catch (Exception e) {
-            log.debug("Failed to read following ids cache for user {}", userId, e);
-            return null;
+            log.warn("异步持久化关注失败 followerId={} followedId={} isFollow={}", followerId, followedId, isFollow, e);
         }
-    }
-
-    private void cacheFollowingIds(long userId, List<Long> followingIds) {
-        try {
-            String payload = followingIds.stream()
-                    .map(String::valueOf)
-                    .collect(Collectors.joining(","));
-            redisTemplate.opsForValue().set(followingIdsCacheKey(userId), payload, FOLLOWING_IDS_CACHE_TTL);
-        } catch (Exception e) {
-            log.debug("Failed to cache following ids for user {}", userId, e);
-        }
-    }
-
-    private String followingIdsCacheKey(long userId) {
-        return "following:ids:%d".formatted(userId);
     }
 
     private UserEntity currentUser() {
@@ -150,6 +142,6 @@ public class FollowService {
         if (auth != null && auth.getPrincipal() instanceof UserEntity user) {
             return user;
         }
-        throw new ResponseStatusException(BAD_REQUEST, "用户未登录");
+        throw new org.springframework.web.server.ResponseStatusException(BAD_REQUEST, "用户未登录");
     }
 }

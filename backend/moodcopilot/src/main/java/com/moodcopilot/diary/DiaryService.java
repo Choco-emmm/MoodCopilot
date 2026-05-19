@@ -9,6 +9,8 @@ import com.moodcopilot.ai.DiaryAnalysisCompletedEvent;
 import com.moodcopilot.ai.MemoryExtractionService;
 import com.moodcopilot.ai.RagMemoryService;
 import com.moodcopilot.common.ContentFilter;
+import com.moodcopilot.growth.ExpAction;
+import com.moodcopilot.growth.UserGrowthService;
 import com.moodcopilot.security.RateLimitService;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.follow.FollowService;
@@ -87,6 +89,7 @@ public class DiaryService {
     private final ApplicationEventPublisher eventPublisher;
     private final RagMemoryService ragMemoryService;
     private final RateLimitService rateLimitService;
+    private final UserGrowthService userGrowthService;
 
     public DiaryService(DiaryMapper diaryMapper,
             DiaryAnalysisMapper diaryAnalysisMapper,
@@ -104,7 +107,8 @@ public class DiaryService {
             ObjectMapper objectMapper,
             ApplicationEventPublisher eventPublisher,
             RagMemoryService ragMemoryService,
-            RateLimitService rateLimitService) {
+            RateLimitService rateLimitService,
+            UserGrowthService userGrowthService) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
@@ -122,6 +126,26 @@ public class DiaryService {
         this.eventPublisher = eventPublisher;
         this.ragMemoryService = ragMemoryService;
         this.rateLimitService = rateLimitService;
+        this.userGrowthService = userGrowthService;
+    }
+
+    @jakarta.annotation.PostConstruct
+    private void migrateResonanceToRedis() {
+        try {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey("resonance:migrated"))) {
+                log.info("点赞数据已迁移到 Redis，跳过");
+                return;
+            }
+            List<DiaryResonanceEntity> all = diaryResonanceMapper.selectList(null);
+            log.info("开始迁移点赞数据到 Redis，共 {} 条", all.size());
+            for (DiaryResonanceEntity r : all) {
+                redisTemplate.opsForSet().add("resonance:" + r.getDiaryId(), String.valueOf(r.getUserId()));
+            }
+            redisTemplate.opsForValue().set("resonance:migrated", "1");
+            log.info("点赞数据迁移完成");
+        } catch (Exception e) {
+            log.warn("点赞数据迁移失败，将在下次启动重试: {}", e.getMessage());
+        }
     }
 
     @Transactional
@@ -140,6 +164,10 @@ public class DiaryService {
         diary.setCreatedAt(LocalDateTime.now());
         diary.setUpdatedAt(LocalDateTime.now());
         diaryMapper.insert(diary);
+
+        if (diary.getContent() != null && diary.getContent().length() >= 15) {
+            userGrowthService.addExp(user.getId(), ExpAction.DIARY, diary.getContent().length());
+        }
 
         markReportsStale(user.getId());
         if ("PUBLIC".equals(diary.getVisibility())) {
@@ -186,7 +214,7 @@ public class DiaryService {
 
         if (contentChanged) {
             log.info("日记内容已更新，触发分析与画像重建，diaryId={}，userId={}", diaryId, user.getId());
-            rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.ANALYSIS, user.getRole());
+            rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
             ragMemoryService.indexDiary(user.getId(), diaryId, filteredContent);
             DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent);
             DiaryAnalysisEntity existingAnalysis = diaryAnalysisMapper.selectById(diaryId);
@@ -234,7 +262,7 @@ public class DiaryService {
     public void runAiAnalysis(long diaryId, long userId, String content, String role) {
         log.info("开始执行日记 AI 分析，diaryId={}，userId={}，contentLength={}", diaryId, userId,
                 content == null ? 0 : content.length());
-        rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.ANALYSIS, role);
+        rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.ANALYSIS);
         DiaryAnalysis analysis = aiAnalysisService.analyze(content);
 
         DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
@@ -570,7 +598,7 @@ public class DiaryService {
     public WeeklyReportView generateMonthlyAiSummary(int monthOffset) {
         UserEntity user = currentUser();
         log.info("强制生成月报摘要，userId={}，monthOffset={}", user.getId(), monthOffset);
-        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.REPORT, user.getRole());
+        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REPORT);
         return loadOrComputeMonthlyReport(monthOffset, user.getId(), true);
     }
 
@@ -728,7 +756,7 @@ public class DiaryService {
     public WeeklyReportView generateWeeklyAiSummary(int weekOffset) {
         UserEntity user = currentUser();
         log.info("强制生成周报摘要，userId={}，weekOffset={}", user.getId(), weekOffset);
-        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.REPORT, user.getRole());
+        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REPORT);
         return loadOrComputeWeeklyReport(weekOffset, user.getId(), true);
     }
 
@@ -1130,52 +1158,84 @@ public class DiaryService {
         comment.setUpdatedAt(LocalDateTime.now());
         diaryCommentMapper.insert(comment);
 
+        String snippet = content.length() > 30 ? content.substring(0, 30) + "..." : content;
+
+        // 通知日记作者
         if (!commenter.getId().equals(diary.getAuthorUserId())) {
-            String snippet = content.length() > 30 ? content.substring(0, 30) + "..." : content;
+            userGrowthService.addExp(commenter.getId(), ExpAction.COMMENT, null);
             notificationService.notifyComment(commenter, diaryId, diary.getAuthorUserId(),
                     comment.getId(), snippet);
+        }
+
+        // 通知被回复的人（回复的是某条评论的作者，且不是自己也不是日记作者）
+        if (request.parentCommentId() != null) {
+            DiaryCommentEntity parentComment = diaryCommentMapper.selectById(request.parentCommentId());
+            if (parentComment != null
+                    && !parentComment.getAuthorUserId().equals(commenter.getId())
+                    && !parentComment.getAuthorUserId().equals(diary.getAuthorUserId())) {
+                notificationService.notifyCommentReply(commenter, diaryId, parentComment.getAuthorUserId(),
+                        comment.getId(), snippet);
+            }
         }
 
         evictRelatedUserCaches(commenter.getId(), diary.getAuthorUserId());
         return buildDiaryView(diary, true);
     }
 
-    @Transactional
     public DiaryView resonate(long diaryId) {
         DiaryEntity diary = findPublicDiary(diaryId);
         UserEntity actor = currentUser();
+        long userId = actor.getId();
 
-        DiaryResonanceEntity existing = diaryResonanceMapper.selectOne(
-                new LambdaQueryWrapper<DiaryResonanceEntity>()
-                        .eq(DiaryResonanceEntity::getDiaryId, diaryId)
-                        .eq(DiaryResonanceEntity::getUserId, actor.getId())
-                        .last("LIMIT 1"));
+        String setKey = "resonance:" + diaryId;
+        Boolean isMember = redisTemplate.opsForSet().isMember(setKey, String.valueOf(userId));
 
-        if (existing == null) {
-            DiaryResonanceEntity resonance = new DiaryResonanceEntity();
-            resonance.setDiaryId(diaryId);
-            resonance.setUserId(actor.getId());
-            resonance.setCreatedAt(LocalDateTime.now());
-            diaryResonanceMapper.insert(resonance);
-
-            diary.setResonanceCount(diary.getResonanceCount() + 1);
-            diary.setUpdatedAt(LocalDateTime.now());
-            diaryMapper.updateById(diary);
+        if (Boolean.FALSE.equals(isMember)) {
+            redisTemplate.opsForSet().add(setKey, String.valueOf(userId));
+            asyncPersistResonance(diaryId, userId, true);
 
             if (!actor.getId().equals(diary.getAuthorUserId())) {
                 notificationService.notifyResonance(actor, diaryId, diary.getAuthorUserId(),
                         toDiarySnippet(diary.getContent()));
+                userGrowthService.addExp(actor.getId(), ExpAction.LIKE, null);
             }
         } else {
-            diaryResonanceMapper.deleteById(existing.getId());
-            int current = diary.getResonanceCount() == null ? 0 : diary.getResonanceCount();
-            diary.setResonanceCount(Math.max(0, current - 1));
-            diary.setUpdatedAt(LocalDateTime.now());
-            diaryMapper.updateById(diary);
+            redisTemplate.opsForSet().remove(setKey, String.valueOf(userId));
+            asyncPersistResonance(diaryId, userId, false);
         }
+
+        Long count = redisTemplate.opsForSet().size(setKey);
+        diary.setResonanceCount(count != null ? count.intValue() : 0);
+        diary.setUpdatedAt(LocalDateTime.now());
 
         evictRelatedUserCaches(actor.getId(), diary.getAuthorUserId());
         return buildDiaryView(diary, true);
+    }
+
+    @Async
+    private void asyncPersistResonance(long diaryId, long userId, boolean isLike) {
+        try {
+            if (isLike) {
+                DiaryResonanceEntity r = new DiaryResonanceEntity();
+                r.setDiaryId(diaryId);
+                r.setUserId(userId);
+                r.setCreatedAt(LocalDateTime.now());
+                diaryResonanceMapper.insert(r);
+            } else {
+                diaryResonanceMapper.delete(
+                        new LambdaQueryWrapper<DiaryResonanceEntity>()
+                                .eq(DiaryResonanceEntity::getDiaryId, diaryId)
+                                .eq(DiaryResonanceEntity::getUserId, userId));
+            }
+            // 同步 DB 中的 resonance_count
+            Long count = redisTemplate.opsForSet().size("resonance:" + diaryId);
+            DiaryEntity diary = new DiaryEntity();
+            diary.setId(diaryId);
+            diary.setResonanceCount(count != null ? count.intValue() : 0);
+            diaryMapper.updateById(diary);
+        } catch (Exception e) {
+            log.warn("异步持久化点赞失败 diaryId={} userId={} isLike={}", diaryId, userId, isLike, e);
+        }
     }
 
     private String toDiarySnippet(String content) {
@@ -1218,21 +1278,20 @@ public class DiaryService {
         String authorName = author != null ? author.getDisplayName() : diary.getAuthorName();
         String authorAvatar = author != null ? normalizeAvatar(author.getAvatar())
                 : resolveAuthorAvatar(diary.getAuthorUserId());
+        Integer authorLevel = author != null ? author.getLevel() : null;
         String feedContent = diary.getContent() != null && diary.getContent().length() > 150
                 ? diary.getContent().substring(0, 150) + "..."
                 : diary.getContent();
         return isPublic
-                ? DiaryView.fromPublicFeed(diary, analysis, authorName, authorAvatar, likedByMe, feedContent)
-                : DiaryView.fromFeed(diary, analysis, authorName, authorAvatar, likedByMe, feedContent);
+                ? DiaryView.fromPublicFeed(diary, analysis, authorName, authorAvatar, authorLevel, likedByMe, feedContent)
+                : DiaryView.fromFeed(diary, analysis, authorName, authorAvatar, authorLevel, likedByMe, feedContent);
     }
 
     private DiaryView buildDiaryView(DiaryEntity diary, boolean isPublic) {
         DiaryAnalysisEntity analysis = findAnalysis(diary.getId());
         List<DiaryCommentEntity> comments = findComments(diary.getId());
-        boolean likedByMe = diaryResonanceMapper.exists(
-                new LambdaQueryWrapper<DiaryResonanceEntity>()
-                        .eq(DiaryResonanceEntity::getDiaryId, diary.getId())
-                        .eq(DiaryResonanceEntity::getUserId, currentUser().getId()));
+        boolean likedByMe = Boolean.TRUE.equals(
+                redisTemplate.opsForSet().isMember("resonance:" + diary.getId(), String.valueOf(currentUser().getId())));
         return buildDiaryView(diary, isPublic,
                 analysis != null ? Map.of(diary.getId(), analysis) : Map.of(),
                 Map.of(diary.getId(), comments),
@@ -1271,10 +1330,11 @@ public class DiaryService {
             commentAuthorNames.put(c.getAuthorUserId(),
                     cu != null ? cu.getDisplayName() : c.getAuthorName());
         }
+        Integer authorLevel = author != null ? author.getLevel() : null;
         return isPublic
-                ? DiaryView.fromPublic(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames,
+                ? DiaryView.fromPublic(diary, analysis, comments, authorAvatar, authorName, authorLevel, commentAuthorNames,
                         likedByMe)
-                : DiaryView.from(diary, analysis, comments, authorAvatar, authorName, commentAuthorNames, likedByMe);
+                : DiaryView.from(diary, analysis, comments, authorAvatar, authorName, authorLevel, commentAuthorNames, likedByMe);
     }
 
     private Set<Long> batchLoadLikedDiaryIds(List<Long> diaryIds) {
@@ -1282,13 +1342,15 @@ public class DiaryService {
             return Set.of();
         }
         Long currentUserId = currentUser().getId();
-        return diaryResonanceMapper.selectList(
-                new LambdaQueryWrapper<DiaryResonanceEntity>()
-                        .eq(DiaryResonanceEntity::getUserId, currentUserId)
-                        .in(DiaryResonanceEntity::getDiaryId, diaryIds))
-                .stream()
-                .map(DiaryResonanceEntity::getDiaryId)
-                .collect(Collectors.toSet());
+        String uid = String.valueOf(currentUserId);
+        Set<Long> result = new java.util.HashSet<>();
+        for (Long diaryId : diaryIds) {
+            Boolean isMember = redisTemplate.opsForSet().isMember("resonance:" + diaryId, uid);
+            if (Boolean.TRUE.equals(isMember)) {
+                result.add(diaryId);
+            }
+        }
+        return result;
     }
 
     private Map<Long, DiaryAnalysisEntity> batchLoadAnalyses(List<Long> diaryIds) {

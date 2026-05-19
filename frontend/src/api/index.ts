@@ -122,6 +122,13 @@ export const authApi = {
   getQuota: () => api.get('/user/quota'),
 }
 
+export const growthApi = {
+  checkIn: () => api.post('/growth/checkin'),
+  status: () => api.get('/growth/status'),
+  checkins: () => api.get('/growth/checkins'),
+  progress: () => api.get('/growth/progress'),
+}
+
 export const followApi = {
   follow: (userId: number) => api.post(`/follows/${userId}`),
   unfollow: (userId: number) => api.delete(`/follows/${userId}`),

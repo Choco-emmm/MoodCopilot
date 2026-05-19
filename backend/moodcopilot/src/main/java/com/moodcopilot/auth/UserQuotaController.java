@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 @RestController
@@ -22,11 +23,18 @@ public class UserQuotaController {
         this.rateLimitService = rateLimitService;
     }
 
+    public record QuotaResponse(int exp, int level, LocalDateTime proExpireTime, Map<String, Long> quotas) {}
+
     @GetMapping("/quota")
-    public ApiResponse<Map<String, Long>> quota(@AuthenticationPrincipal UserEntity user) {
+    public ApiResponse<QuotaResponse> quota(@AuthenticationPrincipal UserEntity user) {
         if (user == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "登录状态已失效");
         }
-        return ApiResponse.ok(rateLimitService.getAllRemaining(user.getId(), user.getRole()));
+        Map<String, Long> quotas = rateLimitService.getAllRemaining(user);
+        return ApiResponse.ok(new QuotaResponse(
+                user.getExp() != null ? user.getExp() : 0,
+                user.getLevel() != null ? user.getLevel() : 1,
+                user.getProExpireTime(),
+                quotas));
     }
 }

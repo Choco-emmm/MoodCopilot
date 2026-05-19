@@ -8,6 +8,9 @@ import com.moodcopilot.mapper.ChatConversationMapper;
 import com.moodcopilot.diary.DiaryService;
 import com.moodcopilot.diary.UserStatsRequest;
 import com.moodcopilot.diary.UserStatsResult;
+import com.moodcopilot.common.RateLimitException;
+import com.moodcopilot.growth.ExpAction;
+import com.moodcopilot.growth.UserGrowthService;
 import com.moodcopilot.security.RateLimitService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,6 +101,7 @@ public class ChatService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final RateLimitService rateLimitService;
+    private final UserGrowthService userGrowthService;
     private final DiaryService diaryService;
     private final MemoryExtractionService memoryExtractionService;
     private final RagMemoryService ragMemoryService;
@@ -112,6 +116,7 @@ public class ChatService {
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper,
             RateLimitService rateLimitService,
+            UserGrowthService userGrowthService,
             DiaryService diaryService,
             MemoryExtractionService memoryExtractionService,
             RagMemoryService ragMemoryService,
@@ -125,6 +130,7 @@ public class ChatService {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.rateLimitService = rateLimitService;
+        this.userGrowthService = userGrowthService;
         this.diaryService = diaryService;
         this.memoryExtractionService = memoryExtractionService;
         this.ragMemoryService = ragMemoryService;
@@ -183,14 +189,27 @@ public class ChatService {
         ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
         // 捕获当前 SecurityContext，通过 Reactor Context 传递给 Function Calling 的异步回调线程
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity user = currentUser();
         if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
-            log.info("聊天路由结果：reasoning（流式），conversationId={}，messageLength={}", conversationId,
-                    message == null ? 0 : message.length());
-            return callReasoningModelStream(request, message, auth, conversationId);
+            boolean useReasoning = false;
+            try {
+                rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REASONING);
+                useReasoning = true;
+            } catch (RateLimitException e) {
+                log.info("推理额度不足，降级到普通聊天 userId={}", user.getId());
+            }
+            if (useReasoning) {
+                log.info("聊天路由结果：reasoning（流式），conversationId={}，messageLength={}", conversationId,
+                        message == null ? 0 : message.length());
+                userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
+                return callReasoningModelStream(request, message, auth, conversationId);
+            }
         }
 
         log.info("聊天路由结果：normal，conversationId={}，messageLength={}", conversationId,
                 message == null ? 0 : message.length());
+        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT);
+        userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
         String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE);
@@ -221,14 +240,27 @@ public class ChatService {
         // 非流式接口：移动端/公网优先走这里，减少 SSE 连接不稳定的影响。
         ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity user = currentUser();
         if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
-            log.info("非流式聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
-                    message == null ? 0 : message.length());
-            return callReasoningModel(request, message, auth, conversationId);
+            boolean useReasoning = false;
+            try {
+                rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REASONING);
+                useReasoning = true;
+            } catch (RateLimitException e) {
+                log.info("推理额度不足，降级到普通聊天 userId={}", user.getId());
+            }
+            if (useReasoning) {
+                log.info("非流式聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
+                        message == null ? 0 : message.length());
+                userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
+                return callReasoningModel(request, message, auth, conversationId);
+            }
         }
 
         log.info("非流式聊天路由结果：normal，conversationId={}，messageLength={}", conversationId,
                 message == null ? 0 : message.length());
+        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT);
+        userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
         String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE);
@@ -617,7 +649,6 @@ public class ChatService {
             String memoryBackground) {
         UserEntity user = currentUser();
         ChatConversationEntity conv = requireOwnedConversation(conversationId, user);
-        rateLimitService.tryAcquire(user.getId(), RateLimitService.AiApiType.CHAT, user.getRole());
 
         // 这里负责把"用户画像 + 用户引用 + 最近日记"拼成统一上下文，后面的模型调用都直接复用。
         String context = buildContext(user.getId(), refs, memoryBackground);
@@ -814,8 +845,7 @@ public class ChatService {
             sb.append("<user_diary>\n");
             for (int i = 0; i < refs.size(); i++) {
                 String ref = refs.get(i);
-                // 截断过长的日记引用，避免推理模型处理超大 prompt 时超时（Cloudflare 100s 限制）
-                sb.append(ref.length() > 500 ? ref.substring(0, 500) + "…" : ref);
+                sb.append(ref);
                 if (i < refs.size() - 1)
                     sb.append("\n---\n");
             }

@@ -15,14 +15,14 @@ import java.util.UUID;
 
 /**
  * 全局 IP 级滑动窗口限流。
- * 分两档：auth 敏感端点 10 次/分钟，普通 API 60 次/分钟，静态资源豁免。
+ * 分两档：auth 敏感端点 20 次/分钟，普通 API 300 次/分钟，静态资源及 WebSocket 豁免。
  */
 public class IpRateLimitFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(IpRateLimitFilter.class);
     private static final String PREFIX = "ratelimit:ip:";
-    private static final int AUTH_LIMIT = 10;
-    private static final int API_LIMIT = 60;
+    private static final int AUTH_LIMIT = 20;
+    private static final int API_LIMIT = 300;
     private static final Duration WINDOW = Duration.ofMinutes(1);
 
     private final StringRedisTemplate redis;
@@ -77,6 +77,7 @@ public class IpRateLimitFilter extends OncePerRequestFilter {
                 || path.equals("/api/health")
                 || path.startsWith("/swagger-ui")
                 || path.startsWith("/v3/api-docs")
+                || path.startsWith("/api/notifications/ws-ticket")
                 || path.startsWith("/ws/");
     }
 

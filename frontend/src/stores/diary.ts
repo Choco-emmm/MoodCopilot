@@ -2,12 +2,14 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { diaryApi } from '../api'
 import { normalizeResourceUrl } from '../utils/resource'
+import { tryExpToast } from '../utils/toast'
 
 export interface Diary {
   id: number
   authorUserId: number
   authorName: string
   authorAvatar?: string | null
+  authorLevel?: number | null
   content: string
   visibility: string
   analysis: DiaryAnalysis | null
@@ -131,6 +133,10 @@ export const useDiaryStore = defineStore('diary', () => {
       const diary = normalize(res.data.data)
       activeDiary.value = diary
       analysisStatus.value = diary.analysis == null ? 'analyzing' : 'complete'
+      if (content.length >= 15) {
+        const bonus = content.length > 100 ? '+30' : '+20'
+        tryExpToast('diary', `写日记 ${bonus} EXP`)
+      }
       await fetchDiaries()
       if (diary.analysis == null) {
         pollAnalysis(diary.id)
@@ -222,6 +228,7 @@ export const useDiaryStore = defineStore('diary', () => {
   async function addComment(diaryId: number, content: string, parentCommentId?: number) {
     const res = await diaryApi.addComment(diaryId, content, parentCommentId)
     const updated = normalize(res.data.data)
+    tryExpToast('comment', '回复 +3 EXP')
     mergeDiary(updated)
     if (activeDiary.value?.id === diaryId) {
       activeDiary.value = updated
@@ -253,6 +260,9 @@ export const useDiaryStore = defineStore('diary', () => {
   async function resonate(diaryId: number) {
     const res = await diaryApi.resonate(diaryId)
     const updated = normalize(res.data.data)
+    if (updated.likedByMe) {
+      tryExpToast('like', '点赞 +2 EXP')
+    }
     mergeDiary(updated)
     if (activeDiary.value?.id === diaryId) {
       activeDiary.value = updated
@@ -379,9 +389,6 @@ function hasNextPage(data: any, page: number, size: number) {
 }
 
 function formatReportError(e: any) {
-  if (e?.response?.status === 429) {
-    return '报告生成太频繁了，稍等一会儿再试。'
-  }
   return e?.response?.data?.message || '报告暂时加载失败，可以稍后重试。'
 }
 

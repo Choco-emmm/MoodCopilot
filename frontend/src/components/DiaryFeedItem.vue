@@ -9,15 +9,16 @@
             <button type="button" class="author-name-link" @click.stop="openAuthorProfile(diary.authorUserId)">
               {{ diary.authorName }}
             </button>
-            <n-tag v-if="diary.isPinned" type="warning" size="small" round style="margin-left: 8px;">
-              📌 置顶公告
-            </n-tag>
+            <span v-if="diary.authorLevel" class="diary-author-level">Lv.{{ diary.authorLevel }}</span>
           </div>
           <span class="feed-time">
             {{ formatTime(diary.createdAt) }}
             <span :class="['vis-tag', diary.visibility === 'PUBLIC' ? 'vis-tag-public' : 'vis-tag-private']">
               {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
             </span>
+            <n-tag v-if="diary.isPinned" type="warning" size="small" round style="margin-left: 6px;">
+              📌 置顶公告
+            </n-tag>
           </span>
         </div>
       </div>
