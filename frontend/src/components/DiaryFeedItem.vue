@@ -1,5 +1,5 @@
 <template>
-  <article class="feed-item" :class="{ 'feed-item-compact': compact }">
+  <article class="feed-item" :class="{ 'feed-item-compact': compact }" @click="handleCardClick">
     <div class="feed-head">
       <div class="feed-head-left">
         <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-img" loading="lazy" decoding="async" />
@@ -40,7 +40,7 @@
       class="feed-content feed-content-clickable"
       role="button"
       tabindex="0"
-      @click="$emit('open-detail', diary)"
+      @click.stop="$emit('open-detail', diary)"
       @keydown.enter.prevent="$emit('open-detail', diary)"
       @keydown.space.prevent="$emit('open-detail', diary)"
     >{{ visibleContent }}</p>
@@ -276,6 +276,12 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
   }).format(new Date(value))
+}
+
+function handleCardClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (target.closest('button, a, input, textarea, .n-button')) return
+  router.push(`/diary/${props.diary.id}`)
 }
 
 function openAuthorProfile(userId: number) {

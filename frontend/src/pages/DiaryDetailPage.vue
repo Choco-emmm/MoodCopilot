@@ -66,6 +66,7 @@
             :music-meta="diary.musicMeta"
             :lyric="diary.musicMeta.userLyric"
             :song-url="diary.musicMeta.songUrl"
+            expandable-lyric
           />
 
           <div v-if="isOwner && editing" class="diary-edit-panel">

@@ -8,8 +8,10 @@ const props = withDefaults(defineProps<{
   lyric?: string
   showLyric?: boolean
   songUrl?: string
+  expandableLyric?: boolean
 }>(), {
   showLyric: false,
+  expandableLyric: false,
 })
 
 const emit = defineEmits<{
@@ -93,6 +95,7 @@ function toggleLine(index: number) {
         target="_blank"
         rel="noopener"
         class="music-play-btn"
+        @click.stop
         title="在网易云音乐中打开"
       >▶</a>
     </div>
@@ -100,12 +103,12 @@ function toggleLine(index: number) {
     <!-- 已选歌词展示（只读模式） -->
     <div
       v-if="!showLyric && musicMeta.userLyric"
-      :class="['music-user-lyric', { expanded: lyricExpanded }]"
-      @click="lyricExpanded = !lyricExpanded"
+      :class="['music-user-lyric', { expanded: lyricExpanded, clickable: expandableLyric }]"
+      @click="expandableLyric && (lyricExpanded = !lyricExpanded)"
     >
       <span class="user-lyric-label">「</span>{{ musicMeta.userLyric }}<span class="user-lyric-label">」</span>
-      <span v-if="lyricNeedsExpand" class="lyric-expand-hint">
-        {{ lyricExpanded ? '收起' : '展开' }}
+      <span v-if="lyricNeedsExpand && expandableLyric" class="lyric-expand-hint">
+        点击{{ lyricExpanded ? '收起' : '展开' }}
       </span>
     </div>
 
@@ -247,6 +250,10 @@ function toggleLine(index: number) {
   overflow: hidden;
   cursor: default;
   position: relative;
+}
+
+.music-user-lyric.clickable {
+  cursor: pointer;
 }
 
 .music-user-lyric.expanded {
