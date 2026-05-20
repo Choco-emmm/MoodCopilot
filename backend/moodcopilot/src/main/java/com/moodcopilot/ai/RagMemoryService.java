@@ -1,6 +1,7 @@
 package com.moodcopilot.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moodcopilot.entity.MusicMeta;
 import com.moodcopilot.entity.UserProfileMemoryEntity;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.output.NestedMultiOutput;
@@ -147,9 +148,24 @@ public class RagMemoryService {
 
     @Async("aiExecutor")
     public void indexDiary(long userId, long diaryId, String content) {
+        indexDiary(userId, diaryId, content, null);
+    }
+
+    /** 索引日记内容 + 可选的独立音乐元数据向量条目，让音乐查询不被日记正文稀释。 */
+    @Async("aiExecutor")
+    public void indexDiary(long userId, long diaryId, String content, MusicMeta musicMeta) {
         if (content == null || content.isBlank()) {
             log.debug("RAG 索引跳过：日记内容为空 diaryId={}", diaryId);
             return;
+        }
+        // 独立索引音乐元数据，避免被长篇日记稀释语义
+        if (musicMeta != null && musicMeta.getTitle() != null && !musicMeta.getTitle().isBlank()) {
+            String musicText = buildMusicIndexText(musicMeta);
+            float[] musicVec = embed(musicText);
+            if (musicVec != null) {
+                storeEmbedding("diary:" + diaryId + ":music", userId, SOURCE_DIARY, musicText, musicVec);
+                log.info("RAG 已索引音乐元数据 diaryId={} title={}", diaryId, musicMeta.getTitle());
+            }
         }
         if (content.length() <= 500) {
             float[] vec = embed(content);
@@ -227,6 +243,17 @@ public class RagMemoryService {
 
     private String sanitizeKey(String raw) {
         return raw.replaceAll("[^a-zA-Z0-9_\\-\\u4e00-\\u9fff]", "_");
+    }
+
+    /** 将音乐元数据组装为独立的检索文本，与日记正文分开索引以提高音乐查询命中率。 */
+    static String buildMusicIndexText(MusicMeta musicMeta) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("歌曲：").append(musicMeta.getTitle())
+          .append(" 歌手：").append(musicMeta.getArtist());
+        if (musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
+            sb.append(" 歌词：").append(musicMeta.getUserLyric());
+        }
+        return sb.toString();
     }
 
     private void storeEmbedding(String id, long userId, String sourceType, String content, float[] embedding) {
