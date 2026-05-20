@@ -87,7 +87,6 @@
         <input type="checkbox" v-model="uploadOriginal" />
         <span>保留原图画质</span>
       </label>
-      </div>
     </div>
 
     <p class="composer-hint">
