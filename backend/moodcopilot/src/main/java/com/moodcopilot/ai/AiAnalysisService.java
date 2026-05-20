@@ -53,14 +53,17 @@ public class AiAnalysisService {
     }
 
     public DiaryAnalysis analyze(String content) {
-        return analyze(content, null);
+        return analyze(content, null, null);
     }
 
     public DiaryAnalysis analyze(String content, com.moodcopilot.entity.MusicMeta musicMeta) {
+        return analyze(content, musicMeta, null);
+    }
+
+    public DiaryAnalysis analyze(String content, com.moodcopilot.entity.MusicMeta musicMeta, String imageDescriptions) {
         try {
-            String userInput = content;
+            StringBuilder sb = new StringBuilder(content);
             if (musicMeta != null) {
-                StringBuilder sb = new StringBuilder(content);
                 sb.append("\n\n[音乐分享]\n");
                 sb.append("歌曲：").append(musicMeta.getTitle()).append("\n");
                 sb.append("歌手：").append(musicMeta.getArtist()).append("\n");
@@ -68,11 +71,14 @@ public class AiAnalysisService {
                     sb.append("用户标注的歌词：").append(musicMeta.getUserLyric()).append("\n");
                 }
                 sb.append("请结合以上音乐元数据理解这篇日记的情绪色彩。");
-                userInput = sb.toString();
+            }
+            if (imageDescriptions != null && !imageDescriptions.isBlank()) {
+                sb.append("\n\n[图片描述]\n").append(imageDescriptions).append("\n");
+                sb.append("请结合图片中的画面与氛围来丰富情绪分析，但不要在反馈中复述图片内容。");
             }
             String json = analysisChatClient.prompt()
                     .system(SYSTEM_PROMPT)
-                    .user(userInput)
+                    .user(sb.toString())
                     .call()
                     .content();
             return parseAiResponse(json);
