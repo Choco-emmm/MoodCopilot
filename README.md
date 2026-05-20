@@ -5,15 +5,19 @@
 ## 功能
 
 ### 情绪日记
-- 创建、查看、删除日记，支持公开/私密切换
+- 创建、查看、编辑、删除日记，支持公开/私密切换
 - AI 自动分析：情绪标签、强度、话题、摘要、共情回应
 - 分析完成后弹窗展示摘要，一键跳转日记详情
 - 发布后推荐 3 篇情绪相近的公开日记
+- **音乐分享**：粘贴网易云链接自动解析歌名/歌手/封面/歌词，AI 结合歌曲意境分析
+- **图片上传**：浏览器直传 OSS，OSS 实时处理缩略图（webp），点击放大灯箱
+- VLM（qwen3-vl-flash）自动描述图片画面，融入 AI 分析和 RAG 记忆
 
 ### AI 对话
 - 针对单篇日记或近期情绪状态深度聊天
 - 双模型路由：工具调用走常规模型，日记引用走推理模型
 - RAG 向量记忆：语义搜索历史日记、聊天记录和长期画像，理解用户过往状态
+- 音乐/图片独立 RAG 条目，可被语义检索命中
 - HyDE 多轮感知重写：结合最近对话上下文理解追问的隐含意图
 - 思考中动画气泡、Markdown 富文本渲染
 
@@ -21,11 +25,16 @@
 - 公开日记广场，按情绪/话题筛选
 - 关注/取关用户，关注流
 - 评论、回复、共鸣反馈
-- 消息通知
+- 消息通知（WebSocket 实时推送）
+
+### 成长系统
+- 等级经验系统：写日记、签到、获赞、被关注等行为获取 EXP
+- 动态配额：等级越高 AI 调用额度越多
+- 点赞防刷：同一日记同一用户每天仅首次点赞给 EXP
 
 ### 其他
 - 周报、月报（情绪四象限分布）
-- AI 陪跑建议
+- AI 陪跑建议与每日关怀推送
 - 管理员面板与内容审核
 - 头像上传、裁剪与长期缓存
 
@@ -35,10 +44,11 @@
 |---|------|
 | 后端 | Spring Boot 3.5 + Java 21 + Spring AI + MyBatis-Plus |
 | 数据库 | MySQL 8.0 + Redis Stack (含 RediSearch 向量引擎) |
-| 安全 | Spring Security + JWT + 邮箱验证码 + 接口速率限制 |
+| 安全 | Spring Security + JWT + 邮箱验证码 + Cloudflare Turnstile |
 | 前端 | Vue 3 + TypeScript + Vite + Naive UI + marked |
-| AI | DeepSeek 双模型路由 (Reasoning + Chat) |
+| AI | DeepSeek 双模型路由 (Reasoning + Chat) + DashScope VLM (qwen3-vl-flash) |
 | 向量模型 | BAAI/bge-m3 (SiliconFlow API, 1024 维) |
+| 存储 | 阿里云 OSS（浏览器直传 + 实时图片处理） |
 | 部署 | Docker Compose + Nginx + Cloudflare Tunnel |
 | 测试 | Playwright E2E |
 
@@ -48,20 +58,23 @@
 MoodCopilot/
 ├── backend/moodcopilot/         # Spring Boot 后端
 │   └── src/main/java/com/moodcopilot/
-│       ├── ai/                  # AI 聊天、意图路由、推理模型调度、RAG、画像提取
+│       ├── ai/                  # AI 聊天、意图路由、推理模型、RAG、画像/VLM/定时关怀
 │       ├── auth/                # JWT 认证、登录注册
 │       ├── diary/               # 日记 CRUD、公开流、相似推荐
+│       ├── music/               # 网易云音乐解析
+│       ├── oss/                 # OSS 签名策略、图片上传/删除
 │       ├── follow/              # 关注系统
-│       ├── notification/        # 推送通知
+│       ├── notification/        # 推送通知、WebSocket
+│       ├── growth/              # 等级经验系统
 │       ├── report/              # 周报/月报
 │       ├── admin/               # 管理员接口、RAG 回填
-│       ├── security/            # Spring Security 配置
+│       ├── security/            # Spring Security、JWT、频率限制
 │       ├── config/              # AI/Web/Cache 配置
 │       └── mapper/              # MyBatis 映射
 ├── frontend/                    # Vue 3 前端
 │   └── src/
 │       ├── pages/               # 页面组件
-│       ├── components/          # 可复用组件
+│       ├── components/          # 可复用组件（ImageGallery、MusicCard 等）
 │       ├── api/                 # Axios 请求层
 │       ├── stores/              # Pinia 状态管理
 │       ├── utils/               # Markdown 渲染等工具
@@ -152,6 +165,15 @@ docker compose up -d    # 启动全部服务（含 redis-stack-server）
 | `MAIL_PORT` | SMTP 端口 | `465` |
 | `MAIL_USERNAME` | 发件邮箱 | — |
 | `MAIL_PASSWORD` | SMTP 授权码 | — |
+| `OSS_ENDPOINT` | OSS 地域节点 | `oss-cn-guangzhou.aliyuncs.com` |
+| `OSS_BUCKET` | OSS Bucket 名称 | — |
+| `OSS_ACCESS_KEY` | OSS AccessKey | — |
+| `OSS_SECRET_KEY` | OSS SecretKey | — |
+| `VISION_API_KEY` | DashScope VLM API Key | — |
+| `VISION_MODEL` | VLM 模型 | `qwen3-vl-flash` |
+| `CORS_ALLOWED_ORIGINS` | CORS 允许来源 | — |
+| `TURNSTILE_SITE_KEY` | Cloudflare Turnstile Site Key | — |
+| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile Secret Key | — |
 
 ## AI 架构
 
