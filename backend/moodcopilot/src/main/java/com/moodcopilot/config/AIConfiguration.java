@@ -350,8 +350,8 @@ public class AIConfiguration {
                 task.run();
             } finally {
                 long durationMs = System.currentTimeMillis() - startedAt;
-                if (durationMs > 5000) {
-                    log.warn("AI 异步任务耗时较长，durationMs={}，thread={}", durationMs, Thread.currentThread().getName());
+                if (durationMs > 30_000) {
+                    log.warn("AI 异步任务耗时较长（>30s），durationMs={}，thread={}", durationMs, Thread.currentThread().getName());
                 }
             }
         });
