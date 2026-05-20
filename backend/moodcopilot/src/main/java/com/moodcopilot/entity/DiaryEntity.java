@@ -25,6 +25,8 @@ public class DiaryEntity {
     private Boolean isPinned;
     @TableField(typeHandler = JacksonTypeHandler.class)
     private MusicMeta musicMeta;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private java.util.List<String> images;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -51,6 +53,9 @@ public class DiaryEntity {
 
     public MusicMeta getMusicMeta() { return musicMeta; }
     public void setMusicMeta(MusicMeta musicMeta) { this.musicMeta = musicMeta; }
+
+    public java.util.List<String> getImages() { return images; }
+    public void setImages(java.util.List<String> images) { this.images = images; }
 
     public Boolean getIsDeleted() { return isDeleted; }
     public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }

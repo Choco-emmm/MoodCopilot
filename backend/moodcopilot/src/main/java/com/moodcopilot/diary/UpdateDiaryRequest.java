@@ -6,5 +6,6 @@ public record UpdateDiaryRequest(
         String content,
         String visibility,
         Boolean isPinned,
-        MusicMeta musicMeta) {
+        MusicMeta musicMeta,
+        java.util.List<String> images) {
 }

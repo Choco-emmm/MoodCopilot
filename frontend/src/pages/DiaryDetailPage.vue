@@ -68,6 +68,7 @@
             :song-url="diary.musicMeta.songUrl"
             expandable-lyric
           />
+          <ImageGallery v-if="diary.images?.length" :images="diary.images" />
 
           <div v-if="isOwner && editing" class="diary-edit-panel">
             <n-input
@@ -215,6 +216,7 @@ import { useAuthStore } from '../stores/auth'
 import AppHeader from '../components/AppHeader.vue'
 import AiAnalysisCard from '../components/AiAnalysisCard.vue'
 import MusicCard from '../components/MusicCard.vue'
+import ImageGallery from '../components/ImageGallery.vue'
 import SimilarDiariesPanel from '../components/SimilarDiariesPanel.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'

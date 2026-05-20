@@ -165,6 +165,7 @@ public class DiaryService {
         diary.setContent(ContentFilter.filter(content));
         diary.setVisibility(visibility.name());
         diary.setMusicMeta(request.musicMeta());
+        diary.setImages(request.images());
         diary.setResonanceCount(0);
         diary.setIsDeleted(false);
         diary.setCreatedAt(LocalDateTime.now());
@@ -220,6 +221,9 @@ public class DiaryService {
             diary.setUpdatedAt(LocalDateTime.now());
             if (request.musicMeta() != null) {
                 diary.setMusicMeta(request.musicMeta());
+            }
+            if (request.images() != null) {
+                diary.setImages(request.images());
             }
             diaryMapper.updateById(diary);
         });

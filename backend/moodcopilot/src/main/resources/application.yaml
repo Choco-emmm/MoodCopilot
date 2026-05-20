@@ -86,6 +86,11 @@ cors:
 turnstile:
   secret-key: ${TURNSTILE_SECRET_KEY:}
   site-key: ${TURNSTILE_SITE_KEY:}
+oss:
+  endpoint: ${OSS_ENDPOINT:oss-cn-guangzhou.aliyuncs.com}
+  bucket: ${OSS_BUCKET:moodcopilot}
+  access-key: ${OSS_ACCESS_KEY:}
+  secret-key: ${OSS_SECRET_KEY:}
 #Mybatis相关配置
 mybatis-plus:
   map-underscore-to-camel-case: true

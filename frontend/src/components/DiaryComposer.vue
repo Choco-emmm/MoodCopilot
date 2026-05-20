@@ -63,6 +63,28 @@
       <button class="music-remove-btn" @click="removeMusic">✕ 移除音乐</button>
     </div>
 
+    <!-- 图片上传 -->
+    <div class="composer-images-section">
+      <div class="composer-images-grid">
+        <div v-for="(img, i) in imageList" :key="i" class="composer-image-preview">
+          <img :src="img" alt="" />
+          <button class="composer-image-remove" @click="removeImage(i)">✕</button>
+        </div>
+        <label class="composer-image-add" :class="{ uploading: uploadingImage }">
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,image/heic"
+            :disabled="uploadingImage || imageList.length >= 9"
+            hidden
+            @change="handleImageSelect"
+          />
+          <span v-if="uploadingImage">上传中...</span>
+          <span v-else>+ 添加图片</span>
+          <span class="composer-image-add-hint">压缩上传</span>
+        </label>
+      </div>
+    </div>
+
     <p class="composer-hint">
       写得越具体，MoodCopilot 越能理解你在意的人和事。持续记录比一次写满更重要。
     </p>
@@ -108,7 +130,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useDiaryStore, type MusicMeta } from '../stores/diary'
-import { musicApi } from '../api'
+import { musicApi, imageApi } from '../api'
+import { compressImage } from '../utils/image'
 import MusicCard from './MusicCard.vue'
 
 const store = useDiaryStore()
@@ -126,6 +149,9 @@ const musicParsing = ref(false)
 const showMusicInput = ref(false)
 const musicUrlDraft = ref('')
 const musicUrlInput = ref<HTMLInputElement | null>(null)
+
+const imageList = ref<string[]>([])
+const uploadingImage = ref(false)
 
 function updateDraftSavedAt() {
   draftSavedAt.value = new Intl.DateTimeFormat('zh-CN', {
@@ -231,16 +257,45 @@ async function submitMusicUrl(url: string, fullText?: string) {
   }
 }
 
+async function handleImageSelect(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  uploadingImage.value = true
+  try {
+    const compressed = await compressImage(file, 500)
+    const res = await imageApi.upload(compressed)
+    const url = res.data?.data?.url
+    if (url) imageList.value.push(url)
+  } catch { /* silently ignore */ }
+  finally {
+    uploadingImage.value = false
+    input.value = ''
+  }
+}
+
+function removeImage(i: number) {
+  imageList.value.splice(i, 1)
+}
+
+
 async function handleSave() {
   if (!draft.value.trim()) return
   try {
     const payload = musicMeta.value
       ? { ...musicMeta.value, userLyric: userLyric.value, songUrl: musicSongUrl.value }
       : undefined
-    await store.createDiary(draft.value.trim(), visibility.value, payload, analyze.value)
+    await store.createDiary(
+      draft.value.trim(),
+      visibility.value,
+      payload,
+      analyze.value,
+      imageList.value.length ? imageList.value : undefined,
+    )
     draft.value = ''
     musicMeta.value = null
     userLyric.value = ''
+    imageList.value = []
     localStorage.removeItem(DRAFT_KEY)
   } catch {
     // error handled by store
@@ -366,6 +421,83 @@ async function handleSave() {
 
 .music-remove-btn:hover {
   color: #a94b45;
+}
+
+/* ── 图片上传 ── */
+.composer-images-section {
+  margin-top: 10px;
+}
+
+.composer-images-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.composer-image-preview {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #f5f0e8;
+}
+
+.composer-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.composer-image-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 10px;
+  line-height: 18px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.composer-image-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  border: 1.5px dashed rgba(180, 150, 120, 0.35);
+  background: transparent;
+  cursor: pointer;
+  color: #b0a090;
+  font-size: 11px;
+  transition: border-color 0.15s, color 0.15s;
+  gap: 2px;
+}
+
+.composer-image-add:hover {
+  border-color: var(--color-primary, #4a7c62);
+  color: var(--color-primary, #4a7c62);
+}
+
+.composer-image-add.uploading {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.composer-image-add-hint {
+  font-size: 9px;
+  color: #c0b8a8;
 }
 
 </style>
