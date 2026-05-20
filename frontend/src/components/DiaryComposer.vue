@@ -519,4 +519,5 @@ async function handleSave() {
   cursor: wait;
   opacity: 0.6;
 }
+</style>
 
