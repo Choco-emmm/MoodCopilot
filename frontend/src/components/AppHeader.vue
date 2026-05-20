@@ -274,7 +274,7 @@ const levelQuotaMax = computed(() => {
 
 function formatQuota(val: number | undefined, max?: number): string {
   if (val == null) return '--'
-  if (val < 0) return '不限'
+  if (val < 0 || val >= 9999) return '不限'
   if (max === 0) return '—（未解锁）'
   if (max != null && max < 999) return `${val}/${max}`
   if (max != null && max >= 999) return val + ' 次'
