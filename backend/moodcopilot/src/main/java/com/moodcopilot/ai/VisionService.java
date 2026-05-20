@@ -13,7 +13,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 调用 SiliconFlow 视觉模型描述图片画面与情感氛围。
+ * 调用视觉模型描述图片画面与情感氛围。
+ * 支持阿里云百炼 / SiliconFlow 等 OpenAI 兼容接口，通过配置切换。
  * VLM 失败不抛异常，返回空字符串，确保文本分析不受影响。
  */
 @Service
@@ -28,11 +29,12 @@ public class VisionService {
     private final ObjectMapper objectMapper;
 
     public VisionService(
-            @Value("${spring.ai.rag.embedding.api-key:}") String apiKey,
-            @Value("${moodcopilot.vision.model:Qwen/Qwen2.5-VL-7B-Instruct}") String model,
+            @Value("${moodcopilot.vision.api-key:}") String apiKey,
+            @Value("${moodcopilot.vision.api-url:https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions}") String apiUrl,
+            @Value("${moodcopilot.vision.model:qwen3-vl-flash}") String model,
             ObjectMapper objectMapper) {
         this.apiKey = apiKey != null ? apiKey.trim() : "";
-        this.apiUrl = "https://api.siliconflow.cn/v1/chat/completions";
+        this.apiUrl = apiUrl;
         this.model = model;
         this.restClient = RestClient.builder().build();
         this.objectMapper = objectMapper;

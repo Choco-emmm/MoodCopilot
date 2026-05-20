@@ -91,6 +91,11 @@ oss:
   bucket: ${OSS_BUCKET:moodcopilot}
   access-key: ${OSS_ACCESS_KEY:}
   secret-key: ${OSS_SECRET_KEY:}
+moodcopilot:
+  vision:
+    api-key: ${VISION_API_KEY:}
+    api-url: ${VISION_API_URL:https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions}
+    model: ${VISION_MODEL:qwen3-vl-flash}
 #Mybatis相关配置
 mybatis-plus:
   map-underscore-to-camel-case: true
