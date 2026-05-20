@@ -83,19 +83,18 @@ public class OssService {
                     .header("Authorization", auth)
                     .header("Content-Type", contentType)
                     .header("Date", date)
-                    .header("x-oss-acl", "public-read")
                     .PUT(HttpRequest.BodyPublishers.ofByteArray(data))
                     .timeout(Duration.ofSeconds(15))
                     .build();
 
-            HttpResponse<Void> response = httpClient.send(request, HttpResponse.BodyHandlers.discarding());
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             int status = response.statusCode();
             if (status == 200) {
                 String url = "https://" + host + "/" + objectKey;
                 log.info("OSS 上传成功: {} ({} bytes)", url, data.length);
                 return url;
             } else {
-                log.error("OSS 上传失败 status={} objectKey={}", status, objectKey);
+                log.error("OSS 上传失败 status={} body={} objectKey={}", status, response.body(), objectKey);
                 throw new RuntimeException("OSS 上传失败，状态码: " + status);
             }
         } catch (Exception e) {
