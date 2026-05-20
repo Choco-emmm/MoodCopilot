@@ -6,6 +6,10 @@ defineProps<{
   thumbnail?: boolean
 }>()
 
+function ossUrl(url: string, width: number) {
+  return `${url}?x-oss-process=image/resize,w_${width}/format,webp`
+}
+
 const lightboxSrc = ref<string | null>(null)
 
 function open(src: string) {
@@ -28,7 +32,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   <div :class="['image-gallery', { thumbnail }]">
     <div v-for="(img, i) in images" :key="i" class="image-gallery-item" @click="open(img)">
       <img
-        :src="img"
+        :src="thumbnail ? ossUrl(img, 400) : ossUrl(img, 1200)"
         :alt="'图片 ' + (i + 1)"
         loading="lazy"
         decoding="async"

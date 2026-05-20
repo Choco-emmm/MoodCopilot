@@ -80,13 +80,8 @@
           />
           <span v-if="uploadingImage">上传中...</span>
           <span v-else>+ 添加图片</span>
-          <span class="composer-image-add-hint">{{ uploadOriginal ? '原图上传' : '压缩上传' }}</span>
         </label>
       </div>
-      <label v-if="imageList.length === 0" class="composer-image-original-toggle">
-        <input type="checkbox" v-model="uploadOriginal" />
-        <span>保留原图画质</span>
-      </label>
     </div>
 
     <p class="composer-hint">
@@ -136,7 +131,6 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDiaryStore, type MusicMeta } from '../stores/diary'
 import { musicApi, imageApi } from '../api'
-import { compressImage } from '../utils/image'
 import MusicCard from './MusicCard.vue'
 
 const props = withDefaults(defineProps<{
@@ -169,7 +163,6 @@ const musicUrlInput = ref<HTMLInputElement | null>(null)
 
 const imageList = ref<string[]>([])
 const uploadingImage = ref(false)
-const uploadOriginal = ref(false)
 
 function updateDraftSavedAt() {
   draftSavedAt.value = new Intl.DateTimeFormat('zh-CN', {
@@ -296,9 +289,7 @@ async function handleImageSelect(e: Event) {
   if (!file) return
   uploadingImage.value = true
   try {
-    const toUpload = uploadOriginal.value ? file : await compressImage(file, 500)
-    const res = await imageApi.upload(toUpload)
-    const url = res.data?.data?.url
+    const url = await imageApi.uploadDirect(file)
     if (url) imageList.value.push(url)
   } catch { /* silently ignore */ }
   finally {
@@ -329,7 +320,6 @@ async function handleSave() {
       musicMeta.value = null
       userLyric.value = ''
       imageList.value = []
-      uploadOriginal.value = false
       localStorage.removeItem(DRAFT_KEY)
     }
   } catch {
@@ -530,23 +520,3 @@ async function handleSave() {
   opacity: 0.6;
 }
 
-.composer-image-add-hint {
-  font-size: 9px;
-  color: #c0b8a8;
-}
-
-.composer-image-original-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #8a7a6a;
-  cursor: pointer;
-  width: fit-content;
-}
-
-.composer-image-original-toggle input {
-  cursor: pointer;
-}
-
-</style>

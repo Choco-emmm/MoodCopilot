@@ -166,6 +166,39 @@ export const imageApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+
+  /** 获取 OSS 直传策略 */
+  uploadPolicy: (ext: string) =>
+    api.post('/images/upload-policy', null, { params: { ext } }),
+
+  /** 浏览器直传 OSS，文件不经服务器 */
+  uploadDirect: async (file: File): Promise<string> => {
+    const ext = file.name.includes('.') ? file.name.substring(file.name.lastIndexOf('.')) : '.jpg'
+    const policyRes = await imageApi.uploadPolicy(ext)
+    const policy = policyRes.data?.data
+    if (!policy) throw new Error('获取上传策略失败')
+
+    const fd = new FormData()
+    fd.append('OSSAccessKeyId', policy.accessId)
+    fd.append('policy', policy.policy)
+    fd.append('signature', policy.signature)
+    fd.append('key', policy.key)
+    fd.append('success_action_status', '200')
+    fd.append('file', file)
+
+    await fetch(policy.host, { method: 'POST', body: fd })
+    return policy.url
+  },
+}
+
+export interface OssPolicy {
+  host: string
+  accessId: string
+  policy: string
+  signature: string
+  key: string
+  url: string
+  expireMs: number
 }
 
 export const musicApi = {
