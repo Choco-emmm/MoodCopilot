@@ -68,6 +68,12 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY}
+      OSS_ENDPOINT: ${OSS_ENDPOINT:-oss-cn-guangzhou.aliyuncs.com}
+      OSS_BUCKET: ${OSS_BUCKET:-moodcopilot}
+      OSS_ACCESS_KEY: ${OSS_ACCESS_KEY}
+      OSS_SECRET_KEY: ${OSS_SECRET_KEY}
+      VISION_API_KEY: ${VISION_API_KEY}
+      VISION_MODEL: ${VISION_MODEL:-qwen3-vl-flash}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://moodcopilot.dpdns.org,http://localhost:5173}
       MAIL_HOST: ${MAIL_HOST:-smtp.qq.com}
       MAIL_PORT: ${MAIL_PORT:-465}

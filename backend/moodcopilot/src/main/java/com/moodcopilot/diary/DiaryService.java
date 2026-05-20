@@ -240,7 +240,7 @@ public class DiaryService {
                     buildIndexContent(filteredContent, diary.getMusicMeta()), diary.getMusicMeta());
 
             String imageDescriptions = visionService.describeImages(diary.getImages());
-            log.info("图片描述：{}", imageDescriptions);
+//            log.info("图片描述：{}", imageDescriptions);
             DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent, diary.getMusicMeta(), imageDescriptions);
 
             // 分析结果持久化单独一个事务

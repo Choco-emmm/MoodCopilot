@@ -164,7 +164,7 @@ public class RagMemoryService {
             float[] musicVec = embed(musicText);
             if (musicVec != null) {
                 storeEmbedding("diary:" + diaryId + ":music", userId, SOURCE_DIARY, musicText, musicVec);
-                log.info("RAG 已索引音乐元数据 diaryId={} title={}", diaryId, musicMeta.getTitle());
+                log.info("RAG 已索引音乐元数据 diaryId={} ", diaryId);
             }
         }
         if (content.length() <= 500) {
