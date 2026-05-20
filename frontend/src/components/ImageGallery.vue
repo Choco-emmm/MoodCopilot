@@ -3,17 +3,13 @@ defineProps<{
   images: string[]
   thumbnail?: boolean
 }>()
-
-function thumbUrl(url: string): string {
-  return url + '?x-oss-process=image/resize,w_400'
-}
 </script>
 
 <template>
   <div :class="['image-gallery', { thumbnail }]">
     <div v-for="(img, i) in images" :key="i" class="image-gallery-item">
       <img
-        :src="thumbnail ? thumbUrl(img) : img"
+        :src="img"
         :alt="'图片 ' + (i + 1)"
         loading="lazy"
         decoding="async"
