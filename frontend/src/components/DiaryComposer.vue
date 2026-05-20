@@ -209,6 +209,8 @@ onMounted(() => {
 })
 
 watch(draft, (value, oldValue) => {
+  // 编辑模式下不写草稿，避免旧日记内容污染新日记草稿
+  if (isEditMode.value) return
   if (value) {
     localStorage.setItem(DRAFT_KEY, value)
     updateDraftSavedAt()

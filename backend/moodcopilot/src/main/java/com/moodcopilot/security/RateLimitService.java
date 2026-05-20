@@ -193,9 +193,9 @@ public class RateLimitService {
 
     private String typeLabel(AiApiType type) {
         return switch (type) {
-            case CHAT -> "聊天";
-            case ANALYSIS -> "日记分析";
-            case REASONING -> "深度思考";
+            case CHAT -> "AI 聊天";
+            case ANALYSIS -> "AI 分析";
+            case REASONING -> "AI 深度思考";
             case RESONANCE -> "共鸣检索";
             case REPORT -> "报告生成";
             case IMAGE_UPLOAD -> "图片上传";
