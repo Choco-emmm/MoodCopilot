@@ -110,4 +110,57 @@ public class OssService {
         byte[] signed = mac.doFinal(canonicalString.getBytes());
         return Base64.getEncoder().encodeToString(signed);
     }
+
+    /**
+     * 从 OSS URL 提取 object key。例如 https://bucket.endpoint/images/uuid.jpg → images/uuid.jpg
+     */
+    public String extractObjectKey(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) return null;
+        String host = bucket + "." + endpoint;
+        int idx = imageUrl.indexOf(host);
+        if (idx < 0) return null;
+        String path = imageUrl.substring(idx + host.length());
+        return path.startsWith("/") ? path.substring(1) : path;
+    }
+
+    /**
+     * 删除 OSS 上的单个图片。失败仅记日志，不抛异常（孤儿文件不应阻塞主流程）。
+     */
+    public void deleteImage(String imageUrl) {
+        String objectKey = extractObjectKey(imageUrl);
+        if (objectKey == null) return;
+        try {
+            String date = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME
+                    .withZone(java.time.ZoneId.of("GMT"))
+                    .withLocale(java.util.Locale.US)
+                    .format(java.time.Instant.now());
+            String canonicalString = "DELETE\n\n\n" + date + "\n/" + bucket + "/" + objectKey;
+            String auth = "OSS " + accessKey + ":" + sign(canonicalString);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(java.net.URI.create("https://" + bucket + "." + endpoint + "/" + objectKey))
+                    .header("Authorization", auth)
+                    .header("Date", date)
+                    .DELETE()
+                    .timeout(java.time.Duration.ofSeconds(10))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 204 || response.statusCode() == 200) {
+                log.info("OSS 删除成功: {}", objectKey);
+            } else {
+                log.warn("OSS 删除失败 status={} key={}", response.statusCode(), objectKey);
+            }
+        } catch (Exception e) {
+            log.warn("OSS 删除异常 url={}: {}", imageUrl, e.getMessage());
+        }
+    }
+
+    /** 批量删除 OSS 图片 */
+    public void deleteImages(java.util.List<String> imageUrls) {
+        if (imageUrls == null) return;
+        for (String url : imageUrls) {
+            deleteImage(url);
+        }
+    }
 }

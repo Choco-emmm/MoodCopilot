@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.*;
+import com.moodcopilot.oss.*;
 import com.moodcopilot.common.ContentFilter;
 import com.moodcopilot.growth.ExpAction;
 import com.moodcopilot.growth.UserGrowthService;
@@ -80,6 +81,7 @@ public class DiaryService {
 
     private final AiAnalysisService aiAnalysisService;
     private final VisionService visionService;
+    private final OssService ossService;
     private final MemoryExtractionService memoryExtractionService;
     private final NotificationService notificationService;
     private final FollowService followService;
@@ -101,6 +103,7 @@ public class DiaryService {
             UserMapper userMapper,
             AiAnalysisService aiAnalysisService,
             VisionService visionService,
+            OssService ossService,
             MemoryExtractionService memoryExtractionService,
             NotificationService notificationService,
             FollowService followService,
@@ -121,6 +124,7 @@ public class DiaryService {
         this.userMapper = userMapper;
         this.aiAnalysisService = aiAnalysisService;
         this.visionService = visionService;
+        this.ossService = ossService;
         this.memoryExtractionService = memoryExtractionService;
         this.notificationService = notificationService;
         this.followService = followService;
@@ -305,7 +309,7 @@ public class DiaryService {
             eventPublisher.publishEvent(new DiaryAnalysisCompletedEvent(
                     this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels()));
 
-            memoryExtractionService.extractAndSyncMemory(userId, content, musicMeta);
+            memoryExtractionService.extractAndSyncMemory(userId, content, musicMeta, imageDescriptions);
             // VLM 描述拿到后重新索引，让图片信息可被 RAG 检索
             if (imageDescriptions != null && !imageDescriptions.isBlank()) {
                 String enriched = buildIndexContent(content, musicMeta) + "\n[图片描述] " + imageDescriptions;
@@ -1546,6 +1550,7 @@ public class DiaryService {
             evictPublicDiaryCaches();
         }
         ragMemoryService.deleteDiaryEmbedding(diaryId);
+        ossService.deleteImages(diary.getImages());
         log.info("日记{}删除成功，diaryId={}，操作者UserId={}，原作者UserId={}",
                 "ADMIN".equals(user.getRole()) ? "强制" : "", diaryId, user.getId(), diary.getAuthorUserId());
     }

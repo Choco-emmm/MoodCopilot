@@ -13,7 +13,7 @@
             <n-tag :type="diary.visibility === 'PUBLIC' ? 'success' : 'default'" round size="small">
               {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
             </n-tag>
-            <n-button v-if="isOwner" size="tiny" text @click="toggleEdit">{{ editing ? '取消编辑' : '编辑' }}</n-button>
+            <n-button v-if="isOwner" size="tiny" text @click="router.push('/write?edit=' + diary.id)">编辑</n-button>
             <n-button v-if="!isOwner" size="tiny" text @click="reportDiary">举报</n-button>
             <n-button
               v-if="auth.isAdmin"
@@ -59,42 +59,16 @@
               {{ followStore.isFollowing(diary.authorUserId) ? '已关注' : '关注' }}
             </n-button>
           </div>
-          <p v-if="!editing" class="diary-content">{{ diary.content }}</p>
+          <p class="diary-content">{{ diary.content }}</p>
 
           <MusicCard
-            v-if="!editing && diary.musicMeta"
+            v-if="diary.musicMeta"
             :music-meta="diary.musicMeta"
             :lyric="diary.musicMeta.userLyric"
             :song-url="diary.musicMeta.songUrl"
             expandable-lyric
           />
           <ImageGallery v-if="diary.images?.length" :images="diary.images" />
-
-          <div v-if="isOwner && editing" class="diary-edit-panel">
-            <n-input
-              v-model:value="editContent"
-              type="textarea"
-              placeholder="编辑这篇日记..."
-              :autosize="{ minRows: 4, maxRows: 10 }"
-            />
-            <MusicCard
-              v-if="editMusicMeta"
-              :music-meta="editMusicMeta"
-              :lyric="editLyric"
-              :show-lyric="true"
-              :song-url="editMusicMeta.songUrl"
-              @update:lyric="editLyric = $event"
-            />
-            <div class="diary-edit-actions">
-              <select v-model="editVisibility" class="diary-edit-visibility">
-                <option value="PRIVATE">仅自己看</option>
-                <option value="PUBLIC">分享到社区</option>
-              </select>
-              <n-button size="small" :disabled="savingEdit || !editContent.trim()" @click="toggleEdit">取消</n-button>
-              <n-button type="primary" size="small" :loading="savingEdit" :disabled="!editContent.trim()" @click="saveDiaryEdit">保存修改</n-button>
-            </div>
-            <p v-if="editError" class="comment-error">{{ editError }}</p>
-          </div>
 
           <div class="detail-actions">
             <n-button
@@ -241,11 +215,6 @@ const justLiked = ref(false)
 let justLikedTimer: ReturnType<typeof setTimeout> | null = null
 const thumbsUpOutline = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3m7-2V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14Z"/></svg>`
 const thumbsUpFilled = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3m7-2V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14Z"/></svg>`
-const editing = ref(false)
-const editContent = ref('')
-const editVisibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
-const savingEdit = ref(false)
-const editError = ref('')
 const pinning = ref(false)
 const hideSimilarOnMobileInput = ref(false)
 let inputBlurTimer: ReturnType<typeof setTimeout> | null = null
@@ -273,19 +242,10 @@ async function loadDiaryByRoute() {
 
 onMounted(async () => {
   await loadDiaryByRoute()
-  if (route.query.edit === '1' && isOwner.value && diary.value) {
-    startEdit()
-  }
 })
 
 watch(() => route.params.id, async () => {
   await loadDiaryByRoute()
-})
-
-watch(() => route.query.edit, () => {
-  if (route.query.edit === '1' && isOwner.value && diary.value) {
-    startEdit()
-  }
 })
 
 async function submitComment(parentId: number | null) {
@@ -435,60 +395,6 @@ function selectDiary(d: Diary) {
   void router.push(`/diary/${d.id}`)
 }
 
-const editMusicMeta = ref<any>(null)
-const editLyric = ref('')
-
-function startEdit() {
-  if (!diary.value || !isOwner.value) return
-  editing.value = true
-  editError.value = ''
-  editContent.value = diary.value.content || ''
-  editVisibility.value = diary.value.visibility === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE'
-  editMusicMeta.value = diary.value.musicMeta ? { ...diary.value.musicMeta } : null
-  editLyric.value = diary.value.musicMeta?.userLyric || ''
-}
-
-function toggleEdit() {
-  if (editing.value) {
-    editing.value = false
-    editError.value = ''
-    return
-  }
-  startEdit()
-}
-
-async function saveDiaryEdit() {
-  if (!diary.value || !editContent.value.trim() || savingEdit.value) return
-  savingEdit.value = true
-  editError.value = ''
-  try {
-    const musicPayload = editMusicMeta.value
-      ? { ...editMusicMeta.value, userLyric: editLyric.value }
-      : undefined
-    await store.updateDiary(
-      diary.value.id,
-      editContent.value.trim(),
-      editVisibility.value,
-      musicPayload,
-    )
-    editing.value = false
-
-    // 编辑后重新拉取日记，确保拿到最新的分析结果
-    const refreshed = await diaryApi.get(diary.value.id)
-    diary.value = store.normalize(refreshed.data.data)
-
-    if (diary.value.analysis) {
-      store.analysisStatus = 'complete'
-      store.globalAnalysisDiary = diary.value
-      store.showGlobalAnalysisModal = true
-    }
-  } catch (e: any) {
-    editError.value = e?.response?.data?.message || '保存失败，请稍后重试'
-  } finally {
-    savingEdit.value = false
-  }
-}
-
 function formatTime(value: string) {
   return new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
@@ -576,31 +482,8 @@ function ensureCommentInputVisible() {
   font-size: 12px;
 }
 
-.diary-edit-panel {
-  display: grid;
-  gap: 8px;
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px solid #e6ddcf;
-  border-radius: 10px;
-  background: #fbf8f2;
-}
 
-.diary-edit-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-end;
-}
 
-.diary-edit-visibility {
-  margin-right: auto;
-  min-height: 30px;
-  border: 1px solid #d9d1c3;
-  border-radius: 8px;
-  padding: 0 8px;
-  background: #fff;
-}
 
 @media (max-width: 600px) {
   .diary-edit-actions {
