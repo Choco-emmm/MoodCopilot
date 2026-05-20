@@ -13,6 +13,8 @@ import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -97,8 +99,9 @@ public class ChatController {
                     log.info("流式聊天完成，准备触发画像增量更新，conversationId={}，replyLength={}",
                             id, aiReplyBuffer.length());
                     try {
+                        String cleanReply = removePreToolDuplicate(aiReplyBuffer.toString());
                         memoryExtractionService.extractAndSyncMemoryFromChat(userId, message, references,
-                                aiReplyBuffer.toString());
+                                cleanReply);
                         log.info("流式聊天后画像增量更新已提交，conversationId={}", id);
                     } catch (Exception e) {
                         log.warn("聊天后触发长期画像更新失败，conversationId={}，reason={}", id, e.getMessage());
@@ -142,6 +145,42 @@ public class ChatController {
             log.warn("非流式聊天后触发长期画像更新失败，conversationId={}，reason={}", id, e.getMessage());
         }
         return ApiResponse.ok(reply);
+    }
+
+    /**
+     * 检测并移除 Function Calling 导致的前置废话。
+     * 当模型在调用工具前先输出了"我帮你查一下"等过渡语，
+     * 这些前置文本和工具返回后的正式回复会被拼接在一起，导致割裂和重复。
+     * 此方法用启发式规则检测并保留后半段（基于工具数据的实质性回复）。
+     */
+    private String removePreToolDuplicate(String raw) {
+        if (raw == null || raw.length() < 30) return raw;
+
+        // 规则 1：检测 "帮你查" 类过渡语后是否还有足够长的实质性内容
+        Pattern preface = Pattern.compile("^.*?(我(?:帮你|来|去).*?(?:查|看看|搜索|检索)).*?[。！\\n]");
+        Matcher m = preface.matcher(raw);
+        if (m.find() && m.end() < raw.length() - 20) {
+            String candidate = raw.substring(m.end()).trim();
+            if (candidate.length() > 20) {
+                log.info("去重兜底触发（规则1），截取后半段 {}→{} 字符", raw.length(), candidate.length());
+                return candidate;
+            }
+        }
+
+        // 规则 2：检测明显的"转折重新开始"标记，保留后半段
+        String[] markers = {"好的，根据", "好了，我查", "我查了一下", "我帮你查", "我检索到"};
+        for (String marker : markers) {
+            int idx = raw.indexOf(marker);
+            if (idx > 20 && idx < raw.length() / 2) {
+                String after = raw.substring(idx).trim();
+                if (after.length() > 20) {
+                    log.info("去重兜底触发（规则2），标记=\"{}\" {}→{} 字符", marker, raw.length(), after.length());
+                    return after;
+                }
+            }
+        }
+
+        return raw;
     }
 
     @GetMapping("/conversations/{id}/history")
