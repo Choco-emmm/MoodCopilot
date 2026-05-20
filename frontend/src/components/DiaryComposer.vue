@@ -46,12 +46,6 @@
           @paste="handleMusicInputPaste"
           @keyup.enter="handleMusicUrlSubmit"
         />
-        <button class="music-input-btn" type="button" :disabled="!musicUrlDraft.trim()" @click="handleMusicUrlSubmit">
-          解析
-        </button>
-        <button class="music-input-cancel" type="button" @click="showMusicInput = false; musicUrlDraft = ''">
-          取消
-        </button>
       </div>
     </div>
 
@@ -343,38 +337,6 @@ async function handleSave() {
 
 .music-url-input:focus {
   border-color: var(--color-primary, #4a7c62);
-}
-
-.music-input-btn {
-  padding: 6px 12px;
-  border: none;
-  border-radius: var(--radius-sm, 6px);
-  background: var(--color-primary, #4a7c62);
-  color: #fff;
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  font-family: inherit;
-}
-
-.music-input-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.music-input-cancel {
-  padding: 6px 8px;
-  border: none;
-  background: transparent;
-  color: #b0a090;
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  font-family: inherit;
-}
-
-.music-input-cancel:hover {
-  color: #8a7a6a;
 }
 
 .music-parsing {
