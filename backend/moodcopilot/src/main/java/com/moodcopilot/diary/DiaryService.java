@@ -180,7 +180,7 @@ public class DiaryService {
             evictPublicDiaryCaches();
         }
         ragMemoryService.indexDiary(user.getId(), diary.getId(),
-                buildIndexContent(diary.getContent(), diary.getMusicMeta()));
+                buildIndexContent(diary.getContent(), diary.getMusicMeta()), diary.getMusicMeta());
 
         return DiaryView.from(diary, List.of(), normalizeAvatar(user.getAvatar()), user.getDisplayName(), Map.of(),
                 false);
@@ -229,7 +229,7 @@ public class DiaryService {
             log.info("日记内容已更新，触发分析与画像重建，diaryId={}，userId={}", diaryId, user.getId());
             rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
             ragMemoryService.indexDiary(user.getId(), diaryId,
-                    buildIndexContent(filteredContent, diary.getMusicMeta()));
+                    buildIndexContent(filteredContent, diary.getMusicMeta()), diary.getMusicMeta());
 
             DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent, diary.getMusicMeta());
 
