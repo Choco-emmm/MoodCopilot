@@ -218,7 +218,7 @@ public class DiaryService {
             log.info("日记内容已更新，触发分析与画像重建，diaryId={}，userId={}", diaryId, user.getId());
             rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
             ragMemoryService.indexDiary(user.getId(), diaryId, filteredContent);
-            DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent);
+            DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent, diary.getMusicMeta());
             DiaryAnalysisEntity existingAnalysis = diaryAnalysisMapper.selectById(diaryId);
             LocalDateTime now = LocalDateTime.now();
             if (existingAnalysis == null) {
@@ -259,36 +259,40 @@ public class DiaryService {
         return buildDiaryView(diary, "PUBLIC".equals(diary.getVisibility()));
     }
 
-    @Async
+    @Async("aiExecutor")
     @Transactional
     public void runAiAnalysis(long diaryId, long userId, String content, MusicMeta musicMeta, String role) {
         log.info("开始执行日记 AI 分析，diaryId={}，userId={}，contentLength={}，hasMusic={}", diaryId, userId,
                 content == null ? 0 : content.length(), musicMeta != null);
-        rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.ANALYSIS);
-        DiaryAnalysis analysis = aiAnalysisService.analyze(content, musicMeta);
+        try {
+            rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.ANALYSIS);
+            DiaryAnalysis analysis = aiAnalysisService.analyze(content, musicMeta);
 
-        DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
-        analysisEntity.setDiaryId(diaryId);
-        analysisEntity.setMoodLabel(analysis.moodLabel());
-        analysisEntity.setMoodIntensity(analysis.moodIntensity());
-        analysisEntity.setTopicLabelsJson(analysis.topicLabels());
-        analysisEntity.setSummary(analysis.summary());
-        analysisEntity.setFeedback(analysis.feedback());
-        analysisEntity.setCreatedAt(LocalDateTime.now());
-        analysisEntity.setUpdatedAt(LocalDateTime.now());
-        diaryAnalysisMapper.insert(analysisEntity);
-        log.info("日记 AI 分析已落库，diaryId={}，mood={}，topics={}", diaryId, analysis.moodLabel(), analysis.topicLabels());
+            DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
+            analysisEntity.setDiaryId(diaryId);
+            analysisEntity.setMoodLabel(analysis.moodLabel());
+            analysisEntity.setMoodIntensity(analysis.moodIntensity());
+            analysisEntity.setTopicLabelsJson(analysis.topicLabels());
+            analysisEntity.setSummary(analysis.summary());
+            analysisEntity.setFeedback(analysis.feedback());
+            analysisEntity.setCreatedAt(LocalDateTime.now());
+            analysisEntity.setUpdatedAt(LocalDateTime.now());
+            diaryAnalysisMapper.insert(analysisEntity);
+            log.info("日记 AI 分析已落库，diaryId={}，mood={}，topics={}", diaryId, analysis.moodLabel(), analysis.topicLabels());
 
-        eventPublisher.publishEvent(new DiaryAnalysisCompletedEvent(
-                this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels()));
+            eventPublisher.publishEvent(new DiaryAnalysisCompletedEvent(
+                    this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels()));
 
-        memoryExtractionService.extractAndSyncMemory(userId, content, musicMeta);
-        markReportsStale(userId);
-        DiaryEntity diary = diaryMapper.selectById(diaryId);
-        if (diary != null && "PUBLIC".equals(diary.getVisibility())) {
-            evictPublicDiaryCaches();
+            memoryExtractionService.extractAndSyncMemory(userId, content, musicMeta);
+            markReportsStale(userId);
+            DiaryEntity diary = diaryMapper.selectById(diaryId);
+            if (diary != null && "PUBLIC".equals(diary.getVisibility())) {
+                evictPublicDiaryCaches();
+            }
+            log.info("日记分析后续任务已触发，diaryId={}，userId={}，动作=publishEvent+extractMemory+markReportsStale", diaryId, userId);
+        } catch (Exception e) {
+            log.error("日记 AI 分析异步任务失败，diaryId={}，userId={}，错误信息={}", diaryId, userId, e.getMessage(), e);
         }
-        log.info("日记分析后续任务已触发，diaryId={}，userId={}，动作=publishEvent+extractMemory+markReportsStale", diaryId, userId);
     }
 
     public Page<DiaryView> myDiaries(int page, int size) {
