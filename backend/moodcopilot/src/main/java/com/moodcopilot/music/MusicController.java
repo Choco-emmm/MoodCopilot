@@ -25,8 +25,8 @@ public class MusicController {
         if (url == null || url.isBlank()) {
             return ApiResponse.error(400, "缺少音乐链接");
         }
-        if (!url.contains("music.163.com")) {
-            return ApiResponse.error(400, "仅支持网易云音乐链接");
+        if (!url.contains("music.163.com") && !url.contains("163cn.tv")) {
+            return ApiResponse.error(400, "仅支持网易云音乐链接（music.163.com / 163cn.tv）");
         }
         log.info("解析音乐链接: {}", url);
         MusicMeta meta = musicParseService.parse(url);
