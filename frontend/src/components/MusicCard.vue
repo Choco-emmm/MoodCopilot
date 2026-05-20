@@ -62,7 +62,13 @@ function toggleLine(index: number) {
 
 <template>
   <div class="music-card">
-    <div class="music-card-body">
+    <a
+      v-if="musicMeta.songUrl"
+      :href="musicMeta.songUrl"
+      target="_blank"
+      rel="noopener"
+      class="music-card-body music-card-link"
+    >
       <img
         v-if="musicMeta.coverUrl"
         :src="musicMeta.coverUrl"
@@ -80,6 +86,30 @@ function toggleLine(index: number) {
         <span class="music-title">{{ musicMeta.title }}</span>
         <span class="music-artist">{{ musicMeta.artist }}</span>
       </div>
+    </a>
+    <div v-else class="music-card-body">
+      <img
+        v-if="musicMeta.coverUrl"
+        :src="musicMeta.coverUrl"
+        :alt="musicMeta.title"
+        class="music-cover"
+        referrerpolicy="no-referrer"
+        loading="lazy"
+        decoding="async"
+        @error="($event.target as HTMLImageElement).style.display = 'none'"
+      />
+      <div v-else class="music-cover-fallback">
+        <span class="music-icon">🎵</span>
+      </div>
+      <div class="music-info">
+        <span class="music-title">{{ musicMeta.title }}</span>
+        <span class="music-artist">{{ musicMeta.artist }}</span>
+      </div>
+    </div>
+
+    <!-- 已选歌词展示（只读模式） -->
+    <div v-if="!showLyric && musicMeta.userLyric" class="music-user-lyric">
+      <span class="user-lyric-label">「</span>{{ musicMeta.userLyric }}<span class="user-lyric-label">」</span>
     </div>
 
     <!-- 歌词选择区 -->
@@ -138,6 +168,16 @@ function toggleLine(index: number) {
   padding: 12px;
 }
 
+.music-card-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.music-card-link:hover {
+  background: rgba(180, 150, 120, 0.04);
+}
+
 .music-cover {
   width: 52px;
   height: 52px;
@@ -185,6 +225,21 @@ function toggleLine(index: number) {
 .music-artist {
   font-size: 12px;
   color: #8a7a6a;
+}
+
+.music-user-lyric {
+  margin: 0 12px 10px;
+  font-size: 12px;
+  color: #b0a090;
+  font-style: italic;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.user-lyric-label {
+  font-style: normal;
+  color: #d0c8b8;
 }
 
 .music-artist-zh {
