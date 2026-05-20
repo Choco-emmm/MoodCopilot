@@ -5,6 +5,7 @@ public class MusicMeta {
     private String artist;
     private String coverUrl;
     private String userLyric;
+    private String songUrl;
 
     public MusicMeta() {}
 
@@ -26,4 +27,7 @@ public class MusicMeta {
 
     public String getUserLyric() { return userLyric; }
     public void setUserLyric(String userLyric) { this.userLyric = userLyric; }
+
+    public String getSongUrl() { return songUrl; }
+    public void setSongUrl(String songUrl) { this.songUrl = songUrl; }
 }

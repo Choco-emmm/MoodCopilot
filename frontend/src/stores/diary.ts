@@ -9,6 +9,7 @@ export interface MusicMeta {
   artist: string
   coverUrl: string
   userLyric?: string
+  songUrl?: string
 }
 
 export interface Diary {

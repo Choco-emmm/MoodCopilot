@@ -38,6 +38,18 @@ public class MusicController {
         return ApiResponse.ok(meta);
     }
 
+    @PostMapping("/lyrics")
+    public ApiResponse<java.util.List<String>> suggestLyrics(@RequestBody Map<String, String> body) {
+        String title = body.get("title");
+        String artist = body.get("artist");
+        String url = body.get("url");
+        if (url == null || url.isBlank()) {
+            return ApiResponse.error(400, "缺少歌曲链接");
+        }
+        java.util.List<String> lyrics = musicParseService.suggestLyrics(title, artist, url);
+        return ApiResponse.ok(lyrics);
+    }
+
     @GetMapping("/proxy-image")
     public ApiResponse<String> proxyImage(@RequestParam String url) {
         return ApiResponse.ok(musicParseService.proxyImage(url));
