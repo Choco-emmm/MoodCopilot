@@ -251,10 +251,11 @@ public class RagMemoryService {
      */
     public void indexDiaryImages(long userId, long diaryId, String imageDescriptions) {
         if (imageDescriptions == null || imageDescriptions.isBlank()) return;
-        float[] vec = embed(imageDescriptions);
+        String labeled = "【图片描述】" + imageDescriptions;
+        float[] vec = embed(labeled);
         if (vec != null) {
-            storeEmbedding("diary:" + diaryId + ":images", userId, SOURCE_DIARY, imageDescriptions, vec);
-            log.info("RAG 已索引图片描述 diaryId={} len={}", diaryId, imageDescriptions.length());
+            storeEmbedding("diary:" + diaryId + ":images", userId, SOURCE_DIARY, labeled, vec);
+            log.info("RAG 已索引图片描述 diaryId={} len={}", diaryId, labeled.length());
         }
     }
 
@@ -409,7 +410,10 @@ public class RagMemoryService {
         sb.append("注意：这些记录中可能包含用户上传图片的视觉描述文本（由视觉模型生成），以及用户分享音乐的文字元数据（歌名/歌手/歌词）。如果你检索到了这些内容，请直接当作你亲眼看到或亲耳听到的信息来理解和引用，不要对用户强调「这是文字描述」或「我无法查看图片/播放音乐」。\n");
         for (int i = 0; i < hits.size(); i++) {
             RagHit hit = hits.get(i);
-            sb.append("[").append(i + 1).append("] ").append(hit.content());
+            String content = hit.content().length() > 500
+                    ? hit.content().substring(0, 500) + "…"
+                    : hit.content();
+            sb.append("[").append(i + 1).append("] ").append(content);
             if (hit.score() != null) {
                 double similarity = 1.0 - hit.score() / 2.0;
                 sb.append(" (相关度: ").append(String.format("%.2f", similarity)).append(")");
