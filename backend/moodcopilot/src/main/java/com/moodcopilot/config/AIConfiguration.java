@@ -24,6 +24,7 @@ import org.springframework.boot.web.reactive.function.client.WebClientCustomizer
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -334,6 +335,7 @@ public class AIConfiguration {
         });
     }
 
+    @Primary
     @Bean(name = "aiExecutor")
     public Executor aiExecutor() {
         // AI 相关异步任务统一走单独线程池，避免阻塞 Web 请求线程。

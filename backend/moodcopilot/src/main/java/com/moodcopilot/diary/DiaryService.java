@@ -41,6 +41,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.DayOfWeek;
@@ -91,6 +92,7 @@ public class DiaryService {
     private final RagMemoryService ragMemoryService;
     private final RateLimitService rateLimitService;
     private final UserGrowthService userGrowthService;
+    private final TransactionTemplate transactionTemplate;
 
     public DiaryService(DiaryMapper diaryMapper,
             DiaryAnalysisMapper diaryAnalysisMapper,
@@ -109,7 +111,8 @@ public class DiaryService {
             ApplicationEventPublisher eventPublisher,
             RagMemoryService ragMemoryService,
             RateLimitService rateLimitService,
-            UserGrowthService userGrowthService) {
+            UserGrowthService userGrowthService,
+            TransactionTemplate transactionTemplate) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
@@ -128,6 +131,7 @@ public class DiaryService {
         this.ragMemoryService = ragMemoryService;
         this.rateLimitService = rateLimitService;
         this.userGrowthService = userGrowthService;
+        this.transactionTemplate = transactionTemplate;
     }
 
     @jakarta.annotation.PostConstruct
@@ -181,7 +185,6 @@ public class DiaryService {
                 false);
     }
 
-    @Transactional
     public DiaryView updateDiary(long diaryId, UpdateDiaryRequest request) {
         if (request == null) {
             throw new ResponseStatusException(BAD_REQUEST, "更新参数不能为空");
@@ -209,38 +212,48 @@ public class DiaryService {
         boolean contentChanged = !oldContent.equals(filteredContent);
         boolean visibilityChanged = !visibility.name().equals(oldVisibility);
 
-        diary.setContent(filteredContent);
-        diary.setVisibility(visibility.name());
-        diary.setUpdatedAt(LocalDateTime.now());
-        diaryMapper.updateById(diary);
+        // DB 写入放在编程式事务内，确保原子性且不扩散到 LLM 调用
+        transactionTemplate.executeWithoutResult(status -> {
+            diary.setContent(filteredContent);
+            diary.setVisibility(visibility.name());
+            diary.setUpdatedAt(LocalDateTime.now());
+            diaryMapper.updateById(diary);
+        });
 
+        // AI 分析：在事务外执行，避免 HikariCP 连接泄漏
         if (contentChanged) {
             log.info("日记内容已更新，触发分析与画像重建，diaryId={}，userId={}", diaryId, user.getId());
             rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
             ragMemoryService.indexDiary(user.getId(), diaryId, filteredContent);
+
             DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent, diary.getMusicMeta());
-            DiaryAnalysisEntity existingAnalysis = diaryAnalysisMapper.selectById(diaryId);
+
+            // 分析结果持久化单独一个事务
             LocalDateTime now = LocalDateTime.now();
-            if (existingAnalysis == null) {
-                DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
-                analysisEntity.setDiaryId(diaryId);
-                analysisEntity.setMoodLabel(analysis.moodLabel());
-                analysisEntity.setMoodIntensity(analysis.moodIntensity());
-                analysisEntity.setTopicLabelsJson(analysis.topicLabels());
-                analysisEntity.setSummary(analysis.summary());
-                analysisEntity.setFeedback(analysis.feedback());
-                analysisEntity.setCreatedAt(now);
-                analysisEntity.setUpdatedAt(now);
-                diaryAnalysisMapper.insert(analysisEntity);
-            } else {
-                existingAnalysis.setMoodLabel(analysis.moodLabel());
-                existingAnalysis.setMoodIntensity(analysis.moodIntensity());
-                existingAnalysis.setTopicLabelsJson(analysis.topicLabels());
-                existingAnalysis.setSummary(analysis.summary());
-                existingAnalysis.setFeedback(analysis.feedback());
-                existingAnalysis.setUpdatedAt(now);
-                diaryAnalysisMapper.updateById(existingAnalysis);
-            }
+            transactionTemplate.executeWithoutResult(status -> {
+                DiaryAnalysisEntity existingAnalysis = diaryAnalysisMapper.selectById(diaryId);
+                if (existingAnalysis == null) {
+                    DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
+                    analysisEntity.setDiaryId(diaryId);
+                    analysisEntity.setMoodLabel(analysis.moodLabel());
+                    analysisEntity.setMoodIntensity(analysis.moodIntensity());
+                    analysisEntity.setTopicLabelsJson(analysis.topicLabels());
+                    analysisEntity.setSummary(analysis.summary());
+                    analysisEntity.setFeedback(analysis.feedback());
+                    analysisEntity.setCreatedAt(now);
+                    analysisEntity.setUpdatedAt(now);
+                    diaryAnalysisMapper.insert(analysisEntity);
+                } else {
+                    existingAnalysis.setMoodLabel(analysis.moodLabel());
+                    existingAnalysis.setMoodIntensity(analysis.moodIntensity());
+                    existingAnalysis.setTopicLabelsJson(analysis.topicLabels());
+                    existingAnalysis.setSummary(analysis.summary());
+                    existingAnalysis.setFeedback(analysis.feedback());
+                    existingAnalysis.setUpdatedAt(now);
+                    diaryAnalysisMapper.updateById(existingAnalysis);
+                }
+            });
+
             memoryExtractionService.extractAndSyncMemory(user.getId(), filteredContent);
         }
 
@@ -260,7 +273,6 @@ public class DiaryService {
     }
 
     @Async("aiExecutor")
-    @Transactional
     public void runAiAnalysis(long diaryId, long userId, String content, MusicMeta musicMeta, UserEntity user) {
         log.info("开始执行日记 AI 分析，diaryId={}，userId={}，contentLength={}，hasMusic={}", diaryId, userId,
                 content == null ? 0 : content.length(), musicMeta != null);
@@ -1225,7 +1237,7 @@ public class DiaryService {
         return buildDiaryView(diary, true);
     }
 
-    @Async
+    @Async("aiExecutor")
     private void asyncPersistResonance(long diaryId, long userId, boolean isLike) {
         try {
             if (isLike) {
