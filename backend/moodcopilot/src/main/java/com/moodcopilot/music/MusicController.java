@@ -22,14 +22,16 @@ public class MusicController {
     @PostMapping("/parse")
     public ApiResponse<MusicMeta> parse(@RequestBody Map<String, String> body) {
         String url = body.get("url");
+        String text = body.getOrDefault("text", "");
+
         if (url == null || url.isBlank()) {
             return ApiResponse.error(400, "缺少音乐链接");
         }
         if (!url.contains("music.163.com") && !url.contains("163cn.tv")) {
             return ApiResponse.error(400, "仅支持网易云音乐链接（music.163.com / 163cn.tv）");
         }
-        log.info("解析音乐链接: {}", url);
-        MusicMeta meta = musicParseService.parse(url);
+        log.info("解析音乐链接 url={} hasText={}", url, text != null && !text.isBlank());
+        MusicMeta meta = musicParseService.parse(url, text);
         if (meta == null) {
             return ApiResponse.error(400, "解析失败，请确认链接有效");
         }
