@@ -145,18 +145,22 @@ public class MemoryExtractionService {
      */
     @Async("aiExecutor")
     public void extractAndSyncMemory(Long userId, String diaryContent) {
-        extractAndSyncMemory(userId, diaryContent, null);
+        extractAndSyncMemory(userId, diaryContent, null, null);
     }
 
     public void extractAndSyncMemory(Long userId, String diaryContent, MusicMeta musicMeta) {
+        extractAndSyncMemory(userId, diaryContent, musicMeta, null);
+    }
+
+    public void extractAndSyncMemory(Long userId, String diaryContent, MusicMeta musicMeta, String imageDescriptions) {
         try {
             List<UserProfileMemoryEntity> existing = listUserMemories(userId);
-            log.info("开始提取长期画像，userId={}，旧属性数={}，日记长度={}，hasMusic={}", userId, existing.size(),
-                    diaryContent == null ? 0 : diaryContent.length(), musicMeta != null);
+            log.info("开始提取长期画像，userId={}，旧属性数={}，日记长度={}，hasMusic={}，hasImages={}", userId, existing.size(),
+                    diaryContent == null ? 0 : diaryContent.length(), musicMeta != null, imageDescriptions != null && !imageDescriptions.isBlank());
             // RAG 检索与当前日记语义相关的历史内容，帮助 LLM 发现跨日记的模式
             String ragContext = ragMemoryService.buildRagContext(userId, diaryContent, 3,
                     RagMemoryService.SOURCE_DIARY);
-            String prompt = buildExtractionUserPrompt(diaryContent, existing, ragContext, musicMeta);
+            String prompt = buildExtractionUserPrompt(diaryContent, existing, ragContext, musicMeta, imageDescriptions);
             String json = analysisChatClient.prompt()
                     .system(MEMORY_EXTRACTION_PROMPT)
                     .user(prompt)
@@ -391,7 +395,7 @@ public class MemoryExtractionService {
     // ---- 私有方法 ----
 
     private String buildExtractionUserPrompt(String diaryContent, List<UserProfileMemoryEntity> existing,
-            String ragContext, MusicMeta musicMeta) {
+            String ragContext, MusicMeta musicMeta, String imageDescriptions) {
         StringBuilder sb = new StringBuilder();
         if (musicMeta != null) {
             sb.append("[音乐分享]\n");
@@ -401,6 +405,10 @@ public class MemoryExtractionService {
                 sb.append("用户标注的歌词：").append(musicMeta.getUserLyric()).append("\n");
             }
             sb.append("（音乐元数据可辅助理解用户的情绪倾向和审美偏好）\n\n");
+        }
+        if (imageDescriptions != null && !imageDescriptions.isBlank()) {
+            sb.append("[图片描述]\n").append(imageDescriptions).append("\n");
+            sb.append("（图片内容可反映用户的兴趣、生活方式和情感状态）\n\n");
         }
         sb.append("新日记：\n").append(diaryContent).append("\n\n旧属性列表：\n");
         if (existing.isEmpty()) {

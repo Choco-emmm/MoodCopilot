@@ -2,8 +2,8 @@
   <section class="composer panel">
     <div class="section-title">
       <div>
-        <p class="eyebrow">今日日记</p>
-        <h2>此刻发生了什么</h2>
+        <p class="eyebrow">{{ isEditMode ? '编辑日记' : '今日日记' }}</p>
+        <h2>{{ isEditMode ? '修改这篇日记' : '此刻发生了什么' }}</h2>
       </div>
       <div class="composer-toggles">
         <label class="analyze-toggle">
@@ -110,7 +110,7 @@
           :disabled="!draft.trim() || isOverLimit"
           @click="handleSave"
         >
-          保存并分析
+          {{ isEditMode ? '保存修改' : '保存并分析' }}
         </n-button>
       </div>
     </div>
@@ -133,15 +133,28 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useDiaryStore, type MusicMeta } from '../stores/diary'
 import { musicApi, imageApi } from '../api'
 import { compressImage } from '../utils/image'
 import MusicCard from './MusicCard.vue'
 
+const props = withDefaults(defineProps<{
+  editId?: number
+  initialContent?: string
+  initialVisibility?: 'PRIVATE' | 'PUBLIC'
+  initialMusicMeta?: MusicMeta | null
+  initialImages?: string[]
+  initialLyric?: string
+  initialSongUrl?: string
+}>(), {})
+
 const store = useDiaryStore()
+const router = useRouter()
 const draft = ref('')
 const draftNotice = ref('')
 const draftSavedAt = ref('')
+const isEditMode = computed(() => props.editId != null && props.editId > 0)
 const visibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
 const analyze = ref(true)
 const DRAFT_KEY = 'moodcopilot:draft'
@@ -179,6 +192,21 @@ const visibilityCopy = computed(() =>
 const isOverLimit = computed(() => draft.value.length > 1000)
 
 onMounted(() => {
+  if (isEditMode.value) {
+    draft.value = props.initialContent || ''
+    visibility.value = props.initialVisibility || 'PRIVATE'
+    if (props.initialMusicMeta) {
+      musicMeta.value = props.initialMusicMeta
+      userLyric.value = props.initialLyric || props.initialMusicMeta.userLyric || ''
+      musicSongUrl.value = props.initialSongUrl || props.initialMusicMeta.songUrl || ''
+    }
+    if (props.initialImages?.length) {
+      imageList.value = [...props.initialImages]
+    }
+    draftNotice.value = '正在编辑日记'
+    updateDraftSavedAt()
+    return
+  }
   const savedDraft = localStorage.getItem(DRAFT_KEY)
   if (savedDraft) {
     draftNotice.value = '已恢复本机草稿'
@@ -287,22 +315,23 @@ function removeImage(i: number) {
 async function handleSave() {
   if (!draft.value.trim()) return
   try {
-    const payload = musicMeta.value
+    const musicPayload = musicMeta.value
       ? { ...musicMeta.value, userLyric: userLyric.value, songUrl: musicSongUrl.value }
       : undefined
-    await store.createDiary(
-      draft.value.trim(),
-      visibility.value,
-      payload,
-      analyze.value,
-      imageList.value.length ? imageList.value : undefined,
-    )
-    draft.value = ''
-    musicMeta.value = null
-    userLyric.value = ''
-    imageList.value = []
-    uploadOriginal.value = false
-    localStorage.removeItem(DRAFT_KEY)
+    const imagesPayload = imageList.value.length ? imageList.value : undefined
+
+    if (isEditMode.value) {
+      await store.updateDiary(props.editId!, draft.value.trim(), visibility.value, musicPayload, imagesPayload)
+      router.push(`/diary/${props.editId}`)
+    } else {
+      await store.createDiary(draft.value.trim(), visibility.value, musicPayload, analyze.value, imagesPayload)
+      draft.value = ''
+      musicMeta.value = null
+      userLyric.value = ''
+      imageList.value = []
+      uploadOriginal.value = false
+      localStorage.removeItem(DRAFT_KEY)
+    }
   } catch {
     // error handled by store
   }
