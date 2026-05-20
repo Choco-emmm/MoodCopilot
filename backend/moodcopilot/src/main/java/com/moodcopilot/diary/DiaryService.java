@@ -261,11 +261,11 @@ public class DiaryService {
 
     @Async("aiExecutor")
     @Transactional
-    public void runAiAnalysis(long diaryId, long userId, String content, MusicMeta musicMeta, String role) {
+    public void runAiAnalysis(long diaryId, long userId, String content, MusicMeta musicMeta, UserEntity user) {
         log.info("开始执行日记 AI 分析，diaryId={}，userId={}，contentLength={}，hasMusic={}", diaryId, userId,
                 content == null ? 0 : content.length(), musicMeta != null);
         try {
-            rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.ANALYSIS);
+            rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
             DiaryAnalysis analysis = aiAnalysisService.analyze(content, musicMeta);
 
             DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
