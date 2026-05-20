@@ -169,6 +169,8 @@ async function onFileChange(type: string, event: Event) {
   flex-direction: column;
   align-items: center;
   gap: 10px;
+  height: 100%;
+  justify-content: space-between;
 }
 
 .qr-image {
@@ -190,6 +192,7 @@ async function onFileChange(type: string, event: Event) {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  text-align: center;
   transition: border-color 0.2s, background 0.2s;
 }
 

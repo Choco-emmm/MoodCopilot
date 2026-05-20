@@ -73,6 +73,8 @@ export const useDiaryStore = defineStore('diary', () => {
   const saving = ref(false)
   const errorMessage = ref<string | null>(null)
   const analysisStatus = ref<'idle' | 'saved' | 'analyzing' | 'complete' | 'failed'>('idle')
+  const showGlobalAnalysisModal = ref(false)
+  const globalAnalysisDiary = ref<Diary | null>(null)
   const publicPage = ref(1)
   const publicTotal = ref(0)
   const hasMore = ref(true)
@@ -191,6 +193,8 @@ export const useDiaryStore = defineStore('diary', () => {
           }
           mergeDiary(updated)
           analysisStatus.value = 'complete'
+          globalAnalysisDiary.value = updated
+          showGlobalAnalysisModal.value = true
           clearAnalysisPollTimer()
         }
       } catch {
@@ -215,6 +219,10 @@ export const useDiaryStore = defineStore('diary', () => {
       activeDiary.value = updated
       mergeDiary(updated)
       analysisStatus.value = updated.analysis ? 'complete' : 'failed'
+      if (updated.analysis) {
+        globalAnalysisDiary.value = updated
+        showGlobalAnalysisModal.value = true
+      }
     } catch {
       analysisStatus.value = 'failed'
     }
@@ -337,6 +345,10 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
+  function closeAnalysisModal() {
+    showGlobalAnalysisModal.value = false
+  }
+
   function mergeDiary(updated: Diary) {
     replaceIn(myDiaries, updated)
     replaceIn(publicDiaries, updated)
@@ -360,7 +372,8 @@ export const useDiaryStore = defineStore('diary', () => {
 
   return {
     myDiaries, publicDiaries, activeDiary, similarDiaries, loading, saving, errorMessage,
-    analysisStatus, hasMore, weeklyReport, reportLoading, generatingWeekly, reportError, monthlyReport, monthLoading, generatingMonthly, monthError,
+    analysisStatus, showGlobalAnalysisModal, globalAnalysisDiary, closeAnalysisModal,
+    hasMore, weeklyReport, reportLoading, generatingWeekly, reportError, monthlyReport, monthLoading, generatingMonthly, monthError,
     fetchDiaries, loadMorePublic, createDiary, updateDiary, loadSimilar, addComment, resonate, sendEncouragement, deleteDiary,
     refreshAnalysis, deleteComment,
     fetchWeeklyReport, fetchMonthlyReport, generateWeeklyAiSummary, generateMonthlyAiSummary, normalize,
