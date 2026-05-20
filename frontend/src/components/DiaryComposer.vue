@@ -26,6 +26,35 @@
       @paste="handlePaste"
     />
 
+    <div class="composer-toolbar">
+      <button
+        v-if="!musicMeta && !musicParsing && !showMusicInput"
+        class="music-attach-btn"
+        type="button"
+        @click="showMusicInput = true"
+      >
+        <span class="music-attach-icon">🎵</span> 分享音乐
+      </button>
+
+      <div v-if="showMusicInput && !musicMeta" class="music-input-row">
+        <input
+          ref="musicUrlInput"
+          v-model="musicUrlDraft"
+          class="music-url-input"
+          type="url"
+          placeholder="粘贴网易云音乐链接..."
+          @paste="handleMusicInputPaste"
+          @keyup.enter="handleMusicUrlSubmit"
+        />
+        <button class="music-input-btn" type="button" :disabled="!musicUrlDraft.trim()" @click="handleMusicUrlSubmit">
+          解析
+        </button>
+        <button class="music-input-cancel" type="button" @click="showMusicInput = false; musicUrlDraft = ''">
+          取消
+        </button>
+      </div>
+    </div>
+
     <div v-if="musicParsing" class="music-parsing">
       正在解析音乐链接...
     </div>
@@ -98,6 +127,9 @@ const DRAFT_KEY = 'moodcopilot:draft'
 const musicMeta = ref<MusicMeta | null>(null)
 const userLyric = ref('')
 const musicParsing = ref(false)
+const showMusicInput = ref(false)
+const musicUrlDraft = ref('')
+const musicUrlInput = ref<HTMLInputElement | null>(null)
 
 function updateDraftSavedAt() {
   draftSavedAt.value = new Intl.DateTimeFormat('zh-CN', {
@@ -173,6 +205,43 @@ async function handlePaste(e: ClipboardEvent) {
 function removeMusic() {
   musicMeta.value = null
   userLyric.value = ''
+  showMusicInput.value = false
+  musicUrlDraft.value = ''
+}
+
+async function handleMusicInputPaste(e: ClipboardEvent) {
+  const text = e.clipboardData?.getData('text/plain')
+  if (!text) return
+  const url = detectMusicUrl(text)
+  if (!url) return
+  e.preventDefault()
+  musicUrlDraft.value = url
+  await submitMusicUrl(url)
+}
+
+async function handleMusicUrlSubmit() {
+  const url = musicUrlDraft.value.trim()
+  if (!url) return
+  // Auto-detect 163.com URL even if full URL isn't pasted
+  const detected = detectMusicUrl(url)
+  await submitMusicUrl(detected || url)
+}
+
+async function submitMusicUrl(url: string) {
+  if (musicMeta.value || musicParsing.value) return
+  musicParsing.value = true
+  try {
+    const res = await musicApi.parse(url)
+    if (res.data?.data) {
+      musicMeta.value = res.data.data as MusicMeta
+      showMusicInput.value = false
+      musicUrlDraft.value = ''
+    }
+  } catch {
+    // if parse fails, ignore silently
+  } finally {
+    musicParsing.value = false
+  }
 }
 
 async function handleSave() {
@@ -226,6 +295,93 @@ async function handleSave() {
   color: #4d5f54;
   font-size: 12px;
   line-height: 1.7;
+}
+
+.composer-toolbar {
+  margin: 8px 0;
+}
+
+.music-attach-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px dashed #b0a090;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: #8a7a6a;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  font-family: inherit;
+}
+
+.music-attach-btn:hover {
+  border-color: var(--color-primary, #4a7c62);
+  color: var(--color-primary, #4a7c62);
+}
+
+.music-attach-icon {
+  font-size: 15px;
+}
+
+.music-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.music-url-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid rgba(180, 150, 120, 0.2);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 13px;
+  outline: none;
+  background: #fdfcf8;
+  color: #5a4a3a;
+  font-family: inherit;
+}
+
+.music-url-input::placeholder {
+  color: #b0a090;
+  font-size: 12px;
+}
+
+.music-url-input:focus {
+  border-color: var(--color-primary, #4a7c62);
+}
+
+.music-input-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-primary, #4a7c62);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.music-input-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.music-input-cancel {
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  color: #b0a090;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.music-input-cancel:hover {
+  color: #8a7a6a;
 }
 
 .music-parsing {
