@@ -58,50 +58,16 @@
       {{ store.errorMessage }}
     </n-alert>
 
-    <!-- 分析完成弹窗 -->
-    <n-modal :show="showAnalysisModal" :mask-closable="false" @update:show="onModalUpdate">
-      <div class="analysis-modal">
-        <div class="modal-header">
-          <h3>分析完成</h3>
-          <button class="modal-close" @click="closeModal">&times;</button>
-        </div>
-        <template v-if="store.activeDiary?.analysis">
-          <div class="modal-mood">
-            <n-tag :type="moodTagType(store.activeDiary.analysis.moodLabel)" size="medium">
-              {{ store.activeDiary.analysis.moodLabel }}
-            </n-tag>
-            <span class="mood-intensity">强度 {{ '★'.repeat(store.activeDiary.analysis.moodIntensity) }}{{ '☆'.repeat(5 - store.activeDiary.analysis.moodIntensity) }}</span>
-          </div>
-          <template v-if="store.activeDiary.analysis.secondaryMoods?.length">
-            <div class="modal-secondary">
-              <n-tag v-for="m in store.activeDiary.analysis.secondaryMoods" :key="m" size="small" :bordered="true">
-                {{ m }}
-              </n-tag>
-            </div>
-          </template>
-          <p class="modal-summary">{{ store.activeDiary.analysis.summary }}</p>
-          <p class="modal-feedback">{{ truncatedFeedback }}</p>
-        </template>
-        <div class="modal-actions">
-          <n-button @click="closeModal">关闭</n-button>
-          <n-button type="primary" @click="goToDetail">查看完整分析</n-button>
-        </div>
-      </div>
-    </n-modal>
   </section>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { useDiaryStore } from '../stores/diary'
 
-const router = useRouter()
 const store = useDiaryStore()
 const draft = ref('')
 const draftNotice = ref('')
-const showAnalysisModal = ref(false)
-const shownAnalysisDiaryId = ref<number | null>(null)
 const draftSavedAt = ref('')
 const visibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
 const DRAFT_KEY = 'moodcopilot:draft'
@@ -160,39 +126,6 @@ async function handleSave() {
   }
 }
 
-// 分析完成时弹出弹窗（每个分析只弹一次）
-watch(() => store.analysisStatus, (status) => {
-  if (status === 'complete' && store.activeDiary?.analysis && store.activeDiary.id !== shownAnalysisDiaryId.value) {
-    showAnalysisModal.value = true
-  }
-})
-
-function onModalUpdate(show: boolean) {
-  if (!show) closeModal()
-}
-
-function closeModal() {
-  showAnalysisModal.value = false
-  if (store.activeDiary) {
-    shownAnalysisDiaryId.value = store.activeDiary.id
-  }
-}
-
-function goToDetail() {
-  closeModal()
-  router.push('/diary/' + store.activeDiary!.id)
-}
-
-const truncatedFeedback = computed(() => {
-  const fb = store.activeDiary?.analysis?.feedback
-  if (!fb) return ''
-  return fb.length > 120 ? fb.slice(0, 120) + '...' : fb
-})
-
-function moodTagType(mood: string) {
-  const positive = ['喜悦', '期待', '兴奋', '自豪', '轻松', '平静', '感恩', '满足']
-  return positive.includes(mood) ? 'success' as const : 'warning' as const
-}
 </script>
 
 <style scoped>
@@ -207,80 +140,4 @@ function moodTagType(mood: string) {
   line-height: 1.7;
 }
 
-.analysis-modal {
-  background: #fff;
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 420px;
-  margin: 0 auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  color: #333;
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 22px;
-  color: #999;
-  cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
-}
-
-.modal-close:hover {
-  color: #333;
-}
-
-.modal-mood {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.mood-intensity {
-  font-size: 13px;
-  color: #666;
-}
-
-.modal-secondary {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-
-.modal-summary {
-  margin: 0 0 8px;
-  font-size: 14px;
-  color: #555;
-  line-height: 1.6;
-}
-
-.modal-feedback {
-  margin: 0 0 20px;
-  font-size: 13px;
-  color: #777;
-  line-height: 1.6;
-  padding: 10px 12px;
-  background: #f8f8f8;
-  border-radius: 8px;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
 </style>
