@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import type { MusicMeta } from '../stores/diary'
 import { musicApi } from '../api'
 
@@ -21,6 +21,13 @@ const lyricsList = ref<string[]>([])
 const lyricsError = ref(false)
 const showLyricsPanel = ref(false)
 const selectedIndices = ref<Set<number>>(new Set())
+const lyricExpanded = ref(false)
+
+const lyricNeedsExpand = computed(() => {
+  const t = props.musicMeta?.userLyric
+  if (!t) return false
+  return t.length > 80 || t.split('\n').length > 4
+})
 
 async function fetchLyrics() {
   if (!props.songUrl) return
@@ -91,8 +98,15 @@ function toggleLine(index: number) {
     </div>
 
     <!-- 已选歌词展示（只读模式） -->
-    <div v-if="!showLyric && musicMeta.userLyric" class="music-user-lyric">
+    <div
+      v-if="!showLyric && musicMeta.userLyric"
+      :class="['music-user-lyric', { expanded: lyricExpanded }]"
+      @click="lyricExpanded = !lyricExpanded"
+    >
       <span class="user-lyric-label">「</span>{{ musicMeta.userLyric }}<span class="user-lyric-label">」</span>
+      <span v-if="lyricNeedsExpand" class="lyric-expand-hint">
+        {{ lyricExpanded ? '收起' : '展开' }}
+      </span>
     </div>
 
     <!-- 歌词选择区 -->
@@ -231,11 +245,34 @@ function toggleLine(index: number) {
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  cursor: default;
+  position: relative;
+}
+
+.music-user-lyric.expanded {
+  -webkit-line-clamp: unset;
+  display: block;
+}
+
+.lyric-expand-hint {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 11px;
+  font-style: normal;
+  color: var(--color-primary, #4a7c62);
+  cursor: pointer;
+  user-select: none;
 }
 
 .user-lyric-label {
   font-style: normal;
   color: #d0c8b8;
+}
+
+@media (max-width: 600px) {
+  .music-user-lyric {
+    -webkit-line-clamp: 2;
+  }
 }
 
 .music-artist-zh {

@@ -75,6 +75,14 @@
               placeholder="编辑这篇日记..."
               :autosize="{ minRows: 4, maxRows: 10 }"
             />
+            <MusicCard
+              v-if="editMusicMeta"
+              :music-meta="editMusicMeta"
+              :lyric="editLyric"
+              :show-lyric="true"
+              :song-url="editMusicMeta.songUrl"
+              @update:lyric="editLyric = $event"
+            />
             <div class="diary-edit-actions">
               <select v-model="editVisibility" class="diary-edit-visibility">
                 <option value="PRIVATE">仅自己看</option>
@@ -424,12 +432,17 @@ function selectDiary(d: Diary) {
   void router.push(`/diary/${d.id}`)
 }
 
+const editMusicMeta = ref<any>(null)
+const editLyric = ref('')
+
 function startEdit() {
   if (!diary.value || !isOwner.value) return
   editing.value = true
   editError.value = ''
   editContent.value = diary.value.content || ''
   editVisibility.value = diary.value.visibility === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE'
+  editMusicMeta.value = diary.value.musicMeta ? { ...diary.value.musicMeta } : null
+  editLyric.value = diary.value.musicMeta?.userLyric || ''
 }
 
 function toggleEdit() {
@@ -446,11 +459,14 @@ async function saveDiaryEdit() {
   savingEdit.value = true
   editError.value = ''
   try {
+    const musicPayload = editMusicMeta.value
+      ? { ...editMusicMeta.value, userLyric: editLyric.value }
+      : undefined
     const updated = await store.updateDiary(
       diary.value.id,
       editContent.value.trim(),
       editVisibility.value,
-      diary.value.musicMeta ?? undefined,
+      musicPayload,
     )
     diary.value = updated
     editing.value = false
