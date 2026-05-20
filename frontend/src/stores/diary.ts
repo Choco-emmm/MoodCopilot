@@ -22,6 +22,7 @@ export interface Diary {
   visibility: string
   analysis: DiaryAnalysis | null
   musicMeta?: MusicMeta | null
+  images?: string[] | null
   analysisStatus?: string | null // "analyzing" | "complete" | "skipped_quota" | "skipped_user"
   createdAt: string
   resonanceCount: number
@@ -137,11 +138,11 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
-  async function createDiary(content: string, visibility: string, musicMeta?: MusicMeta, analyze = true) {
+  async function createDiary(content: string, visibility: string, musicMeta?: MusicMeta, analyze = true, images?: string[]) {
     saving.value = true
     errorMessage.value = null
     try {
-      const res = await diaryApi.create({ content, visibility, musicMeta, analyze })
+      const res = await diaryApi.create({ content, visibility, musicMeta, images, analyze })
       const diary = normalize(res.data.data)
       activeDiary.value = diary
 

@@ -27,7 +27,8 @@ public class RateLimitService {
         ANALYSIS(ResetPeriod.DAILY),
         REASONING(ResetPeriod.DAILY),
         RESONANCE(ResetPeriod.DAILY),
-        REPORT(ResetPeriod.MONTHLY);
+        REPORT(ResetPeriod.MONTHLY),
+        IMAGE_UPLOAD(ResetPeriod.DAILY);
 
         public enum ResetPeriod { DAILY, MONTHLY }
 
@@ -43,15 +44,15 @@ public class RateLimitService {
     }
 
     // Row 0 = Pro, Row 1..6 = Lv.1..Lv.6
-    // Col order must match AiApiType enum: CHAT, ANALYSIS, REASONING, RESONANCE, REPORT
+    // Col order must match AiApiType enum: CHAT, ANALYSIS, REASONING, RESONANCE, REPORT, IMAGE_UPLOAD
     private static final int[][] QUOTA = {
-            {300, 50, 50, 50, 999},  // Pro
-            {15,  3,  3,  0,  0},    // Lv.1
-            {30,  5,  5,  3,  0},    // Lv.2
-            {60,  8,  10, 5,  4},    // Lv.3
-            {100, 12, 15, 10, 6},    // Lv.4
-            {150, 20, 20, 15, 10},   // Lv.5
-            {200, 30, 30, 20, 999},  // Lv.6
+            {300, 50, 50, 50, 999, 50},  // Pro
+            {15,  3,  3,  0,  0,  3},    // Lv.1
+            {30,  5,  5,  3,  0,  5},    // Lv.2
+            {60,  8,  10, 5,  4,  10},   // Lv.3
+            {100, 12, 15, 10, 6,  20},   // Lv.4
+            {150, 20, 20, 15, 10, 30},   // Lv.5
+            {200, 30, 30, 20, 999,50},   // Lv.6
     };
 
     public static int getDynamicLimit(AiApiType type, Integer level, boolean isPro) {
@@ -197,6 +198,7 @@ public class RateLimitService {
             case REASONING -> "深度思考";
             case RESONANCE -> "共鸣检索";
             case REPORT -> "报告生成";
+            case IMAGE_UPLOAD -> "图片上传";
         };
     }
 }

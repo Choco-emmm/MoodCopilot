@@ -24,13 +24,14 @@ public record DiaryView(
                 boolean likedByMe,
                 boolean isPinned,
                 MusicMeta musicMeta,
+                java.util.List<String> images,
                 String analysisStatus,
                 List<DiaryComment> comments) {
 
         public DiaryView withAnalysisStatus(String status) {
             return new DiaryView(id, authorUserId, authorName, authorAvatar, authorLevel,
                     content, visibility, analysis, createdAt, resonanceCount, likedByMe,
-                    isPinned, musicMeta, status, comments);
+                    isPinned, musicMeta, images, status, comments);
         }
         static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments,
                         String authorAvatar, String authorName, Map<Long, String> commentAuthorNames,
@@ -95,6 +96,7 @@ public record DiaryView(
                                 likedByMe,
                                 Boolean.TRUE.equals(diary.getIsPinned()),
                                 diary.getMusicMeta(),
+                                diary.getImages(),
                                 viewAnalysis != null ? "complete" : "analyzing",
                                 buildCommentTree(comments, commentAuthorNames));
         }
@@ -114,7 +116,7 @@ public record DiaryView(
             return new DiaryView(diary.getId(), diary.getAuthorUserId(), authorName, authorAvatar,
                     authorLevel, feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
                     diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
-                    Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(),
+                    Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(), diary.getImages(),
                     va != null ? "complete" : null, List.of());
         }
 
@@ -130,7 +132,7 @@ public record DiaryView(
             return new DiaryView(diary.getId(), diary.getAuthorUserId(), authorName, authorAvatar,
                     authorLevel, feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
                     diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
-                    Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(),
+                    Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(), diary.getImages(),
                     va != null ? "complete" : null, List.of());
         }
 

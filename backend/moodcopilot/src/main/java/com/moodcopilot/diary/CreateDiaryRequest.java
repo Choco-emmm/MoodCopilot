@@ -6,6 +6,7 @@ public record CreateDiaryRequest(
         String content,
         String visibility,
         MusicMeta musicMeta,
+        java.util.List<String> images,
         Boolean analyze // null or true = 开启AI分析; false = 用户主动关闭
 ) {
     /** 是否开启 AI 分析：未传或 true 视为开启 */

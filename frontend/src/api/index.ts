@@ -38,8 +38,8 @@ api.interceptors.response.use(
 )
 
 export const diaryApi = {
-  create: (data: { content: string; visibility: string; musicMeta?: any; analyze?: boolean }) => api.post('/diaries', data),
-  update: (id: number, data: { content: string; visibility: string; isPinned?: boolean; musicMeta?: any }) => api.put(`/diaries/${id}`, data),
+  create: (data: { content: string; visibility: string; musicMeta?: any; images?: string[]; analyze?: boolean }) => api.post('/diaries', data),
+  update: (id: number, data: { content: string; visibility: string; isPinned?: boolean; musicMeta?: any; images?: string[] }) => api.put(`/diaries/${id}`, data),
   mine: (page = 1, size = 20) => api.get('/diaries/mine', { params: { page, size } }),
   byUser: (userId: number, page = 1, size = 20) => api.get(`/diaries/user/${userId}`, { params: { page, size } }),
   public: (page = 1, size = 20) => api.get('/diaries/public', { params: { page, size } }),
@@ -155,6 +155,17 @@ export const memoryApi = {
   getAll: () => api.get('/memory'),
   forget: (id: number) => api.delete(`/memory/${id}`),
   update: (id: number, data: { attributeValue: string }) => api.put(`/memory/${id}`, data),
+}
+
+export const imageApi = {
+  upload: (file: File, compress = true) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post('/images/upload', fd, {
+      params: { compress },
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
 
 export const musicApi = {
