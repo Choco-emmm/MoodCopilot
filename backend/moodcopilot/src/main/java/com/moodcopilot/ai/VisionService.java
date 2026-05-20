@@ -48,7 +48,12 @@ public class VisionService {
      * 描述多张图片，返回合并的文本。单张失败静默跳过。
      */
     public String describeImages(List<String> imageUrls) {
-        if (!isConfigured() || imageUrls == null || imageUrls.isEmpty()) return "";
+        if (imageUrls == null || imageUrls.isEmpty()) return "";
+        if (!isConfigured()) {
+            log.warn("VLM 未配置（VISION_API_KEY 为空），跳过 {} 张图片的描述", imageUrls.size());
+            return "";
+        }
+        log.info("VLM 开始描述 {} 张图片 model={}", imageUrls.size(), model);
         List<String> parts = new ArrayList<>();
         for (int i = 0; i < imageUrls.size(); i++) {
             String desc = describe(imageUrls.get(i));
@@ -56,7 +61,11 @@ public class VisionService {
                 parts.add("图片" + (i + 1) + ": " + desc);
             }
         }
-        return parts.isEmpty() ? "" : String.join("; ", parts);
+        String result = parts.isEmpty() ? "" : String.join("; ", parts);
+        if (!result.isBlank()) {
+            log.info("VLM 图片描述完成 {} 张 → {} chars", parts.size(), result.length());
+        }
+        return result;
     }
 
     private String describe(String imageUrl) {
