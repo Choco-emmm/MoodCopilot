@@ -231,7 +231,7 @@ watch(draft, (value, oldValue) => {
   }
 })
 
-const MUSIC_URL_PATTERN = /https?:\/\/(?:music\.163\.com|163cn\.tv)\/[^\s]+/
+const MUSIC_URL_PATTERN = /https?:\/\/(?:(?:[a-z0-9]+\.)?music\.163\.com|163cn\.tv)\/[^\s]+/
 
 function detectMusicUrl(text: string): string | null {
   const m = text.match(MUSIC_URL_PATTERN)
