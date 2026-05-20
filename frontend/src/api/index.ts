@@ -158,7 +158,7 @@ export const memoryApi = {
 }
 
 export const musicApi = {
-  parse: (url: string) => api.post('/music/parse', { url }),
+  parse: (url: string, text?: string) => api.post('/music/parse', { url, text: text || '' }),
 }
 
 export const chatApi = {

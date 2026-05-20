@@ -189,17 +189,7 @@ async function handlePaste(e: ClipboardEvent) {
   // Don't parse if already have music attached
   if (musicMeta.value) return
 
-  musicParsing.value = true
-  try {
-    const res = await musicApi.parse(url)
-    if (res.data?.data) {
-      musicMeta.value = res.data.data as MusicMeta
-    }
-  } catch {
-    // if parse fails, ignore silently
-  } finally {
-    musicParsing.value = false
-  }
+  await submitMusicUrl(url, text)
 }
 
 function removeMusic() {
@@ -216,22 +206,21 @@ async function handleMusicInputPaste(e: ClipboardEvent) {
   if (!url) return
   e.preventDefault()
   musicUrlDraft.value = url
-  await submitMusicUrl(url)
+  await submitMusicUrl(url, text)
 }
 
 async function handleMusicUrlSubmit() {
   const url = musicUrlDraft.value.trim()
   if (!url) return
-  // Auto-detect 163.com URL even if full URL isn't pasted
   const detected = detectMusicUrl(url)
-  await submitMusicUrl(detected || url)
+  await submitMusicUrl(detected || url, url)
 }
 
-async function submitMusicUrl(url: string) {
+async function submitMusicUrl(url: string, fullText?: string) {
   if (musicMeta.value || musicParsing.value) return
   musicParsing.value = true
   try {
-    const res = await musicApi.parse(url)
+    const res = await musicApi.parse(url, fullText)
     if (res.data?.data) {
       musicMeta.value = res.data.data as MusicMeta
       showMusicInput.value = false
