@@ -3,6 +3,7 @@ package com.moodcopilot.music;
 import com.moodcopilot.entity.MusicMeta;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -12,7 +13,9 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,8 +41,10 @@ public class MusicParseService {
             Pattern.CASE_INSENSITIVE);
 
     private final HttpClient httpClient;
+    private final ChatClient analysisChatClient;
 
-    public MusicParseService() {
+    public MusicParseService(ChatClient analysisChatClient) {
+        this.analysisChatClient = analysisChatClient;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(8))
                 .followRedirects(HttpClient.Redirect.ALWAYS)
@@ -186,28 +191,87 @@ public class MusicParseService {
     }
 
     private List<String> parseLyricsJson(String json) {
-        // Extract "lyric" field from {"lrc":{"lyric":"..."}}
-        Matcher m = Pattern.compile("\"lyric\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").matcher(json);
-        if (!m.find()) return Collections.emptyList();
+        // Extract original "lyric" from {"lrc":{"lyric":"..."}}
+        String originalRaw = extractLyricField(json, "\"lrc\"");
+        // Extract translated "lyric" from {"tlyric":{"lyric":"..."}}
+        String translatedRaw = extractLyricField(json, "\"tlyric\"");
 
-        String raw = m.group(1)
+        if (originalRaw == null) return Collections.emptyList();
+
+        // Build timestamp → translated line map
+        Map<String, String> transMap = new LinkedHashMap<>();
+        if (translatedRaw != null) {
+            for (String line : translatedRaw.split("\n")) {
+                String ts = extractTimestamp(line);
+                String text = stripTimestamp(line);
+                if (ts != null && !text.isEmpty()) {
+                    transMap.put(ts, text);
+                }
+            }
+        }
+
+        List<String> lines = new ArrayList<>();
+        for (String line : originalRaw.split("\n")) {
+            String ts = extractTimestamp(line);
+            String text = stripTimestamp(line);
+            if (text.isEmpty() || text.length() < 2) continue;
+            if (text.contains("作词") || text.contains("作曲")
+                    || text.contains("编曲") || text.contains("制作人")) continue;
+            if (text.equals("歌词") || text.equals("纯音乐")) continue;
+
+            if (ts != null && transMap.containsKey(ts)) {
+                String trans = transMap.get(ts);
+                if (!trans.equals(text)) {
+                    text = text + " / " + trans;
+                }
+            }
+            lines.add(text);
+        }
+        log.info("歌词解析完成: {} lines (hasTranslation={})", lines.size(), translatedRaw != null);
+        return lines;
+    }
+
+    private String extractLyricField(String json, String fieldName) {
+        Pattern p = Pattern.compile(fieldName + "\\s*:\\s*\\{[^}]*\"lyric\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
+        Matcher m = p.matcher(json);
+        if (!m.find()) return null;
+        return m.group(1)
                 .replace("\\n", "\n")
                 .replace("\\\"", "\"")
                 .replace("\\/", "/");
+    }
 
-        List<String> lines = new ArrayList<>();
-        for (String line : raw.split("\n")) {
-            // Strip timestamps like [00:12.34]
-            String cleaned = line.replaceFirst("^\\[[0-9.:]+\\]\\s*", "").trim();
-            // Skip empty, very short, or meta lines
-            if (cleaned.isEmpty() || cleaned.length() < 2) continue;
-            if (cleaned.contains("作词") || cleaned.contains("作曲")
-                    || cleaned.contains("编曲") || cleaned.contains("制作人")) continue;
-            if (cleaned.equals("歌词") || cleaned.equals("纯音乐")) continue;
-            lines.add(cleaned);
+    private String extractTimestamp(String line) {
+        Matcher m = Pattern.compile("^\\[([0-9.:]+)\\]").matcher(line);
+        return m.find() ? m.group(1) : null;
+    }
+
+    private String stripTimestamp(String line) {
+        return line.replaceFirst("^\\[[0-9.:]+\\]\\s*", "").trim();
+    }
+
+    /**
+     * Translate non-Chinese song title/artist to Chinese using LLM.
+     */
+    public String translateToChinese(String text) {
+        // Quick check: if already mostly Chinese, skip
+        int chineseChars = 0;
+        for (char c : text.toCharArray()) {
+            if (Character.UnicodeScript.of(c) == Character.UnicodeScript.HAN) chineseChars++;
         }
-        log.info("歌词解析完成 songId: {} lines", lines.size());
-        return lines;
+        if (chineseChars > text.length() / 2) return text;
+
+        try {
+            String result = analysisChatClient.prompt()
+                    .system("你是一个音乐翻译助手。将用户输入的歌曲名/歌手名翻译成中文。只输出翻译结果，不要解释、不要括号、不要附加任何其他文字。如果已经是中文则原样输出。")
+                    .user(text)
+                    .call()
+                    .content();
+            return result != null ? result.trim() : text;
+        } catch (Exception e) {
+            log.warn("翻译失败 text={}: {}", text, e.getMessage());
+            return text;
+        }
     }
 
     public String proxyImage(String imageUrl) {

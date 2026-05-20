@@ -50,6 +50,16 @@ public class MusicController {
         return ApiResponse.ok(lyrics);
     }
 
+    @PostMapping("/translate")
+    public ApiResponse<Map<String, String>> translate(@RequestBody Map<String, String> body) {
+        String text = body.get("text");
+        if (text == null || text.isBlank()) {
+            return ApiResponse.error(400, "缺少待翻译文本");
+        }
+        String result = musicParseService.translateToChinese(text);
+        return ApiResponse.ok(Map.of("translated", result != null ? result : text));
+    }
+
     @GetMapping("/proxy-image")
     public ApiResponse<String> proxyImage(@RequestParam String url) {
         return ApiResponse.ok(musicParseService.proxyImage(url));
