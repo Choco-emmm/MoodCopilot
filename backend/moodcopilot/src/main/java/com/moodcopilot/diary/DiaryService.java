@@ -254,7 +254,7 @@ public class DiaryService {
                 }
             });
 
-            memoryExtractionService.extractAndSyncMemory(user.getId(), filteredContent);
+            memoryExtractionService.extractAndSyncMemory(user.getId(), filteredContent, diary.getMusicMeta());
         }
 
         boolean affectsPublicCache = "PUBLIC".equals(visibility.name()) || "PUBLIC".equals(oldVisibility);

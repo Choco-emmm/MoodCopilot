@@ -107,7 +107,10 @@ public class MemoryExtractionService {
             旧属性列表：
             - 健康问题：有轻度高血压，需定期监测
             - 工作风格：偏谨慎，做事较真
-            输出：{"attributes":[{"attributeKey":"健康问题","attributeValue":"DELETE_MARKER","isCore":false},{"attributeKey":"工作风格","attributeValue":"偏谨慎，做事较真","isCore":true}]}""";
+            输出：{"attributes":[{"attributeKey":"健康问题","attributeValue":"DELETE_MARKER","isCore":false},{"attributeKey":"工作风格","attributeValue":"偏谨慎，做事较真","isCore":true}]}
+
+            【音乐分享的处理】
+            如果日记输入以 [音乐分享] 块开头，说明用户分享了歌曲并选择了感触最深的歌词。请将用户对特定歌曲、歌手、歌词的共鸣作为暗示其情绪状态和审美偏好的信号，酌情提取为画像属性（通常 isCore=false，除非反复出现）。""";
 
     private final ChatClient analysisChatClient;
     private final UserProfileMemoryMapper userProfileMemoryMapper;
