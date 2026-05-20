@@ -21,6 +21,7 @@ export interface Diary {
   visibility: string
   analysis: DiaryAnalysis | null
   musicMeta?: MusicMeta | null
+  analysisStatus?: string | null // "analyzing" | "complete" | "skipped_quota" | "skipped_user"
   createdAt: string
   resonanceCount: number
   likedByMe?: boolean
@@ -135,20 +136,29 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
-  async function createDiary(content: string, visibility: string, musicMeta?: MusicMeta) {
+  async function createDiary(content: string, visibility: string, musicMeta?: MusicMeta, analyze = true) {
     saving.value = true
     errorMessage.value = null
     try {
-      const res = await diaryApi.create({ content, visibility, musicMeta })
+      const res = await diaryApi.create({ content, visibility, musicMeta, analyze })
       const diary = normalize(res.data.data)
       activeDiary.value = diary
-      analysisStatus.value = diary.analysis == null ? 'analyzing' : 'complete'
+
+      if (diary.analysisStatus === 'skipped_quota') {
+        analysisStatus.value = 'complete'
+        errorMessage.value = '今日 AI 分析次数已用完，日记已保存'
+      } else if (diary.analysisStatus === 'skipped_user') {
+        analysisStatus.value = 'complete'
+      } else {
+        analysisStatus.value = diary.analysis == null ? 'analyzing' : 'complete'
+      }
+
       if (content.length >= 15) {
         const bonus = content.length > 100 ? '+30' : '+20'
         tryExpToast('diary', `写日记 ${bonus} EXP`)
       }
       await fetchDiaries()
-      if (diary.analysis == null) {
+      if (diary.analysis == null && diary.analysisStatus !== 'skipped_quota' && diary.analysisStatus !== 'skipped_user') {
         pollAnalysis(diary.id)
       }
       if (activeDiary.value) {

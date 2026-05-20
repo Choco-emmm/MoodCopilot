@@ -1,11 +1,15 @@
 package com.moodcopilot.diary;
 
 import com.moodcopilot.common.ApiResponse;
+import com.moodcopilot.common.RateLimitException;
 import com.moodcopilot.entity.UserEntity;
+import com.moodcopilot.security.RateLimitService;
 
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,10 +24,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/diaries")
 public class DiaryController {
-    private final DiaryService diaryService;
 
-    public DiaryController(DiaryService diaryService) {
+    private static final Logger log = LoggerFactory.getLogger(DiaryController.class);
+    private final DiaryService diaryService;
+    private final RateLimitService rateLimitService;
+
+    public DiaryController(DiaryService diaryService, RateLimitService rateLimitService) {
         this.diaryService = diaryService;
+        this.rateLimitService = rateLimitService;
     }
 
     @PostMapping
@@ -31,7 +39,20 @@ public class DiaryController {
         DiaryView diary = diaryService.create(request);
         var auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity user = (auth != null && auth.getPrincipal() instanceof UserEntity u) ? u : null;
-        diaryService.runAiAnalysis(diary.id(), diary.authorUserId(), diary.content(), diary.musicMeta(), user);
+
+        if (!request.isAnalyze()) {
+            diary = diary.withAnalysisStatus("skipped_user");
+            log.info("用户主动关闭AI分析，diaryId={}，userId={}", diary.id(), diary.authorUserId());
+        } else if (user != null) {
+            try {
+                rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
+                diaryService.runAiAnalysis(diary.id(), diary.authorUserId(), diary.content(), diary.musicMeta(), user);
+            } catch (RateLimitException e) {
+                diary = diary.withAnalysisStatus("skipped_quota");
+                log.info("AI分析限额已满，跳过分析，diaryId={}，userId={}", diary.id(), diary.authorUserId());
+            }
+        }
+
         return ApiResponse.ok(diary);
     }
 
