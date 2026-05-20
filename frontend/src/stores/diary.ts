@@ -173,11 +173,11 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
-  async function updateDiary(id: number, content: string, visibility: string) {
+  async function updateDiary(id: number, content: string, visibility: string, musicMeta?: MusicMeta) {
     saving.value = true
     errorMessage.value = null
     try {
-      const res = await diaryApi.update(id, { content, visibility })
+      const res = await diaryApi.update(id, { content, visibility, musicMeta })
       const updated = normalize(res.data.data)
       mergeDiary(updated)
       if (activeDiary.value?.id === id) {

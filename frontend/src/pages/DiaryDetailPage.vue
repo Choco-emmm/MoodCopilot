@@ -446,12 +446,19 @@ async function saveDiaryEdit() {
   savingEdit.value = true
   editError.value = ''
   try {
-    const res = await diaryApi.update(diary.value.id, {
-      content: editContent.value.trim(),
-      visibility: editVisibility.value,
-    })
-    diary.value = store.normalize(res.data.data)
+    const updated = await store.updateDiary(
+      diary.value.id,
+      editContent.value.trim(),
+      editVisibility.value,
+      diary.value.musicMeta ?? undefined,
+    )
+    diary.value = updated
     editing.value = false
+    if (updated.analysis) {
+      store.analysisStatus = 'complete'
+      store.globalAnalysisDiary = updated
+      store.showGlobalAnalysisModal = true
+    }
   } catch (e: any) {
     editError.value = e?.response?.data?.message || '保存失败，请稍后重试'
   } finally {

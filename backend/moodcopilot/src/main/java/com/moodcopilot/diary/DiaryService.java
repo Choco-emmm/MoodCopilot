@@ -218,6 +218,9 @@ public class DiaryService {
             diary.setContent(filteredContent);
             diary.setVisibility(visibility.name());
             diary.setUpdatedAt(LocalDateTime.now());
+            if (request.musicMeta() != null) {
+                diary.setMusicMeta(request.musicMeta());
+            }
             diaryMapper.updateById(diary);
         });
 
