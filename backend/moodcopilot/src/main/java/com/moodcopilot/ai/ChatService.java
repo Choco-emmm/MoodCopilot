@@ -296,12 +296,36 @@ public class ChatService {
         String memoryBg = memoryExtractionService.buildUserMemoryPrompt();
         String recentHistory = extractRecentChatHistory(memory);
         String searchQuery = aiAnalysisService.rewriteQueryForSearch(message, memoryBg, recentHistory);
+
+        // HyDE 重写日志：直观对比原文与改写结果
         if (!searchQuery.equals(message)) {
-            log.info("RAG query 已重写 userId={} origLen={} rewrittenLen={}", userId, message.length(), searchQuery.length());
+            log.info("RAG HyDE 重写 userId={} orig=\"{}\" rewritten=\"{}\" origLen={} rewrittenLen={}",
+                    userId, message, searchQuery, message.length(), searchQuery.length());
+        } else {
+            log.info("RAG HyDE 未重写（改写失败/被旁路），使用原始查询 userId={} query=\"{}\"",
+                    userId, message);
         }
-        String ragCtx = ragMemoryService.buildRagContext(userId, searchQuery, topK, sourceTypes);
+
+        // 从原始用户消息中提取时间表达式，用于向量搜索的时间范围过滤
+        var timeRangeOpt = TimeExpressionParser.parse(message);
+        TimeExpressionParser.TimeRange timeRange = timeRangeOpt.orElse(null);
+        if (timeRange != null) {
+            log.info("RAG 检测到时间词 userId={} origMsg=\"{}\" timeRange=[{} ~ {}]",
+                    userId, message,
+                    TimeExpressionParser.formatDateTime(timeRange.fromTimestamp()),
+                    TimeExpressionParser.formatDateTime(timeRange.toTimestamp()));
+        }
+
+        String ragCtx = ragMemoryService.buildRagContext(userId, searchQuery, topK, timeRange, sourceTypes);
         if (ragCtx.isBlank()) {
-            log.info("RAG 无结果，将依赖模型的 diarySearchFunction 工具主动查询 userId={}", userId);
+            if (timeRange != null) {
+                log.info("RAG 时间过滤后零结果，将降级到 diarySearch 工具 userId={} timeRange=[{} ~ {}]",
+                        userId,
+                        TimeExpressionParser.formatDateTime(timeRange.fromTimestamp()),
+                        TimeExpressionParser.formatDateTime(timeRange.toTimestamp()));
+            } else {
+                log.info("RAG 无结果，将依赖模型的 diarySearchFunction 工具主动查询 userId={}", userId);
+            }
         }
         return ragCtx;
     }
