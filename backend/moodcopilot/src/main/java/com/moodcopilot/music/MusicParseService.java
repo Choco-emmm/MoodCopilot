@@ -219,7 +219,7 @@ public class MusicParseService {
             if (ts != null && transMap.containsKey(ts)) {
                 String trans = transMap.get(ts);
                 if (!trans.equals(text)) {
-                    text = text + " / " + trans;
+                    text = text + "\n" + trans;
                 }
             }
             lines.add(text);

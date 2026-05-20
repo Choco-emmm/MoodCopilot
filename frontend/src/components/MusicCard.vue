@@ -62,13 +62,7 @@ function toggleLine(index: number) {
 
 <template>
   <div class="music-card">
-    <a
-      v-if="musicMeta.songUrl"
-      :href="musicMeta.songUrl"
-      target="_blank"
-      rel="noopener"
-      class="music-card-body music-card-link"
-    >
+    <div class="music-card-body">
       <img
         v-if="musicMeta.coverUrl"
         :src="musicMeta.coverUrl"
@@ -86,25 +80,14 @@ function toggleLine(index: number) {
         <span class="music-title">{{ musicMeta.title }}</span>
         <span class="music-artist">{{ musicMeta.artist }}</span>
       </div>
-    </a>
-    <div v-else class="music-card-body">
-      <img
-        v-if="musicMeta.coverUrl"
-        :src="musicMeta.coverUrl"
-        :alt="musicMeta.title"
-        class="music-cover"
-        referrerpolicy="no-referrer"
-        loading="lazy"
-        decoding="async"
-        @error="($event.target as HTMLImageElement).style.display = 'none'"
-      />
-      <div v-else class="music-cover-fallback">
-        <span class="music-icon">🎵</span>
-      </div>
-      <div class="music-info">
-        <span class="music-title">{{ musicMeta.title }}</span>
-        <span class="music-artist">{{ musicMeta.artist }}</span>
-      </div>
+      <a
+        v-if="musicMeta.songUrl"
+        :href="musicMeta.songUrl"
+        target="_blank"
+        rel="noopener"
+        class="music-play-btn"
+        title="在网易云音乐中打开"
+      >▶</a>
     </div>
 
     <!-- 已选歌词展示（只读模式） -->
@@ -168,14 +151,23 @@ function toggleLine(index: number) {
   padding: 12px;
 }
 
-.music-card-link {
+.music-play-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-primary, #4a7c62);
+  color: #fff;
   text-decoration: none;
-  color: inherit;
-  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
 }
 
-.music-card-link:hover {
-  background: rgba(180, 150, 120, 0.04);
+.music-play-btn:hover {
+  background: #3d6b52;
 }
 
 .music-cover {
@@ -233,8 +225,12 @@ function toggleLine(index: number) {
   color: #b0a090;
   font-style: italic;
   line-height: 1.6;
-  white-space: pre-wrap;
+  white-space: pre-line;
   word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .user-lyric-label {
@@ -268,6 +264,7 @@ function toggleLine(index: number) {
   color: var(--color-primary, #4a7c62);
   font-size: 13px;
   line-height: 1.6;
+  white-space: pre-line;
 }
 
 .selected-line-x {
@@ -339,8 +336,10 @@ function toggleLine(index: number) {
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
   font-family: inherit;
-  line-height: 1.5;
+  line-height: 1.6;
   text-align: left;
+  white-space: pre-line;
+  word-break: break-word;
 }
 
 .lyric-chip:hover { border-color: var(--color-primary, #4a7c62); }
