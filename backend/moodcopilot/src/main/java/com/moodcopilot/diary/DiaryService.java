@@ -240,6 +240,7 @@ public class DiaryService {
                     buildIndexContent(filteredContent, diary.getMusicMeta()), diary.getMusicMeta());
 
             String imageDescriptions = visionService.describeImages(diary.getImages());
+            log.info("图片描述：{}", imageDescriptions);
             DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent, diary.getMusicMeta(), imageDescriptions);
 
             // 分析结果持久化单独一个事务
@@ -314,7 +315,8 @@ public class DiaryService {
             if (imageDescriptions != null && !imageDescriptions.isBlank()) {
                 String enriched = buildIndexContent(content, musicMeta) + "\n[图片描述] " + imageDescriptions;
                 ragMemoryService.indexDiary(userId, diaryId, enriched, musicMeta);
-                log.info("RAG 已用图片描述重新索引 diaryId={}", diaryId);
+                ragMemoryService.indexDiaryImages(userId, diaryId, imageDescriptions);
+                log.info("RAG 已用图片描述重新索引 diaryId={}（含独立图片条目）", diaryId);
             }
             markReportsStale(userId);
             DiaryEntity diary = diaryMapper.selectById(diaryId);

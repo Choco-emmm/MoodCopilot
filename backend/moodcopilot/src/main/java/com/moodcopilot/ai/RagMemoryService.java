@@ -245,6 +245,19 @@ public class RagMemoryService {
         return raw.replaceAll("[^a-zA-Z0-9_\\-\\u4e00-\\u9fff]", "_");
     }
 
+    /**
+     * 独立索引图片描述向量，与日记正文分开，让图片查询不被稀释。
+     * 由 runAiAnalysis 在 VLM 描述就绪后调用。
+     */
+    public void indexDiaryImages(long userId, long diaryId, String imageDescriptions) {
+        if (imageDescriptions == null || imageDescriptions.isBlank()) return;
+        float[] vec = embed(imageDescriptions);
+        if (vec != null) {
+            storeEmbedding("diary:" + diaryId + ":images", userId, SOURCE_DIARY, imageDescriptions, vec);
+            log.info("RAG 已索引图片描述 diaryId={} len={}", diaryId, imageDescriptions.length());
+        }
+    }
+
     /** 将音乐元数据组装为独立的检索文本，与日记正文分开索引以提高音乐查询命中率。 */
     static String buildMusicIndexText(MusicMeta musicMeta) {
         StringBuilder sb = new StringBuilder();
