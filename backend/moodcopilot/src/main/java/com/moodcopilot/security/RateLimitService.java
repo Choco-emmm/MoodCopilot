@@ -54,8 +54,9 @@ public class RateLimitService {
             {200, 30, 30, 20, 999},  // Lv.6
     };
 
-    public static int getDynamicLimit(AiApiType type, int level, boolean isPro) {
-        int row = isPro ? 0 : Math.clamp(level, 1, 6);
+    public static int getDynamicLimit(AiApiType type, Integer level, boolean isPro) {
+        int safeLevel = (level != null) ? level : 1;
+        int row = isPro ? 0 : Math.clamp(safeLevel, 1, 6);
         return QUOTA[row][type.ordinal()];
     }
 
@@ -63,24 +64,32 @@ public class RateLimitService {
         return user.getProExpireTime() != null && user.getProExpireTime().isAfter(LocalDateTime.now());
     }
 
+    private static boolean isAdmin(UserEntity user) {
+        if (user == null || user.getRole() == null) {
+            return false;
+        }
+        String role = user.getRole().toUpperCase();
+        return role.equals("ADMIN") || role.equals("ROLE_ADMIN");
+    }
+
     // ── tryAcquire ──
 
     /** Convenience overload for system/scheduler calls: defaults to non-Pro Lv.1. */
     public void tryAcquire(Long userId, AiApiType type) {
         int limit = getDynamicLimit(type, 1, false);
-        tryAcquireInternal(userId, type, limit, false);
+        tryAcquireInternal(userId, type, limit);
     }
 
     /** Main entry point for user-initiated calls. */
     public void tryAcquire(UserEntity user, AiApiType type) {
-        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
+        if (isAdmin(user)) {
             return;
         }
         int limit = getDynamicLimit(type, user.getLevel(), isPro(user));
-        tryAcquireInternal(user.getId(), type, limit, false);
+        tryAcquireInternal(user.getId(), type, limit);
     }
 
-    private void tryAcquireInternal(Long userId, AiApiType type, int limit, boolean adminBypass) {
+    private void tryAcquireInternal(Long userId, AiApiType type, int limit) {
         if (limit <= 0) {
             throw new RateLimitException(type.name(),
                     "当前等级暂未解锁" + typeLabel(type) + "功能，升级后即可使用～");
@@ -107,8 +116,8 @@ public class RateLimitService {
     }
 
     public long getRemaining(UserEntity user, AiApiType type) {
-        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
-            return -1;
+        if (isAdmin(user)) {
+            return 9999L;
         }
         int limit = getDynamicLimit(type, user.getLevel(), isPro(user));
         return getRemainingInternal(user.getId(), type, limit);
@@ -132,17 +141,17 @@ public class RateLimitService {
     }
 
     public Map<String, Long> getAllRemaining(UserEntity user) {
-        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
+        if (isAdmin(user)) {
             Map<String, Long> result = new LinkedHashMap<>();
             for (AiApiType type : AiApiType.values()) {
-                result.put(type.name(), -1L);
+                result.put(type.name(), 9999L);
             }
             return result;
         }
         return getAllRemaining(user.getId(), user.getLevel(), isPro(user));
     }
 
-    private Map<String, Long> getAllRemaining(Long userId, int level, boolean isPro) {
+    private Map<String, Long> getAllRemaining(Long userId, Integer level, boolean isPro) {
         Map<String, Long> result = new LinkedHashMap<>();
         for (AiApiType type : AiApiType.values()) {
             int limit = getDynamicLimit(type, level, isPro);
