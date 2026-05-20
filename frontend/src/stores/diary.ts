@@ -4,6 +4,13 @@ import { diaryApi } from '../api'
 import { normalizeResourceUrl } from '../utils/resource'
 import { tryExpToast } from '../utils/toast'
 
+export interface MusicMeta {
+  title: string
+  artist: string
+  coverUrl: string
+  userLyric?: string
+}
+
 export interface Diary {
   id: number
   authorUserId: number
@@ -13,6 +20,7 @@ export interface Diary {
   content: string
   visibility: string
   analysis: DiaryAnalysis | null
+  musicMeta?: MusicMeta | null
   createdAt: string
   resonanceCount: number
   likedByMe?: boolean
@@ -127,11 +135,11 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
-  async function createDiary(content: string, visibility: string) {
+  async function createDiary(content: string, visibility: string, musicMeta?: MusicMeta) {
     saving.value = true
     errorMessage.value = null
     try {
-      const res = await diaryApi.create({ content, visibility })
+      const res = await diaryApi.create({ content, visibility, musicMeta })
       const diary = normalize(res.data.data)
       activeDiary.value = diary
       analysisStatus.value = diary.analysis == null ? 'analyzing' : 'complete'

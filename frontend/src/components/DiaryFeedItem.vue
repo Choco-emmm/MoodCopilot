@@ -48,6 +48,8 @@
       {{ expanded ? '收起' : '展开' }}
     </button>
 
+    <MusicCard v-if="diary.musicMeta" :music-meta="diary.musicMeta" />
+
     <div class="feed-actions">
       <n-button size="small" tertiary :class="['like-btn', { liked: diary.likedByMe, 'just-liked': justLiked }]" @click="handleResonate(diary)">
         <span class="like-btn-icon" v-html="diary.likedByMe ? thumbsUpFilled : thumbsUpOutline" />
@@ -132,6 +134,7 @@ import { useDiaryStore } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
 import { useAuthStore } from '../stores/auth'
 import { reportApi } from '../api'
+import MusicCard from './MusicCard.vue'
 
 const store = useDiaryStore()
 const message = useMessage()

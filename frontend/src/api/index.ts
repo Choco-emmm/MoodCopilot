@@ -38,7 +38,7 @@ api.interceptors.response.use(
 )
 
 export const diaryApi = {
-  create: (data: { content: string; visibility: string }) => api.post('/diaries', data),
+  create: (data: { content: string; visibility: string; musicMeta?: any }) => api.post('/diaries', data),
   update: (id: number, data: { content: string; visibility: string; isPinned?: boolean }) => api.put(`/diaries/${id}`, data),
   mine: (page = 1, size = 20) => api.get('/diaries/mine', { params: { page, size } }),
   byUser: (userId: number, page = 1, size = 20) => api.get(`/diaries/user/${userId}`, { params: { page, size } }),
@@ -155,6 +155,10 @@ export const memoryApi = {
   getAll: () => api.get('/memory'),
   forget: (id: number) => api.delete(`/memory/${id}`),
   update: (id: number, data: { attributeValue: string }) => api.put(`/memory/${id}`, data),
+}
+
+export const musicApi = {
+  parse: (url: string) => api.post('/music/parse', { url }),
 }
 
 export const chatApi = {
