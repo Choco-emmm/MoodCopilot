@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -252,34 +253,52 @@ public class RagMemoryService {
     }
 
     /**
-     * 向量相似搜索：用 query embedding 在用户的历史内容中检索 topK 最相关片段。
+     * 向量相似搜索（无时间过滤）。向后兼容。
+     */
+    public List<RagHit> search(long userId, String query, int topK, String... sourceTypes) {
+        return search(userId, query, topK, null, sourceTypes);
+    }
+
+    /**
+     * 向量相似搜索（可选时间过滤）。
+     * 当 timeRange 不为 null 时，RediSearch 查询追加 @created_at:[from to] 标量过滤。
      */
     @SuppressWarnings("unchecked")
-    public List<RagHit> search(long userId, String query, int topK, String... sourceTypes) {
+    public List<RagHit> search(long userId, String query, int topK,
+            TimeExpressionParser.TimeRange timeRange, String... sourceTypes) {
         float[] queryVec = embed(query);
         if (queryVec == null || queryVec.length == 0) {
             return List.of();
         }
         byte[] queryVector = floatsToBytes(queryVec);
+
+        log.info("RAG 开始搜索 userId={} queryLen={} topK={} timeRange=[from={} to={}] sourceTypes={}",
+                userId, query.length(), topK,
+                timeRange != null ? formatEpoch(timeRange.fromTimestamp()) : "无",
+                timeRange != null ? formatEpoch(timeRange.toTimestamp()) : "无",
+                Arrays.toString(sourceTypes));
+
         // 严格遵循 RediSearch Hybrid Query 语法：所有过滤条件必须在同一对括号内，且 => 前无空格
-        String filter;
+        StringBuilder fb = new StringBuilder("(@user_id:[").append(userId).append(" ").append(userId).append("]");
         if (sourceTypes.length > 0) {
-            StringBuilder sb = new StringBuilder("(@user_id:[").append(userId).append(" ").append(userId).append("]");
-            sb.append(" @source_type:{");
+            fb.append(" @source_type:{");
             for (int i = 0; i < sourceTypes.length; i++) {
-                if (i > 0) sb.append("|");
-                sb.append(sourceTypes[i]);
+                if (i > 0) fb.append("|");
+                fb.append(sourceTypes[i]);
             }
-            sb.append("})");
-            filter = sb.toString();
-        } else {
-            filter = "(@user_id:[" + userId + " " + userId + "])";
+            fb.append("}");
         }
+        if (timeRange != null) {
+            fb.append(" @created_at:[").append(timeRange.fromTimestamp())
+                    .append(" ").append(timeRange.toTimestamp()).append("]");
+        }
+        fb.append(")");
+        String filter = fb.toString();
 
         String knn = "=>[KNN " + topK + " @embedding $vec AS _score]";
-        String q = filter + knn; // 绝对不能有空格
+        String q = filter + knn;
 
-        log.info("RAG 执行 FT.SEARCH, query: {}", q);
+        log.info("RAG 搜索 query string: {}", q);
 
         try {
             return redis.execute((RedisCallback<List<RagHit>>) conn -> {
@@ -307,19 +326,25 @@ public class RagMemoryService {
                     log.info("RAG Redis底层原始命中数: {}", rawCount);
                     parseResults(raw, hits);
                 }
-                // 无 SORTBY 下 Redis 返回顺序不一定严格升序，Java 侧按余弦距离升序保证 topScore 准确
                 hits.sort(java.util.Comparator.comparing(RagHit::score, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
-                if (!hits.isEmpty()) {
-                    double topScore = hits.get(0).score() != null ? hits.get(0).score() : -1;
-                    double avgScore = hits.stream().filter(h -> h.score() != null)
+                int rawHits = hits.size();
+                // 质量过滤
+                List<RagHit> qualityHits = hits.stream()
+                        .filter(h -> h.score() != null && h.score() > 0.001 && h.score() < 1.0)
+                        .toList();
+                qualityHits = new ArrayList<>(qualityHits);
+                qualityHits.sort(java.util.Comparator.comparing(RagHit::score, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
+                log.info("RAG 搜索完成 userId={} totalHits={} qualityHits={}",
+                        userId, rawHits, qualityHits.size());
+
+                if (!qualityHits.isEmpty()) {
+                    double topScore = qualityHits.get(0).score() != null ? qualityHits.get(0).score() : -1;
+                    double avgScore = qualityHits.stream().filter(h -> h.score() != null)
                             .mapToDouble(RagHit::score).average().orElse(-1);
-                    log.info("RAG 搜索完成 userId={} queryLen={} hits={} topScore={} avgScore={}",
-                            userId, query.length(), hits.size(),
+                    log.info("RAG qualityHits topScore={} avgScore={}",
                             String.format("%.3f", topScore), String.format("%.3f", avgScore));
-                } else {
-                    log.info("RAG 搜索完成 userId={} queryLen={} hits=0", userId, query.length());
                 }
-                return hits;
+                return qualityHits;
             });
         } catch (Exception e) {
             log.warn("RAG 搜索失败 userId={}: {}", userId, e.getMessage());
@@ -328,40 +353,24 @@ public class RagMemoryService {
     }
 
     public String buildRagContext(long userId, String query, int topK, String... sourceTypes) {
-        List<RagHit> hits = search(userId, query, topK, sourceTypes);
-        if (hits.isEmpty()) {
-            log.debug("RAG 上下文为空 userId={} queryLen={}", userId, query.length());
-            return "";
-        }
-        // 调试日志：仅输出余弦距离分布，不记录 sourceId 以保护用户隐私
-        if (log.isDebugEnabled()) {
-            StringBuilder scoreLog = new StringBuilder("RAG 召回距离分布 userId=").append(userId).append(" [");
-            for (int i = 0; i < hits.size(); i++) {
-                if (i > 0) scoreLog.append(", ");
-                scoreLog.append(hits.get(i).score() != null ? String.format("%.4f", hits.get(i).score()) : "null");
-            }
-            scoreLog.append("]");
-            log.debug(scoreLog.toString());
-        }
-        // 过滤：剔除 score≈0 的自我重复 + 余弦距离 >1.0 的噪音
-        List<RagHit> qualityHits = hits.stream()
-                .filter(h -> h.score() != null && h.score() > 0.001 && h.score() < 1.0)
-                .toList();
-        // Java 内存侧按余弦距离升序（越小越相似），确保最相关的排在 LLM 上下文最前面
-        qualityHits = new java.util.ArrayList<>(qualityHits);
-        qualityHits.sort(java.util.Comparator.comparing(RagHit::score, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
-        if (qualityHits.isEmpty()) {
-            log.debug("RAG 命中全部低于阈值，已过滤 userId={}", userId);
-            return "";
-        }
+        return buildRagContext(userId, query, topK, null, sourceTypes);
+    }
 
+    public String buildRagContext(long userId, String query, int topK,
+            TimeExpressionParser.TimeRange timeRange, String... sourceTypes) {
+        List<RagHit> hits = search(userId, query, topK, timeRange, sourceTypes);
+        if (hits.isEmpty()) {
+            log.info("RAG 上下文为空 userId={} queryLen={} timeRange={}", userId, query.length(),
+                    timeRange != null ? "[" + formatEpoch(timeRange.fromTimestamp()) + " ~ " + formatEpoch(timeRange.toTimestamp()) + "]" : "无");
+            return "";
+        }
         StringBuilder sb = new StringBuilder("\n\n<rag_retrieved_context>\n");
         sb.append("以下是与用户当前问题语义相关的历史记录（由向量检索自动获取）：\n");
-        for (int i = 0; i < qualityHits.size(); i++) {
-            RagHit hit = qualityHits.get(i);
+        for (int i = 0; i < hits.size(); i++) {
+            RagHit hit = hits.get(i);
             sb.append("[").append(i + 1).append("] ").append(hit.content());
             if (hit.score() != null) {
-                double similarity = 1.0 - hit.score() / 2.0; // 余弦距离→相似度 0~1
+                double similarity = 1.0 - hit.score() / 2.0;
                 sb.append(" (相关度: ").append(String.format("%.2f", similarity)).append(")");
             }
             sb.append("\n");
@@ -372,6 +381,10 @@ public class RagMemoryService {
     }
 
     // ── 内部工具 ──
+
+    private static String formatEpoch(long epochSecond) {
+        return TimeExpressionParser.formatDateTime(epochSecond);
+    }
 
     private static byte[] floatsToBytes(float[] floats) {
         ByteBuffer buf = ByteBuffer.allocate(floats.length * Float.BYTES);
