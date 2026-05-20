@@ -244,7 +244,9 @@ public class MusicParseService {
     }
 
     private String stripTimestamp(String line) {
-        return line.replaceFirst("^\\[[0-9.:]+\\]\\s*", "").trim();
+        // Remove ALL timestamp patterns, not just the first
+        String cleaned = line.replaceAll("\\[[0-9.:]+\\]", "").trim();
+        return cleaned;
     }
 
     public String proxyImage(String imageUrl) {
