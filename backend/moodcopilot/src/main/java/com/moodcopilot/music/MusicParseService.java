@@ -233,7 +233,8 @@ public class MusicParseService {
      * Avoids regex catastrophic backtracking / StackOverflow on large responses.
      */
     private String extractLyricField(String json, String fieldName) {
-        String searchKey = "\"" + fieldName + "\"";
+        // fieldName already includes double quotes (e.g. "\"lrc\"")
+        String searchKey = fieldName;
         int fieldIdx = json.indexOf(searchKey);
         if (fieldIdx < 0) return null;
 
