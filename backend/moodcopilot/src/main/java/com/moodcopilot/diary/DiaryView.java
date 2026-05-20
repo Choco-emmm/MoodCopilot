@@ -24,7 +24,14 @@ public record DiaryView(
                 boolean likedByMe,
                 boolean isPinned,
                 MusicMeta musicMeta,
+                String analysisStatus,
                 List<DiaryComment> comments) {
+
+        public DiaryView withAnalysisStatus(String status) {
+            return new DiaryView(id, authorUserId, authorName, authorAvatar, authorLevel,
+                    content, visibility, analysis, createdAt, resonanceCount, likedByMe,
+                    isPinned, musicMeta, status, comments);
+        }
         static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments,
                         String authorAvatar, String authorName, Map<Long, String> commentAuthorNames,
                         boolean likedByMe) {
@@ -88,6 +95,7 @@ public record DiaryView(
                                 likedByMe,
                                 Boolean.TRUE.equals(diary.getIsPinned()),
                                 diary.getMusicMeta(),
+                                viewAnalysis != null ? "complete" : "analyzing",
                                 buildCommentTree(comments, commentAuthorNames));
         }
 
@@ -106,7 +114,8 @@ public record DiaryView(
             return new DiaryView(diary.getId(), diary.getAuthorUserId(), authorName, authorAvatar,
                     authorLevel, feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
                     diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
-                    Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(), List.of());
+                    Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(),
+                    va != null ? "complete" : "analyzing", List.of());
         }
 
         /** Feed 模式个人视图：无评论、裁切内容、完整分析 */
@@ -121,7 +130,8 @@ public record DiaryView(
             return new DiaryView(diary.getId(), diary.getAuthorUserId(), authorName, authorAvatar,
                     authorLevel, feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
                     diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
-                    Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(), List.of());
+                    Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(),
+                    va != null ? "complete" : "analyzing", List.of());
         }
 
         private static List<DiaryComment> buildCommentTree(List<DiaryCommentEntity> entities,

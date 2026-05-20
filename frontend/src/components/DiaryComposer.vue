@@ -5,9 +5,15 @@
         <p class="eyebrow">今日日记</p>
         <h2>此刻发生了什么</h2>
       </div>
-      <n-radio-group v-model:value="visibility" size="small">
-        <n-radio-button v-for="opt in visibilityOptions" :key="opt.value" :value="opt.value" :label="opt.label" />
-      </n-radio-group>
+      <div class="composer-toggles">
+        <label class="analyze-toggle">
+          <input type="checkbox" v-model="analyze" />
+          <span>AI 分析</span>
+        </label>
+        <n-radio-group v-model:value="visibility" size="small">
+          <n-radio-button v-for="opt in visibilityOptions" :key="opt.value" :value="opt.value" :label="opt.label" />
+        </n-radio-group>
+      </div>
     </div>
 
     <n-input
@@ -86,6 +92,7 @@ const draft = ref('')
 const draftNotice = ref('')
 const draftSavedAt = ref('')
 const visibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
+const analyze = ref(true)
 const DRAFT_KEY = 'moodcopilot:draft'
 
 const musicMeta = ref<MusicMeta | null>(null)
@@ -174,7 +181,7 @@ async function handleSave() {
     const payload = musicMeta.value
       ? { ...musicMeta.value, userLyric: userLyric.value }
       : undefined
-    await store.createDiary(draft.value.trim(), visibility.value, payload)
+    await store.createDiary(draft.value.trim(), visibility.value, payload, analyze.value)
     draft.value = ''
     musicMeta.value = null
     userLyric.value = ''
@@ -187,6 +194,29 @@ async function handleSave() {
 </script>
 
 <style scoped>
+.composer-toggles {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.analyze-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: #6a5a4a;
+  cursor: pointer;
+  user-select: none;
+}
+
+.analyze-toggle input[type="checkbox"] {
+  accent-color: var(--color-primary, #4a7c62);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
 .composer-hint {
   margin: 0;
   padding: 10px 12px;

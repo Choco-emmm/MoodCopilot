@@ -66,6 +66,27 @@
     <div class="md-content" v-html="renderMd(diary.analysis.feedback)" />
   </template>
 
+  <template v-else-if="diary.analysisStatus === 'skipped_quota'">
+    <div class="section-title compact">
+      <div>
+        <p class="eyebrow">AI 分析</p>
+        <h2>今日次数已用完</h2>
+      </div>
+    </div>
+    <p class="feedback" style="color: #b0a090;">
+      今天的 AI 分析次数已用完，日记已保存。明天再来看看吧~
+    </p>
+  </template>
+
+  <template v-else-if="diary.analysisStatus === 'skipped_user'">
+    <div class="section-title compact">
+      <div>
+        <p class="eyebrow">AI 分析</p>
+        <h2>分析已关闭</h2>
+      </div>
+    </div>
+  </template>
+
   <template v-else>
     <div class="section-title compact">
       <div>
@@ -73,23 +94,15 @@
         <h2>分析中...</h2>
       </div>
     </div>
-    <n-progress
-      :percentage="fakeProgress"
-      :indicator-placement="'inside'"
-      :processing="true"
-      :border-radius="6"
-      :height="20"
-      style="width: 100%"
-    />
-    <p class="feedback" :style="{ opacity: fakeProgress > 0 ? 0.7 : 1 }">
+    <p class="feedback">
       {{ progressHint }}
     </p>
   </template>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { NProgress, NPopover } from 'naive-ui'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { NPopover } from 'naive-ui'
 import type { Diary } from '../stores/diary'
 import { moodColor } from '../utils/mood'
 import { renderSafeMarkdown } from '../utils/markdown'
@@ -133,65 +146,37 @@ const popoverWidth = computed(() => {
   return window.innerWidth <= 600 ? undefined : 370
 })
 
-// ── 虚拟进度条 ──
-const fakeProgress = ref(0)
-let progressTimer: ReturnType<typeof setInterval> | null = null
-let finishTimer: ReturnType<typeof setTimeout> | null = null
+const progressHint = ref('正在读取你的日记...')
+let hintTimer: ReturnType<typeof setInterval> | null = null
 
-const progressHint = computed(() => {
-  const p = fakeProgress.value
-  if (p < 30) return '正在读取你的日记...'
-  if (p < 60) return '正在拆解情绪线索...'
-  if (p < 85) return '正在进行深层分析...'
-  return '正在生成温柔回应...'
-})
-
-function startFakeProgress() {
-  stopTimers()
-  fakeProgress.value = 0
-  progressTimer = setInterval(() => {
-    const p = fakeProgress.value
-    let add: number
-    if (p < 60) {
-      add = 8 + Math.random() * 7 // 8–15%
-    } else if (p < 85) {
-      add = 2 + Math.random() * 3 // 2–5%
-    } else if (p < 98) {
-      add = 0.5 + Math.random() * 0.5 // 0.5–1%
-    } else {
-      add = 0
-    }
-    fakeProgress.value = Math.min(98, p + add)
-  }, 200)
+function startHintRotation() {
+  stopHintTimer()
+  const hints = ['正在读取你的日记...', '正在拆解情绪线索...', '正在进行深层分析...', '正在生成温柔回应...']
+  let i = 0
+  hintTimer = setInterval(() => {
+    i = (i + 1) % hints.length
+    progressHint.value = hints[i]
+  }, 4000)
 }
 
-function finishFakeProgress() {
-  stopTimers()
-  fakeProgress.value = 100
-  finishTimer = setTimeout(() => {
-    fakeProgress.value = 0
-  }, 350)
-}
-
-function stopTimers() {
-  if (progressTimer) { clearInterval(progressTimer); progressTimer = null }
-  if (finishTimer) { clearTimeout(finishTimer); finishTimer = null }
+function stopHintTimer() {
+  if (hintTimer) { clearInterval(hintTimer); hintTimer = null }
 }
 
 onMounted(() => {
-  if (!props.diary.analysis?.summary) {
-    startFakeProgress()
+  if (!props.diary.analysis?.summary && props.diary.analysisStatus !== 'skipped_quota' && props.diary.analysisStatus !== 'skipped_user') {
+    startHintRotation()
   }
 })
 
 watch(() => props.diary.analysis?.summary, (summary) => {
   if (summary) {
-    finishFakeProgress()
+    stopHintTimer()
   }
 })
 
 onUnmounted(() => {
-  stopTimers()
+  stopHintTimer()
 })
 </script>
 
