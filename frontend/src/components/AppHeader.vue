@@ -37,16 +37,16 @@
             </template>
             <div style="padding: 4px; min-width: 160px;">
               <p style="margin: 0 0 2px; font-weight: bold; font-size: 13px; color: #2f2a24;">Lv.{{ auth.level }} · {{ auth.exp }}/{{ levelExpCap }} EXP</p>
-              <p style="margin: 0 0 8px; font-weight: bold; font-size: 13px; color: #2f2a24;">剩余 AI 额度</p>
+              <p style="margin: 0 0 8px; font-weight: bold; font-size: 13px; color: #2f2a24;">剩余额度</p>
               <ul style="margin: 0; padding-left: 18px; font-size: 13px; color: #555;">
-                <li>聊天：{{ formatQuota(quotas.CHAT, levelQuotaMax.chat) }}</li>
-                <li>分析：{{ formatQuota(quotas.ANALYSIS, levelQuotaMax.analysis) }}</li>
-                <li>深度思考：{{ formatQuota(quotas.REASONING, levelQuotaMax.reasoning) }}</li>
+                <li>AI 聊天：{{ formatQuota(quotas.CHAT, levelQuotaMax.chat) }}</li>
+                <li>AI 分析：{{ formatQuota(quotas.ANALYSIS, levelQuotaMax.analysis) }}</li>
+                <li>AI 深度思考：{{ formatQuota(quotas.REASONING, levelQuotaMax.reasoning) }}</li>
                 <li>共鸣检索：{{ formatQuota(quotas.RESONANCE, levelQuotaMax.resonance) }}</li>
                 <li>报告：{{ formatQuota(quotas.REPORT, levelQuotaMax.report) }}</li>
                 <li>图片上传：{{ formatQuota(quotas.IMAGE_UPLOAD, levelQuotaMax.imageUpload) }}</li>
               </ul>
-              <p style="margin: 8px 0 0; font-size: 11px; color: #888;">聊天/分析/思考/检索/图片每日重置，报告每月重置</p>
+              <p style="margin: 8px 0 0; font-size: 11px; color: #888;">AI 聊天/分析/思考 及 共鸣检索/图片每日重置，报告每月重置</p>
               <p style="margin: 6px 0 0; font-size: 12px;">
                 <a href="#" @click.prevent="openQuotaTable" style="color: var(--color-jade); font-weight: 600; text-decoration: none;">查看完整配额表 →</a>
               </p>
@@ -100,7 +100,7 @@
     <div v-if="showQuotaTable" class="quota-overlay" @click.self="showQuotaTable = false">
       <div class="quota-modal">
         <div class="quota-modal-header">
-          <h3>AI 配额表</h3>
+          <h3>配额表</h3>
           <button class="quota-modal-close" @click="showQuotaTable = false">&times;</button>
         </div>
         <p class="quota-modal-desc">

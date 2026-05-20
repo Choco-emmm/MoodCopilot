@@ -149,32 +149,86 @@ public class ChatController {
 
     /**
      * 检测并移除 Function Calling 导致的前置废话。
-     * 当模型在调用工具前先输出了"我帮你查一下"等过渡语，
-     * 这些前置文本和工具返回后的正式回复会被拼接在一起，导致割裂和重复。
-     * 此方法用启发式规则检测并保留后半段（基于工具数据的实质性回复）。
+     *
+     * 根因：模型有时会在工具调用前输出"我帮你查"等过渡语，而纯文本模型可能本能地先否认
+     * （如"系统好像没记录"），然后 RAG 上下文已把 VLM 图片描述塞给它，导致后半段又引用具体信息。
+     * 本方法用多轮启发式规则把前置废话和错误推理切除，只保留基于工具/RAG 数据的实质回复。
      */
     private String removePreToolDuplicate(String raw) {
         if (raw == null || raw.length() < 30) return raw;
 
-        // 规则 1：检测 "帮你查" 类过渡语后是否还有足够长的实质性内容
-        Pattern preface = Pattern.compile("^.*?(我(?:帮你|来|去).*?(?:查|看看|搜索|检索)).*?[。！\\n]");
+        // ── 规则 1：检测"查/检索"类过渡语 + 后续否定陈述，切到真正的转折点 ──
+        // 典型："我来帮你查一下。从你的日记记录来看，系统里好像没有...不过之前有篇日记..."
+        // 目标：定位到 "不过我查" / "不过从记录" / "但我发现" / "根据数据" 等转折词，
+        // 如果前面包含"帮你查/检索/看看"等过渡语 AND 后面有实质性内容，则丢弃转折词之前的所有内容。
+        Pattern pivotPattern = Pattern.compile(
+                "(?:不过|但是|但|然而|可实际上|实际上)[^。！？\\n]{0,30}?" +
+                "(?:我(?:查|检索|搜索|翻|找|调|看|确认)" +
+                "|从(?:记录|数据|日记|系统)" +
+                "|根据(?:你|数据|记录|检索)" +
+                "|显示|提到|记载|记录到)",
+                Pattern.CASE_INSENSITIVE);
+        Matcher pivotM = pivotPattern.matcher(raw);
+        while (pivotM.find()) {
+            int pivotIdx = pivotM.start();
+            // 检查转折词之前是否包含"帮你查/检索/看看"等过渡语
+            String before = raw.substring(0, pivotIdx);
+            if (before.length() < 10) continue;
+            boolean hasFiller = before.matches(".*?(?:我(?:帮你|来|去|给你).*?(?:查|看看|搜索|检索|确认)).*");
+            boolean hasDenial = before.matches(".*?(?:没有(?:直接)?(?:记录|找到|发现|看到)|找不到|未发现).*");
+            if (hasFiller || hasDenial) {
+                String after = raw.substring(pivotIdx).trim();
+                if (after.length() > 20 && !after.equals(raw.trim())) {
+                    log.info("去重兜底触发（规则1-转折词），pivotIdx={} {}→{} 字符",
+                            pivotIdx, raw.length(), after.length());
+                    return after;
+                }
+            }
+        }
+
+        // ── 规则 2：检测割裂式自我矛盾 ──
+        // 当模型先说"没有/找不到"，后面却又引用具体信息 → 典型的 RAG 注入后自我打脸
+        Pattern selfContradiction = Pattern.compile(
+                "^.*?(?:没有(?:直接)?(?:记录|找到|发现|看到)|找不到|未发现|系统(?:里|中)(?:好像)?(?:没|不)).*?[。！]",
+                Pattern.CASE_INSENSITIVE);
+        Matcher contradictM = selfContradiction.matcher(raw);
+        if (contradictM.find()) {
+            int end = contradictM.end();
+            String rest = raw.substring(end).trim();
+            // 只有当后半段确实引用了具体数据（含"描述为"/"显示"/"提到"/"记载"/"标题"/"歌手"等）
+            // 才判定为矛盾并切除前半段
+            boolean hasDataRef = rest.matches(".*?(?:描述为|显示|提到|记载|记录到|标题|歌手|歌曲|歌词|歌名|图片|照片|上传|分享|专辑).*");
+            if (hasDataRef && rest.length() > 20 && !rest.equals(raw.trim())) {
+                log.info("去重兜底触发（规则2-矛盾），{}→{} 字符", raw.length(), rest.length());
+                return rest;
+            }
+        }
+
+        // ── 规则 3：过渡语 + 后续实质性内容（原规则1的重写） ──
+        Pattern preface = Pattern.compile(
+                "^.*?(?:我(?:帮你|来|去|给你).*?(?:查[一]?下|看看|搜索|检索|确认[一]?下|调[取]?数据)).*?[。！\\n]",
+                Pattern.CASE_INSENSITIVE);
         Matcher m = preface.matcher(raw);
         if (m.find() && m.end() < raw.length() - 20) {
             String candidate = raw.substring(m.end()).trim();
             if (candidate.length() > 20) {
-                log.info("去重兜底触发（规则1），截取后半段 {}→{} 字符", raw.length(), candidate.length());
+                log.info("去重兜底触发（规则3-过渡语），{}→{} 字符", raw.length(), candidate.length());
                 return candidate;
             }
         }
 
-        // 规则 2：检测明显的"转折重新开始"标记，保留后半段
-        String[] markers = {"好的，根据", "好了，我查", "我查了一下", "我帮你查", "我检索到"};
+        // ── 规则 4：检测明显的"转折重新开始"标记，保留后半段 ──
+        String[] markers = {
+            "好的，根据", "好了，我查", "我查了一下", "我帮你查", "我检索到",
+            "根据你的记录", "从你的日记", "数据显示", "以下是你", "这里是你"
+        };
         for (String marker : markers) {
             int idx = raw.indexOf(marker);
-            if (idx > 20 && idx < raw.length() / 2) {
+            if (idx > 15 && idx < raw.length() / 2) {
                 String after = raw.substring(idx).trim();
                 if (after.length() > 20) {
-                    log.info("去重兜底触发（规则2），标记=\"{}\" {}→{} 字符", marker, raw.length(), after.length());
+                    log.info("去重兜底触发（规则4-标记），marker=\"{}\" {}→{} 字符",
+                            marker, raw.length(), after.length());
                     return after;
                 }
             }

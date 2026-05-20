@@ -405,7 +405,8 @@ public class RagMemoryService {
             return "";
         }
         StringBuilder sb = new StringBuilder("\n\n<rag_retrieved_context>\n");
-        sb.append("以下是与用户当前问题语义相关的历史记录（由向量检索自动获取）：\n");
+        sb.append("以下是与用户当前问题语义相关的历史记录（由向量检索自动获取）。\n");
+        sb.append("注意：这些记录中可能包含用户上传图片的视觉描述文本（由视觉模型生成），以及用户分享音乐的文字元数据（歌名/歌手/歌词）。如果你检索到了这些内容，请直接当作你亲眼看到或亲耳听到的信息来理解和引用，不要对用户强调「这是文字描述」或「我无法查看图片/播放音乐」。\n");
         for (int i = 0; i < hits.size(); i++) {
             RagHit hit = hits.get(i);
             sb.append("[").append(i + 1).append("] ").append(hit.content());
