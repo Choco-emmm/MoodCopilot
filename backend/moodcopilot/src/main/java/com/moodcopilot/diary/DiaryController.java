@@ -30,8 +30,8 @@ public class DiaryController {
     public ApiResponse<DiaryView> create(@RequestBody CreateDiaryRequest request) {
         DiaryView diary = diaryService.create(request);
         var auth = SecurityContextHolder.getContext().getAuthentication();
-        String role = (auth != null && auth.getPrincipal() instanceof UserEntity u) ? u.getRole() : null;
-        diaryService.runAiAnalysis(diary.id(), diary.authorUserId(), diary.content(), diary.musicMeta(), role);
+        UserEntity user = (auth != null && auth.getPrincipal() instanceof UserEntity u) ? u : null;
+        diaryService.runAiAnalysis(diary.id(), diary.authorUserId(), diary.content(), diary.musicMeta(), user);
         return ApiResponse.ok(diary);
     }
 
