@@ -1,7 +1,10 @@
 package com.moodcopilot.diary;
 
+import com.moodcopilot.entity.MusicMeta;
+
 public record CreateDiaryRequest(
         String content,
-        String visibility
+        String visibility,
+        MusicMeta musicMeta
 ) {
 }

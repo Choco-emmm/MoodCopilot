@@ -3,6 +3,7 @@ package com.moodcopilot.diary;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.entity.DiaryCommentEntity;
 import com.moodcopilot.entity.DiaryEntity;
+import com.moodcopilot.entity.MusicMeta;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,6 +23,7 @@ public record DiaryView(
                 int resonanceCount,
                 boolean likedByMe,
                 boolean isPinned,
+                MusicMeta musicMeta,
                 List<DiaryComment> comments) {
         static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments,
                         String authorAvatar, String authorName, Map<Long, String> commentAuthorNames,
@@ -85,6 +87,7 @@ public record DiaryView(
                                 diary.getResonanceCount(),
                                 likedByMe,
                                 Boolean.TRUE.equals(diary.getIsPinned()),
+                                diary.getMusicMeta(),
                                 buildCommentTree(comments, commentAuthorNames));
         }
 
@@ -103,7 +106,7 @@ public record DiaryView(
             return new DiaryView(diary.getId(), diary.getAuthorUserId(), authorName, authorAvatar,
                     authorLevel, feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
                     diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
-                    Boolean.TRUE.equals(diary.getIsPinned()), List.of());
+                    Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(), List.of());
         }
 
         /** Feed 模式个人视图：无评论、裁切内容、完整分析 */
@@ -118,7 +121,7 @@ public record DiaryView(
             return new DiaryView(diary.getId(), diary.getAuthorUserId(), authorName, authorAvatar,
                     authorLevel, feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
                     diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
-                    Boolean.TRUE.equals(diary.getIsPinned()), List.of());
+                    Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(), List.of());
         }
 
         private static List<DiaryComment> buildCommentTree(List<DiaryCommentEntity> entities,

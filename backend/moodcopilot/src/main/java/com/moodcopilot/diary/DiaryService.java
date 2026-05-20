@@ -17,6 +17,7 @@ import com.moodcopilot.follow.FollowService;
 import com.moodcopilot.entity.DiaryCommentEntity;
 import com.moodcopilot.entity.DiaryEntity;
 import com.moodcopilot.entity.DiaryHideEntity;
+import com.moodcopilot.entity.MusicMeta;
 import com.moodcopilot.entity.DiaryRecommendationExposureEntity;
 import com.moodcopilot.entity.DiaryResonanceEntity;
 import com.moodcopilot.entity.DiarySummaryEntity;
@@ -159,6 +160,7 @@ public class DiaryService {
         diary.setAuthorName(user.getDisplayName());
         diary.setContent(ContentFilter.filter(content));
         diary.setVisibility(visibility.name());
+        diary.setMusicMeta(request.musicMeta());
         diary.setResonanceCount(0);
         diary.setIsDeleted(false);
         diary.setCreatedAt(LocalDateTime.now());
@@ -259,11 +261,11 @@ public class DiaryService {
 
     @Async
     @Transactional
-    public void runAiAnalysis(long diaryId, long userId, String content, String role) {
-        log.info("开始执行日记 AI 分析，diaryId={}，userId={}，contentLength={}", diaryId, userId,
-                content == null ? 0 : content.length());
+    public void runAiAnalysis(long diaryId, long userId, String content, MusicMeta musicMeta, String role) {
+        log.info("开始执行日记 AI 分析，diaryId={}，userId={}，contentLength={}，hasMusic={}", diaryId, userId,
+                content == null ? 0 : content.length(), musicMeta != null);
         rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.ANALYSIS);
-        DiaryAnalysis analysis = aiAnalysisService.analyze(content);
+        DiaryAnalysis analysis = aiAnalysisService.analyze(content, musicMeta);
 
         DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
         analysisEntity.setDiaryId(diaryId);
@@ -280,7 +282,7 @@ public class DiaryService {
         eventPublisher.publishEvent(new DiaryAnalysisCompletedEvent(
                 this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels()));
 
-        memoryExtractionService.extractAndSyncMemory(userId, content);
+        memoryExtractionService.extractAndSyncMemory(userId, content, musicMeta);
         markReportsStale(userId);
         DiaryEntity diary = diaryMapper.selectById(diaryId);
         if (diary != null && "PUBLIC".equals(diary.getVisibility())) {

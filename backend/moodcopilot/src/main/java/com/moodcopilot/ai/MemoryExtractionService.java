@@ -3,6 +3,7 @@ package com.moodcopilot.ai;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.DiaryEntity;
+import com.moodcopilot.entity.MusicMeta;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.entity.UserProfileMemoryEntity;
 import com.moodcopilot.mapper.DiaryMapper;
@@ -141,14 +142,18 @@ public class MemoryExtractionService {
      */
     @Async("aiExecutor")
     public void extractAndSyncMemory(Long userId, String diaryContent) {
+        extractAndSyncMemory(userId, diaryContent, null);
+    }
+
+    public void extractAndSyncMemory(Long userId, String diaryContent, MusicMeta musicMeta) {
         try {
             List<UserProfileMemoryEntity> existing = listUserMemories(userId);
-            log.info("开始提取长期画像，userId={}，旧属性数={}，日记长度={}", userId, existing.size(),
-                    diaryContent == null ? 0 : diaryContent.length());
+            log.info("开始提取长期画像，userId={}，旧属性数={}，日记长度={}，hasMusic={}", userId, existing.size(),
+                    diaryContent == null ? 0 : diaryContent.length(), musicMeta != null);
             // RAG 检索与当前日记语义相关的历史内容，帮助 LLM 发现跨日记的模式
             String ragContext = ragMemoryService.buildRagContext(userId, diaryContent, 3,
                     RagMemoryService.SOURCE_DIARY);
-            String prompt = buildExtractionUserPrompt(diaryContent, existing, ragContext);
+            String prompt = buildExtractionUserPrompt(diaryContent, existing, ragContext, musicMeta);
             String json = analysisChatClient.prompt()
                     .system(MEMORY_EXTRACTION_PROMPT)
                     .user(prompt)
@@ -383,8 +388,18 @@ public class MemoryExtractionService {
     // ---- 私有方法 ----
 
     private String buildExtractionUserPrompt(String diaryContent, List<UserProfileMemoryEntity> existing,
-            String ragContext) {
-        StringBuilder sb = new StringBuilder("新日记：\n").append(diaryContent).append("\n\n旧属性列表：\n");
+            String ragContext, MusicMeta musicMeta) {
+        StringBuilder sb = new StringBuilder();
+        if (musicMeta != null) {
+            sb.append("[音乐分享]\n");
+            sb.append("歌曲：").append(musicMeta.getTitle()).append("\n");
+            sb.append("歌手：").append(musicMeta.getArtist()).append("\n");
+            if (musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
+                sb.append("用户标注的歌词：").append(musicMeta.getUserLyric()).append("\n");
+            }
+            sb.append("（音乐元数据可辅助理解用户的情绪倾向和审美偏好）\n\n");
+        }
+        sb.append("新日记：\n").append(diaryContent).append("\n\n旧属性列表：\n");
         if (existing.isEmpty()) {
             sb.append("- 无\n");
         } else {

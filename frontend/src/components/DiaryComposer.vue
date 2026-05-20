@@ -17,7 +17,21 @@
       placeholder="今天发生了什么？可以只写一句，也可以把说不清的感觉先放在这里。"
       :autosize="{ minRows: 8, maxRows: 15 }"
       :status="isOverLimit ? 'error' : undefined"
+      @paste="handlePaste"
     />
+
+    <div v-if="musicParsing" class="music-parsing">
+      正在解析音乐链接...
+    </div>
+    <div v-else-if="musicMeta" class="music-preview-wrap">
+      <MusicCard
+        :music-meta="musicMeta"
+        :lyric="userLyric"
+        :show-lyric="true"
+        @update:lyric="userLyric = $event"
+      />
+      <button class="music-remove-btn" @click="removeMusic">✕ 移除音乐</button>
+    </div>
 
     <p class="composer-hint">
       写得越具体，MoodCopilot 越能理解你在意的人和事。持续记录比一次写满更重要。
@@ -63,7 +77,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useDiaryStore } from '../stores/diary'
+import { useDiaryStore, type MusicMeta } from '../stores/diary'
+import { musicApi } from '../api'
+import MusicCard from './MusicCard.vue'
 
 const store = useDiaryStore()
 const draft = ref('')
@@ -71,6 +87,10 @@ const draftNotice = ref('')
 const draftSavedAt = ref('')
 const visibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
 const DRAFT_KEY = 'moodcopilot:draft'
+
+const musicMeta = ref<MusicMeta | null>(null)
+const userLyric = ref('')
+const musicParsing = ref(false)
 
 function updateDraftSavedAt() {
   draftSavedAt.value = new Intl.DateTimeFormat('zh-CN', {
@@ -115,11 +135,49 @@ watch(draft, (value, oldValue) => {
   }
 })
 
+const MUSIC_URL_PATTERN = /https?:\/\/music\.163\.com\/[^\s]+/
+
+function detectMusicUrl(text: string): string | null {
+  const m = text.match(MUSIC_URL_PATTERN)
+  return m ? m[0] : null
+}
+
+async function handlePaste(e: ClipboardEvent) {
+  const text = e.clipboardData?.getData('text/plain')
+  if (!text) return
+  const url = detectMusicUrl(text)
+  if (!url) return
+  // Don't parse if already have music attached
+  if (musicMeta.value) return
+
+  musicParsing.value = true
+  try {
+    const res = await musicApi.parse(url)
+    if (res.data?.data) {
+      musicMeta.value = res.data.data as MusicMeta
+    }
+  } catch {
+    // if parse fails, ignore silently
+  } finally {
+    musicParsing.value = false
+  }
+}
+
+function removeMusic() {
+  musicMeta.value = null
+  userLyric.value = ''
+}
+
 async function handleSave() {
   if (!draft.value.trim()) return
   try {
-    await store.createDiary(draft.value.trim(), visibility.value)
+    const payload = musicMeta.value
+      ? { ...musicMeta.value, userLyric: userLyric.value }
+      : undefined
+    await store.createDiary(draft.value.trim(), visibility.value, payload)
     draft.value = ''
+    musicMeta.value = null
+    userLyric.value = ''
     localStorage.removeItem(DRAFT_KEY)
   } catch {
     // error handled by store
@@ -138,6 +196,35 @@ async function handleSave() {
   color: #4d5f54;
   font-size: 12px;
   line-height: 1.7;
+}
+
+.music-parsing {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 10px);
+  background: #fdf6f0;
+  border: 1px solid rgba(180, 150, 120, 0.12);
+  font-size: 13px;
+  color: #8a7a6a;
+  text-align: center;
+}
+
+.music-preview-wrap {
+  position: relative;
+}
+
+.music-remove-btn {
+  margin-top: 6px;
+  background: none;
+  border: none;
+  color: #b0a090;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.music-remove-btn:hover {
+  color: #a94b45;
 }
 
 </style>

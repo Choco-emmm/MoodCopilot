@@ -5,10 +5,11 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 
 import java.time.LocalDateTime;
 
-@TableName("diaries")
+@TableName(value = "diaries", autoResultMap = true)
 public class DiaryEntity {
 
     @TableId(type = IdType.AUTO)
@@ -22,6 +23,8 @@ public class DiaryEntity {
     @TableField("is_deleted")
     private Boolean isDeleted;
     private Boolean isPinned;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private MusicMeta musicMeta;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -45,6 +48,9 @@ public class DiaryEntity {
 
     public Boolean getIsPinned() { return isPinned; }
     public void setIsPinned(Boolean isPinned) { this.isPinned = isPinned; }
+
+    public MusicMeta getMusicMeta() { return musicMeta; }
+    public void setMusicMeta(MusicMeta musicMeta) { this.musicMeta = musicMeta; }
 
     public Boolean getIsDeleted() { return isDeleted; }
     public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }

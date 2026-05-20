@@ -51,10 +51,26 @@ public class AiAnalysisService {
     }
 
     public DiaryAnalysis analyze(String content) {
+        return analyze(content, null);
+    }
+
+    public DiaryAnalysis analyze(String content, com.moodcopilot.entity.MusicMeta musicMeta) {
         try {
+            String userInput = content;
+            if (musicMeta != null) {
+                StringBuilder sb = new StringBuilder(content);
+                sb.append("\n\n[音乐分享]\n");
+                sb.append("歌曲：").append(musicMeta.getTitle()).append("\n");
+                sb.append("歌手：").append(musicMeta.getArtist()).append("\n");
+                if (musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
+                    sb.append("用户标注的歌词：").append(musicMeta.getUserLyric()).append("\n");
+                }
+                sb.append("请结合以上音乐元数据理解这篇日记的情绪色彩。");
+                userInput = sb.toString();
+            }
             String json = analysisChatClient.prompt()
                     .system(SYSTEM_PROMPT)
-                    .user(content)
+                    .user(userInput)
                     .call()
                     .content();
             return parseAiResponse(json);

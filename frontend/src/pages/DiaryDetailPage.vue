@@ -61,6 +61,12 @@
           </div>
           <p v-if="!editing" class="diary-content">{{ diary.content }}</p>
 
+          <MusicCard
+            v-if="!editing && diary.musicMeta"
+            :music-meta="diary.musicMeta"
+            :lyric="diary.musicMeta.userLyric"
+          />
+
           <div v-if="isOwner && editing" class="diary-edit-panel">
             <n-input
               v-model:value="editContent"
@@ -198,6 +204,7 @@ import { tryExpToast } from '../utils/toast'
 import { useAuthStore } from '../stores/auth'
 import AppHeader from '../components/AppHeader.vue'
 import AiAnalysisCard from '../components/AiAnalysisCard.vue'
+import MusicCard from '../components/MusicCard.vue'
 import SimilarDiariesPanel from '../components/SimilarDiariesPanel.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
