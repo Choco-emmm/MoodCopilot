@@ -59,4 +59,27 @@ public class OssController {
         log.info("用户上传图片 userId={} size={} url={}", user.getId(), file.getSize(), url);
         return ApiResponse.ok(Map.of("url", url));
     }
+
+    /**
+     * 浏览器直传 OSS 的签名策略（文件不经服务器）。
+     * 前端传 ext（如 .jpg）生成对应的 object key。
+     */
+    @PostMapping("/upload-policy")
+    public ApiResponse<Map<String, Object>> uploadPolicy(
+            @AuthenticationPrincipal UserEntity user,
+            @RequestParam(defaultValue = ".jpg") String ext) {
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
+        }
+        if (!ossService.isConfigured()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "图片服务暂未配置");
+        }
+        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.IMAGE_UPLOAD);
+
+        if (!ext.startsWith(".")) ext = "." + ext;
+        String objectKey = "images/" + java.util.UUID.randomUUID() + ext;
+        Map<String, Object> policy = ossService.postSign(objectKey, MAX_SIZE);
+        log.info("用户获取上传策略 userId={} key={}", user.getId(), policy.get("key"));
+        return ApiResponse.ok(policy);
+    }
 }

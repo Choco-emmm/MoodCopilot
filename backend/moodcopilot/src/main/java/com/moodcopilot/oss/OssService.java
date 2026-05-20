@@ -112,6 +112,40 @@ public class OssService {
     }
 
     /**
+     * 生成浏览器直传 OSS 的 PostObject 签名策略。
+     */
+    public java.util.Map<String, Object> postSign(String objectKey, long maxSize) {
+        String host = "https://" + bucket + "." + endpoint;
+        String expiration = java.time.format.DateTimeFormatter.ISO_INSTANT
+                .format(java.time.Instant.now().plusSeconds(300)); // 5 分钟有效
+
+        String policyJson = "{\"expiration\":\"" + expiration + "\",\"conditions\":["
+                + "{\"bucket\":\"" + bucket + "\"},"
+                + "[\"content-length-range\",0," + maxSize + "],"
+                + "[\"eq\",\"$key\",\"" + objectKey + "\"],"
+                + "[\"eq\",\"$success_action_status\",\"200\"]"
+                + "]}";
+
+        String policy = java.util.Base64.getEncoder().encodeToString(policyJson.getBytes());
+        String signature;
+        try {
+            signature = sign(policy);
+        } catch (Exception e) {
+            throw new RuntimeException("签名失败", e);
+        }
+
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("host", host);
+        result.put("accessId", accessKey);
+        result.put("policy", policy);
+        result.put("signature", signature);
+        result.put("key", objectKey);
+        result.put("url", host + "/" + objectKey);
+        result.put("expireMs", 300_000);
+        return result;
+    }
+
+    /**
      * 从 OSS URL 提取 object key。例如 https://bucket.endpoint/images/uuid.jpg → images/uuid.jpg
      */
     public String extractObjectKey(String imageUrl) {
