@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref } from 'vue'
 import type { MusicMeta } from '../stores/diary'
 import { musicApi } from '../api'
 
@@ -21,37 +21,6 @@ const lyricsList = ref<string[]>([])
 const lyricsError = ref(false)
 const showLyricsPanel = ref(false)
 const selectedIndices = ref<Set<number>>(new Set())
-
-const titleTranslated = ref('')
-const artistTranslated = ref('')
-
-// Detect non-Chinese text
-const hasForeignTitle = computed(() => {
-  const t = props.musicMeta.title || ''
-  return !/^[一-鿿\s\d\p{P}]+$/u.test(t) && t.length > 0
-})
-const hasForeignArtist = computed(() => {
-  const a = props.musicMeta.artist || ''
-  return !/^[一-鿿\s\d\p{P}]+$/u.test(a) && a.length > 0
-})
-
-// Auto-translate on mount if foreign text detected
-onMounted(async () => {
-  if (hasForeignTitle.value) {
-    try {
-      const res = await musicApi.translate(props.musicMeta.title)
-      const t = res.data?.data?.translated
-      if (t && t !== props.musicMeta.title) titleTranslated.value = t
-    } catch { /* ignore */ }
-  }
-  if (hasForeignArtist.value) {
-    try {
-      const res = await musicApi.translate(props.musicMeta.artist)
-      const t = res.data?.data?.translated
-      if (t && t !== props.musicMeta.artist) artistTranslated.value = t
-    } catch { /* ignore */ }
-  }
-})
 
 async function fetchLyrics() {
   if (!props.songUrl) return
@@ -108,14 +77,8 @@ function toggleLine(index: number) {
         <span class="music-icon">🎵</span>
       </div>
       <div class="music-info">
-        <span class="music-title">
-          {{ musicMeta.title }}
-          <span v-if="titleTranslated" class="music-title-zh">{{ titleTranslated }}</span>
-        </span>
-        <span class="music-artist">
-          {{ musicMeta.artist }}
-          <span v-if="artistTranslated" class="music-artist-zh">{{ artistTranslated }}</span>
-        </span>
+        <span class="music-title">{{ musicMeta.title }}</span>
+        <span class="music-artist">{{ musicMeta.artist }}</span>
       </div>
     </div>
 

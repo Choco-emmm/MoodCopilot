@@ -160,7 +160,6 @@ export const memoryApi = {
 export const musicApi = {
   parse: (url: string, text?: string) => api.post('/music/parse', { url, text: text || '' }),
   lyrics: (url: string, title: string, artist: string) => api.post('/music/lyrics', { url, title, artist }),
-  translate: (text: string) => api.post('/music/translate', { text }),
 }
 
 export const chatApi = {
