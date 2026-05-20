@@ -33,6 +33,8 @@ public class AiAnalysisService {
             - topicLabels: array of strings from [人际关系, 工作学习, 睡眠身体, 自我成长, 日常情绪]
             - summary: brief Chinese summary, max 48 characters
             - feedback: gentle, compassionate Chinese feedback, max 200 characters
+
+            If the diary includes a [音乐分享] block with song title, artist, and user-selected lyrics, factor the music's mood and the user's lyrical resonance into your emotion analysis. The song choice and beloved lyric reveal deeper emotional undertones.
             """;
 
     private static final String WEEKLY_SYSTEM_PROMPT = """
