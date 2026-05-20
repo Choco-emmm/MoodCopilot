@@ -10,6 +10,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -107,6 +110,104 @@ public class MusicParseService {
             log.debug("封面抓取失败 url={}: {}", url, e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * Fetch real lyrics from NetEase API using the song page URL.
+     * Returns a list of meaningful lyric lines (no timestamps, blanks, or meta lines).
+     */
+    public List<String> suggestLyrics(String title, String artist, String songUrl) {
+        String songId = resolveSongId(songUrl);
+        if (songId == null) {
+            log.info("无法解析歌曲ID url={}", songUrl);
+            return Collections.emptyList();
+        }
+        return fetchLyrics(songId);
+    }
+
+    /**
+     * Follow redirects to resolve the real music.163.com URL and extract song ID.
+     */
+    private String resolveSongId(String url) {
+        // Try extracting song ID directly from URL
+        String direct = extractSongId(url);
+        if (direct != null) return direct;
+
+        // Follow redirect to get the real URL
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("User-Agent",
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .timeout(Duration.ofSeconds(8))
+                    .GET()
+                    .build();
+            HttpResponse<Void> response = httpClient.send(request,
+                    HttpResponse.BodyHandlers.discarding());
+            String finalUrl = response.uri().toString();
+            log.info("短链接重定向: {} → {}", url, finalUrl);
+            return extractSongId(finalUrl);
+        } catch (Exception e) {
+            log.warn("解析重定向失败 url={}: {}", url, e.getMessage());
+            return null;
+        }
+    }
+
+    private String extractSongId(String url) {
+        // https://music.163.com/song?id=123456
+        // https://music.163.com/#/song?id=123456
+        Matcher m = Pattern.compile("[?&/]id=(\\d+)").matcher(url);
+        return m.find() ? m.group(1) : null;
+    }
+
+    private List<String> fetchLyrics(String songId) {
+        try {
+            String apiUrl = "https://music.163.com/api/song/lyric?id=" + songId + "&lv=1&kv=1&tv=-1";
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(apiUrl))
+                    .header("User-Agent",
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .header("Accept", "application/json, text/plain, */*")
+                    .header("Referer", "https://music.163.com/")
+                    .timeout(Duration.ofSeconds(8))
+                    .GET()
+                    .build();
+            HttpResponse<String> response = httpClient.send(request,
+                    HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                log.warn("歌词API返回 status={}", response.statusCode());
+                return Collections.emptyList();
+            }
+            return parseLyricsJson(response.body());
+        } catch (Exception e) {
+            log.warn("抓取歌词失败 songId={}: {}", songId, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    private List<String> parseLyricsJson(String json) {
+        // Extract "lyric" field from {"lrc":{"lyric":"..."}}
+        Matcher m = Pattern.compile("\"lyric\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").matcher(json);
+        if (!m.find()) return Collections.emptyList();
+
+        String raw = m.group(1)
+                .replace("\\n", "\n")
+                .replace("\\\"", "\"")
+                .replace("\\/", "/");
+
+        List<String> lines = new ArrayList<>();
+        for (String line : raw.split("\n")) {
+            // Strip timestamps like [00:12.34]
+            String cleaned = line.replaceFirst("^\\[[0-9.:]+\\]\\s*", "").trim();
+            // Skip empty, very short, or meta lines
+            if (cleaned.isEmpty() || cleaned.length() < 2) continue;
+            if (cleaned.contains("作词") || cleaned.contains("作曲")
+                    || cleaned.contains("编曲") || cleaned.contains("制作人")) continue;
+            if (cleaned.equals("歌词") || cleaned.equals("纯音乐")) continue;
+            lines.add(cleaned);
+        }
+        log.info("歌词解析完成 songId: {} lines", lines.size());
+        return lines;
     }
 
     public String proxyImage(String imageUrl) {

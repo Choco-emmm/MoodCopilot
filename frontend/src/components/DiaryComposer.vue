@@ -63,6 +63,7 @@
         :music-meta="musicMeta"
         :lyric="userLyric"
         :show-lyric="true"
+        :song-url="musicSongUrl"
         @update:lyric="userLyric = $event"
       />
       <button class="music-remove-btn" @click="removeMusic">✕ 移除音乐</button>
@@ -125,6 +126,7 @@ const analyze = ref(true)
 const DRAFT_KEY = 'moodcopilot:draft'
 
 const musicMeta = ref<MusicMeta | null>(null)
+const musicSongUrl = ref('')
 const userLyric = ref('')
 const musicParsing = ref(false)
 const showMusicInput = ref(false)
@@ -194,6 +196,7 @@ async function handlePaste(e: ClipboardEvent) {
 
 function removeMusic() {
   musicMeta.value = null
+  musicSongUrl.value = ''
   userLyric.value = ''
   showMusicInput.value = false
   musicUrlDraft.value = ''
@@ -223,6 +226,7 @@ async function submitMusicUrl(url: string, fullText?: string) {
     const res = await musicApi.parse(url, fullText)
     if (res.data?.data) {
       musicMeta.value = res.data.data as MusicMeta
+      musicSongUrl.value = url
       showMusicInput.value = false
       musicUrlDraft.value = ''
     }
@@ -237,7 +241,7 @@ async function handleSave() {
   if (!draft.value.trim()) return
   try {
     const payload = musicMeta.value
-      ? { ...musicMeta.value, userLyric: userLyric.value }
+      ? { ...musicMeta.value, userLyric: userLyric.value, songUrl: musicSongUrl.value }
       : undefined
     await store.createDiary(draft.value.trim(), visibility.value, payload, analyze.value)
     draft.value = ''

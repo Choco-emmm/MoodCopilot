@@ -65,6 +65,7 @@
             v-if="!editing && diary.musicMeta"
             :music-meta="diary.musicMeta"
             :lyric="diary.musicMeta.userLyric"
+            :song-url="diary.musicMeta.songUrl"
           />
 
           <div v-if="isOwner && editing" class="diary-edit-panel">
