@@ -4,10 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.moodcopilot.ai.AiAnalysisService;
-import com.moodcopilot.ai.DiaryAnalysisCompletedEvent;
-import com.moodcopilot.ai.MemoryExtractionService;
-import com.moodcopilot.ai.RagMemoryService;
+import com.moodcopilot.ai.*;
 import com.moodcopilot.common.ContentFilter;
 import com.moodcopilot.growth.ExpAction;
 import com.moodcopilot.growth.UserGrowthService;
@@ -309,6 +306,12 @@ public class DiaryService {
                     this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels()));
 
             memoryExtractionService.extractAndSyncMemory(userId, content, musicMeta);
+            // VLM 描述拿到后重新索引，让图片信息可被 RAG 检索
+            if (imageDescriptions != null && !imageDescriptions.isBlank()) {
+                String enriched = buildIndexContent(content, musicMeta) + "\n[图片描述] " + imageDescriptions;
+                ragMemoryService.indexDiary(userId, diaryId, enriched, musicMeta);
+                log.info("RAG 已用图片描述重新索引 diaryId={}", diaryId);
+            }
             markReportsStale(userId);
             DiaryEntity diary = diaryMapper.selectById(diaryId);
             if (diary != null && "PUBLIC".equals(diary.getVisibility())) {
