@@ -159,6 +159,10 @@ export const useDiaryStore = defineStore('diary', () => {
         tryExpToast('diary', `写日记 ${bonus} EXP`)
       }
       await fetchDiaries()
+      // 修正：fetchDiaries 会用服务端列表覆盖，跳过分析的日记会被重置为 null，手动修正
+      if (diary.analysisStatus === 'skipped_quota' || diary.analysisStatus === 'skipped_user') {
+        replaceIn(myDiaries, { ...diary, analysisStatus: diary.analysisStatus } as Diary)
+      }
       if (diary.analysis == null && diary.analysisStatus !== 'skipped_quota' && diary.analysisStatus !== 'skipped_user') {
         pollAnalysis(diary.id)
       }

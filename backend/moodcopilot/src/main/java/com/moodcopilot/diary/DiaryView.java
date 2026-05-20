@@ -115,7 +115,7 @@ public record DiaryView(
                     authorLevel, feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
                     diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
                     Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(),
-                    va != null ? "complete" : "analyzing", List.of());
+                    va != null ? "complete" : null, List.of());
         }
 
         /** Feed 模式个人视图：无评论、裁切内容、完整分析 */
@@ -131,7 +131,7 @@ public record DiaryView(
                     authorLevel, feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
                     diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
                     Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(),
-                    va != null ? "complete" : "analyzing", List.of());
+                    va != null ? "complete" : null, List.of());
         }
 
         private static List<DiaryComment> buildCommentTree(List<DiaryCommentEntity> entities,

@@ -87,7 +87,7 @@
     </div>
   </template>
 
-  <template v-else>
+  <template v-else-if="diary.analysisStatus === 'analyzing'">
     <div class="section-title compact">
       <div>
         <p class="eyebrow">AI 分析</p>
