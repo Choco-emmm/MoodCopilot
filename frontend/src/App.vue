@@ -60,10 +60,10 @@ function onGlobalModalUpdate(show: boolean) {
 }
 
 function goToDetail() {
-  store.closeAnalysisModal()
   if (store.globalAnalysisDiary) {
     router.push('/diary/' + store.globalAnalysisDiary.id)
   }
+  store.closeAnalysisModal()
 }
 
 const truncatedFeedback = computed(() => {

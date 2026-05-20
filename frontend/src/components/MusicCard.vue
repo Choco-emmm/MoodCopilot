@@ -94,11 +94,14 @@ function toggleLine(index: number) {
         {{ lyricsLoading ? '加载中...' : lyricsList.length ? (showLyricsPanel ? '收起歌词 ▲' : '查看歌词 ▼') : '查看歌词' }}
       </button>
       <div v-if="selectedIndices.size > 0" class="music-lyric-selected">
-        <p
-          v-for="(line, i) in [...selectedIndices].sort((a, b) => a - b).map(i => lyricsList[i])"
-          :key="i"
+        <div
+          v-for="idx in [...selectedIndices].sort((a, b) => a - b)"
+          :key="idx"
           class="selected-line"
-        >{{ line }}</p>
+        >
+          <span class="selected-line-text">{{ lyricsList[idx] }}</span>
+          <button class="selected-line-x" type="button" @click="toggleLine(idx)">×</button>
+        </div>
       </div>
       <p v-else-if="!lyricsList.length && !lyricsLoading" class="lyrics-hint">点击下方「查看歌词」选择你喜欢的句子</p>
       <p v-if="lyricsError" class="lyrics-error">歌词加载失败</p>
@@ -195,14 +198,44 @@ function toggleLine(index: number) {
 .music-lyric-selected { padding: 8px 12px 0; }
 
 .selected-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin: 0 0 4px;
   padding: 4px 10px;
   border-radius: 8px;
   background: #f0f7f2;
+  border-left: 3px solid var(--color-primary, #4a7c62);
+}
+
+.selected-line-text {
+  flex: 1;
   color: var(--color-primary, #4a7c62);
   font-size: 13px;
   line-height: 1.6;
-  border-left: 3px solid var(--color-primary, #4a7c62);
+}
+
+.selected-line-x {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-primary, #4a7c62);
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+  text-align: center;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  font-family: inherit;
+}
+
+.selected-line-x:hover {
+  opacity: 1;
+  background: rgba(74, 124, 98, 0.1);
 }
 
 .lyrics-fetch-btn {
