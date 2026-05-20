@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import type { MusicMeta } from '../stores/diary'
 import { musicApi } from '../api'
 
@@ -20,6 +20,38 @@ const lyricsLoading = ref(false)
 const lyricsList = ref<string[]>([])
 const lyricsError = ref(false)
 const showLyricsPanel = ref(false)
+const selectedIndices = ref<Set<number>>(new Set())
+
+const titleTranslated = ref('')
+const artistTranslated = ref('')
+
+// Detect non-Chinese text
+const hasForeignTitle = computed(() => {
+  const t = props.musicMeta.title || ''
+  return !/^[一-鿿\s\d\p{P}]+$/u.test(t) && t.length > 0
+})
+const hasForeignArtist = computed(() => {
+  const a = props.musicMeta.artist || ''
+  return !/^[一-鿿\s\d\p{P}]+$/u.test(a) && a.length > 0
+})
+
+// Auto-translate on mount if foreign text detected
+onMounted(async () => {
+  if (hasForeignTitle.value) {
+    try {
+      const res = await musicApi.translate(props.musicMeta.title)
+      const t = res.data?.data?.translated
+      if (t && t !== props.musicMeta.title) titleTranslated.value = t
+    } catch { /* ignore */ }
+  }
+  if (hasForeignArtist.value) {
+    try {
+      const res = await musicApi.translate(props.musicMeta.artist)
+      const t = res.data?.data?.translated
+      if (t && t !== props.musicMeta.artist) artistTranslated.value = t
+    } catch { /* ignore */ }
+  }
+})
 
 async function fetchLyrics() {
   if (!props.songUrl) return
@@ -44,10 +76,19 @@ async function fetchLyrics() {
   }
 }
 
-function selectLyric(line: string) {
-  emit('update:lyric', line)
-  showLyricsPanel.value = false
+function toggleLine(index: number) {
+  const next = new Set(selectedIndices.value)
+  if (next.has(index)) {
+    next.delete(index)
+  } else {
+    next.add(index)
+  }
+  selectedIndices.value = next
+  // Emit concatenated selected lines
+  const lines = [...next].sort((a, b) => a - b).map(i => lyricsList.value[i])
+  emit('update:lyric', lines.join('\n'))
 }
+
 </script>
 
 <template>
@@ -67,20 +108,27 @@ function selectLyric(line: string) {
         <span class="music-icon">🎵</span>
       </div>
       <div class="music-info">
-        <span class="music-title">{{ musicMeta.title }}</span>
-        <span class="music-artist">{{ musicMeta.artist }}</span>
+        <span class="music-title">
+          {{ musicMeta.title }}
+          <span v-if="titleTranslated" class="music-title-zh">{{ titleTranslated }}</span>
+        </span>
+        <span class="music-artist">
+          {{ musicMeta.artist }}
+          <span v-if="artistTranslated" class="music-artist-zh">{{ artistTranslated }}</span>
+        </span>
       </div>
     </div>
 
     <!-- 歌词选择区 -->
     <div v-if="showLyric" class="music-lyric-section">
       <div class="music-lyric-row">
-        <input
-          class="music-lyric-input"
+        <textarea
+          class="music-lyric-textarea"
           :value="lyric"
-          @input="emit('update:lyric', ($event.target as HTMLInputElement).value)"
-          :placeholder="lyricsList.length ? '点击下方歌词快速填写，或手动输入' : '哪一句歌词最戳中你？'"
-          maxlength="100"
+          @input="emit('update:lyric', ($event.target as HTMLTextAreaElement).value)"
+          placeholder="点击下方歌词多选，或手动输入..."
+          maxlength="200"
+          rows="2"
         />
       </div>
       <button
@@ -93,14 +141,15 @@ function selectLyric(line: string) {
         {{ lyricsLoading ? '加载中...' : lyricsList.length ? (showLyricsPanel ? '收起歌词 ▲' : '查看歌词 ▼') : '查看歌词' }}
       </button>
       <p v-if="lyricsError" class="lyrics-error">歌词加载失败，请手动输入</p>
+      <p v-if="showLyricsPanel && lyricsList.length" class="lyrics-hint">点击歌词多选，自动拼接</p>
       <div v-if="showLyricsPanel && lyricsList.length" class="lyrics-chips">
         <button
           v-for="(line, i) in lyricsList"
           :key="i"
           class="lyric-chip"
           type="button"
-          :class="{ selected: lyric === line }"
-          @click="selectLyric(line)"
+          :class="{ selected: selectedIndices.has(i) }"
+          @click="toggleLine(i)"
         >
           {{ line }}
         </button>
@@ -146,24 +195,27 @@ function selectLyric(line: string) {
   justify-content: center;
 }
 
-.music-icon {
-  font-size: 22px;
-}
+.music-icon { font-size: 22px; }
 
 .music-info {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
+  flex: 1;
 }
 
 .music-title {
   font-size: 14px;
   font-weight: 600;
   color: #3d3d3d;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.music-title-zh {
+  font-size: 12px;
+  font-weight: 400;
+  color: #8a7a6a;
+  margin-left: 6px;
 }
 
 .music-artist {
@@ -171,15 +223,17 @@ function selectLyric(line: string) {
   color: #8a7a6a;
 }
 
-.music-lyric-section {
-  border-top: 1px dashed rgba(180, 150, 120, 0.1);
+.music-artist-zh {
+  font-size: 11px;
+  color: #b0a090;
+  margin-left: 4px;
 }
 
-.music-lyric-row {
-  padding: 8px 12px 4px;
-}
+.music-lyric-section { border-top: 1px dashed rgba(180, 150, 120, 0.1); }
 
-.music-lyric-input {
+.music-lyric-row { padding: 8px 12px 4px; }
+
+.music-lyric-textarea {
   width: 100%;
   border: none;
   background: transparent;
@@ -188,9 +242,11 @@ function selectLyric(line: string) {
   outline: none;
   padding: 4px 0;
   font-family: inherit;
+  resize: vertical;
+  line-height: 1.6;
 }
 
-.music-lyric-input::placeholder {
+.music-lyric-textarea::placeholder {
   color: #b0a090;
   font-style: italic;
 }
@@ -207,17 +263,17 @@ function selectLyric(line: string) {
   font-family: inherit;
 }
 
-.lyrics-fetch-btn:hover {
-  color: var(--color-primary, #4a7c62);
-}
-
-.lyrics-fetch-btn:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
+.lyrics-fetch-btn:hover { color: var(--color-primary, #4a7c62); }
+.lyrics-fetch-btn:disabled { opacity: 0.6; cursor: wait; }
 
 .lyrics-error {
   margin: 0 12px 6px;
+  font-size: 11px;
+  color: #b0a090;
+}
+
+.lyrics-hint {
+  margin: 0 12px 4px;
   font-size: 11px;
   color: #b0a090;
 }
@@ -227,7 +283,7 @@ function selectLyric(line: string) {
   flex-wrap: wrap;
   gap: 6px;
   padding: 0 12px 10px;
-  max-height: 160px;
+  max-height: 200px;
   overflow-y: auto;
 }
 
@@ -245,9 +301,7 @@ function selectLyric(line: string) {
   text-align: left;
 }
 
-.lyric-chip:hover {
-  border-color: var(--color-primary, #4a7c62);
-}
+.lyric-chip:hover { border-color: var(--color-primary, #4a7c62); }
 
 .lyric-chip.selected {
   border-color: var(--color-primary, #4a7c62);
