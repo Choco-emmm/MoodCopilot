@@ -179,7 +179,8 @@ public class DiaryService {
         if ("PUBLIC".equals(diary.getVisibility())) {
             evictPublicDiaryCaches();
         }
-        ragMemoryService.indexDiary(user.getId(), diary.getId(), diary.getContent());
+        ragMemoryService.indexDiary(user.getId(), diary.getId(),
+                buildIndexContent(diary.getContent(), diary.getMusicMeta()));
 
         return DiaryView.from(diary, List.of(), normalizeAvatar(user.getAvatar()), user.getDisplayName(), Map.of(),
                 false);
@@ -224,7 +225,8 @@ public class DiaryService {
         if (contentChanged) {
             log.info("日记内容已更新，触发分析与画像重建，diaryId={}，userId={}", diaryId, user.getId());
             rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
-            ragMemoryService.indexDiary(user.getId(), diaryId, filteredContent);
+            ragMemoryService.indexDiary(user.getId(), diaryId,
+                    buildIndexContent(filteredContent, diary.getMusicMeta()));
 
             DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent, diary.getMusicMeta());
 
@@ -1261,6 +1263,19 @@ public class DiaryService {
         } catch (Exception e) {
             log.warn("异步持久化点赞失败 diaryId={} userId={} isLike={}", diaryId, userId, isLike, e);
         }
+    }
+
+    /** 拼接音乐元数据进 RAG 索引内容，让向量搜索能找到歌曲相关日记。 */
+    private String buildIndexContent(String diaryContent, MusicMeta musicMeta) {
+        if (musicMeta == null) return diaryContent;
+        StringBuilder sb = new StringBuilder();
+        sb.append("歌曲：").append(musicMeta.getTitle())
+          .append(" 歌手：").append(musicMeta.getArtist());
+        if (musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
+            sb.append(" 歌词：").append(musicMeta.getUserLyric());
+        }
+        sb.append("\n").append(diaryContent);
+        return sb.toString();
     }
 
     private String toDiarySnippet(String content) {
