@@ -208,6 +208,13 @@ onMounted(() => {
   }
 })
 
+// 粘贴/输入音乐链接后自动解析，无需手动 Enter
+watch(musicUrlDraft, (val) => {
+  if (!val) return
+  const url = detectMusicUrl(val)
+  if (url) submitMusicUrl(url, val)
+})
+
 watch(draft, (value, oldValue) => {
   // 编辑模式下不写草稿，避免旧日记内容污染新日记草稿
   if (isEditMode.value) return
@@ -256,8 +263,7 @@ async function handleMusicInputPaste(e: ClipboardEvent) {
   const url = detectMusicUrl(text)
   if (!url) return
   e.preventDefault()
-  musicUrlDraft.value = url
-  await submitMusicUrl(url, text)
+  musicUrlDraft.value = url // watch 自动触发解析
 }
 
 async function handleMusicUrlSubmit() {
