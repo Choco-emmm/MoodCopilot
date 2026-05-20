@@ -101,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { NPopover } from 'naive-ui'
 import type { Diary } from '../stores/diary'
 import { moodColor } from '../utils/mood'
