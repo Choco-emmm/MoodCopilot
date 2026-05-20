@@ -462,17 +462,21 @@ async function saveDiaryEdit() {
     const musicPayload = editMusicMeta.value
       ? { ...editMusicMeta.value, userLyric: editLyric.value }
       : undefined
-    const updated = await store.updateDiary(
+    await store.updateDiary(
       diary.value.id,
       editContent.value.trim(),
       editVisibility.value,
       musicPayload,
     )
-    diary.value = updated
     editing.value = false
-    if (updated.analysis) {
+
+    // 编辑后重新拉取日记，确保拿到最新的分析结果
+    const refreshed = await diaryApi.get(diary.value.id)
+    diary.value = store.normalize(refreshed.data.data)
+
+    if (diary.value.analysis) {
       store.analysisStatus = 'complete'
-      store.globalAnalysisDiary = updated
+      store.globalAnalysisDiary = diary.value
       store.showGlobalAnalysisModal = true
     }
   } catch (e: any) {

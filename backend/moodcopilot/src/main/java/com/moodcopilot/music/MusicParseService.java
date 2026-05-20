@@ -228,14 +228,50 @@ public class MusicParseService {
         return lines;
     }
 
+    /**
+     * Extract lyric text from JSON using simple index-based parsing.
+     * Avoids regex catastrophic backtracking / StackOverflow on large responses.
+     */
     private String extractLyricField(String json, String fieldName) {
-        Pattern p = Pattern.compile(fieldName + "\\s*:\\s*\\{[^}]*\"lyric\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
-        Matcher m = p.matcher(json);
-        if (!m.find()) return null;
-        return m.group(1)
-                .replace("\\n", "\n")
-                .replace("\\\"", "\"")
-                .replace("\\/", "/");
+        String searchKey = "\"" + fieldName + "\"";
+        int fieldIdx = json.indexOf(searchKey);
+        if (fieldIdx < 0) return null;
+
+        int braceIdx = json.indexOf('{', fieldIdx);
+        if (braceIdx < 0) return null;
+
+        String lyricKey = "\"lyric\"";
+        int lyricIdx = json.indexOf(lyricKey, braceIdx);
+        if (lyricIdx < 0) return null;
+
+        int closeBrace = json.indexOf('}', lyricIdx);
+        if (closeBrace < 0) closeBrace = json.length();
+
+        int colonIdx = json.indexOf(':', lyricIdx);
+        if (colonIdx < 0 || colonIdx > closeBrace) return null;
+
+        int startQuote = json.indexOf('"', colonIdx + 1);
+        if (startQuote < 0 || startQuote > closeBrace) return null;
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = startQuote + 1; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c == '\\' && i + 1 < json.length()) {
+                char next = json.charAt(i + 1);
+                if (next == '"') { sb.append('"'); i++; continue; }
+                if (next == 'n') { sb.append('\n'); i++; continue; }
+                if (next == '\\') { sb.append('\\'); i++; continue; }
+                if (next == '/') { sb.append('/'); i++; continue; }
+                if (next == 't') { sb.append('\t'); i++; continue; }
+                if (next == 'r') { sb.append('\r'); i++; continue; }
+                sb.append(c);
+            } else if (c == '"') {
+                break;
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     private String extractTimestamp(String line) {
