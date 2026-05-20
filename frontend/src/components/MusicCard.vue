@@ -84,16 +84,6 @@ function toggleLine(index: number) {
 
     <!-- 歌词选择区 -->
     <div v-if="showLyric" class="music-lyric-section">
-      <div class="music-lyric-row">
-        <textarea
-          class="music-lyric-textarea"
-          :value="lyric"
-          @input="emit('update:lyric', ($event.target as HTMLTextAreaElement).value)"
-          placeholder="点击下方歌词多选，或手动输入..."
-          maxlength="200"
-          rows="2"
-        />
-      </div>
       <button
         v-if="songUrl"
         class="lyrics-fetch-btn"
@@ -103,8 +93,16 @@ function toggleLine(index: number) {
       >
         {{ lyricsLoading ? '加载中...' : lyricsList.length ? (showLyricsPanel ? '收起歌词 ▲' : '查看歌词 ▼') : '查看歌词' }}
       </button>
-      <p v-if="lyricsError" class="lyrics-error">歌词加载失败，请手动输入</p>
-      <p v-if="showLyricsPanel && lyricsList.length" class="lyrics-hint">点击歌词多选，自动拼接</p>
+      <div v-if="selectedIndices.size > 0" class="music-lyric-selected">
+        <p
+          v-for="(line, i) in [...selectedIndices].sort((a, b) => a - b).map(i => lyricsList[i])"
+          :key="i"
+          class="selected-line"
+        >{{ line }}</p>
+      </div>
+      <p v-else-if="!lyricsList.length && !lyricsLoading" class="lyrics-hint">点击下方「查看歌词」选择你喜欢的句子</p>
+      <p v-if="lyricsError" class="lyrics-error">歌词加载失败</p>
+      <p v-if="showLyricsPanel && lyricsList.length" class="lyrics-hint">点击歌词多选</p>
       <div v-if="showLyricsPanel && lyricsList.length" class="lyrics-chips">
         <button
           v-for="(line, i) in lyricsList"
@@ -194,24 +192,17 @@ function toggleLine(index: number) {
 
 .music-lyric-section { border-top: 1px dashed rgba(180, 150, 120, 0.1); }
 
-.music-lyric-row { padding: 8px 12px 4px; }
+.music-lyric-selected { padding: 8px 12px 0; }
 
-.music-lyric-textarea {
-  width: 100%;
-  border: none;
-  background: transparent;
+.selected-line {
+  margin: 0 0 4px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #f0f7f2;
+  color: var(--color-primary, #4a7c62);
   font-size: 13px;
-  color: #6a5a4a;
-  outline: none;
-  padding: 4px 0;
-  font-family: inherit;
-  resize: vertical;
   line-height: 1.6;
-}
-
-.music-lyric-textarea::placeholder {
-  color: #b0a090;
-  font-style: italic;
+  border-left: 3px solid var(--color-primary, #4a7c62);
 }
 
 .lyrics-fetch-btn {
