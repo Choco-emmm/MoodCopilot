@@ -82,6 +82,7 @@ public class DiaryService {
     private static final Logger log = LoggerFactory.getLogger(DiaryService.class);
 
     private final AiAnalysisService aiAnalysisService;
+    private final VisionService visionService;
     private final MemoryExtractionService memoryExtractionService;
     private final NotificationService notificationService;
     private final FollowService followService;
@@ -102,6 +103,7 @@ public class DiaryService {
             DiaryRecommendationExposureMapper exposureMapper,
             UserMapper userMapper,
             AiAnalysisService aiAnalysisService,
+            VisionService visionService,
             MemoryExtractionService memoryExtractionService,
             NotificationService notificationService,
             FollowService followService,
@@ -121,6 +123,7 @@ public class DiaryService {
         this.exposureMapper = exposureMapper;
         this.userMapper = userMapper;
         this.aiAnalysisService = aiAnalysisService;
+        this.visionService = visionService;
         this.memoryExtractionService = memoryExtractionService;
         this.notificationService = notificationService;
         this.followService = followService;
@@ -235,7 +238,8 @@ public class DiaryService {
             ragMemoryService.indexDiary(user.getId(), diaryId,
                     buildIndexContent(filteredContent, diary.getMusicMeta()), diary.getMusicMeta());
 
-            DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent, diary.getMusicMeta());
+            String imageDescriptions = visionService.describeImages(diary.getImages());
+            DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent, diary.getMusicMeta(), imageDescriptions);
 
             // 分析结果持久化单独一个事务
             LocalDateTime now = LocalDateTime.now();
@@ -282,11 +286,12 @@ public class DiaryService {
     }
 
     @Async("aiExecutor")
-    public void runAiAnalysis(long diaryId, long userId, String content, MusicMeta musicMeta, UserEntity user) {
-        log.info("开始执行日记 AI 分析，diaryId={}，userId={}，contentLength={}，hasMusic={}", diaryId, userId,
-                content == null ? 0 : content.length(), musicMeta != null);
+    public void runAiAnalysis(long diaryId, long userId, String content, MusicMeta musicMeta, java.util.List<String> images, UserEntity user) {
+        log.info("开始执行日记 AI 分析，diaryId={}，userId={}，contentLength={}，hasMusic={}，hasImages={}", diaryId, userId,
+                content == null ? 0 : content.length(), musicMeta != null, images != null && !images.isEmpty());
         try {
-            DiaryAnalysis analysis = aiAnalysisService.analyze(content, musicMeta);
+            String imageDescriptions = visionService.describeImages(images);
+            DiaryAnalysis analysis = aiAnalysisService.analyze(content, musicMeta, imageDescriptions);
 
             DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
             analysisEntity.setDiaryId(diaryId);
