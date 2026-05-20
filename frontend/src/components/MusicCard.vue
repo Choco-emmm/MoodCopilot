@@ -103,7 +103,7 @@ function toggleLine(index: number) {
           <button class="selected-line-x" type="button" @click="toggleLine(idx)">×</button>
         </div>
       </div>
-      <p v-else-if="!lyricsList.length && !lyricsLoading" class="lyrics-hint">点击下方「查看歌词」选择你喜欢的句子</p>
+      <p v-else-if="!lyricsList.length && !lyricsLoading" class="lyrics-hint">点击下方「查看歌词」选择你喜欢的歌词</p>
       <p v-if="lyricsError" class="lyrics-error">歌词加载失败</p>
       <p v-if="showLyricsPanel && lyricsList.length" class="lyrics-hint">点击歌词多选</p>
       <div v-if="showLyricsPanel && lyricsList.length" class="lyrics-chips">
