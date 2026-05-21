@@ -105,7 +105,12 @@ public class MemoryConsolidationService {
                     .call()
                     .content();
 
-            MemoryExtractionService.MemoryExtractionResponse response = objectMapper.readValue(JsonUtils.cleanJson(json), MemoryExtractionService.MemoryExtractionResponse.class);
+            String cleanedJson = JsonUtils.cleanJson(json);
+            if (cleanedJson.isEmpty()) {
+                log.warn("用户 {} 画像整合大模型未返回有效的 JSON，返回原始内容: \n{}", userId, json);
+                return;
+            }
+            MemoryExtractionService.MemoryExtractionResponse response = objectMapper.readValue(cleanedJson, MemoryExtractionService.MemoryExtractionResponse.class);
             List<MemoryExtractionService.MemoryAttribute> attributes = response.attributes();
 
             if (attributes == null || attributes.isEmpty()) {

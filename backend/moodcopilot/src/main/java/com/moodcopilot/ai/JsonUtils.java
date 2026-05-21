@@ -17,17 +17,34 @@ public class JsonUtils {
         if (raw == null || raw.isBlank()) {
             return "";
         }
-        String cleaned = raw.trim();
-        // Remove markdown json block wrappers
-        if (cleaned.startsWith("```json")) {
-            cleaned = cleaned.substring("```json".length());
-        } else if (cleaned.startsWith("```")) {
-            cleaned = cleaned.substring("```".length());
+        
+        // Find the first { or [
+        int firstBrace = raw.indexOf('{');
+        int firstBracket = raw.indexOf('[');
+        int startIndex = -1;
+        
+        if (firstBrace != -1 && firstBracket != -1) {
+            startIndex = Math.min(firstBrace, firstBracket);
+        } else if (firstBrace != -1) {
+            startIndex = firstBrace;
+        } else if (firstBracket != -1) {
+            startIndex = firstBracket;
         }
         
-        if (cleaned.endsWith("```")) {
-            cleaned = cleaned.substring(0, cleaned.length() - 3);
+        if (startIndex == -1) {
+            // No JSON object or array found, return empty or original string
+            return "";
         }
-        return cleaned.trim();
+        
+        // Find the last } or ]
+        int lastBrace = raw.lastIndexOf('}');
+        int lastBracket = raw.lastIndexOf(']');
+        int endIndex = Math.max(lastBrace, lastBracket);
+        
+        if (endIndex != -1 && endIndex >= startIndex) {
+            return raw.substring(startIndex, endIndex + 1);
+        }
+        
+        return raw.trim();
     }
 }
