@@ -431,31 +431,15 @@ async function handleSave() {
 @media (max-width: 780px) {
   .composer-editor :deep(.vditor-toolbar) {
     display: flex !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    -webkit-overflow-scrolling: touch !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-    touch-action: pan-x !important;
-    white-space: nowrap !important;
-    scrollbar-width: thin !important;
-    scrollbar-color: rgba(180, 150, 120, 0.3) transparent !important;
+    flex-wrap: wrap !important;
+    gap: 4px 2px !important;
+    overflow: visible !important;
+    white-space: normal !important;
   }
   .composer-editor :deep(.vditor-toolbar::-webkit-scrollbar) {
-    height: 4px !important;
-    display: block !important;
-  }
-  .composer-editor :deep(.vditor-toolbar::-webkit-scrollbar-thumb) {
-    background: rgba(180, 150, 120, 0.3) !important;
-    border-radius: 2px !important;
-  }
-  .composer-editor :deep(.vditor-toolbar::-webkit-scrollbar-track) {
-    background: transparent !important;
+    display: none !important;
   }
   .composer-editor :deep(.vditor-toolbar__item) {
-    flex-shrink: 0 !important;
     display: inline-flex !important;
   }
   /* 移除内嵌边框，让编辑区直接和面板融为一体 */
