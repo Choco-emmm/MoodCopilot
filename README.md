@@ -17,6 +17,10 @@
   <a href="#"><img src="https://img.shields.io/badge/AI-DeepSeek-blue" alt="DeepSeek" /></a>
 </p>
 
+<p align="center">
+<img src="./docs/images/cover.png" alt="MoodCopilot 封面" width="100%" style="max-width: 800px; border-radius: 8px;" />
+</p>
+
 <h3 align="center">
   👉 <a href="https://moodcopilot.dpdns.org/">正式上线，点此开始记录 </a> 👈
 </h3>
