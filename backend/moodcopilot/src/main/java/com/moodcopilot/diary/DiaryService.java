@@ -169,7 +169,7 @@ public class DiaryService {
         diary.setContent(ContentFilter.filter(content));
         diary.setVisibility(visibility.name());
         diary.setMusicMeta(request.musicMeta());
-        diary.setImages(promoteImages(request.images()));
+        diary.setImages(request.images());
         diary.setResonanceCount(0);
         diary.setIsDeleted(false);
         diary.setCreatedAt(LocalDateTime.now());
@@ -227,7 +227,7 @@ public class DiaryService {
                 diary.setMusicMeta(request.musicMeta());
             }
             if (request.images() != null) {
-                diary.setImages(promoteImages(request.images()));
+                diary.setImages(request.images());
             }
             diaryMapper.updateById(diary);
         });
@@ -1866,20 +1866,6 @@ public class DiaryService {
             }
         }
         return score;
-    }
-
-    private List<String> promoteImages(List<String> imageUrls) {
-        if (imageUrls == null || imageUrls.isEmpty()) return imageUrls;
-        List<String> promoted = new ArrayList<>();
-        for (String url : imageUrls) {
-            try {
-                promoted.add(ossService.promoteImage(url));
-            } catch (Exception e) {
-                log.error("图片转正失败，降级使用原 URL: {}", url, e);
-                promoted.add(url);
-            }
-        }
-        return promoted;
     }
 
     private String buildMemoryContext(long userId) {
