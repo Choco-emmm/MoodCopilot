@@ -672,7 +672,8 @@ async function handleSave() {
 /* 缩小编辑器内的段落间距 */
 :deep(.vditor-ir p),
 :deep(.vditor-wysiwyg p) {
-  margin: 6px 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 </style>
 
