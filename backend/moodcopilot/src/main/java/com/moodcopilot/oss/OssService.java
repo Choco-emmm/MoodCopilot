@@ -62,7 +62,7 @@ public class OssService {
         if (originalName != null && originalName.contains(".")) {
             ext = originalName.substring(originalName.lastIndexOf('.'));
         }
-        String objectKey = "temp/" + UUID.randomUUID() + ext;
+        String objectKey = "images/temp/" + UUID.randomUUID() + ext;
         String contentType = file.getContentType();
         if (contentType == null) contentType = "image/jpeg";
 
@@ -158,19 +158,20 @@ public class OssService {
     }
 
     /**
-     * 将 temp/ 目录图片复制到 images/ 正式目录（OSS CopyObject）。
+     * 将 images/temp/ 暂存图片复制到 images/ 正式目录（OSS CopyObject）。
      * 日记发布/更新时调用，实现「临时上传 → 发布转正」的孤儿文件防护。
      * 失败时降级返回原 URL，不阻塞日记主流程。
      */
     public String promoteImage(String imageUrl) {
-        if (imageUrl == null || imageUrl.isBlank() || !imageUrl.contains("/temp/")) {
+        if (imageUrl == null || imageUrl.isBlank() || !imageUrl.contains("images/temp/")) {
             return imageUrl;
         }
         String tempKey = extractObjectKey(imageUrl);
-        if (tempKey == null || !tempKey.startsWith("temp/")) {
+        if (tempKey == null || !tempKey.startsWith("images/temp/")) {
             return imageUrl;
         }
-        String imagesKey = "images/" + tempKey.substring("temp/".length());
+        String filename = tempKey.substring("images/temp/".length());
+        String imagesKey = "images/" + filename;
         String host = bucket + "." + endpoint;
 
         try {
