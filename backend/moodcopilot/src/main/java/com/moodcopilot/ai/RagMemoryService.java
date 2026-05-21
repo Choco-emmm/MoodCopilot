@@ -472,7 +472,8 @@ public class RagMemoryService {
             itemIndex++;
             switch (hit.sourceType()) {
                 case SOURCE_MUSIC -> {
-                    sb.append("<context_item type=\"music_resonance\" date=\"").append(dateStr).append("\">\n");
+                    sb.append("<context_item type=\"music_resonance\" diary_id=\"").append(hit.diaryId())
+                      .append("\" date=\"").append(dateStr).append("\">\n");
                     MusicMeta music = diary.getMusicMeta();
                     if (music != null) {
                         sb.append("  <music_meta>歌曲: ").append(escapeXml(music.getTitle()))
@@ -489,7 +490,8 @@ public class RagMemoryService {
                     sb.append("</context_item>\n");
                 }
                 case SOURCE_IMAGE -> {
-                    sb.append("<context_item type=\"image_memory\" date=\"").append(dateStr).append("\">\n");
+                    sb.append("<context_item type=\"image_memory\" diary_id=\"").append(hit.diaryId())
+                      .append("\" date=\"").append(dateStr).append("\">\n");
                     sb.append("  <image_description>").append(escapeXml(truncate(hit.content(), 500)))
                       .append("</image_description>\n");
                     if (diary.getContent() != null) {
@@ -499,7 +501,8 @@ public class RagMemoryService {
                     sb.append("</context_item>\n");
                 }
                 default -> {
-                    sb.append("<context_item type=\"text_memory\" date=\"").append(dateStr).append("\">\n");
+                    sb.append("<context_item type=\"text_memory\" diary_id=\"").append(hit.diaryId())
+                      .append("\" date=\"").append(dateStr).append("\">\n");
                     MusicMeta music = diary.getMusicMeta();
                     if (music != null) {
                         sb.append("  <music_meta>歌曲: ").append(escapeXml(music.getTitle()))

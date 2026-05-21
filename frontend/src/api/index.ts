@@ -249,7 +249,7 @@ export const chatApi = {
     references: string[],
     onChunk: (text: string) => void,
     ctrl: AbortController,
-    onReferences?: (items: Array<{ type: string; date: string; snippet: string }>) => void,
+    onReferences?: (items: Array<{ type: string; diaryId: string; date: string; snippet: string }>) => void,
   ): Promise<void> => {
     const token = localStorage.getItem('token')
     return fetchEventSource(`/api/chat/conversations/${id}`, {
