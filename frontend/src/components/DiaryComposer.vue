@@ -91,7 +91,6 @@
         </span>
       </div>
       <div class="composer-submit-row">
-        <span :class="['composer-count', { over: isOverLimit }]">{{ draft.length }}/1000</span>
         <n-button
           type="primary"
           size="large"
