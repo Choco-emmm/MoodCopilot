@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 
 function isUsableToken(token: string | null) {
   if (!token) return false
@@ -69,9 +70,10 @@ const router = createRouter({
     },
     {
       path: '/search',
-      name: 'search',
-      component: () => import('../pages/SearchPage.vue'),
-      meta: { requiresAuth: true },
+      redirect: () => {
+        const auth = useAuthStore()
+        return auth.userId ? `/profile/${auth.userId}` : '/'
+      }
     },
     {
       path: '/task-center',
