@@ -109,11 +109,14 @@ public class ChatController {
 
         Flux<String> chunkStream = ctx.stream()
                 .doOnNext(chunk -> {
-                    if (chunk != null && !chunk.isBlank()) {
+                    if (chunk != null && !chunk.isBlank() && !chunk.startsWith("[[TOOL_EVENT]]")) {
                         aiReplyBuffer.append(chunk);
                     }
                 })
                 .map(chunk -> {
+                    if (chunk != null && chunk.startsWith("[[TOOL_EVENT]]")) {
+                        return chunk.substring("[[TOOL_EVENT]]".length());
+                    }
                     try {
                         Map<String, Object> payload = new LinkedHashMap<>();
                         payload.put("type", "chunk");
