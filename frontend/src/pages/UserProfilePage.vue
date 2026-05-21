@@ -40,6 +40,13 @@
       </div>
     </section>
 
+    <section v-if="isOwner" class="panel tasks-panel">
+      <router-link to="/task-center" class="task-center-link">
+        <span>📋 任务中心</span>
+        <span class="task-center-arrow">→</span>
+      </router-link>
+    </section>
+
     <section class="panel profile-list-panel">
       <div class="profile-list-head">
         <h3>日记列表</h3>
@@ -1397,6 +1404,34 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.tasks-panel {
+  margin-bottom: 12px;
+  padding: 12px 16px;
+}
+
+.task-center-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-primary);
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-light);
+  transition: background 0.15s, color 0.15s;
+}
+
+.task-center-link:hover {
+  background: color-mix(in srgb, var(--color-primary) 18%, transparent 82%);
+  color: var(--color-primary-hover);
+}
+
+.task-center-arrow {
+  font-size: 16px;
 }
 
 @media (max-width: 780px) {

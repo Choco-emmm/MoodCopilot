@@ -97,7 +97,7 @@ public record DiaryView(
                                 Boolean.TRUE.equals(diary.getIsPinned()),
                                 diary.getMusicMeta(),
                                 diary.getImages(),
-                                viewAnalysis != null ? "complete" : "analyzing",
+                                viewAnalysis != null ? "complete" : null,
                                 buildCommentTree(comments, commentAuthorNames));
         }
 

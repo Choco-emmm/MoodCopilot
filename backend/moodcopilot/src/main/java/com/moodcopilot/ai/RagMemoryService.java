@@ -1,8 +1,10 @@
 package com.moodcopilot.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moodcopilot.entity.DiaryEntity;
 import com.moodcopilot.entity.MusicMeta;
 import com.moodcopilot.entity.UserProfileMemoryEntity;
+import com.moodcopilot.mapper.DiaryMapper;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.output.NestedMultiOutput;
 import io.lettuce.core.output.StatusOutput;
@@ -36,6 +38,8 @@ public class RagMemoryService {
     private static final String KEY_PREFIX = "rag:";
     public static final String SOURCE_DIARY = "diary";
     public static final String SOURCE_PROFILE = "profile";
+    public static final String SOURCE_MUSIC = "music";
+    public static final String SOURCE_IMAGE = "image";
 
     private final String embeddingApiUrl;
     private final String embeddingApiKey;
@@ -44,6 +48,7 @@ public class RagMemoryService {
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
+    private final DiaryMapper diaryMapper;
 
     public RagMemoryService(
             @Value("${spring.ai.rag.embedding.api-url}") String embeddingApiUrl,
@@ -51,7 +56,8 @@ public class RagMemoryService {
             @Value("${spring.ai.rag.embedding.model:BAAI/bge-m3}") String embeddingModel,
             @Value("${spring.ai.rag.embedding.dimension:1024}") int embeddingDimension,
             StringRedisTemplate redis,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            DiaryMapper diaryMapper) {
         this.embeddingApiUrl = embeddingApiUrl;
         this.embeddingApiKey = embeddingApiKey == null ? "" : embeddingApiKey.trim();
         this.embeddingModel = embeddingModel == null || embeddingModel.isBlank() ? "BAAI/bge-m3" : embeddingModel.trim();
@@ -59,6 +65,7 @@ public class RagMemoryService {
         this.redis = redis;
         this.objectMapper = objectMapper;
         this.restClient = RestClient.builder().build();
+        this.diaryMapper = diaryMapper;
     }
 
     @PostConstruct
@@ -163,7 +170,7 @@ public class RagMemoryService {
             String musicText = buildMusicIndexText(musicMeta);
             float[] musicVec = embed(musicText);
             if (musicVec != null) {
-                storeEmbedding("diary:" + diaryId + ":music", userId, SOURCE_DIARY, musicText, musicVec);
+                storeEmbedding("diary:" + diaryId + ":music", userId, SOURCE_MUSIC, musicText, musicVec);
                 log.info("RAG 已索引音乐元数据 diaryId={} ", diaryId);
             }
         }
@@ -254,7 +261,7 @@ public class RagMemoryService {
         String labeled = "【图片描述】" + imageDescriptions;
         float[] vec = embed(labeled);
         if (vec != null) {
-            storeEmbedding("diary:" + diaryId + ":images", userId, SOURCE_DIARY, labeled, vec);
+            storeEmbedding("diary:" + diaryId + ":images", userId, SOURCE_IMAGE, labeled, vec);
             log.info("RAG 已索引图片描述 diaryId={} len={}", diaryId, labeled.length());
         }
     }
@@ -405,24 +412,123 @@ public class RagMemoryService {
                     timeRange != null ? "[" + formatEpoch(timeRange.fromTimestamp()) + " ~ " + formatEpoch(timeRange.toTimestamp()) + "]" : "无");
             return "";
         }
-        StringBuilder sb = new StringBuilder("\n\n<rag_retrieved_context>\n");
-        sb.append("以下是与用户当前问题语义相关的历史记录（由向量检索自动获取）。\n");
-        sb.append("注意：这些记录中可能包含用户上传图片的视觉描述文本（由视觉模型生成），以及用户分享音乐的文字元数据（歌名/歌手/歌词）。如果你检索到了这些内容，请直接当作你亲眼看到或亲耳听到的信息来理解和引用，不要对用户强调「这是文字描述」或「我无法查看图片/播放音乐」。\n");
-        for (int i = 0; i < hits.size(); i++) {
-            RagHit hit = hits.get(i);
-            String content = hit.content().length() > 500
-                    ? hit.content().substring(0, 500) + "…"
-                    : hit.content();
-            sb.append("[").append(i + 1).append("] ").append(content);
-            if (hit.score() != null) {
-                double similarity = 1.0 - hit.score() / 2.0;
-                sb.append(" (相关度: ").append(String.format("%.2f", similarity)).append(")");
+        return buildHydratedRagContext(hits);
+    }
+
+    /**
+     * 将向量检索命中的 Top-K 结果，按 diaryId 去重后回表 MySQL 查询完整日记实体，
+     * 再按命中源类型（文本/音乐/图片）组装为结构化 XML 上下文供大模型推理。
+     */
+    private String buildHydratedRagContext(List<RagHit> hits) {
+        // 提取去重 diaryId
+        java.util.Set<Long> diaryIds = new java.util.LinkedHashSet<>();
+        for (RagHit hit : hits) {
+            if (hit.diaryId() != null) {
+                diaryIds.add(hit.diaryId());
             }
-            sb.append("\n");
         }
+
+        // 回表批量查询完整日记
+        java.util.Map<Long, DiaryEntity> diaryMap = java.util.Map.of();
+        if (!diaryIds.isEmpty()) {
+            try {
+                var entities = diaryMapper.selectBatchIds(new ArrayList<>(diaryIds));
+                diaryMap = entities.stream()
+                        .collect(java.util.stream.Collectors.toMap(DiaryEntity::getId, e -> e, (a, b) -> a));
+            } catch (Exception e) {
+                log.error("RAG 回表查询日记失败: {}", e.getMessage());
+            }
+        }
+
+        StringBuilder sb = new StringBuilder("\n\n<rag_retrieved_context>\n");
+        sb.append("以下是与用户当前问题语义相关的历史记录（由向量检索自动获取，已回表关联完整日记数据）。\n");
+        sb.append("注意：这些记录中可能包含用户上传图片的视觉描述文本（由视觉模型生成），以及用户分享音乐的文字元数据（歌名/歌手/歌词）。如果你检索到了这些内容，请直接当作你亲眼看到或亲耳听到的信息来理解和引用，不要对用户强调「这是文字描述」或「我无法查看图片/播放音乐」。\n");
+
+        java.util.Set<String> rendered = new java.util.HashSet<>();
+        int itemIndex = 0;
+        for (RagHit hit : hits) {
+            if (hit.diaryId() == null || hit.sourceType() == null) {
+                // 非日记来源（如 profile），直接输出原始内容
+                String snippet = hit.content().length() > 500
+                        ? hit.content().substring(0, 500) + "…"
+                        : hit.content();
+                sb.append("<context_item type=\"profile_memory\">\n");
+                sb.append("  <profile_content>").append(escapeXml(snippet)).append("</profile_content>\n");
+                sb.append("</context_item>\n");
+                continue;
+            }
+
+            DiaryEntity diary = diaryMap.get(hit.diaryId());
+            if (diary == null) continue;
+
+            String dateStr = diary.getCreatedAt() != null
+                    ? diary.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                    : "";
+
+            // 同一日记在同一类型下只渲染一次
+            String dedupKey = hit.diaryId() + ":" + hit.sourceType();
+            if (!rendered.add(dedupKey)) continue;
+
+            itemIndex++;
+            switch (hit.sourceType()) {
+                case SOURCE_MUSIC -> {
+                    sb.append("<context_item type=\"music_resonance\" date=\"").append(dateStr).append("\">\n");
+                    MusicMeta music = diary.getMusicMeta();
+                    if (music != null) {
+                        sb.append("  <music_meta>歌曲: ").append(escapeXml(music.getTitle()))
+                          .append(", 歌手: ").append(escapeXml(music.getArtist()));
+                        if (music.getUserLyric() != null && !music.getUserLyric().isBlank()) {
+                            sb.append(", 歌词: ").append(escapeXml(music.getUserLyric()));
+                        }
+                        sb.append("</music_meta>\n");
+                    }
+                    if (diary.getContent() != null) {
+                        sb.append("  <diary_content>").append(escapeXml(truncate(diary.getContent(), 500)))
+                          .append("</diary_content>\n");
+                    }
+                    sb.append("</context_item>\n");
+                }
+                case SOURCE_IMAGE -> {
+                    sb.append("<context_item type=\"image_memory\" date=\"").append(dateStr).append("\">\n");
+                    sb.append("  <image_description>").append(escapeXml(truncate(hit.content(), 500)))
+                      .append("</image_description>\n");
+                    if (diary.getContent() != null) {
+                        sb.append("  <diary_content>").append(escapeXml(truncate(diary.getContent(), 500)))
+                          .append("</diary_content>\n");
+                    }
+                    sb.append("</context_item>\n");
+                }
+                default -> {
+                    sb.append("<context_item type=\"text_memory\" date=\"").append(dateStr).append("\">\n");
+                    if (diary.getContent() != null) {
+                        sb.append("  <diary_content>").append(escapeXml(truncate(diary.getContent(), 500)))
+                          .append("</diary_content>\n");
+                    }
+                    sb.append("</context_item>\n");
+                }
+            }
+        }
+
+        if (itemIndex == 0 && rendered.isEmpty()) {
+            log.info("RAG 回表后无有效日记上下文");
+            return "";
+        }
+
         sb.append("请结合以上检索到的历史信息进行分析。不要在回复中提及'向量检索'或暴露相关度分数。");
         sb.append("\n</rag_retrieved_context>");
+        log.info("RAG 已组装回表上下文，命中日记数={} 渲染条目数={}", diaryIds.size(), itemIndex);
         return sb.toString();
+    }
+
+    private static String escapeXml(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&apos;");
+    }
+
+    private static String truncate(String s, int maxLen) {
+        if (s == null) return "";
+        return s.length() <= maxLen ? s : s.substring(0, maxLen) + "…";
     }
 
     // ── 内部工具 ──
@@ -507,7 +613,8 @@ public class RagMemoryService {
 
                 String finalKey = resp3Id != null ? resp3Id : currentKey;
                 if (content != null && finalKey != null) {
-                    out.add(new RagHit(content, score, extractSourceId(finalKey)));
+                    RagKeyInfo info = parseRagKey(finalKey);
+                    out.add(new RagHit(content, score, info.sourceId, info.diaryId, info.sourceType));
                 } else {
                     // 如果当前子列表不是文档，继续向下递归寻找
                     extractHitsHeuristically(subList, out);
@@ -531,10 +638,30 @@ public class RagMemoryService {
         return String.valueOf(obj);
     }
 
-    private String extractSourceId(String key) {
-        if (key == null) return null;
-        // rag:diary:123 → "diary:123" ； rag:chat:101:123456 → "chat:101" ； rag:profile:1113:性格 → "profile:1113"
-        return key.substring(KEY_PREFIX.length());
+    private record RagKeyInfo(String sourceId, Long diaryId, String sourceType) {}
+
+    private RagKeyInfo parseRagKey(String key) {
+        if (key == null) return new RagKeyInfo(null, null, null);
+        String id = key.substring(KEY_PREFIX.length());
+        String[] parts = id.split(":", 3);
+        if (parts.length >= 2 && "diary".equals(parts[0])) {
+            try {
+                Long diaryId = Long.parseLong(parts[1]);
+                String suffix = parts.length > 2 ? parts[2] : null;
+                String sourceType;
+                if ("music".equals(suffix)) {
+                    sourceType = SOURCE_MUSIC;
+                } else if ("images".equals(suffix)) {
+                    sourceType = SOURCE_IMAGE;
+                } else {
+                    sourceType = SOURCE_DIARY;
+                }
+                return new RagKeyInfo(id, diaryId, sourceType);
+            } catch (NumberFormatException e) {
+                log.warn("RAG key 解析失败，无法提取 diaryId: {}", key);
+            }
+        }
+        return new RagKeyInfo(id, null, parts.length > 0 ? parts[0] : null);
     }
 
     private enum RediSearchCommand implements io.lettuce.core.protocol.ProtocolKeyword {
@@ -554,7 +681,7 @@ public class RagMemoryService {
         }
     }
 
-    public record RagHit(String content, Double score, String sourceId) {
+    public record RagHit(String content, Double score, String sourceId, Long diaryId, String sourceType) {
     }
 
     /**

@@ -47,9 +47,9 @@ public class RateLimitService {
     // Col order must match AiApiType enum: CHAT, ANALYSIS, REASONING, RESONANCE, REPORT, IMAGE_UPLOAD
     private static final int[][] QUOTA = {
             {300, 50, 50, 50, 999, 50},  // Pro
-            {15,  3,  3,  0,  0,  3},    // Lv.1
-            {30,  5,  5,  3,  0,  5},    // Lv.2
-            {60,  8,  10, 5,  4,  10},   // Lv.3
+            {15,  5,  3,  0,  0,  3},    // Lv.1
+            {30,  7,  5,  3,  0,  5},    // Lv.2
+            {60,  10, 10, 5,  4,  10},   // Lv.3
             {100, 12, 15, 10, 6,  20},   // Lv.4
             {150, 20, 20, 15, 10, 30},   // Lv.5
             {200, 30, 30, 20, 999,50},   // Lv.6

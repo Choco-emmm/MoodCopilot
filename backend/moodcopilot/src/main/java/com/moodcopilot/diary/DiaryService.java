@@ -169,7 +169,7 @@ public class DiaryService {
         diary.setContent(ContentFilter.filter(content));
         diary.setVisibility(visibility.name());
         diary.setMusicMeta(request.musicMeta());
-        diary.setImages(request.images());
+        diary.setImages(promoteImages(request.images()));
         diary.setResonanceCount(0);
         diary.setIsDeleted(false);
         diary.setCreatedAt(LocalDateTime.now());
@@ -185,7 +185,7 @@ public class DiaryService {
             evictPublicDiaryCaches();
         }
         ragMemoryService.indexDiary(user.getId(), diary.getId(),
-                buildIndexContent(diary.getContent(), diary.getMusicMeta()), diary.getMusicMeta());
+                diary.getContent(), diary.getMusicMeta());
 
         return DiaryView.from(diary, List.of(), normalizeAvatar(user.getAvatar()), user.getDisplayName(), Map.of(),
                 false);
@@ -227,7 +227,7 @@ public class DiaryService {
                 diary.setMusicMeta(request.musicMeta());
             }
             if (request.images() != null) {
-                diary.setImages(request.images());
+                diary.setImages(promoteImages(request.images()));
             }
             diaryMapper.updateById(diary);
         });
@@ -237,7 +237,7 @@ public class DiaryService {
             log.info("日记内容已更新，触发分析与画像重建，diaryId={}，userId={}", diaryId, user.getId());
             rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
             ragMemoryService.indexDiary(user.getId(), diaryId,
-                    buildIndexContent(filteredContent, diary.getMusicMeta()), diary.getMusicMeta());
+                    filteredContent, diary.getMusicMeta());
 
             String imageDescriptions = visionService.describeImages(diary.getImages());
 //            log.info("图片描述：{}", imageDescriptions);
@@ -311,12 +311,11 @@ public class DiaryService {
                     this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels()));
 
             memoryExtractionService.extractAndSyncMemory(userId, content, musicMeta, imageDescriptions);
-            // VLM 描述拿到后重新索引，让图片信息可被 RAG 检索
+            // VLM 描述拿到后重新索引，让图片信息可被 RAG 检索（独立图片向量，不混入日记正文）
             if (imageDescriptions != null && !imageDescriptions.isBlank()) {
-                String enriched = buildIndexContent(content, musicMeta) + "\n[图片描述] " + imageDescriptions;
-                ragMemoryService.indexDiary(userId, diaryId, enriched, musicMeta);
+                ragMemoryService.indexDiary(userId, diaryId, content, musicMeta);
                 ragMemoryService.indexDiaryImages(userId, diaryId, imageDescriptions);
-                log.info("RAG 已用图片描述重新索引 diaryId={}（含独立图片条目）", diaryId);
+                log.info("RAG 已用图片描述独立索引 diaryId={}", diaryId);
             }
             markReportsStale(userId);
             DiaryEntity diary = diaryMapper.selectById(diaryId);
@@ -1286,19 +1285,6 @@ public class DiaryService {
         }
     }
 
-    /** 拼接音乐元数据进 RAG 索引内容，让向量搜索能找到歌曲相关日记。 */
-    private String buildIndexContent(String diaryContent, MusicMeta musicMeta) {
-        if (musicMeta == null) return diaryContent;
-        StringBuilder sb = new StringBuilder();
-        sb.append("歌曲：").append(musicMeta.getTitle())
-          .append(" 歌手：").append(musicMeta.getArtist());
-        if (musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
-            sb.append(" 歌词：").append(musicMeta.getUserLyric());
-        }
-        sb.append("\n").append(diaryContent);
-        return sb.toString();
-    }
-
     private String toDiarySnippet(String content) {
         if (content == null)
             return "这篇日记";
@@ -1880,6 +1866,20 @@ public class DiaryService {
             }
         }
         return score;
+    }
+
+    private List<String> promoteImages(List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) return imageUrls;
+        List<String> promoted = new ArrayList<>();
+        for (String url : imageUrls) {
+            try {
+                promoted.add(ossService.promoteImage(url));
+            } catch (Exception e) {
+                log.error("图片转正失败，降级使用原 URL: {}", url, e);
+                promoted.add(url);
+            }
+        }
+        return promoted;
     }
 
     private String buildMemoryContext(long userId) {
