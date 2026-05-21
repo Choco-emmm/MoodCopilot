@@ -4,7 +4,6 @@ public record RegisterRequest(
     String displayName,
     String email,
     String password,
-    String inviteCode,
     String verificationCode,
     String turnstileToken
 ) {

@@ -23,8 +23,6 @@ export const useAuthStore = defineStore('auth', () => {
   const signature = ref<string | null>(null)
   const dailyNotifyEnabled = ref<boolean>(true)
   const role = ref<string>(localStorage.getItem('role') || 'USER')
-  const inviteCode = ref<string | null>(null)
-  const inviteQuota = ref<number>(0)
   const exp = ref<number>(0)
   const level = ref<number>(1)
   const proExpireTime = ref<string | null>(null)
@@ -46,8 +44,6 @@ export const useAuthStore = defineStore('auth', () => {
       avatar.value = normalizeResourceUrl(data.avatar)
       signature.value = data.signature ?? null
       dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
-      inviteCode.value = data.inviteCode ?? null
-      inviteQuota.value = data.inviteQuota ?? 0
       exp.value = data.exp ?? 0
       level.value = data.level ?? 1
       proExpireTime.value = data.proExpireTime ?? null
@@ -82,8 +78,6 @@ export const useAuthStore = defineStore('auth', () => {
     avatar.value = normalizeResourceUrl(data.avatar)
     signature.value = data.signature ?? null
     dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
-    inviteCode.value = data.inviteCode ?? null
-    inviteQuota.value = data.inviteQuota ?? 0
     exp.value = data.exp ?? 0
     level.value = data.level ?? 1
     proExpireTime.value = data.proExpireTime ?? null
@@ -104,8 +98,8 @@ export const useAuthStore = defineStore('auth', () => {
     await authApi.sendPasswordChangeCode()
   }
 
-  async function register(name: string, email: string, password: string, inviteCodeParam: string, verificationCode: string, turnstileToken?: string) {
-    const res = await authApi.register({ displayName: name, email, password, inviteCode: inviteCodeParam, verificationCode, turnstileToken })
+  async function register(name: string, email: string, password: string, verificationCode: string, turnstileToken?: string) {
+    const res = await authApi.register({ displayName: name, email, password, verificationCode, turnstileToken })
     applyAuthData(res.data.data)
   }
 
@@ -132,7 +126,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    token, userId, displayName, email, avatar, signature, dailyNotifyEnabled, role, inviteCode, inviteQuota, exp, level, proExpireTime, isPro, isAuthenticated, isAdmin,
+    token, userId, displayName, email, avatar, signature, dailyNotifyEnabled, role, exp, level, proExpireTime, isPro, isAuthenticated, isAdmin,
     fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout, sendCode, sendPasswordChangeCode, changePassword
   }
 })

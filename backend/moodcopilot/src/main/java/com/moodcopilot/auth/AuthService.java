@@ -86,11 +86,6 @@ public class AuthService {
         this.mailFrom = mailFrom;
     }
 
-    private static final String MASTER_INVITE_CODE = "MOOD-MASTER-2026";
-    private static final int DEFAULT_INVITE_QUOTA = 3;
-    private static final int INVITE_CODE_LENGTH = 6;
-    private static final String INVITE_CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    private static final int INVITE_CODE_MAX_RETRIES = 10;
     private static final int LOGIN_MAX_ATTEMPTS = 5;
     private static final int LOGIN_LOCK_MINUTES = 15;
     private static final String LOGIN_FAIL_PREFIX = "login:fail:";
@@ -262,10 +257,6 @@ public class AuthService {
         if (request.password() == null || request.password().length() < 6) {
             throw new ResponseStatusException(BAD_REQUEST, "密码至少6位");
         }
-        if (request.inviteCode() == null || request.inviteCode().isBlank()) {
-            throw new ResponseStatusException(BAD_REQUEST, "内测阶段需要邀请码才能注册");
-        }
-
         if (turnstileEnabled && !turnstileService.verify(request.turnstileToken())) {
             throw new ResponseStatusException(BAD_REQUEST, "人机验证失败，请刷新页面后重试");
         }
@@ -288,56 +279,18 @@ public class AuthService {
             throw new ResponseStatusException(BAD_REQUEST, "邮箱已被注册");
         }
 
-        // 验证邀请码
-        boolean isMasterCode = MASTER_INVITE_CODE.equals(request.inviteCode().trim());
-        UserEntity inviter = null;
-        if (!isMasterCode) {
-            inviter = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>()
-                    .eq(UserEntity::getInviteCode, request.inviteCode().trim()));
-            if (inviter == null) {
-                throw new ResponseStatusException(BAD_REQUEST, "邀请码无效");
-            }
-            if (inviter.getInviteQuota() == null || inviter.getInviteQuota() <= 0) {
-                throw new ResponseStatusException(BAD_REQUEST, "该邀请码的名额已用完");
-            }
-            // 扣减邀请人名额
-            inviter.setInviteQuota(inviter.getInviteQuota() - 1);
-            userMapper.updateById(inviter);
-        }
-
         UserEntity user = new UserEntity();
         user.setDisplayName(request.displayName().trim());
         user.setEmail(request.email().trim().toLowerCase());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setStatus(1);
         user.setRole("USER");
-        user.setInviteCode(generateUniqueInviteCode());
-        user.setInviteQuota(DEFAULT_INVITE_QUOTA);
-        user.setInvitedBy(isMasterCode ? null : inviter.getId());
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.insert(user);
 
         String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail());
         return response(token, user);
-    }
-
-    private String generateUniqueInviteCode() {
-        StringBuilder sb = new StringBuilder(INVITE_CODE_LENGTH);
-        for (int attempt = 0; attempt < INVITE_CODE_MAX_RETRIES; attempt++) {
-            sb.setLength(0);
-            for (int i = 0; i < INVITE_CODE_LENGTH; i++) {
-                sb.append(INVITE_CODE_CHARS.charAt(secureRandom.nextInt(INVITE_CODE_CHARS.length())));
-            }
-            String code = sb.toString();
-            boolean codeExists = userMapper.exists(
-                    new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getInviteCode, code));
-            if (!codeExists) {
-                return code;
-            }
-        }
-        // 重试耗尽后使用 UUID 兜底，确保永不失败
-        return java.util.UUID.randomUUID().toString().replace("-", "").substring(0, INVITE_CODE_LENGTH).toUpperCase();
     }
 
     public AuthResponse login(LoginRequest request) {

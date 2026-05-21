@@ -187,24 +187,6 @@
 
         <section class="settings-section">
           <div class="section-head">
-            <p class="settings-label">内测邀请</p>
-            <span class="section-tag">Invite</span>
-          </div>
-          <div class="invite-info">
-            <div class="invite-code-box">
-              <span class="invite-label">你的邀请码</span>
-              <code class="invite-code-value">{{ auth.inviteCode || '暂无' }}</code>
-            </div>
-            <div class="invite-quota-box">
-              <span class="invite-label">剩余邀请名额</span>
-              <span class="invite-quota-value">{{ auth.inviteQuota }} 人</span>
-            </div>
-          </div>
-          <p class="settings-desc invite-desc">把这串邀请码发给朋友，他们就能加入内测。每个新用户默认获得 3 个邀请名额。</p>
-        </section>
-
-        <section class="settings-section">
-          <div class="section-head">
             <p class="settings-label">我的记忆</p>
             <span class="section-tag">Memory</span>
           </div>
@@ -1218,53 +1200,6 @@ onBeforeUnmount(() => {
   background: var(--color-primary-light);
   border-radius: 10px;
   padding: 7px 10px;
-}
-
-.invite-info {
-  margin-top: 10px;
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-
-.invite-code-box,
-.invite-quota-box {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--color-primary-light);
-  border: 1px solid color-mix(in srgb, var(--color-primary) 16%, transparent 84%);
-  flex: 1;
-  min-width: 140px;
-}
-
-.invite-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-}
-
-.invite-code-value {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--color-text);
-  background: none;
-  padding: 0;
-}
-
-.invite-quota-value {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.invite-desc {
-  margin-top: 10px;
 }
 
 .memory-desc {
