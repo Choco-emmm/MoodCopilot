@@ -378,6 +378,16 @@ async function handleSave() {
   color: #4a7c62;
 }
 
+.composer-editor :deep(.vditor-counter) {
+  left: 12px !important;
+  right: auto !important;
+  bottom: 8px !important;
+  top: auto !important;
+  background: transparent !important;
+  color: #a09080 !important;
+  font-size: 12px;
+}
+
 @media (max-width: 780px) {
   .composer-editor :deep(.vditor-toolbar) {
     flex-wrap: nowrap !important;
