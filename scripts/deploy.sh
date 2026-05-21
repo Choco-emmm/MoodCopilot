@@ -4,7 +4,7 @@ set -euo pipefail
 # 一键部署脚本（适用于云服务器）
 # 用法：bash deploy.sh
 
-PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BACKEND_DIR="$PROJECT_DIR/backend/moodcopilot"
 
 echo "[1/7] 进入项目目录: $PROJECT_DIR"
