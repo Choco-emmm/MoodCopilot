@@ -35,7 +35,7 @@ public class DeepSeekReasoningClient {
     public DeepSeekReasoningClient(
             @Value("${spring.ai.openai.base-url:https://api.deepseek.com}") String baseUrl,
             @Value("${spring.ai.openai.api-key:}") String apiKey,
-            @Value("${DEEPSEEK_REASONING_MODEL:deepseek-reasoner}") String model,
+            @Value("${DEEPSEEK_REASONING_MODEL:deepseek-v4-pro}") String model,
             ObjectMapper objectMapper) {
         this.baseUrl = normalizeBaseUrl(baseUrl);
         // 这里不走 Spring AI 的 ChatClient，直接用原生 HTTP 请求，是为了绕开 thinking/reasoning_content
@@ -50,7 +50,7 @@ public class DeepSeekReasoningClient {
                 .requestFactory(requestFactory)
                 .build();
         this.apiKey = apiKey == null ? "" : apiKey.trim();
-        this.model = model == null || model.isBlank() ? "deepseek-reasoner" : model.trim();
+        this.model = model == null || model.isBlank() ? "deepseek-v4-pro" : model.trim();
         this.objectMapper = objectMapper;
     }
 

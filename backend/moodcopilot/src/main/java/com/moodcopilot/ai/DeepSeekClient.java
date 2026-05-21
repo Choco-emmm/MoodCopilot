@@ -23,12 +23,16 @@ public class DeepSeekClient {
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
 
+    private final String reasoningModel;
+
     public DeepSeekClient(
             WebClient.Builder webClientBuilder,
             ObjectMapper objectMapper,
             @Value("${spring.ai.openai.api-key:}") String apiKey,
-            @Value("${spring.ai.openai.base-url:https://api.deepseek.com}") String baseUrl) {
+            @Value("${spring.ai.openai.base-url:https://api.deepseek.com}") String baseUrl,
+            @Value("${DEEPSEEK_REASONING_MODEL:deepseek-v4-pro}") String reasoningModel) {
         this.objectMapper = objectMapper;
+        this.reasoningModel = reasoningModel == null || reasoningModel.isBlank() ? "deepseek-v4-pro" : reasoningModel.trim();
         this.webClient = webClientBuilder
                 .baseUrl(baseUrl)
                 .defaultHeader("Authorization", "Bearer " + apiKey)
@@ -37,9 +41,10 @@ public class DeepSeekClient {
 
     public Flux<String> streamReasoner(List<Map<String, Object>> messages) {
         Map<String, Object> body = Map.of(
-            "model", "deepseek-reasoner",
+            "model", this.reasoningModel,
             "messages", messages,
-            "stream", true
+            "stream", true,
+            "reasoning_effort", "high"
         );
 
         return Flux.defer(() -> {
