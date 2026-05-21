@@ -46,13 +46,13 @@ public class RateLimitService {
     // Row 0 = Pro, Row 1..6 = Lv.1..Lv.6
     // Col order must match AiApiType enum: CHAT, ANALYSIS, REASONING, RESONANCE, REPORT, IMAGE_UPLOAD
     private static final int[][] QUOTA = {
-            {300, 50, 50, 50, 999, 50},  // Pro
-            {15,  5,  3,  0,  0,  3},    // Lv.1
-            {30,  7,  5,  3,  0,  5},    // Lv.2
-            {60,  10, 10, 5,  4,  10},   // Lv.3
-            {100, 12, 15, 10, 6,  20},   // Lv.4
-            {150, 20, 20, 15, 10, 30},   // Lv.5
-            {200, 30, 30, 20, 999,50},   // Lv.6
+            {300, 100, 100, 100, 999, 100},  // Pro
+            {15,  5,   2,   0,   0,   3},    // Lv.1
+            {25,  8,   4,   3,   0,   5},    // Lv.2
+            {35,  12,  6,   5,   2,   8},    // Lv.3
+            {45,  16,  8,   8,   4,   12},   // Lv.4
+            {55,  20,  10,  10,  6,   16},   // Lv.5
+            {65,  25,  12,  12,  8,   20},   // Lv.6
     };
 
     public static int getDynamicLimit(AiApiType type, Integer level, boolean isPro) {
