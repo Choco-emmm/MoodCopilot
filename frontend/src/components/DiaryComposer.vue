@@ -209,6 +209,7 @@ onMounted(() => {
   vditorInst.value = new Vditor('vditor-composer', {
     mode: 'ir',
     height: 360,
+    cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.11.2',
     placeholder: '今天发生了什么？可以只写一句，也可以把说不清的感觉先放在这里。',
     cache: { enable: false },
     outline: { enable: false, position: 'right' },
