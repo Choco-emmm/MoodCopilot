@@ -35,7 +35,7 @@
                 额度
               </n-button>
             </template>
-            <div style="padding: 4px; min-width: 160px;">
+            <div style="padding: 4px; min-width: 160px; max-width: 260px; white-space: normal; word-break: break-word;">
               <p style="margin: 0 0 2px; font-weight: bold; font-size: 13px; color: #2f2a24;">Lv.{{ auth.level }} · {{ auth.exp }}/{{ levelExpCap }} EXP</p>
               <p style="margin: 0 0 8px; font-weight: bold; font-size: 13px; color: #2f2a24;">剩余额度</p>
               <ul style="margin: 0; padding-left: 18px; font-size: 13px; color: #555;">
