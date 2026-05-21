@@ -242,13 +242,14 @@ export const chatApi = {
   saveHistory: (id: number, messages: any[]) => api.put(`/chat/conversations/${id}/history`, { messages }),
   reply: (id: number, message: string, references: string[] = []) =>
     api.post(`/chat/conversations/${id}/reply`, { message, references }),
-  /** SSE 流式请求 */
+  /** SSE 流式请求（JSON Chunk 协议） */
   replyStream: (
     id: number,
     message: string,
     references: string[],
     onChunk: (text: string) => void,
     ctrl: AbortController,
+    onReferences?: (items: Array<{ type: string; date: string; snippet: string }>) => void,
   ): Promise<void> => {
     const token = localStorage.getItem('token')
     return fetchEventSource(`/api/chat/conversations/${id}`, {
@@ -261,9 +262,19 @@ export const chatApi = {
       signal: ctrl.signal,
       openWhenHidden: true,
       onmessage(event) {
-        const chunk = event.data
-        if (chunk === '[DONE]') return
-        onChunk(chunk)
+        const raw = event.data
+        try {
+          const msg = JSON.parse(raw)
+          if (msg.type === 'references') {
+            onReferences?.(msg.items ?? [])
+          } else if (msg.type === 'chunk') {
+            onChunk(msg.content ?? '')
+          }
+          // 'done' 类型无需处理
+        } catch {
+          // 兼容旧格式：纯文本 chunk
+          if (raw !== '[DONE]') onChunk(raw)
+        }
       },
       onerror(err) {
         throw err

@@ -100,6 +100,22 @@
             </div>
           </div>
 
+          <!-- RAG 引用折叠面板 -->
+          <div v-if="streaming && ragReferences.length" class="rag-refs-panel">
+            <button class="rag-refs-toggle" @click="showReferences = !showReferences">
+              <span class="rag-refs-icon">🔍</span>
+              <span>参考了你的 {{ ragReferences.length }} 条记忆</span>
+              <span class="rag-refs-arrow">{{ showReferences ? '▾' : '▸' }}</span>
+            </button>
+            <div v-if="showReferences" class="rag-refs-list">
+              <div v-for="(ref, i) in ragReferences" :key="i" class="rag-ref-item">
+                <span class="rag-ref-type">{{ refTypeLabel(ref.type) }}</span>
+                <span v-if="ref.date" class="rag-ref-date">{{ ref.date }}</span>
+                <span class="rag-ref-snippet">{{ ref.snippet }}</span>
+              </div>
+            </div>
+          </div>
+
           <div v-if="streaming && streamingText" class="chat-bubble chat-ai">
             <div class="md-content" v-html="renderMd(streamingText)" />
             <span class="chat-cursor">|</span>
@@ -200,6 +216,8 @@ const recentDiariesLoading = ref(false)
 const recentDiariesError = ref<string | null>(null)
 const lastReplyError = ref<string | null>(null)
 const lastReplyRequest = ref<{ convId: number; content: string; refContents: string[] } | null>(null)
+const ragReferences = ref<Array<{ type: string; date: string; snippet: string }>>([])
+const showReferences = ref(true)
 const viewportBaseHeight = ref(0)
 const creatingConversation = ref(false)
 const syncCooldownUntil = ref(0)
@@ -518,6 +536,8 @@ async function sendReply(convId: number, content: string, refContents: string[],
   const ctrl = new AbortController()
   streamAbortCtrl = ctrl
 
+  ragReferences.value = []
+  showReferences.value = true
   let fullReply = ''
 
   try {
@@ -534,7 +554,9 @@ async function sendReply(convId: number, content: string, refContents: string[],
           scrollBottom()
         })
       }
-    }, ctrl)
+    }, ctrl, (items) => {
+      ragReferences.value = items
+    })
 
     // 流正常结束
     if (activeConvId.value !== convId) return
@@ -677,6 +699,16 @@ async function loadRecentDiaryOptions() {
   }
 }
 
+function refTypeLabel(type: string): string {
+  switch (type) {
+    case 'text_memory': return '📝 日记'
+    case 'music_resonance': return '🎵 音乐'
+    case 'image_memory': return '🖼 图片'
+    case 'profile_memory': return '🧠 画像'
+    default: return '📄 记忆'
+  }
+}
+
 function chatErrorMessage(status?: number, bizMessage?: string) {
   if (bizMessage && bizMessage !== 'Request failed with status code 429') return bizMessage
   if (status === 401 || status === 403) return '登录状态过期了，请重新登录后再试。'
@@ -779,5 +811,89 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   border-radius: 4px;
   font-family: monospace;
   font-size: 0.9em;
+}
+
+/* ── RAG 引用折叠面板 ── */
+.rag-refs-panel {
+  margin: 0 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-soft);
+  overflow: hidden;
+  animation: refsIn 0.2s var(--ease-out);
+}
+
+@keyframes refsIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rag-refs-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.rag-refs-toggle:hover {
+  background: var(--color-surface-hover);
+}
+
+.rag-refs-icon {
+  font-size: 13px;
+}
+
+.rag-refs-arrow {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.rag-refs-list {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid var(--color-border);
+  padding: 4px 0;
+}
+
+.rag-ref-item {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: var(--text-xs);
+}
+
+.rag-ref-item:not(:last-child) {
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent 50%);
+}
+
+.rag-ref-type {
+  font-weight: 700;
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+
+.rag-ref-date {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.rag-ref-snippet {
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 </style>

@@ -1,5 +1,6 @@
 package com.moodcopilot.ai;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.common.ApiResponse;
 import com.moodcopilot.entity.UserEntity;
 import jakarta.servlet.http.HttpServletResponse;
@@ -11,6 +12,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -24,10 +27,13 @@ public class ChatController {
 
     private final ChatService chatService;
     private final MemoryExtractionService memoryExtractionService;
+    private final ObjectMapper objectMapper;
 
-    public ChatController(ChatService chatService, MemoryExtractionService memoryExtractionService) {
+    public ChatController(ChatService chatService, MemoryExtractionService memoryExtractionService,
+            ObjectMapper objectMapper) {
         this.chatService = chatService;
         this.memoryExtractionService = memoryExtractionService;
+        this.objectMapper = objectMapper;
     }
 
     // ---- 一次性批量初始化画像（初始化后可删除此接口）----
@@ -75,26 +81,59 @@ public class ChatController {
         String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
         log.info("收到流式聊天请求，conversationId={}，messageLength={}，referenceCount={}",
                 id, message == null ? 0 : message.length(), references == null ? 0 : references.size());
-        // 在异步流开始前捕获 userId 和 Authentication，避免异步回调中 SecurityContext 丢失
         UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = user.getId();
         Authentication currentAuth = SecurityContextHolder.getContext().getAuthentication();
         StringBuilder aiReplyBuffer = new StringBuilder();
-        Flux<String> chatFlux;
+        ChatService.ChatStreamContext ctx;
         try {
-            chatFlux = chatService.chat(id, message, references, memoryBackground);
+            ctx = chatService.chat(id, message, references, memoryBackground);
         } catch (com.moodcopilot.common.RateLimitException e) {
             log.info("AI 限流触发，conversationId={}，type={}", id, e.getType());
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, e.getMessage(), e);
         }
-        return chatFlux
+
+        // 解析 RAG 上下文为结构化引用列表
+        List<Map<String, String>> refItems = parseRagReferences(ctx.ragContext());
+        Flux<String> refsEvent;
+        try {
+            Map<String, Object> refsPayload = new LinkedHashMap<>();
+            refsPayload.put("type", "references");
+            refsPayload.put("items", refItems);
+            refsEvent = Flux.just(objectMapper.writeValueAsString(refsPayload));
+        } catch (Exception e) {
+            log.warn("RAG 引用序列化失败: {}", e.getMessage());
+            refsEvent = Flux.empty();
+        }
+
+        Flux<String> chunkStream = ctx.stream()
                 .doOnNext(chunk -> {
-                    // 流式返回按 chunk 到达，这里先拼完整回复，完成时再统一更新画像。
                     if (chunk != null && !chunk.isBlank()) {
                         aiReplyBuffer.append(chunk);
                     }
                 })
+                .map(chunk -> {
+                    try {
+                        Map<String, Object> payload = new LinkedHashMap<>();
+                        payload.put("type", "chunk");
+                        payload.put("content", chunk != null ? chunk : "");
+                        return objectMapper.writeValueAsString(payload);
+                    } catch (Exception e) {
+                        return chunk != null ? chunk : "";
+                    }
+                });
+
+        Flux<String> doneEvent;
+        try {
+            Map<String, Object> donePayload = new LinkedHashMap<>();
+            donePayload.put("type", "done");
+            doneEvent = Flux.just(objectMapper.writeValueAsString(donePayload));
+        } catch (Exception e) {
+            doneEvent = Flux.empty();
+        }
+
+        return Flux.concat(refsEvent, chunkStream, doneEvent)
                 .doOnComplete(() -> {
                     log.info("流式聊天完成，准备触发画像增量更新，conversationId={}，replyLength={}",
                             id, aiReplyBuffer.length());
@@ -109,9 +148,54 @@ public class ChatController {
                 })
                 .onErrorResume(e -> {
                     log.warn("SSE 流异常终止，conversationId={}，error={}", id, e.getMessage());
-                    return Flux.just("\n\n[服务器暂时无法回应，请稍后重试。]");
+                    try {
+                        Map<String, Object> errPayload = new LinkedHashMap<>();
+                        errPayload.put("type", "chunk");
+                        errPayload.put("content", "\n\n[服务器暂时无法回应，请稍后重试。]");
+                        return Flux.just(objectMapper.writeValueAsString(errPayload));
+                    } catch (Exception ex) {
+                        return Flux.just("\n\n[服务器暂时无法回应，请稍后重试。]");
+                    }
                 })
-                .contextWrite(ctx -> ctx.put(Authentication.class, currentAuth));
+                .contextWrite(c -> c.put(Authentication.class, currentAuth));
+    }
+
+    /** 从 RAG XML 上下文中提取结构化引用条目供前端展示 */
+    private List<Map<String, String>> parseRagReferences(String ragCtx) {
+        List<Map<String, String>> items = new ArrayList<>();
+        if (ragCtx == null || ragCtx.isBlank()) return items;
+        Pattern itemPattern = Pattern.compile(
+                "<context_item type=\"(\\w+)\"(?: date=\"([^\"]*)\")?>(.*?)</context_item>",
+                Pattern.DOTALL);
+        Matcher m = itemPattern.matcher(ragCtx);
+        while (m.find()) {
+            String type = m.group(1);
+            String date = m.group(2) != null ? m.group(2) : "";
+            String inner = m.group(3);
+            String snippet = extractFirstTagContent(inner);
+            Map<String, String> item = new LinkedHashMap<>();
+            item.put("type", type);
+            item.put("date", date);
+            item.put("snippet", snippet.length() > 120 ? snippet.substring(0, 120) + "…" : snippet);
+            items.add(item);
+        }
+        return items;
+    }
+
+    /** 提取 XML 内层第一个标签的文本内容作为摘要 */
+    private String extractFirstTagContent(String xml) {
+        if (xml == null || xml.isBlank()) return "";
+        Pattern tagPattern = Pattern.compile("<[^>]+>([^<]*)</[^>]+>");
+        Matcher m = tagPattern.matcher(xml);
+        if (m.find()) {
+            String text = m.group(1).trim();
+            // 去掉 XML 转义
+            return text.replace("&amp;", "&").replace("&lt;", "<")
+                    .replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'");
+        }
+        // fallback: 取纯文本的前 120 字符
+        String plain = xml.replaceAll("<[^>]+>", "").replaceAll("\\s+", " ").trim();
+        return plain.length() > 120 ? plain.substring(0, 120) + "…" : plain;
     }
 
     /**
