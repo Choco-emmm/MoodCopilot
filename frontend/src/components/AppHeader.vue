@@ -198,9 +198,9 @@ const profilePath = computed(() => (auth.userId != null ? `/profile/${auth.userI
 // Lv.1..6
 const LEVEL_LABELS = ['Lv.1', 'Lv.2', 'Lv.3', 'Lv.4', 'Lv.5', 'Lv.6']
 const QUOTA_DATA = [
-  { chat: 15,  analysis: 3,  reasoning: 3,  resonance: 0,  report: 0,  imageUpload: 3 },
-  { chat: 30,  analysis: 5,  reasoning: 5,  resonance: 3,  report: 0,  imageUpload: 5 },
-  { chat: 60,  analysis: 8,  reasoning: 10, resonance: 5,  report: 4,  imageUpload: 10 },
+  { chat: 15,  analysis: 5,  reasoning: 3,  resonance: 0,  report: 0,  imageUpload: 3 },
+  { chat: 30,  analysis: 7,  reasoning: 5,  resonance: 3,  report: 0,  imageUpload: 5 },
+  { chat: 60,  analysis: 10, reasoning: 10, resonance: 5,  report: 4,  imageUpload: 10 },
   { chat: 100, analysis: 12, reasoning: 15, resonance: 10, report: 6,  imageUpload: 20 },
   { chat: 150, analysis: 20, reasoning: 20, resonance: 15, report: 10, imageUpload: 30 },
   { chat: 200, analysis: 30, reasoning: 30, resonance: 20, report: 999,imageUpload: 50 },
