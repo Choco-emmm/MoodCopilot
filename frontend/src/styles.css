@@ -3158,6 +3158,9 @@ h3 {
 
   .chat-layout {
     grid-template-columns: 1fr;
+    height: 100%;
+    min-height: 0;
+    align-items: stretch;
   }
 
   .chat-sidebar {
@@ -3167,6 +3170,10 @@ h3 {
   .app-shell.chat-shell {
     padding-left: 8px;
     padding-right: 8px;
+    padding-top: 16px;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    height: 100dvh;
+    overflow: hidden;
   }
 
   .chat-mobile-conv {
@@ -3177,13 +3184,14 @@ h3 {
   }
 
   .chat-window {
-    min-height: calc(100vh - 150px);
+    height: 100%;
+    min-height: 0;
     padding-bottom: 0;
   }
 
   .chat-messages {
-    min-height: 48vh;
-    max-height: calc(100dvh - 360px);
+    min-height: 0;
+    max-height: none;
     padding: 10px 8px;
     border-radius: var(--radius-lg);
     scroll-padding-bottom: 20px;
