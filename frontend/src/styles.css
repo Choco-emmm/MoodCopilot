@@ -553,6 +553,7 @@ h3 {
   align-content: start;
   gap: 16px;
   padding: 22px;
+  min-width: 0;
 }
 
 /* ── Avatar ── */
@@ -599,6 +600,7 @@ h3 {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .diary-time {
@@ -609,6 +611,7 @@ h3 {
 .diary-content-section {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .diary-content {
@@ -2327,6 +2330,7 @@ h3 {
 
 /* ── Diary detail page ── */
 .diary-detail-page {
+  width: 100%;
   max-width: 760px;
   margin: 0 auto;
   display: grid;
