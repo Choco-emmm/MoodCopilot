@@ -17,6 +17,7 @@
     "cropperjs": "^1.6.2",
     "dompurify": "^3.2.7",
     "marked": "^18.0.3",
+    "md-editor-v3": "^6.5.0",
     "naive-ui": "^2.41.0",
     "pinia": "^2.2.4",
     "vite": "^5.4.10",

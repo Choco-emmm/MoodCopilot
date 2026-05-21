@@ -158,8 +158,8 @@ public class UserGrowthService {
     // ── 经验值 ──
 
     /**
-     * 增加经验值（带每日上限和自动升级）。
-     * 返回本次实际获得的 EXP（被上限截断或已满则返回 0）。
+     * 记录行为次数（仅计数，不发放经验。经验需在任务中心手动领取）。
+     * 返回 0 表示已达每日上限，>0 表示本次记录成功（返回值仅用于判断是否计入）。
      *
      * @param context 附加上下文：DIARY 时为日记内容字数；CHAT 时可为 null
      */
@@ -168,7 +168,6 @@ public class UserGrowthService {
         LocalDate today = LocalDate.now();
         String dailyKey = dailyKey(userId, today);
 
-        // 检查每日各项行为次数
         String field = action.name().toLowerCase();
         String currentVal = (String) redis.opsForHash().get(dailyKey, field);
         int currentCount = currentVal == null ? 0 : Integer.parseInt(currentVal);
@@ -178,17 +177,64 @@ public class UserGrowthService {
             return 0;
         }
 
-        int exp = action.getBaseExp();
-        if (action == ExpAction.DIARY && context != null && context > 100) {
-            exp += 10;
-        }
-
         redis.opsForHash().increment(dailyKey, field, 1);
         long secondsUntilMidnight = LocalDateTime.now().until(
                 today.plusDays(1).atStartOfDay(), ChronoUnit.SECONDS);
         redis.expire(dailyKey, Duration.ofSeconds(secondsUntilMidnight));
 
+        // 日记超 100 字额外记录（用于领取时计算 bonus）
+        if (action == ExpAction.DIARY && context != null && context > 100) {
+            redis.opsForHash().increment(dailyKey, "diary_bonus", 1);
+        }
+
+        return action.getBaseExp();
+    }
+
+    /**
+     * 领取某类行为的今日经验。已领取过或今日无该行为则返回 0。
+     */
+    @Transactional
+    public int claimExp(Long userId, ExpAction action) {
+        LocalDate today = LocalDate.now();
+        String dailyKey = dailyKey(userId, today);
+
+        // 检查是否已领取
+        String claimedKey = claimedKey(userId, today);
+        String field = action.name().toLowerCase();
+        Boolean alreadyClaimed = redis.opsForSet().isMember(claimedKey, field);
+        if (Boolean.TRUE.equals(alreadyClaimed)) {
+            return 0;
+        }
+
+        // 读取今日该行为次数
+        String currentVal = (String) redis.opsForHash().get(dailyKey, field);
+        int currentCount = currentVal == null ? 0 : Integer.parseInt(currentVal);
+        if (currentCount <= 0) {
+            return 0;
+        }
+
+        // 仅允许任务完成时领取（current >= max）
+        if (currentCount < action.getMaxPerDay()) {
+            return 0;
+        }
+
+        int exp = action.getBaseExp() * currentCount;
+
+        // 日记额外 bonus
+        if (action == ExpAction.DIARY) {
+            String bonusVal = (String) redis.opsForHash().get(dailyKey, "diary_bonus");
+            int bonusCount = bonusVal == null ? 0 : Integer.parseInt(bonusVal);
+            exp += bonusCount * 10;
+        }
+
+        // 标记已领取
+        redis.opsForSet().add(claimedKey, field);
+        long secondsUntilMidnight = LocalDateTime.now().until(
+                today.plusDays(1).atStartOfDay(), ChronoUnit.SECONDS);
+        redis.expire(claimedKey, Duration.ofSeconds(secondsUntilMidnight));
+
         applyExp(userId, exp);
+        log.info("领取经验成功，userId={}，action={}，count={}，exp={}", userId, field, currentCount, exp);
         return exp;
     }
 
@@ -243,30 +289,43 @@ public class UserGrowthService {
         return "moodcopilot:exp:daily:" + userId + ":" + date.format(YMD);
     }
 
+    private String claimedKey(Long userId, LocalDate date) {
+        return "moodcopilot:exp:claimed:" + userId + ":" + date.format(YMD);
+    }
+
     // ── 查询 ──
 
     public record GrowthStatus(int exp, int level, int expToNextLevel, int streak, int monthCheckins, boolean checkedInToday) {}
 
-    public record DailyExpBar(String label, String field, int current, int max, int expPerAction) {}
+    public record DailyExpBar(String label, String field, int current, int max, int expPerAction, boolean claimed) {}
 
     /**
-     * 获取今日各行为的经验进度。
+     * 获取今日各行为的经验进度（含领取状态）。
      */
     public List<DailyExpBar> getTodayProgress(Long userId) {
         LocalDate today = LocalDate.now();
         String dailyKey = dailyKey(userId, today);
+        String claimedKey = claimedKey(userId, today);
         List<DailyExpBar> bars = new ArrayList<>();
 
         for (ExpAction action : ExpAction.values()) {
             String field = action.name().toLowerCase();
             String val = (String) redis.opsForHash().get(dailyKey, field);
             int current = val == null ? 0 : Integer.parseInt(val);
+            // 签到经验即时发放，直接视为已领取；其他行为查 Redis Set
+            boolean claimed;
+            if (action == ExpAction.CHECKIN) {
+                claimed = current > 0;
+            } else {
+                claimed = Boolean.TRUE.equals(redis.opsForSet().isMember(claimedKey, field));
+            }
             bars.add(new DailyExpBar(
                     action.getLabel(),
                     field,
                     current,
                     action.getMaxPerDay(),
-                    action.getBaseExp()));
+                    action.getBaseExp(),
+                    claimed));
         }
         return bars;
     }

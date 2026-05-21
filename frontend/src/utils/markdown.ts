@@ -12,6 +12,25 @@ const DEFAULT_ALLOWED_TAGS = [
 
 const DEFAULT_ALLOWED_ATTR = ['href', 'target', 'rel']
 
+/**
+ * 移除常见 Markdown 语法标记，用于安全截断预览文本。
+ * 不会处理 HTML 标签 — 输入应为纯 Markdown 文本。
+ */
+export function stripMarkdown(text: string): string {
+    if (!text) return ''
+    return text
+        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')  // 图片 → alt 文本
+        .replace(/\[([^\]]*)\]\([^)]+\)/g, '$1')    // 链接 → 文本
+        .replace(/[*_~`]{1,3}/g, '')                 // 粗体/斜体/删除线/代码
+        .replace(/^#{1,6}\s+/gm, '')                 // 标题
+        .replace(/^>\s?/gm, '')                      // 引用
+        .replace(/^[-*+]\s+/gm, '')                  // 无序列表
+        .replace(/^\d+\.\s+/gm, '')                  // 有序列表
+        .replace(/^---+/gm, '')                      // 分隔线
+        .replace(/\n{2,}/g, '\n')                    // 多余空行压缩
+        .trim()
+}
+
 export function renderSafeMarkdown(
     text: string,
     options?: {

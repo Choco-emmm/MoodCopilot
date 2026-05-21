@@ -616,7 +616,6 @@ h3 {
   color: var(--color-text);
   line-height: 1.85;
   font-size: 16px;
-  white-space: pre-wrap;
   word-break: break-word;
 }
 
@@ -1148,7 +1147,6 @@ h3 {
   margin: 0;
   color: var(--color-text);
   line-height: 1.75;
-  white-space: pre-wrap;
   word-break: break-word;
 }
 
@@ -1237,6 +1235,12 @@ h3 {
   border-radius: var(--radius-md);
   background: var(--color-primary-light);
   line-height: 1.5;
+}
+
+.comments .md-content p {
+  margin: 0 0 4px;
+  padding: 0;
+  background: transparent;
 }
 
 .comments span {

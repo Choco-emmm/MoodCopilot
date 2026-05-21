@@ -10,7 +10,7 @@
           {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
         </n-tag>
       </div>
-      <p class="diary-content">{{ diary.content }}</p>
+      <div class="diary-content md-content" v-html="renderMd(diary.content)"></div>
     </div>
     <div class="section-divider" />
     <AnalysisBody :diary="diary" />
@@ -22,7 +22,12 @@
 <script setup lang="ts">
 import { NProgress } from 'naive-ui'
 import type { Diary } from '../stores/diary'
+import { renderSafeMarkdown } from '../utils/markdown'
 import AnalysisBody from './AnalysisBody.vue'
+
+function renderMd(text: string) {
+  return renderSafeMarkdown(text)
+}
 
 defineProps<{ diary: Diary; compact?: boolean }>()
 
