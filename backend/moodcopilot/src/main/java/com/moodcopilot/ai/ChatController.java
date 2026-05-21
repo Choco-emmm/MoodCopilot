@@ -165,16 +165,18 @@ public class ChatController {
         List<Map<String, String>> items = new ArrayList<>();
         if (ragCtx == null || ragCtx.isBlank()) return items;
         Pattern itemPattern = Pattern.compile(
-                "<context_item type=\"(\\w+)\"(?: date=\"([^\"]*)\")?>(.*?)</context_item>",
+                "<context_item type=\"(\\w+)\"(?: diary_id=\"(\\d+)\")?(?: date=\"([^\"]*)\")?>(.*?)</context_item>",
                 Pattern.DOTALL);
         Matcher m = itemPattern.matcher(ragCtx);
         while (m.find()) {
             String type = m.group(1);
-            String date = m.group(2) != null ? m.group(2) : "";
-            String inner = m.group(3);
+            String diaryId = m.group(2) != null ? m.group(2) : "";
+            String date = m.group(3) != null ? m.group(3) : "";
+            String inner = m.group(4);
             String snippet = extractFirstTagContent(inner);
             Map<String, String> item = new LinkedHashMap<>();
             item.put("type", type);
+            item.put("diaryId", diaryId);
             item.put("date", date);
             item.put("snippet", snippet.length() > 120 ? snippet.substring(0, 120) + "…" : snippet);
             items.add(item);

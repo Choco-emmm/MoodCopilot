@@ -104,15 +104,30 @@
           <div v-if="ragReferences.length" class="rag-refs-panel">
             <button class="rag-refs-toggle" @click="showReferences = !showReferences">
               <span class="rag-refs-icon">🔍</span>
-              <span>参考了你的 {{ ragReferences.length }} 条记忆</span>
+              <span>AI 引用了你的 {{ diaryRefs.length }} 条日记</span>
+              <span v-if="profileRefs.length">和 {{ profileRefs.length }} 条个人画像</span>
               <span class="rag-refs-arrow">{{ showReferences ? '▾' : '▸' }}</span>
             </button>
             <div v-if="showReferences" class="rag-refs-list">
-              <div v-for="(ref, i) in ragReferences" :key="i" class="rag-ref-item">
-                <span class="rag-ref-type">{{ refTypeLabel(ref.type) }}</span>
-                <span v-if="ref.date" class="rag-ref-date">{{ ref.date }}</span>
-                <span class="rag-ref-snippet">{{ ref.snippet }}</span>
-              </div>
+              <template v-if="diaryRefs.length">
+                <div class="rag-refs-section-label">📝 日记记忆</div>
+                <div
+                  v-for="(ref, i) in diaryRefs"
+                  :key="'d'+i"
+                  class="rag-ref-item rag-ref-clickable"
+                  @click="goToDiary(ref.diaryId)"
+                >
+                  <span class="rag-ref-date">{{ ref.date }}</span>
+                  <span class="rag-ref-snippet">{{ ref.snippet }}</span>
+                  <span class="rag-ref-go">→</span>
+                </div>
+              </template>
+              <template v-if="profileRefs.length">
+                <div class="rag-refs-section-label">🧠 个人画像</div>
+                <div v-for="(ref, i) in profileRefs" :key="'p'+i" class="rag-ref-item">
+                  <span class="rag-ref-snippet">{{ ref.snippet }}</span>
+                </div>
+              </template>
             </div>
           </div>
 
@@ -160,6 +175,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { NButton, NInput } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import ReferenceBar from '../components/ReferenceBar.vue'
@@ -216,8 +232,30 @@ const recentDiariesLoading = ref(false)
 const recentDiariesError = ref<string | null>(null)
 const lastReplyError = ref<string | null>(null)
 const lastReplyRequest = ref<{ convId: number; content: string; refContents: string[] } | null>(null)
-const ragReferences = ref<Array<{ type: string; date: string; snippet: string }>>([])
+const router = useRouter()
+const ragReferences = ref<Array<{ type: string; diaryId: string; date: string; snippet: string }>>([])
 const showReferences = ref(true)
+
+/** 去重后的日记引用（同 diaryId 合并） */
+const diaryRefs = computed(() => {
+  const seen = new Set<string>()
+  return ragReferences.value.filter(r => {
+    if (r.type === 'profile_memory' || !r.diaryId) return false
+    if (seen.has(r.diaryId)) return false
+    seen.add(r.diaryId)
+    return true
+  })
+})
+
+/** 个人画像引用 */
+const profileRefs = computed(() =>
+  ragReferences.value.filter(r => r.type === 'profile_memory'),
+)
+
+function goToDiary(diaryId: string) {
+  if (!diaryId) return
+  router.push(`/diary/${diaryId}`)
+}
 const viewportBaseHeight = ref(0)
 const creatingConversation = ref(false)
 const syncCooldownUntil = ref(0)
@@ -699,16 +737,6 @@ async function loadRecentDiaryOptions() {
   }
 }
 
-function refTypeLabel(type: string): string {
-  switch (type) {
-    case 'text_memory': return '📝 日记'
-    case 'music_resonance': return '🎵 音乐'
-    case 'image_memory': return '🖼 图片'
-    case 'profile_memory': return '🧠 画像'
-    default: return '📄 记忆'
-  }
-}
-
 function chatErrorMessage(status?: number, bizMessage?: string) {
   if (bizMessage && bizMessage !== 'Request failed with status code 429') return bizMessage
   if (status === 401 || status === 403) return '登录状态过期了，请重新登录后再试。'
@@ -815,10 +843,10 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 
 /* ── RAG 引用折叠面板 ── */
 .rag-refs-panel {
-  margin: 0 0 6px;
+  margin: 6px 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-surface-soft);
+  background: var(--color-surface);
   overflow: hidden;
   animation: refsIn 0.2s var(--ease-out);
 }
@@ -861,32 +889,44 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   display: grid;
   gap: 0;
   border-top: 1px solid var(--color-border);
-  padding: 4px 0;
+  padding: 2px 0;
+}
+
+.rag-refs-section-label {
+  padding: 4px 12px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
 }
 
 .rag-ref-item {
   display: grid;
-  grid-template-columns: auto auto 1fr;
-  align-items: baseline;
-  gap: 6px;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
   padding: 5px 12px;
   font-size: var(--text-xs);
 }
 
 .rag-ref-item:not(:last-child) {
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent 50%);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent 60%);
 }
 
-.rag-ref-type {
-  font-weight: 700;
-  color: var(--color-primary);
-  white-space: nowrap;
+.rag-ref-clickable {
+  cursor: pointer;
+  transition: background 0.12s;
+  grid-template-columns: 52px 1fr auto;
+}
+
+.rag-ref-clickable:hover {
+  background: var(--color-primary-light);
 }
 
 .rag-ref-date {
   color: var(--color-text-muted);
-  white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .rag-ref-snippet {
@@ -895,5 +935,12 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.rag-ref-go {
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 </style>
