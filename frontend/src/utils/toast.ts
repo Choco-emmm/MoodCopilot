@@ -27,22 +27,11 @@ async function ensureCapsLoaded() {
   capsLoaded = true
 }
 
-/** 仅当未达每日上限时弹出 EXP toast。返回 true 表示已弹。 */
-export async function tryExpToast(field: string, msg: string): Promise<boolean> {
-  await ensureCapsLoaded()
-  const cap = caps[field]
-  if (!cap) {
-    // 未知字段，安全放行
-    window.$message?.success(msg, { duration: 1800 })
-    return true
-  }
-  if (cap.current >= cap.max) return false
-  cap.current++
-  window.$message?.success(msg, { duration: 1800 })
-  return true
+/** 经验值弹窗已关闭，改为任务中心统一领取。保留接口兼容，暂不弹窗。 */
+export async function tryExpToast(_field: string, _msg: string): Promise<boolean> {
+  return false
 }
 
-/** 简易同步版（无需等待 API），用于已经有数据的场景 */
-export function expToast(msg: string) {
-  window.$message?.success(msg, { duration: 1800 })
+export function expToast(_msg: string) {
+  // no-op: 经验值统一在任务中心领取
 }
