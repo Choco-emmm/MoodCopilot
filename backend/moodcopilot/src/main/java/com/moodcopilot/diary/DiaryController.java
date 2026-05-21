@@ -5,11 +5,13 @@ import com.moodcopilot.common.RateLimitException;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.security.RateLimitService;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -62,6 +64,22 @@ public class DiaryController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         var result = diaryService.myDiaries(page, size);
+        return ApiResponse.ok(Map.of(
+                "items", result.getRecords(),
+                "total", result.getTotal(),
+                "page", result.getCurrent(),
+                "size", result.getSize()));
+    }
+
+    @GetMapping("/search")
+    public ApiResponse<Map<String, Object>> search(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String visibility,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        var result = diaryService.searchDiaries(keyword, startDate, endDate, visibility, page, size);
         return ApiResponse.ok(Map.of(
                 "items", result.getRecords(),
                 "total", result.getTotal(),

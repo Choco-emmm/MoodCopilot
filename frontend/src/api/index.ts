@@ -61,6 +61,8 @@ export const diaryApi = {
   following: (page = 1, size = 20) => api.get('/diaries/following', { params: { page, size } }),
   delete: (id: number) => api.delete(`/diaries/${id}`),
   deleteComment: (diaryId: number, commentId: number) => api.delete(`/diaries/${diaryId}/comments/${commentId}`),
+  search: (params: { keyword?: string; startDate?: string; endDate?: string; visibility?: string; page?: number; size?: number }) =>
+    api.get('/diaries/search', { params }),
 }
 
 export const reportApi = {

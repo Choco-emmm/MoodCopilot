@@ -26,6 +26,24 @@ export const useAuthStore = defineStore('auth', () => {
   const exp = ref<number>(0)
   const level = ref<number>(1)
   const proExpireTime = ref<string | null>(null)
+  const nameChangeCount = ref<number>(0)
+  const nameChangeWeek = ref<number>(0)
+  const maxWeeklyNameChanges = 3
+
+  const remainingNameChanges = computed(() => {
+    const now = new Date()
+    const year = now.getFullYear()
+    // ISO week: Monday=1, find the week that contains Thursday
+    const jan4 = new Date(year, 0, 4)
+    const jan4Day = jan4.getDay() || 7
+    const firstMonday = new Date(jan4)
+    firstMonday.setDate(jan4.getDate() - (jan4Day - 1))
+    const daysSinceFirstMonday = Math.floor((now.getTime() - firstMonday.getTime()) / 86400000)
+    const currentWeek = Math.floor(daysSinceFirstMonday / 7) + 1
+    const currentWeekKey = year * 100 + currentWeek
+    if (nameChangeWeek.value !== currentWeekKey) return maxWeeklyNameChanges
+    return Math.max(0, maxWeeklyNameChanges - nameChangeCount.value)
+  })
 
   const isPro = computed(() => {
     if (!proExpireTime.value) return false
@@ -47,6 +65,8 @@ export const useAuthStore = defineStore('auth', () => {
       exp.value = data.exp ?? 0
       level.value = data.level ?? 1
       proExpireTime.value = data.proExpireTime ?? null
+      nameChangeCount.value = data.nameChangeCount ?? 0
+      nameChangeWeek.value = data.nameChangeWeek ?? 0
       saveRole(data.role)
     } catch { /* ignore */ }
   }
@@ -57,6 +77,8 @@ export const useAuthStore = defineStore('auth', () => {
     displayName.value = data.displayName
     avatar.value = normalizeResourceUrl(data.avatar)
     signature.value = data.signature ?? null
+    nameChangeCount.value = data.nameChangeCount ?? 0
+    nameChangeWeek.value = data.nameChangeWeek ?? 0
     saveRole(data.role)
   }
 
@@ -81,6 +103,8 @@ export const useAuthStore = defineStore('auth', () => {
     exp.value = data.exp ?? 0
     level.value = data.level ?? 1
     proExpireTime.value = data.proExpireTime ?? null
+    nameChangeCount.value = data.nameChangeCount ?? 0
+    nameChangeWeek.value = data.nameChangeWeek ?? 0
     saveRole(data.role)
     if (data.token) localStorage.setItem('token', data.token)
   }
@@ -116,6 +140,8 @@ export const useAuthStore = defineStore('auth', () => {
     signature.value = null
     dailyNotifyEnabled.value = true
     role.value = 'USER'
+    nameChangeCount.value = 0
+    nameChangeWeek.value = 0
     localStorage.removeItem('token')
     localStorage.removeItem('role')
   }
@@ -126,7 +152,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    token, userId, displayName, email, avatar, signature, dailyNotifyEnabled, role, exp, level, proExpireTime, isPro, isAuthenticated, isAdmin,
+    token, userId, displayName, email, avatar, signature, dailyNotifyEnabled, role, exp, level, proExpireTime, nameChangeCount, nameChangeWeek, maxWeeklyNameChanges, remainingNameChanges, isPro, isAuthenticated, isAdmin,
     fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout, sendCode, sendPasswordChangeCode, changePassword
   }
 })

@@ -13,6 +13,13 @@ frontend/src/**/*.js
 .env
 
 node_modules/
+package-lock.json
 test-results/
 .idea/
+.vscode/
 .claude/worktrees/
+uploads/
+skills-lock.json
+AGENTS.md
+cloudflared-login-debug.*.log
+~

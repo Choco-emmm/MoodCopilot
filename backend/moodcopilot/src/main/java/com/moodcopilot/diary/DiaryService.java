@@ -342,6 +342,40 @@ public class DiaryService {
         return viewPage;
     }
 
+    public Page<DiaryView> searchDiaries(String keyword, LocalDate startDate, LocalDate endDate,
+                                          String visibility, int page, int size) {
+        int cappedPage = Math.max(1, page);
+        int cappedSize = Math.min(50, Math.max(1, size));
+        LambdaQueryWrapper<DiaryEntity> query = new LambdaQueryWrapper<DiaryEntity>()
+                .eq(DiaryEntity::getAuthorUserId, currentUser().getId());
+
+        if (keyword != null && !keyword.isBlank()) {
+            String escaped = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+            query.and(w -> w
+                    .like(DiaryEntity::getContent, escaped)
+                    .or()
+                    .apply("JSON_UNQUOTE(JSON_EXTRACT(music_meta, '$.title')) LIKE {0}", "%" + escaped + "%")
+                    .or()
+                    .apply("JSON_UNQUOTE(JSON_EXTRACT(music_meta, '$.artist')) LIKE {0}", "%" + escaped + "%"));
+        }
+        if (startDate != null) {
+            query.ge(DiaryEntity::getCreatedAt, startDate.atStartOfDay());
+        }
+        if (endDate != null) {
+            query.lt(DiaryEntity::getCreatedAt, endDate.plusDays(1).atStartOfDay());
+        }
+        if (visibility != null && !visibility.isBlank()) {
+            query.eq(DiaryEntity::getVisibility, visibility.toUpperCase());
+        }
+        query.orderByDesc(DiaryEntity::getCreatedAt);
+
+        Page<DiaryEntity> entityPage = diaryMapper.selectPage(Page.of(cappedPage, cappedSize), query);
+        List<DiaryView> views = buildDiaryViews(entityPage.getRecords(), false);
+        Page<DiaryView> viewPage = new Page<>(cappedPage, cappedSize, entityPage.getTotal());
+        viewPage.setRecords(views);
+        return viewPage;
+    }
+
     public Page<DiaryView> userDiaries(long targetUserId, int page, int size) {
         int cappedPage = Math.max(1, page);
         int cappedSize = Math.min(50, Math.max(1, size));

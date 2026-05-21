@@ -26,6 +26,8 @@ public class UserEntity {
     private Integer exp = 0;
     private Integer level = 1;
     private LocalDateTime proExpireTime;
+    private Integer nameChangeCount = 0;
+    private Integer nameChangeWeek = 0;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -155,6 +157,22 @@ public class UserEntity {
 
     public void setProExpireTime(LocalDateTime proExpireTime) {
         this.proExpireTime = proExpireTime;
+    }
+
+    public Integer getNameChangeCount() {
+        return nameChangeCount;
+    }
+
+    public void setNameChangeCount(Integer nameChangeCount) {
+        this.nameChangeCount = nameChangeCount;
+    }
+
+    public Integer getNameChangeWeek() {
+        return nameChangeWeek;
+    }
+
+    public void setNameChangeWeek(Integer nameChangeWeek) {
+        this.nameChangeWeek = nameChangeWeek;
     }
 
     public LocalDateTime getCreatedAt() {

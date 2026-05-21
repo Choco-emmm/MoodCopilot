@@ -31,7 +31,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.WeekFields;
 import java.util.Iterator;
 import java.util.Locale;
 import javax.imageio.IIOImage;
@@ -279,6 +281,12 @@ public class AuthService {
             throw new ResponseStatusException(BAD_REQUEST, "邮箱已被注册");
         }
 
+        boolean nameTaken = userMapper.exists(
+                new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getDisplayName, request.displayName().trim()));
+        if (nameTaken) {
+            throw new ResponseStatusException(BAD_REQUEST, "该用户名已被使用");
+        }
+
         UserEntity user = new UserEntity();
         user.setDisplayName(request.displayName().trim());
         user.setEmail(request.email().trim().toLowerCase());
@@ -358,10 +366,40 @@ public class AuthService {
         }
     }
 
+    private static final int MAX_WEEKLY_NAME_CHANGES = 3;
+
     public AuthResponse updateProfile(Long userId, String displayName, String avatar, String signature) {
         UserEntity user = userMapper.selectById(userId);
         if (displayName != null && !displayName.isBlank()) {
-            user.setDisplayName(displayName.trim());
+            String newName = displayName.trim();
+            if (newName.length() > 64) {
+                throw new ResponseStatusException(BAD_REQUEST, "用户名最多 64 个字符");
+            }
+            if (!newName.equals(user.getDisplayName())) {
+                // 唯一性检查
+                UserEntity existing = userMapper.selectOne(
+                        new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getDisplayName, newName));
+                if (existing != null && !existing.getId().equals(userId)) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "该用户名已被使用");
+                }
+                // 每周修改次数限制（ISO 周，周一~周日）
+                int currentWeek = LocalDate.now().get(WeekFields.ISO.weekOfWeekBasedYear());
+                int currentYear = LocalDate.now().get(WeekFields.ISO.weekBasedYear());
+                int weekKey = currentYear * 100 + currentWeek;
+                Integer storedWeek = user.getNameChangeWeek();
+                if (storedWeek == null || storedWeek != weekKey) {
+                    user.setNameChangeCount(0);
+                    user.setNameChangeWeek(weekKey);
+                }
+                int count = user.getNameChangeCount() != null ? user.getNameChangeCount() : 0;
+                if (count >= MAX_WEEKLY_NAME_CHANGES) {
+                    throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                            "本周用户名修改次数已用完（每周限 " + MAX_WEEKLY_NAME_CHANGES + " 次）");
+                }
+                user.setNameChangeCount(count + 1);
+                user.setNameChangeWeek(weekKey);
+                user.setDisplayName(newName);
+            }
         }
         if (avatar != null) {
             user.setAvatar(avatar);
@@ -523,7 +561,8 @@ public class AuthService {
         return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getEmail(),
                 normalizeAvatar(user.getAvatar()), user.getSignature(),
                 user.getDailyNotifyEnabled(), role, user.getInviteCode(), user.getInviteQuota(),
-                user.getExp(), user.getLevel(), user.getProExpireTime());
+                user.getExp(), user.getLevel(), user.getProExpireTime(),
+                user.getNameChangeCount(), user.getNameChangeWeek());
     }
 
     private String normalizeAvatar(String avatar) {
