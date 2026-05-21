@@ -363,31 +363,47 @@ async function handleSave() {
 .composer-editor :deep(.vditor) {
   position: relative !important;
   border: 1px solid rgba(180, 150, 120, 0.25) !important;
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-md, 8px);
   overflow: hidden;
   --vditor-toolbar-background-color: #fdfcf8;
   --vditor-toolbar-border-color: rgba(180, 150, 120, 0.15);
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
+  transition: all 0.3s ease;
+}
+
+.composer-editor:focus-within :deep(.vditor) {
+  border-color: var(--color-primary, #4a7c62) !important;
+  box-shadow: 0 4px 12px rgba(74, 124, 98, 0.08), 0 0 0 3px rgba(74, 124, 98, 0.1) !important;
 }
 
 .composer-editor :deep(.vditor-content) {
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
+  background: #fff;
+}
+
+.composer-editor :deep(.vditor-reset) {
+  max-width: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 .composer-editor :deep(.vditor-toolbar) {
-  padding: 6px 16px !important;
+  padding: 8px 16px !important;
+  border-bottom: 1px solid rgba(180, 150, 120, 0.15) !important;
 }
 
 .composer-editor :deep(.vditor-ir) {
-  padding: 16px 20px !important;
+  padding: 20px 24px !important;
 }
 
 .composer-editor :deep(.vditor-toolbar__item > button) {
   color: #8a7a6a;
+  border-radius: 6px;
+  transition: all 0.2s;
 }
 
 .composer-editor :deep(.vditor-toolbar__item > button:hover) {
@@ -397,13 +413,13 @@ async function handleSave() {
 
 .composer-editor :deep(.vditor-counter) {
   position: absolute !important;
-  left: 12px !important;
+  left: 16px !important;
   right: auto !important;
-  bottom: 8px !important;
+  bottom: 12px !important;
   top: auto !important;
   background: transparent !important;
   color: #a09080 !important;
-  font-size: 12px;
+  font-size: 13px;
   pointer-events: none;
   z-index: 10;
 }

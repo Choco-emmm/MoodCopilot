@@ -2382,6 +2382,7 @@ h3 {
 .chat-input-row {
   display: flex;
   gap: 10px;
+  align-items: center;
 }
 
 .chat-input-row .n-input {
@@ -3150,6 +3151,11 @@ h3 {
     display: none;
   }
 
+  .app-shell.chat-shell {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
   .chat-mobile-conv {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
@@ -3165,7 +3171,7 @@ h3 {
   .chat-messages {
     min-height: 48vh;
     max-height: calc(100dvh - 360px);
-    padding: 14px;
+    padding: 10px 8px;
     border-radius: var(--radius-lg);
     scroll-padding-bottom: 20px;
   }
@@ -3214,6 +3220,7 @@ h3 {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
+    align-items: center;
   }
 
   .chat-input-row .n-button {

@@ -255,6 +255,7 @@ export const chatApi = {
     onChunk: (text: string) => void,
     ctrl: AbortController,
     onReferences?: (items: Array<{ type: string; diaryId: string; date: string; snippet: string }>) => void,
+    onToolReferences?: (items: Array<{ type: string; diaryId?: string; date: string; snippet: string; toolName: string }>) => void,
   ): Promise<void> => {
     const token = localStorage.getItem('token')
     return fetchEventSource(`/api/chat/conversations/${id}`, {
@@ -272,6 +273,8 @@ export const chatApi = {
           const msg = JSON.parse(raw)
           if (msg.type === 'references') {
             onReferences?.(msg.items ?? [])
+          } else if (msg.type === 'tool_references') {
+            onToolReferences?.(msg.items ?? [])
           } else if (msg.type === 'chunk') {
             onChunk(msg.content ?? '')
           }

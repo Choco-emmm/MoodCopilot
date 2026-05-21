@@ -24,6 +24,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import org.springframework.ai.chat.messages.Message;
@@ -130,6 +131,7 @@ public class ChatService {
     private final MemoryExtractionService memoryExtractionService;
     private final RagMemoryService ragMemoryService;
     private final AiAnalysisService aiAnalysisService;
+    private final DeepSeekClient deepSeekClient;
 
     public ChatService(ChatClient chatChatClient,
             ChatClient analysisChatClient,
@@ -144,7 +146,8 @@ public class ChatService {
             DiaryService diaryService,
             MemoryExtractionService memoryExtractionService,
             RagMemoryService ragMemoryService,
-            AiAnalysisService aiAnalysisService) {
+            AiAnalysisService aiAnalysisService,
+            DeepSeekClient deepSeekClient) {
         this.chatChatClient = chatChatClient;
         this.analysisChatClient = analysisChatClient;
         this.conversationMapper = conversationMapper;
@@ -159,6 +162,7 @@ public class ChatService {
         this.memoryExtractionService = memoryExtractionService;
         this.ragMemoryService = ragMemoryService;
         this.aiAnalysisService = aiAnalysisService;
+        this.deepSeekClient = deepSeekClient;
     }
 
     // ---- 会话管理 ----
@@ -240,16 +244,22 @@ public class ChatService {
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
         String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
+        Sinks.Many<String> sseSink = Sinks.many().unicast().onBackpressureBuffer();
+
         Flux<String> stream = chatChatClient.prompt()
                 .user(message)
                 .system(s -> {
                     StringBuilder sys = new StringBuilder();
+                    sys.append(AGENT_TOOLS_PROMPT).append("\n\n");
+                    if (request.context() != null && !request.context().isBlank()) {
+                        sys.append(request.context()).append("\n\n");
+                    }
                     if (request.summary() != null && !request.summary().isBlank()) {
                         sys.append("<conversation_summary>\n")
                            .append(request.summary())
                            .append("\n</conversation_summary>\n\n");
                     }
-                    sys.append(request.context()).append(buildTimeMetadata()).append(AGENT_TOOLS_PROMPT).append(ragCtx);
+                    sys.append(ragCtx).append("\n").append(buildTimeMetadata());
                     s.text(sys.toString());
                 })
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
@@ -258,10 +268,14 @@ public class ChatService {
                         UserStatsFunctionSupport.NAME,
                         ReportSnapshotFunctionSupport.NAME,
                         MemoryQueryFunctionSupport.NAME)
-                .toolContext(Map.of("auth", auth))
+                .toolContext(Map.of("auth", auth, "sseSink", sseSink))
                 .stream()
-                .content();
-        return new ChatStreamContext(ragCtx, stream);
+                .content()
+                .doOnComplete(sseSink::tryEmitComplete)
+                .doOnError(sseSink::tryEmitError);
+
+        Flux<String> mergedStream = Flux.merge(stream, sseSink.asFlux());
+        return new ChatStreamContext(ragCtx, mergedStream);
     }
 
     public String reply(Long conversationId, String message, List<String> refs, String memoryBackground) {
@@ -296,12 +310,16 @@ public class ChatService {
                 .user(message)
                 .system(s -> {
                     StringBuilder sys = new StringBuilder();
+                    sys.append(AGENT_TOOLS_PROMPT).append("\n\n");
+                    if (request.context() != null && !request.context().isBlank()) {
+                        sys.append(request.context()).append("\n\n");
+                    }
                     if (request.summary() != null && !request.summary().isBlank()) {
                         sys.append("<conversation_summary>\n")
                            .append(request.summary())
                            .append("\n</conversation_summary>\n\n");
                     }
-                    sys.append(request.context()).append(buildTimeMetadata()).append(AGENT_TOOLS_PROMPT).append(ragCtx);
+                    sys.append(ragCtx).append("\n").append(buildTimeMetadata());
                     s.text(sys.toString());
                 })
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
@@ -386,146 +404,51 @@ public class ChatService {
         return chatIntentRouter.shouldUseReasoning(message, refs, memoryBackground, conversationId);
     }
 
-    private String callReasoningModel(ChatRequest request, String message, Authentication auth, long conversationId) {
-        long userId = ((UserEntity) auth.getPrincipal()).getId();
-        try {
-            String history = formatChatHistory(request.memory());
-            String summaryBlock = (request.summary() != null && !request.summary().isBlank())
-                    ? "\n\n<conversation_summary>\n" + request.summary() + "\n</conversation_summary>"
-                    : "";
-            String enhancedContext = request.context() + buildTimeMetadata()
-                    + buildReasoningDataContext(auth)
-                    + summaryBlock
-                    + buildRagContextWithFallback(userId, message, request.memory(), 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
-
-            String userMessage;
-            if (!history.isEmpty()) {
-                userMessage = history + "\n" + "【用户当前消息】\n" + message;
-            } else {
-                userMessage = message;
-            }
-
-            log.info("调用思考模型分支，contextLength={}，historyLength={}，messageLength={}",
-                    request.context().length(), history.length(),
-                    message == null ? 0 : message.length());
-            String response = reasoningClient.generate(enhancedContext, userMessage);
-
-            request.memory().add("default", List.of(
-                    new UserMessage(message),
-                    new AssistantMessage(response)));
-            persistChatMemory(conversationId, request.memory());
-
-            return response;
-        } catch (Exception e) {
-            log.warn("reasoning model failed in stream path, fallback to chat model: {}", e.getMessage());
-            log.info("思考模型失败后回退到普通模型，messageLength={}", message == null ? 0 : message.length());
-            String fallback = chatChatClient.prompt()
-                    .user(message)
-                    .system(s -> {
-                        StringBuilder sys = new StringBuilder();
-                        if (request.summary() != null && !request.summary().isBlank()) {
-                            sys.append("<conversation_summary>\n")
-                               .append(request.summary())
-                               .append("\n</conversation_summary>\n\n");
-                        }
-                        sys.append(request.context()).append(buildTimeMetadata()).append(AGENT_TOOLS_PROMPT);
-                        s.text(sys.toString());
-                    })
-                    .advisors(new MessageChatMemoryAdvisor(request.memory()))
-                    .functions(
-                            DiarySearchFunctionSupport.NAME,
-                            UserStatsFunctionSupport.NAME,
-                            ReportSnapshotFunctionSupport.NAME,
-                            MemoryQueryFunctionSupport.NAME)
-                    .toolContext(Map.of("auth", auth))
-                    .call()
-                    .content();
-            return fallback;
+    private List<Map<String, Object>> buildMessagesForReasoner(ChatRequest request, String message, Authentication auth) {
+        List<Map<String, Object>> msgs = new ArrayList<>();
+        StringBuilder sys = new StringBuilder();
+        sys.append(AGENT_TOOLS_PROMPT).append("\n\n");
+        if (request.context() != null && !request.context().isBlank()) {
+            sys.append(request.context()).append("\n\n");
         }
+        if (request.summary() != null && !request.summary().isBlank()) {
+            sys.append("<conversation_summary>\n")
+               .append(request.summary())
+               .append("\n</conversation_summary>\n\n");
+        }
+        sys.append(buildReasoningDataContext(auth)).append("\n").append(buildTimeMetadata());
+        
+        msgs.add(Map.of("role", "system", "content", sys.toString()));
+        
+        List<Message> history = request.memory().get("default", 20);
+        if (history != null) {
+            for (Message msg : history) {
+                String role = switch (msg.getMessageType()) {
+                    case USER -> "user";
+                    case ASSISTANT -> "assistant";
+                    case SYSTEM -> "system";
+                    default -> null;
+                };
+                if (role != null && msg.getText() != null && !msg.getText().isBlank()) {
+                    msgs.add(Map.of("role", role, "content", msg.getText()));
+                }
+            }
+        }
+        msgs.add(Map.of("role", "user", "content", message));
+        return msgs;
+    }
+
+    private String callReasoningModel(ChatRequest request, String message, Authentication auth, long conversationId) {
+        log.info("调用思考模型分支（原生 WebClient），messageLength={}", message == null ? 0 : message.length());
+        List<Map<String, Object>> msgs = buildMessagesForReasoner(request, message, auth);
+        return deepSeekClient.streamReasoner(msgs).reduce(String::concat).block();
     }
 
     private Flux<String> callReasoningModelStream(ChatRequest request, String message, Authentication auth,
             long conversationId) {
-        long userId = ((UserEntity) auth.getPrincipal()).getId();
-        try {
-            String history = formatChatHistory(request.memory());
-            String summaryBlock = (request.summary() != null && !request.summary().isBlank())
-                    ? "\n\n<conversation_summary>\n" + request.summary() + "\n</conversation_summary>"
-                    : "";
-            String enhancedContext = request.context() + buildTimeMetadata()
-                    + buildReasoningDataContext(auth)
-                    + summaryBlock
-                    + buildRagContextWithFallback(userId, message, request.memory(), 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
-
-            String userMessage;
-            if (!history.isEmpty()) {
-                userMessage = history + "\n" + "【用户当前消息】\n" + message;
-            } else {
-                userMessage = message;
-            }
-
-            log.info("调用思考模型分支（流式），contextLength={}，historyLength={}，messageLength={}",
-                    request.context().length(), history.length(),
-                    message == null ? 0 : message.length());
-
-            StringBuilder fullResponse = new StringBuilder();
-            return reasoningClient.generateStream(enhancedContext, userMessage)
-                    .doOnNext(fullResponse::append)
-                    .doOnComplete(() -> {
-                        request.memory().add("default", List.of(
-                                new UserMessage(message),
-                                new AssistantMessage(fullResponse.toString())));
-                        persistChatMemory(conversationId, request.memory());
-                                })
-                    .onErrorResume(e -> {
-                        log.warn("思考模型流式调用失败，回退到普通模型: {}", e.getMessage());
-                        return chatChatClient.prompt()
-                                .user(message)
-                                .system(s -> {
-                        StringBuilder sys = new StringBuilder();
-                        if (request.summary() != null && !request.summary().isBlank()) {
-                            sys.append("<conversation_summary>\n")
-                               .append(request.summary())
-                               .append("\n</conversation_summary>\n\n");
-                        }
-                        sys.append(request.context()).append(buildTimeMetadata()).append(AGENT_TOOLS_PROMPT);
-                        s.text(sys.toString());
-                    })
-                                .advisors(new MessageChatMemoryAdvisor(request.memory()))
-                                .functions(
-                                        DiarySearchFunctionSupport.NAME,
-                                        UserStatsFunctionSupport.NAME,
-                                        ReportSnapshotFunctionSupport.NAME,
-                                        MemoryQueryFunctionSupport.NAME)
-                                .toolContext(Map.of("auth", auth))
-                                .stream()
-                                .content();
-                    });
-        } catch (Exception e) {
-            log.warn("reasoning model failed in stream path, fallback to chat model: {}", e.getMessage());
-            log.info("思考模型失败后回退到普通模型（流式），messageLength={}", message == null ? 0 : message.length());
-            return chatChatClient.prompt()
-                    .user(message)
-                    .system(s -> {
-                        StringBuilder sys = new StringBuilder();
-                        if (request.summary() != null && !request.summary().isBlank()) {
-                            sys.append("<conversation_summary>\n")
-                               .append(request.summary())
-                               .append("\n</conversation_summary>\n\n");
-                        }
-                        sys.append(request.context()).append(buildTimeMetadata()).append(AGENT_TOOLS_PROMPT);
-                        s.text(sys.toString());
-                    })
-                    .advisors(new MessageChatMemoryAdvisor(request.memory()))
-                    .functions(
-                            DiarySearchFunctionSupport.NAME,
-                            UserStatsFunctionSupport.NAME,
-                            ReportSnapshotFunctionSupport.NAME,
-                            MemoryQueryFunctionSupport.NAME)
-                    .toolContext(Map.of("auth", auth))
-                    .stream()
-                    .content();
-        }
+        log.info("调用思考模型分支（流式原生 WebClient），messageLength={}", message == null ? 0 : message.length());
+        List<Map<String, Object>> msgs = buildMessagesForReasoner(request, message, auth);
+        return deepSeekClient.streamReasoner(msgs);
     }
 
     private static final int CHAT_HISTORY_CHAR_BUDGET = 3000;

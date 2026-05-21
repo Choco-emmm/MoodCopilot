@@ -30,13 +30,6 @@
 
       <!-- 聊天区域 -->
       <div class="chat-window">
-        <div class="chat-top">
-          <div>
-            <h2 class="chat-header-title">MoodCopilot</h2>
-            <p class="chat-subtitle">可以聊聊最近的心情，分享你的故事和想法</p>
-          </div>
-        </div>
-
         <div class="chat-mobile-conv">
           <select
             class="chat-mobile-conv-select"
@@ -62,8 +55,9 @@
         </div>
 
         <div class="chat-messages" ref="msgBox">
-          <div v-if="messages.length === 0" class="chat-empty">
-            跟我说说今天怎么样吧～
+          <div v-if="messages.length === 0" class="chat-empty" style="flex-direction: column; text-align: center;">
+            <h2 class="chat-header-title">MoodCopilot</h2>
+            <p class="chat-subtitle" style="margin-top: 8px;">可以聊聊最近的心情，分享你的故事和想法</p>
           </div>
 
           <div
@@ -88,17 +82,20 @@
                       v-for="(ref, i) in getDiaryRefs(msg.ragReferences)"
                       :key="'d'+i"
                       class="rag-ref-item rag-ref-clickable"
-                      @click="goToDiary(ref.diaryId)"
+                      @click="ref.diaryId && goToDiary(ref.diaryId)"
                     >
-                      <span class="rag-ref-date">{{ ref.date }}</span>
-                      <span class="rag-ref-snippet">{{ ref.snippet }}</span>
-                      <span class="rag-ref-go">→</span>
+                      <div class="rag-ref-meta">
+                        <span class="rag-ref-date">{{ ref.date }}</span>
+                        <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ ref.toolName }}</span>
+                      </div>
+                      <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
+                      <span v-if="ref.diaryId" class="rag-ref-go">→</span>
                     </div>
                   </template>
                   <template v-if="getProfileRefs(msg.ragReferences).length">
                     <div class="rag-refs-section-label">🧠 个人画像</div>
                     <div v-for="(ref, i) in getProfileRefs(msg.ragReferences)" :key="'p'+i" class="rag-ref-item">
-                      <span class="rag-ref-snippet">{{ ref.snippet }}</span>
+                      <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
                     </div>
                   </template>
                 </div>
@@ -132,40 +129,42 @@
             </div>
           </div>
 
-          <!-- 流式回复中的引用面板（仅流式期间显示） -->
-          <div v-if="streaming && streamingRefs.length" class="rag-refs-panel">
-            <button class="rag-refs-toggle" @click="showStreamingRefs = !showStreamingRefs">
-              <span class="rag-refs-icon">🔍</span>
-              <span>AI 引用了你的 {{ streamingDiaryRefs.length }} 条日记</span>
-              <span v-if="streamingProfileRefs.length">和 {{ streamingProfileRefs.length }} 条个人画像</span>
-              <span class="rag-refs-arrow">{{ showStreamingRefs ? '▾' : '▸' }}</span>
-            </button>
-            <div v-if="showStreamingRefs" class="rag-refs-list">
-              <template v-if="streamingDiaryRefs.length">
-                <div class="rag-refs-section-label">📝 日记记忆</div>
-                <div
-                  v-for="(ref, i) in streamingDiaryRefs"
-                  :key="'sd'+i"
-                  class="rag-ref-item rag-ref-clickable"
-                  @click="goToDiary(ref.diaryId)"
-                >
-                  <span class="rag-ref-date">{{ ref.date }}</span>
-                  <span class="rag-ref-snippet">{{ ref.snippet }}</span>
-                  <span class="rag-ref-go">→</span>
-                </div>
-              </template>
-              <template v-if="streamingProfileRefs.length">
-                <div class="rag-refs-section-label">🧠 个人画像</div>
-                <div v-for="(ref, i) in streamingProfileRefs" :key="'sp'+i" class="rag-ref-item">
-                  <span class="rag-ref-snippet">{{ ref.snippet }}</span>
-                </div>
-              </template>
+          <!-- 流式回复中的引用面板和文本（合并到同一个气泡中） -->
+          <div v-if="streaming && (streamingText || streamingRefs.length)" class="chat-bubble chat-ai">
+            <div v-if="streamingText" class="md-content streaming-md" v-html="renderMd(streamingText)" />
+            
+            <div v-if="streamingRefs.length" class="rag-refs-panel">
+              <button class="rag-refs-toggle" @click="showStreamingRefs = !showStreamingRefs">
+                <span class="rag-refs-icon">🔍</span>
+                <span>AI 引用了你的 {{ streamingDiaryRefs.length }} 条日记</span>
+                <span v-if="streamingProfileRefs.length">和 {{ streamingProfileRefs.length }} 条个人画像</span>
+                <span class="rag-refs-arrow">{{ showStreamingRefs ? '▾' : '▸' }}</span>
+              </button>
+              <div v-if="showStreamingRefs" class="rag-refs-list">
+                <template v-if="streamingDiaryRefs.length">
+                  <div class="rag-refs-section-label">📝 日记记忆</div>
+                  <div
+                    v-for="(ref, i) in streamingDiaryRefs"
+                    :key="'sd'+i"
+                    class="rag-ref-item rag-ref-clickable"
+                    @click="ref.diaryId && goToDiary(ref.diaryId)"
+                  >
+                    <div class="rag-ref-meta">
+                      <span class="rag-ref-date">{{ ref.date }}</span>
+                      <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ ref.toolName }}</span>
+                    </div>
+                    <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
+                    <span v-if="ref.diaryId" class="rag-ref-go">→</span>
+                  </div>
+                </template>
+                <template v-if="streamingProfileRefs.length">
+                  <div class="rag-refs-section-label">🧠 个人画像</div>
+                  <div v-for="(ref, i) in streamingProfileRefs" :key="'sp'+i" class="rag-ref-item">
+                    <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
+                  </div>
+                </template>
+              </div>
             </div>
-          </div>
-
-          <div v-if="streaming && streamingText" class="chat-bubble chat-ai">
-            <div class="md-content" v-html="renderMd(streamingText)" />
-            <span class="chat-cursor">|</span>
           </div>
         </div>
 
@@ -188,6 +187,7 @@
           <div class="chat-input-row">
             <n-input
               v-model:value="draft"
+              size="large"
               placeholder="聊聊你今天的心情..."
               :disabled="streaming || creatingConversation || !activeConvId"
               :maxlength="500"
@@ -217,9 +217,10 @@ import { tryExpToast } from '../utils/toast'
 
 interface RagRef {
   type: string
-  diaryId: string
+  diaryId?: string
   date: string
   snippet: string
+  toolName?: string
 }
 
 interface Message {
@@ -654,14 +655,20 @@ async function sendReply(convId: number, content: string, refContents: string[],
       }
       if (streamRafId === null) {
         streamRafId = requestAnimationFrame(() => {
+          const keepScroll = isNearBottom(msgBox.value)
           streamingText.value = pendingStreamText
           streamRafId = null
-          scrollBottom()
+          if (keepScroll) {
+            scrollBottom()
+          }
         })
       }
-    }, ctrl, (items) => {
+    }, ctrl, (items: any) => {
       currentRefs = items
       streamingRefs.value = items
+    }, (toolItems: any) => {
+      currentRefs = [...currentRefs, ...toolItems]
+      streamingRefs.value = currentRefs
     })
 
     // 流正常结束
@@ -911,6 +918,40 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   font-size: 0.9em;
 }
 
+/* 流式输出光标 */
+.md-content.streaming-md :deep(*:last-child)::after {
+  content: '▋';
+  animation: blink 1s step-end infinite;
+  display: inline-block;
+  vertical-align: baseline;
+  margin-left: 4px;
+  color: var(--color-primary);
+}
+
+/* 思考过程不需要绿色光标 */
+.md-content.streaming-md :deep(.think-block)::after,
+.md-content.streaming-md :deep(.think-content *:last-child)::after {
+  display: none !important;
+}
+
+/* 如果没有任何子元素（如纯文本），通过 ::after 补充 */
+.md-content.streaming-md::after {
+  content: '▋';
+  animation: blink 1s step-end infinite;
+  display: inline-block;
+  vertical-align: baseline;
+  margin-left: 4px;
+  color: var(--color-primary);
+}
+.md-content.streaming-md :deep(*) ~ ::after {
+  display: none; /* 避免同时出现两个光标 */
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 /* ── RAG 引用折叠面板 ── */
 .rag-refs-panel {
   margin: 6px 0;
@@ -993,10 +1034,68 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   background: var(--color-primary-light);
 }
 
+.rag-ref-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+
 .rag-ref-date {
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.rag-ref-tool-badge {
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  color: var(--color-primary);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 9px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+:deep(.think-block) {
+  margin: 10px 0;
+  padding: 8px 10px;
+  background-color: transparent;
+  border-radius: 6px;
+  border-left: 2px solid color-mix(in srgb, var(--color-text-muted) 30%, transparent);
+  font-size: var(--text-xs);
+  color: color-mix(in srgb, var(--color-text-secondary) 80%, transparent);
+}
+
+:deep(.think-block summary) {
+  cursor: pointer;
+  font-weight: 500;
+  font-size: var(--text-xs);
+  color: color-mix(in srgb, var(--color-text-muted) 80%, transparent);
+  user-select: none;
+  outline: none;
+}
+
+.streaming-md :deep(.think-block:last-of-type summary::after) {
+  content: '';
+  animation: typing-dots 1.5s infinite;
+  display: inline-block;
+  width: 1em;
+  text-align: left;
+}
+
+:deep(.think-content) {
+  margin-top: 6px;
+  padding-left: 2px;
+  border-top: 1px dashed color-mix(in srgb, var(--color-border) 40%, transparent);
+  padding-top: 6px;
+}
+
+:deep(.think-content p) {
+  font-size: var(--text-xs);
+  color: color-mix(in srgb, var(--color-text-secondary) 80%, transparent);
+  margin-bottom: 0.5em;
+  line-height: 1.6;
 }
 
 .rag-ref-snippet {

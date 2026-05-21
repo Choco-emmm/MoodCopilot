@@ -173,7 +173,7 @@ public class ChatController {
             String diaryId = m.group(2) != null ? m.group(2) : "";
             String date = m.group(3) != null ? m.group(3) : "";
             String inner = m.group(4);
-            String snippet = extractFirstTagContent(inner);
+            String snippet = extractAllTextContent(inner);
             Map<String, String> item = new LinkedHashMap<>();
             item.put("type", type);
             item.put("diaryId", diaryId);
@@ -184,20 +184,14 @@ public class ChatController {
         return items;
     }
 
-    /** 提取 XML 内层第一个标签的文本内容作为摘要 */
-    private String extractFirstTagContent(String xml) {
+    /** 提取 XML 内层所有文本内容作为摘要，不再仅限第一个标签，避免遗漏日记正文 */
+    private String extractAllTextContent(String xml) {
         if (xml == null || xml.isBlank()) return "";
-        Pattern tagPattern = Pattern.compile("<[^>]+>([^<]*)</[^>]+>");
-        Matcher m = tagPattern.matcher(xml);
-        if (m.find()) {
-            String text = m.group(1).trim();
-            // 去掉 XML 转义
-            return text.replace("&amp;", "&").replace("&lt;", "<")
-                    .replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'");
-        }
-        // fallback: 取纯文本的前 120 字符
-        String plain = xml.replaceAll("<[^>]+>", "").replaceAll("\\s+", " ").trim();
-        return plain.length() > 120 ? plain.substring(0, 120) + "…" : plain;
+        // 移除所有XML标签，用空格替换，然后合并连续空格
+        String plain = xml.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
+        // 去掉 XML 转义
+        return plain.replace("&amp;", "&").replace("&lt;", "<")
+                .replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'");
     }
 
     /**
