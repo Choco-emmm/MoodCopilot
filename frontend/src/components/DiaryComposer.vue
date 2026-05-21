@@ -211,7 +211,7 @@ onMounted(() => {
     height: 360,
     placeholder: '今天发生了什么？可以只写一句，也可以把说不清的感觉先放在这里。',
     cache: { enable: false },
-    outline: { enable: false },
+    outline: { enable: false, position: 'right' },
     toolbar: [
       'headings', 'bold', 'italic', 'strike', 'line', 'quote', 'list', 'ordered-list', 'check', 'outdent', 'indent', 'code', 'inline-code', 'undo', 'redo'
     ],
