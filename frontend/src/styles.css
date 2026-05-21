@@ -2926,6 +2926,10 @@ h3 {
     font-size: 18px;
   }
 
+  .composer .section-title > div:first-child {
+    display: none; /* Hide the text portion of the title on mobile */
+  }
+
   .composer .eyebrow {
     font-size: 11px;
     margin-bottom: 0;
