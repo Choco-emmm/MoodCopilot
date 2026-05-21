@@ -90,7 +90,7 @@ public class AiAnalysisService {
 
     @SuppressWarnings("unchecked")
     private DiaryAnalysis parseAiResponse(String json) throws JsonProcessingException {
-        Map<String, Object> map = objectMapper.readValue(json, Map.class);
+        Map<String, Object> map = objectMapper.readValue(JsonUtils.cleanJson(json), Map.class);
         String moodLabel = (String) map.get("moodLabel");
         int moodIntensity = ((Number) map.get("moodIntensity")).intValue();
         List<String> topicLabels = (List<String>) map.get("topicLabels");
@@ -290,7 +290,7 @@ public class AiAnalysisService {
                     .user(prompt.toString())
                     .call()
                     .content();
-            Map<String, Object> map = objectMapper.readValue(json, Map.class);
+            Map<String, Object> map = objectMapper.readValue(JsonUtils.cleanJson(json), Map.class);
             return new ReportGuidance(
                     sanitizeStringList((List<Object>) map.get("insights"), fallbackInsights(analyses)),
                     sanitizeStringList((List<Object>) map.get("suggestions"), fallbackSuggestions(analyses)),
@@ -512,7 +512,7 @@ public class AiAnalysisService {
                     .user(diaryContent)
                     .call()
                     .content();
-            return objectMapper.readValue(response, new TypeReference<List<String>>() {
+            return objectMapper.readValue(JsonUtils.cleanJson(response), new TypeReference<List<String>>() {
             });
         } catch (Exception e) {
             log.warn("AI encouragement generation failed: {}", e.getMessage());

@@ -166,7 +166,7 @@ public class MemoryExtractionService {
                     .user(prompt)
                     .call()
                     .content();
-            MemoryExtractionResponse response = objectMapper.readValue(json, MemoryExtractionResponse.class);
+            MemoryExtractionResponse response = objectMapper.readValue(JsonUtils.cleanJson(json), MemoryExtractionResponse.class);
             List<MemoryAttribute> sanitizedAttributes = sanitizeAttributes(response.attributes());
             transactionOperations.execute(status -> {
                 syncMemories(userId, existing, sanitizedAttributes);

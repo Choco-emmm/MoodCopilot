@@ -97,7 +97,7 @@ public class AIConfiguration {
     }
 
     @Bean(name = DiarySearchFunctionSupport.NAME)
-    public FunctionCallback diarySearchFunction(@Lazy DiaryService diaryService) {
+    public FunctionCallback diarySearchFunction(@Lazy DiaryService diaryService, ObjectMapper objectMapper) {
         log.info("注册 Function Calling 工具：{}", DiarySearchFunctionSupport.NAME);
         return FunctionCallback.builder()
                 .function(DiarySearchFunctionSupport.NAME,
@@ -107,7 +107,33 @@ public class AIConfiguration {
                                 SecurityContextHolder.getContext().setAuthentication(auth);
                             }
                             try {
-                                return diaryService.searchOwnDiarySummaries(input);
+                                com.moodcopilot.diary.DiarySearchResult result = diaryService.searchOwnDiarySummaries(input);
+                                
+                                // Emit tool results to SSE if sink is available
+                                @SuppressWarnings("unchecked")
+                                reactor.core.publisher.Sinks.Many<String> sink = 
+                                        (reactor.core.publisher.Sinks.Many<String>) toolContext.getContext().get("sseSink");
+                                if (sink != null && result != null && result.diaries() != null && !result.diaries().isEmpty()) {
+                                    try {
+                                        java.util.List<java.util.Map<String, String>> items = new java.util.ArrayList<>();
+                                        for (var d : result.diaries()) {
+                                            items.add(java.util.Map.of(
+                                                "type", "tool_memory",
+                                                "date", d.date() != null ? d.date().toString() : "",
+                                                "snippet", d.snippet() != null ? d.snippet() : "",
+                                                "toolName", "diarySearch"
+                                            ));
+                                        }
+                                        java.util.Map<String, Object> event = java.util.Map.of(
+                                            "type", "tool_references",
+                                            "items", items
+                                        );
+                                        sink.tryEmitNext(objectMapper.writeValueAsString(event));
+                                    } catch (Exception e) {
+                                        log.warn("Failed to emit tool references for diarySearch", e);
+                                    }
+                                }
+                                return result;
                             } finally {
                                 SecurityContextHolder.clearContext();
                             }
