@@ -35,22 +35,41 @@
 *   **网易云音乐解析**：粘贴网易云歌曲链接，自动抓取封面与歌词，AI 会结合歌曲的意境深度分析你的心境。
 *   **图片直传与视觉理解**：支持一键上传图片，内置 qwen3-vl-flash 视觉大模型自动描述画面细节，将你眼前的风景无缝融入你的情绪画像中。
 
+<p align="center">
+  <img src="./docs/images/after_nav_write.png" alt="写日记界面" width="300" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="./docs/images/diary_screenshot.png" alt="AI分析完成" width="300" />
+</p>
+
 ### 🧠 拥有长期记忆的 AI 伙伴
 *   **RAG 向量记忆与透明回溯**：TA 不仅记住你的过去，还能在对话中随时引用你曾经写过的日记、分享的音乐和图片。**聊天界面会实时、透明地展示 AI 当下正在引用的日记记忆**，提供连续不断的关怀。
 *   **长期人格画像**：随着互动加深，AI 会在后台异步提炼你的人格特质，变得越来越“懂你”。
 *   **双模型智能路由与深度思考**：底层全面接入 **deepseek-v4-flash** 与 **deepseek-v4-pro**。日常闲聊时使用 flash 模型极速响应，涉及复杂情绪分析和深度日记回顾时，自动无缝切换并开启 pro 模型的**深度思考模式（Reasoning）**。AI 在给出最终回复前会先进行一段心理学角度的沉思，为你提供更有深度、更共情的解答。
+
+<p align="center">
+  <img src="./docs/images/chat_reasoning_screenshot.png" alt="深度思考过程" width="260" />
+  &nbsp;&nbsp;
+  <img src="./docs/images/chat_snippet_screenshot.png" alt="记忆引用对话" width="260" />
+  &nbsp;&nbsp;
+  <img src="./docs/images/setting_memory_screenshot.png" alt="记忆管理设置" width="260" />
+</p>
 
 ### 🌌 寻找同频共振的星空
 *   **情绪广场**：如果你愿意将日记设为公开，它们将会展示在广场上，与大家分享此时此刻的心情。
 *   **灵魂共鸣匹配（规划中）**：我计划在未来加入基于你数据的特殊向量搜索功能，帮你找到在这个世界上与你“灵魂共鸣”的人。不过这需要等社区的人多起来之后才有意义，所以快来成为第一批原住民吧！
 *   **实时温暖互动**：支持关注、点赞、评论与独特的“共鸣”反馈，新消息通过 WebSocket 实时推送到你的通知中心。
 *   **守护社区氛围**：内置完整的举报机制与管理员后台审核，保障每一份真诚都不被辜负。
+<p align="center">
+  <img src="./docs/images/homepage_screenshot.png" alt="情绪广场" width="300" />
+</p>
 
 ### 📈 陪伴式的成长轨迹
 *   **记录即成长**：写日记、签到、获取共鸣皆可积累经验值 (EXP)。
 *   **动态权益激励**：等级越高，解锁的 AI 深度对话调用额度越高，见证你的心理成长。
 *   **数据可视化图表**：提供情绪四象限分布周报/月报，帮你以上帝视角俯瞰近期的内心轨迹。
-
+<p align="center">
+  <img src="./docs/images/report_screenshot.png" alt="月度情绪报告" width="300" />
+</p>
 ---
 
 ## 🛠 技术亮点
