@@ -128,7 +128,7 @@ public class AIConfiguration {
                                             "type", "tool_references",
                                             "items", items
                                         );
-                                        sink.tryEmitNext(objectMapper.writeValueAsString(event));
+                                        sink.tryEmitNext("[[TOOL_EVENT]]" + objectMapper.writeValueAsString(event));
                                     } catch (Exception e) {
                                         log.warn("Failed to emit tool references for diarySearch", e);
                                     }
