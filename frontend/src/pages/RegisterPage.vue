@@ -22,9 +22,6 @@
             </n-button>
           </div>
         </n-form-item>
-        <n-form-item path="inviteCode" label="内测邀请码">
-          <n-input v-model:value="form.inviteCode" placeholder="请输入邀请码" :disabled="loading" />
-        </n-form-item>
         <n-form-item path="agreed">
           <n-checkbox v-model:checked="form.agreed">
             我已知晓 MoodCopilot 提供的 AI 对话与情绪分析仅供参考与心理疏导，不构成任何专业医疗诊断。开发者不对 AI 生成的内容承担法律责任。
@@ -67,13 +64,12 @@ const turnstileRef = ref<HTMLElement | null>(null)
 const turnstileToken = ref('')
 let turnstileWidgetId: string | undefined
 
-const form = reactive({ displayName: '', email: '', password: '', verificationCode: '', inviteCode: '', agreed: false })
+const form = reactive({ displayName: '', email: '', password: '', verificationCode: '', agreed: false })
 const rules = {
   displayName: [{ required: true, message: '请输入用户名' }],
   email: [{ required: true, message: '请输入邮箱' }],
   password: [{ required: true, message: '请输入密码', min: 6 }],
   verificationCode: [{ required: true, message: '请输入邮箱验证码' }],
-  inviteCode: [{ required: true, message: '请输入内测邀请码' }],
   agreed: [
     {
       validator: (_rule: any, value: boolean) => value === true,
@@ -130,7 +126,7 @@ async function handleRegister() {
   loading.value = true
   errorMsg.value = null
   try {
-    await auth.register(form.displayName, form.email, form.password, form.inviteCode, form.verificationCode, turnstileToken.value || undefined)
+    await auth.register(form.displayName, form.email, form.password, form.verificationCode, turnstileToken.value || undefined)
     router.push('/')
   } catch (e: any) {
     errorMsg.value = e.response?.data?.message || '注册失败，请稍后重试'
