@@ -208,7 +208,10 @@ public class ChatService {
 
     // ---- 聊天 ----
 
-    public Flux<String> chat(Long conversationId, String message, List<String> refs, String memoryBackground) {
+    /** 流式聊天结果：RAG 上下文 + AI 文字流 */
+    public record ChatStreamContext(String ragContext, Flux<String> stream) {}
+
+    public ChatStreamContext chat(Long conversationId, String message, List<String> refs, String memoryBackground) {
         // 流式接口：先统一装配上下文，再决定走普通模型还是思考模型。
         ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
         // 捕获当前 SecurityContext，通过 Reactor Context 传递给 Function Calling 的异步回调线程
@@ -226,7 +229,7 @@ public class ChatService {
                 log.info("聊天路由结果：reasoning（流式），conversationId={}，messageLength={}", conversationId,
                         message == null ? 0 : message.length());
                 userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
-                return callReasoningModelStream(request, message, auth, conversationId);
+                return new ChatStreamContext("", callReasoningModelStream(request, message, auth, conversationId));
             }
         }
 
@@ -237,7 +240,7 @@ public class ChatService {
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
         String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
-        return chatChatClient.prompt()
+        Flux<String> stream = chatChatClient.prompt()
                 .user(message)
                 .system(s -> {
                     StringBuilder sys = new StringBuilder();
@@ -258,6 +261,7 @@ public class ChatService {
                 .toolContext(Map.of("auth", auth))
                 .stream()
                 .content();
+        return new ChatStreamContext(ragCtx, stream);
     }
 
     public String reply(Long conversationId, String message, List<String> refs, String memoryBackground) {
