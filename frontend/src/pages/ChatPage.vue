@@ -100,8 +100,10 @@
                   </template>
                   <template v-if="getProfileRefs(msg.ragReferences).length">
                     <div class="rag-refs-section-label">🧠 个人画像</div>
-                    <div v-for="(ref, i) in getProfileRefs(msg.ragReferences)" :key="'p'+i" class="rag-ref-item">
-                      <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
+                    <div v-for="(ref, i) in getProfileRefs(msg.ragReferences)" :key="'p'+i" 
+                         class="rag-ref-item rag-ref-clickable" 
+                         @click="toggleProfileSnippet(msg.id, i)">
+                      <span :class="['rag-ref-snippet', { 'expanded': isProfileSnippetExpanded(msg.id, i) }]" :title="ref.snippet">{{ ref.snippet }}</span>
                     </div>
                   </template>
                 </div>
@@ -288,6 +290,20 @@ function parseThink(content: string) {
 }
 
 const isThinkExpanded = ref(false)
+const expandedProfileSnippets = ref<Set<string>>(new Set())
+
+function toggleProfileSnippet(msgId: string, idx: number) {
+  const key = `${msgId}-${idx}`
+  if (expandedProfileSnippets.value.has(key)) {
+    expandedProfileSnippets.value.delete(key)
+  } else {
+    expandedProfileSnippets.value.add(key)
+  }
+}
+
+function isProfileSnippetExpanded(msgId: string, idx: number) {
+  return expandedProfileSnippets.value.has(`${msgId}-${idx}`)
+}
 
 function renderStreamingMd(text: string, showCursor: boolean) {
   const processed = showCursor ? text + '<span class="streaming-cursor">▋</span>' : text
@@ -1125,11 +1141,14 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   color: var(--color-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-height: 1.4;
+  white-space: nowrap;
   min-width: 0;
+  transition: all 0.2s ease;
+}
+
+.rag-ref-snippet.expanded {
+  white-space: normal;
+  display: block;
 }
 
 .rag-ref-go {

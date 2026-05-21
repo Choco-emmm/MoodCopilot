@@ -211,7 +211,7 @@
             <label class="settings-label">个性签名</label>
             <span class="section-tag">Profile</span>
           </div>
-          <div class="settings-row settings-row-signature">
+          <div class="settings-row settings-row-signature" style="flex-direction: column; align-items: stretch; gap: 8px;">
             <n-input
               v-model:value="editingSignature"
               type="textarea"
@@ -219,16 +219,18 @@
               :autosize="{ minRows: 2, maxRows: 4 }"
               placeholder="写一句你希望别人看到的状态（最多160字）"
             />
-            <n-button
-              size="small"
-              type="primary"
-              :loading="savingSignature"
-              :disabled="(editingSignature ?? '').trim() === (auth.signature ?? '')"
-              @click="saveSignature"
-              class="save-btn"
-            >
-              保存签名
-            </n-button>
+            <div style="display: flex; justify-content: flex-end;">
+              <n-button
+                size="small"
+                type="primary"
+                :loading="savingSignature"
+                :disabled="(editingSignature ?? '').trim() === (auth.signature ?? '')"
+                @click="saveSignature"
+                class="save-btn"
+              >
+                保存签名
+              </n-button>
+            </div>
           </div>
           <p v-if="signatureMsg" class="settings-hint">{{ signatureMsg }}</p>
         </section>
@@ -247,10 +249,10 @@
             <label class="settings-label">提醒与陪伴</label>
             <span class="section-tag">Routine</span>
           </div>
-          <div class="settings-row notify-row">
-            <div>
-              <p class="notify-title">每日跟进通知</p>
-              <p class="settings-desc">每天在偏好时段推送一条情绪陪跑通知，计入当日 AI 额度</p>
+          <div class="settings-row notify-row" style="align-items: center;">
+            <div style="flex: 1; padding-right: 12px;">
+              <p class="notify-title" style="font-size: 14px;">每日跟进通知</p>
+              <p class="settings-desc" style="margin-top: 4px; font-size: 12px;">每天在偏好时段推送一条情绪陪跑通知</p>
             </div>
             <n-switch :value="auth.dailyNotifyEnabled" :disabled="toggling" @update:value="toggleNotify" />
           </div>
@@ -282,17 +284,17 @@
                 </template>
                 <span v-else class="memory-value">{{ m.attributeValue }}</span>
               </div>
-              <div class="memory-actions">
+              <div class="memory-actions" style="display: flex; gap: 4px; align-items: center; margin-left: auto;">
                 <template v-if="editingMemoryId === m.id">
-                  <n-button size="tiny" text type="primary" :disabled="savingMemoryId === m.id" @click="saveMemory(m.id)">
+                  <n-button size="small" secondary type="primary" :disabled="savingMemoryId === m.id" @click="saveMemory(m.id)" style="font-size: 12px; padding: 0 8px;">
                     {{ savingMemoryId === m.id ? '...' : '保存' }}
                   </n-button>
-                  <n-button size="tiny" text @click="cancelEditMemory">取消</n-button>
+                  <n-button size="small" secondary @click="cancelEditMemory" style="font-size: 12px; padding: 0 8px;">取消</n-button>
                 </template>
                 <template v-else>
-                  <n-button size="tiny" text type="info" @click="startEditMemory(m)">编辑</n-button>
-                  <n-button size="tiny" text type="error" :disabled="deletingMemoryId === m.id" @click="forgetMemory(m.id)">
-                    {{ deletingMemoryId === m.id ? '...' : '✕' }}
+                  <n-button size="small" secondary @click="startEditMemory(m)" style="font-size: 12px; padding: 0 8px;">编辑</n-button>
+                  <n-button size="small" secondary type="error" :disabled="deletingMemoryId === m.id" @click="forgetMemory(m.id)" style="font-size: 12px; padding: 0 8px;">
+                    {{ deletingMemoryId === m.id ? '...' : '删除' }}
                   </n-button>
                 </template>
               </div>
@@ -1223,12 +1225,12 @@ onBeforeUnmount(() => {
 }
 
 .settings-section {
-  margin-top: 14px;
+  margin-top: 12px;
   padding: 16px;
-  border-radius: 18px;
+  border-radius: 16px;
   background: var(--color-surface);
-  border: 1px solid color-mix(in srgb, var(--color-border-strong) 20%, transparent 80%);
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-text) 8%, transparent 92%);
+  border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--color-text) 3%, transparent);
 }
 
 .section-head {
@@ -1371,10 +1373,10 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 10px;
   border-radius: 12px;
-  background: var(--color-surface-soft);
-  border: 1px solid color-mix(in srgb, var(--color-border-strong) 14%, transparent 86%);
+  background: color-mix(in srgb, var(--color-surface-soft) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
 }
 
 .memory-content {
