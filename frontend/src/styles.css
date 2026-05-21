@@ -2328,6 +2328,7 @@ h3 {
 /* ── Diary detail page ── */
 .diary-detail-page {
   max-width: 760px;
+  margin: 0 auto;
   display: grid;
   gap: 18px;
   padding-bottom: 48px;
