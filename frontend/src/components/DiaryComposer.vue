@@ -212,6 +212,7 @@ onMounted(() => {
     cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.11.2',
     placeholder: '今天发生了什么？可以只写一句，也可以把说不清的感觉先放在这里。',
     cache: { enable: false },
+    counter: { enable: true, max: 1000, type: 'text' },
     outline: { enable: false, position: 'right' },
     toolbar: [
       'headings', 'bold', 'italic', 'strike', 'line', 'quote', 'list', 'ordered-list', 'check', 'outdent', 'indent', 'code', 'inline-code', 'undo', 'redo'
