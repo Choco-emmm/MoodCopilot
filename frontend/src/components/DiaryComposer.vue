@@ -460,28 +460,29 @@ async function handleSave() {
     flex-shrink: 0 !important;
     display: inline-flex !important;
   }
-
-  /* 让编辑器贴满面板边缘，去掉内嵌边框的"空隙感" */
-  .composer-editor {
-    margin-left: -14px;
-    margin-right: -14px;
-    width: calc(100% + 28px);
-  }
+  /* 移除内嵌边框，让编辑区直接和面板融为一体 */
   .composer-editor :deep(.vditor) {
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    border-top: 1px solid rgba(180, 150, 120, 0.15) !important;
-    border-bottom: 1px solid rgba(180, 150, 120, 0.15) !important;
   }
   .composer-editor:focus-within :deep(.vditor) {
     box-shadow: none !important;
   }
   .composer-editor :deep(.vditor-toolbar) {
-    padding: 4px 10px !important;
+    padding: 4px 0 !important;
+    border-bottom: 1px solid rgba(180, 150, 120, 0.1) !important;
+    background: transparent !important;
+  }
+  .composer-editor :deep(.vditor-content) {
+    background: transparent !important;
   }
   .composer-editor :deep(.vditor-ir) {
-    padding: 12px 14px !important;
+    padding: 12px 0 !important;
+    background: transparent !important;
+  }
+  .composer-editor :deep(.vditor-counter) {
+    left: 0 !important;
   }
 }
 
