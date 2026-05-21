@@ -32,6 +32,10 @@
       @resonate="(d: Diary) => store.resonate(d.id)"
       @open-detail="(d: Diary) => router.push(`/diary/${d.id}`)"
     />
+
+    <router-link to="/task-center" class="task-fab" title="任务中心">
+      <span class="task-fab-icon">📋</span>
+    </router-link>
   </main>
 </template>
 
@@ -53,4 +57,47 @@ onMounted(async () => {
 })
 
 </script>
+
+<style scoped>
+.task-fab {
+  position: fixed;
+  right: max(20px, calc((100vw - 1080px) / 2 + 20px));
+  bottom: 112px;
+  z-index: 8000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--color-primary) 36%, transparent 64%);
+  text-decoration: none;
+  transition: transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);
+}
+
+.task-fab:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 28px color-mix(in srgb, var(--color-primary) 44%, transparent 56%);
+}
+
+.task-fab:active {
+  transform: scale(0.95);
+}
+
+.task-fab-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+@media (max-width: 780px) {
+  .task-fab {
+    right: 16px;
+    bottom: 108px;
+    width: 46px;
+    height: 46px;
+  }
+}
+</style>
 

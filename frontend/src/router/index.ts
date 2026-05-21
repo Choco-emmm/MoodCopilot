@@ -68,6 +68,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/task-center',
+      name: 'task-center',
+      component: () => import('../pages/TaskCenterPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/support',
       name: 'support',
       component: () => import('../pages/SupportPage.vue'),

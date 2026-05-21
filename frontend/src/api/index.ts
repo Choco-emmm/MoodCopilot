@@ -127,6 +127,34 @@ export const growthApi = {
   status: () => api.get('/growth/status'),
   checkins: () => api.get('/growth/checkins'),
   progress: () => api.get('/growth/progress'),
+  /** 签到状态（扁平契约，后端高吞吐存储方案就绪后切换到此接口） */
+  checkInStatus: () => api.get('/growth/checkin-status'),
+}
+
+/** 签到状态扁平契约，待后端对齐 */
+export interface CheckInStatus {
+  continuousDays: number
+  currentMonthTotal: number
+  todaySigned: boolean
+  nextExpReward: number
+}
+
+/** 每日任务条目 */
+export interface DailyTaskItem {
+  label: string
+  field: string
+  current: number
+  max: number
+  expPerAction: number
+}
+
+export const taskApi = {
+  /** 获取今日任务进度 */
+  progress: () => api.get('/growth/progress'),
+  /** 签到 */
+  checkIn: () => api.post('/growth/checkin'),
+  /** 签到状态（后续切换为新契约） */
+  checkInStatus: () => api.get('/growth/checkin-status'),
 }
 
 export const followApi = {
