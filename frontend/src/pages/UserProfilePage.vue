@@ -259,11 +259,16 @@
         </section>
 
         <section class="settings-section">
-          <div class="section-head">
-            <p class="settings-label">我的记忆</p>
-            <span class="section-tag">Memory</span>
+          <div class="section-head" style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <p class="settings-label">我的记忆</p>
+              <span class="section-tag">Memory</span>
+            </div>
+            <n-button size="tiny" secondary type="primary" :loading="consolidatingMemory" @click="consolidateMemories">
+              ✨ 智能整理记忆
+            </n-button>
           </div>
-          <p class="memory-desc">MoodCopilot 从你的日记和聊天中学习的长期画像，你可以编辑修正或删除不想要的部分。</p>
+          <p class="memory-desc">MoodCopilot 从你的日记和聊天中学习的长期画像，你可以编辑修正或删除不想要的部分。如果碎片太多，可以尝试智能整理归并。</p>
           <div v-if="memoriesLoading" class="memory-loading">加载中...</div>
           <div v-else-if="memories.length === 0" class="memory-empty">
             MoodCopilot 正在默默观察你，多写点日记或和 AI 聊天吧。
@@ -472,6 +477,7 @@ interface MemoryItem {
 
 const memories = ref<MemoryItem[]>([])
 const memoriesLoading = ref(false)
+const consolidatingMemory = ref(false)
 const deletingMemoryId = ref<number | null>(null)
 const editingMemoryId = ref<number | null>(null)
 const editingMemoryValue = ref('')
@@ -750,6 +756,20 @@ async function saveMemory(id: number) {
 function cancelEditMemory() {
   editingMemoryId.value = null
   editingMemoryValue.value = ''
+}
+
+async function consolidateMemories() {
+  if (consolidatingMemory.value) return
+  consolidatingMemory.value = true
+  try {
+    await memoryApi.consolidate()
+    await loadMemories()
+    window.$message?.success('记忆碎片整理完成')
+  } catch (err) {
+    console.error('Failed to consolidate memories', err)
+  } finally {
+    consolidatingMemory.value = false
+  }
 }
 
 function triggerUpload() {
