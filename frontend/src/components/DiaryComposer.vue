@@ -230,7 +230,11 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  vditorInst.value?.destroy()
+  try {
+    vditorInst.value?.destroy()
+  } catch (e) {
+    console.warn('Vditor destory error ignored:', e)
+  }
 })
 
 // 粘贴/输入音乐链接后自动解析，无需手动 Enter
