@@ -233,16 +233,23 @@ public class UserGrowthService {
 
     private String buildLevelUpMessage(int level, UserEntity user) {
         int chatLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.CHAT, level, false);
+        int analysisLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.ANALYSIS, level, false);
+        int reasoningLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.REASONING, level, false);
         int resonanceLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.RESONANCE, level, false);
+        int reportLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.REPORT, level, false);
+        int imageUploadLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.IMAGE_UPLOAD, level, false);
 
         StringBuilder sb = new StringBuilder();
         sb.append("🎉 恭喜升级！你已达到 **Lv.").append(level).append("**\n\n");
-        sb.append("- 每日聊天次数：**").append(chatLimit).append("** 次\n");
+        sb.append("- AI 聊天：**").append(chatLimit).append("** 次/天\n");
+        sb.append("- AI 分析：**").append(analysisLimit).append("** 次/天\n");
+        sb.append("- AI 深度思考：**").append(reasoningLimit).append("** 次/天\n");
         if (resonanceLimit > 0) {
-            sb.append("- 已解锁共鸣检索功能（").append(resonanceLimit).append("次/天）\n");
+            sb.append("- 共鸣检索：**").append(resonanceLimit).append("** 次/天\n");
         }
-        if (level >= 6) {
-            sb.append("- 报告生成已解锁无限额度\n");
+        sb.append("- 图片上传：**").append(imageUploadLimit).append("** 次/天\n");
+        if (reportLimit > 0) {
+            sb.append("- 报告生成：**").append(reportLimit).append("** 次/月\n");
         }
         sb.append("\n继续记录心情，解锁更多能力～");
         return sb.toString();
