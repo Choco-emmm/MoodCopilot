@@ -46,7 +46,7 @@
                 <li>图片上传：{{ formatQuota(quotas.IMAGE_UPLOAD, levelQuotaMax.imageUpload) }}</li>
                 <li>报告：{{ formatQuota(quotas.REPORT, levelQuotaMax.report) }}</li>
               </ul>
-              <p style="margin: 8px 0 0; font-size: 11px; color: #888;">聊天 / 分析 / 思考 / 检索 / 传图 每日 0 点重置，报告每月重置</p>
+              <p style="margin: 8px 0 0; font-size: 11px; color: #888;">AI 聊天 / AI 分析 / 思考 / 检索 / 传图 每日 0 点重置，报告每月重置</p>
               <p style="margin: 6px 0 0; font-size: 12px;">
                 <a href="#" @click.prevent="openQuotaTable" style="color: var(--color-jade); font-weight: 600; text-decoration: none;">查看完整配额表 →</a>
               </p>
@@ -111,8 +111,8 @@
             <thead>
               <tr>
                 <th>身份 / 等级</th>
-                <th>聊天 <span class="quota-unit">/天</span></th>
-                <th>分析 <span class="quota-unit">/天</span></th>
+                <th>AI 聊天 <span class="quota-unit">/天</span></th>
+                <th>AI 分析 <span class="quota-unit">/天</span></th>
                 <th>深度思考 <span class="quota-unit">/天</span></th>
                 <th>共鸣检索 <span class="quota-unit">/天</span></th>
                 <th>图片上传 <span class="quota-unit">/天</span></th>
@@ -132,7 +132,7 @@
             </tbody>
           </table>
         </div>
-        <p class="quota-modal-footer">聊天 / 分析 / 思考 / 检索 / 传图每日 0 点重置 · 报告每月 1 日重置 · Lv.6 报告无上限</p>
+        <p class="quota-modal-footer">AI 聊天 / AI 分析 / 思考 / 检索 / 传图 每日 0 点重置 · 报告每月 1 日重置 · Lv.6 报告无上限</p>
       </div>
     </div>
   </Teleport>
