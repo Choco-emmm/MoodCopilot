@@ -2,7 +2,12 @@
   <n-config-provider :theme-overrides="themeOverrides">
     <n-message-provider>
       <MessageEnvironment />
-      <router-view />
+      <router-view v-slot="{ Component, route }">
+        <keep-alive>
+          <component :is="Component" v-if="route.meta.keepAlive" :key="route.name" />
+        </keep-alive>
+        <component :is="Component" v-if="!route.meta.keepAlive" :key="route.fullPath" />
+      </router-view>
 
       <n-modal :show="store.showGlobalAnalysisModal" :mask-closable="false" @update:show="onGlobalModalUpdate">
         <div class="analysis-modal">
@@ -38,15 +43,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { defineComponent } from 'vue'
 import { useMessage } from 'naive-ui'
 import { useDiaryStore } from './stores/diary'
+import { useAuthStore } from './stores/auth'
+import { useNotificationStore } from './stores/notification'
 import type { GlobalThemeOverrides } from 'naive-ui'
 
 const router = useRouter()
 const store = useDiaryStore()
+const authStore = useAuthStore()
+const notificationStore = useNotificationStore()
 
 const MessageEnvironment = defineComponent({
   setup() {
@@ -76,6 +85,18 @@ function moodTagType(mood: string) {
   const positive = ['喜悦', '期待', '兴奋', '自豪', '轻松', '平静', '感恩', '满足']
   return positive.includes(mood) ? 'success' as const : 'warning' as const
 }
+
+watch(() => authStore.token, (newToken, oldToken) => {
+  if (newToken) {
+    if (newToken !== oldToken) {
+      notificationStore.disconnectRealtime()
+      notificationStore.fetchUnreadCount()
+      notificationStore.connectRealtime()
+    }
+  } else {
+    notificationStore.disconnectRealtime()
+  }
+})
 
 const themeOverrides: GlobalThemeOverrides = {
   common: {
