@@ -71,21 +71,31 @@ public class MemoryConsolidationService {
     public void consolidateCurrentUserMemories() {
         Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof com.moodcopilot.entity.UserEntity user) {
-            consolidateUserMemories(user.getId());
+            consolidateUserMemories(user);
         } else {
             throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "用户未登录");
         }
     }
 
-    public void consolidateUserMemories(Long userId) {
-        String today = java.time.LocalDate.now().toString();
-        String redisKey = "memory:consolidate:count:" + userId + ":" + today;
-        Long count = redisTemplate.opsForValue().increment(redisKey);
-        if (count != null && count == 1) {
-            redisTemplate.expire(redisKey, java.time.Duration.ofDays(1));
-        }
-        if (count != null && count > 2) {
-            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行两次智能整理");
+    public void consolidateUserMemories(com.moodcopilot.entity.UserEntity user) {
+        Long userId = user.getId();
+        
+        boolean isUnlimited = "ADMIN".equals(user.getRole());
+        // TODO: 之后为 PRO 用户放开无上限，框架预留如下：
+        // if (user.getProExpireTime() != null && user.getProExpireTime().isAfter(java.time.LocalDateTime.now())) {
+        //     isUnlimited = true;
+        // }
+        
+        if (!isUnlimited) {
+            String today = java.time.LocalDate.now().toString();
+            String redisKey = "memory:consolidate:count:" + userId + ":" + today;
+            Long count = redisTemplate.opsForValue().increment(redisKey);
+            if (count != null && count == 1) {
+                redisTemplate.expire(redisKey, java.time.Duration.ofDays(1));
+            }
+            if (count != null && count > 2) {
+                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行两次智能整理");
+            }
         }
 
         List<UserProfileMemoryEntity> existing = memoryExtractionService.listUserMemories(userId);
