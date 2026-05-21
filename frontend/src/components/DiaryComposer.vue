@@ -360,6 +360,12 @@ async function handleSave() {
   position: relative;
 }
 
+@media (max-width: 780px) {
+  .composer-editor {
+    height: 50vh;
+  }
+}
+
 .composer-editor :deep(.vditor) {
   position: relative !important;
   border: 1px solid rgba(180, 150, 120, 0.25) !important;
@@ -397,7 +403,7 @@ async function handleSave() {
 }
 
 .composer-editor :deep(.vditor-ir) {
-  padding: 20px 24px !important;
+  padding: 16px 20px !important;
 }
 
 .composer-editor :deep(.vditor-toolbar__item > button) {
@@ -454,6 +460,12 @@ async function handleSave() {
     flex-shrink: 0 !important;
     display: inline-flex !important;
   }
+  .composer-editor :deep(.vditor-toolbar) {
+    padding: 4px 10px !important;
+  }
+  .composer-editor :deep(.vditor-ir) {
+    padding: 12px 14px !important;
+  }
 }
 
 .composer-toggles {
@@ -488,6 +500,12 @@ async function handleSave() {
   color: #4d5f54;
   font-size: 12px;
   line-height: 1.7;
+}
+
+@media (max-width: 780px) {
+  .composer-hint {
+    display: none;
+  }
 }
 
 .composer-toolbar {
