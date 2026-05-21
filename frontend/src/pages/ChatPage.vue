@@ -66,7 +66,13 @@
             :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
           >
             <template v-if="msg.role === 'ai'">
-              <div class="md-content" v-html="renderMd(msg.content)" />
+              <template v-if="parseThink(msg.content).think">
+                <details class="think-block">
+                  <summary>思考过程</summary>
+                  <div class="think-content md-content" v-html="renderMd(parseThink(msg.content).think)"></div>
+                </details>
+              </template>
+              <div v-if="parseThink(msg.content).text" class="md-content" v-html="renderMd(parseThink(msg.content).text)" />
               <!-- AI 引用面板 -->
               <div v-if="msg.ragReferences?.length" class="rag-refs-panel">
                 <button class="rag-refs-toggle" @click="toggleMsgRefs(msg.id)">
@@ -131,7 +137,13 @@
 
           <!-- 流式回复中的引用面板和文本（合并到同一个气泡中） -->
           <div v-if="streaming && (streamingText || streamingRefs.length)" class="chat-bubble chat-ai">
-            <div v-if="streamingText" class="md-content streaming-md" v-html="renderMd(streamingText)" />
+            <template v-if="parseThink(streamingText).think">
+              <details class="think-block" :open="isThinkExpanded" @toggle="e => isThinkExpanded = (e.target as HTMLDetailsElement).open">
+                <summary>思考过程<span class="typing-dots" v-if="!parseThink(streamingText).text"></span></summary>
+                <div class="think-content md-content" v-html="renderStreamingMd(parseThink(streamingText).think, !parseThink(streamingText).text)"></div>
+              </details>
+            </template>
+            <div v-if="parseThink(streamingText).text" class="md-content streaming-md" v-html="renderStreamingMd(parseThink(streamingText).text, true)" />
             
             <div v-if="streamingRefs.length" class="rag-refs-panel">
               <button class="rag-refs-toggle" @click="showStreamingRefs = !showStreamingRefs">
@@ -254,6 +266,32 @@ function renderMd(text: string) {
   cached = renderSafeMarkdown(text)
   mdCache.set(text, cached)
   return cached
+}
+
+function parseThink(content: string) {
+  if (!content) return { think: '', text: '' }
+  const thinkStart = content.indexOf('<think>')
+  if (thinkStart === -1) return { think: '', text: content }
+  
+  const thinkEnd = content.indexOf('</think>', thinkStart)
+  if (thinkEnd === -1) {
+    return {
+      think: content.substring(thinkStart + 7),
+      text: content.substring(0, thinkStart)
+    }
+  }
+  
+  return {
+    think: content.substring(thinkStart + 7, thinkEnd),
+    text: content.substring(0, thinkStart) + content.substring(thinkEnd + 8)
+  }
+}
+
+const isThinkExpanded = ref(false)
+
+function renderStreamingMd(text: string, showCursor: boolean) {
+  const processed = showCursor ? text + '<span class="streaming-cursor">▋</span>' : text
+  return renderMd(processed)
 }
 
 const conversations = ref<Conversation[]>([])
@@ -598,6 +636,8 @@ async function send() {
 
   lastReplyError.value = null
   lastReplyRequest.value = null
+  isThinkExpanded.value = false
+
   const refContents = references.value.slice(0, 2).map(r => r.fullContent || r.content)
   messages.value.push({ id: nextMsgId(), role: 'user', content, references: refContents.length ? refContents : undefined })
   saveToBackend(convId).catch(() => {})
@@ -919,32 +959,15 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 }
 
 /* 流式输出光标 */
-.md-content.streaming-md :deep(*:last-child)::after {
-  content: '▋';
-  animation: blink 1s step-end infinite;
-  display: inline-block;
-  vertical-align: baseline;
-  margin-left: 4px;
+.streaming-cursor {
+  animation: cursor-blink 1s step-end infinite;
   color: var(--color-primary);
-}
-
-/* 思考过程不需要绿色光标 */
-.md-content.streaming-md :deep(.think-block)::after,
-.md-content.streaming-md :deep(.think-content *:last-child)::after {
-  display: none !important;
-}
-
-/* 如果没有任何子元素（如纯文本），通过 ::after 补充 */
-.md-content.streaming-md::after {
-  content: '▋';
-  animation: blink 1s step-end infinite;
-  display: inline-block;
+  margin-left: 2px;
   vertical-align: baseline;
-  margin-left: 4px;
-  color: var(--color-primary);
 }
-.md-content.streaming-md :deep(*) ~ ::after {
-  display: none; /* 避免同时出现两个光标 */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 @keyframes blink {

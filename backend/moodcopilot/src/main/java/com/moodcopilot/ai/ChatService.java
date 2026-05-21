@@ -221,6 +221,9 @@ public class ChatService {
         // 捕获当前 SecurityContext，通过 Reactor Context 传递给 Function Calling 的异步回调线程
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity user = currentUser();
+        long uid = ((UserEntity) auth.getPrincipal()).getId();
+        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
+
         if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
             boolean useReasoning = false;
             try {
@@ -233,7 +236,7 @@ public class ChatService {
                 log.info("聊天路由结果：reasoning（流式），conversationId={}，messageLength={}", conversationId,
                         message == null ? 0 : message.length());
                 userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
-                return new ChatStreamContext("", callReasoningModelStream(request, message, auth, conversationId));
+                return new ChatStreamContext(ragCtx, callReasoningModelStream(request, message, auth, conversationId, ragCtx));
             }
         }
 
@@ -242,8 +245,6 @@ public class ChatService {
         rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT);
         userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
 
-        long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
         Sinks.Many<String> sseSink = Sinks.many().unicast().onBackpressureBuffer();
 
         Flux<String> stream = chatChatClient.prompt()
@@ -283,6 +284,9 @@ public class ChatService {
         ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity user = currentUser();
+        long uid = ((UserEntity) auth.getPrincipal()).getId();
+        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
+
         if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
             boolean useReasoning = false;
             try {
@@ -295,7 +299,7 @@ public class ChatService {
                 log.info("非流式聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
                         message == null ? 0 : message.length());
                 userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
-                return callReasoningModel(request, message, auth, conversationId);
+                return callReasoningModel(request, message, auth, conversationId, ragCtx);
             }
         }
 
@@ -304,8 +308,6 @@ public class ChatService {
         rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT);
         userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
 
-        long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
         String result = chatChatClient.prompt()
                 .user(message)
                 .system(s -> {
@@ -404,7 +406,7 @@ public class ChatService {
         return chatIntentRouter.shouldUseReasoning(message, refs, memoryBackground, conversationId);
     }
 
-    private List<Map<String, Object>> buildMessagesForReasoner(ChatRequest request, String message, Authentication auth) {
+    private List<Map<String, Object>> buildMessagesForReasoner(ChatRequest request, String message, Authentication auth, String ragCtx) {
         List<Map<String, Object>> msgs = new ArrayList<>();
         StringBuilder sys = new StringBuilder();
         sys.append(AGENT_TOOLS_PROMPT).append("\n\n");
@@ -415,6 +417,9 @@ public class ChatService {
             sys.append("<conversation_summary>\n")
                .append(request.summary())
                .append("\n</conversation_summary>\n\n");
+        }
+        if (ragCtx != null && !ragCtx.isBlank()) {
+            sys.append(ragCtx).append("\n");
         }
         sys.append(buildReasoningDataContext(auth)).append("\n").append(buildTimeMetadata());
         
@@ -438,16 +443,16 @@ public class ChatService {
         return msgs;
     }
 
-    private String callReasoningModel(ChatRequest request, String message, Authentication auth, long conversationId) {
+    private String callReasoningModel(ChatRequest request, String message, Authentication auth, long conversationId, String ragCtx) {
         log.info("调用思考模型分支（原生 WebClient），messageLength={}", message == null ? 0 : message.length());
-        List<Map<String, Object>> msgs = buildMessagesForReasoner(request, message, auth);
+        List<Map<String, Object>> msgs = buildMessagesForReasoner(request, message, auth, ragCtx);
         return deepSeekClient.streamReasoner(msgs).reduce(String::concat).block();
     }
 
     private Flux<String> callReasoningModelStream(ChatRequest request, String message, Authentication auth,
-            long conversationId) {
+            long conversationId, String ragCtx) {
         log.info("调用思考模型分支（流式原生 WebClient），messageLength={}", message == null ? 0 : message.length());
-        List<Map<String, Object>> msgs = buildMessagesForReasoner(request, message, auth);
+        List<Map<String, Object>> msgs = buildMessagesForReasoner(request, message, auth, ragCtx);
         return deepSeekClient.streamReasoner(msgs);
     }
 
