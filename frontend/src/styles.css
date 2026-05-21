@@ -3188,6 +3188,11 @@ h3 {
     min-height: 0;
     padding-bottom: 0;
     grid-template-rows: auto 1fr auto;
+    gap: 8px;
+  }
+
+  .chat-shell .mobile-bottom-nav {
+    box-shadow: 0 -2px 10px rgba(28, 25, 21, 0.03);
   }
 
   .chat-messages {
