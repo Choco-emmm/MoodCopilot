@@ -11,9 +11,9 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'square',
+      name: 'Square',
       component: () => import('../pages/SquarePage.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, keepAlive: true },
     },
     {
       path: '/write',
@@ -45,15 +45,15 @@ const router = createRouter({
     },
     {
       path: '/following',
-      name: 'following',
+      name: 'Following',
       component: () => import('../pages/FollowingPage.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, keepAlive: true },
     },
     {
       path: '/notifications',
-      name: 'notifications',
+      name: 'Notifications',
       component: () => import('../pages/NotificationPage.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, keepAlive: true },
     },
     {
       path: '/diary/:id',
@@ -86,6 +86,12 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresAdmin: true },
     },
   ],
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    }
+    return { top: 0 }
+  },
 })
 
 router.beforeEach((to, _from, next) => {
