@@ -474,6 +474,10 @@ public class RagMemoryService {
                 case SOURCE_MUSIC -> {
                     sb.append("<context_item type=\"music_resonance\" diary_id=\"").append(hit.diaryId())
                       .append("\" date=\"").append(dateStr).append("\">\n");
+                    if (diary.getContent() != null) {
+                        sb.append("  <diary_content>").append(escapeXml(truncate(diary.getContent(), 500)))
+                          .append("</diary_content>\n");
+                    }
                     MusicMeta music = diary.getMusicMeta();
                     if (music != null) {
                         sb.append("  <music_meta>歌曲: ").append(escapeXml(music.getTitle()))
@@ -482,27 +486,27 @@ public class RagMemoryService {
                             sb.append(", 歌词: ").append(escapeXml(music.getUserLyric()));
                         }
                         sb.append("</music_meta>\n");
-                    }
-                    if (diary.getContent() != null) {
-                        sb.append("  <diary_content>").append(escapeXml(truncate(diary.getContent(), 500)))
-                          .append("</diary_content>\n");
                     }
                     sb.append("</context_item>\n");
                 }
                 case SOURCE_IMAGE -> {
                     sb.append("<context_item type=\"image_memory\" diary_id=\"").append(hit.diaryId())
                       .append("\" date=\"").append(dateStr).append("\">\n");
-                    sb.append("  <image_description>").append(escapeXml(truncate(hit.content(), 500)))
-                      .append("</image_description>\n");
                     if (diary.getContent() != null) {
                         sb.append("  <diary_content>").append(escapeXml(truncate(diary.getContent(), 500)))
                           .append("</diary_content>\n");
                     }
+                    sb.append("  <image_description>").append(escapeXml(truncate(hit.content(), 500)))
+                      .append("</image_description>\n");
                     sb.append("</context_item>\n");
                 }
                 default -> {
                     sb.append("<context_item type=\"text_memory\" diary_id=\"").append(hit.diaryId())
                       .append("\" date=\"").append(dateStr).append("\">\n");
+                    if (diary.getContent() != null) {
+                        sb.append("  <diary_content>").append(escapeXml(truncate(diary.getContent(), 500)))
+                          .append("</diary_content>\n");
+                    }
                     MusicMeta music = diary.getMusicMeta();
                     if (music != null) {
                         sb.append("  <music_meta>歌曲: ").append(escapeXml(music.getTitle()))
@@ -511,10 +515,6 @@ public class RagMemoryService {
                             sb.append(", 歌词: ").append(escapeXml(music.getUserLyric()));
                         }
                         sb.append("</music_meta>\n");
-                    }
-                    if (diary.getContent() != null) {
-                        sb.append("  <diary_content>").append(escapeXml(truncate(diary.getContent(), 500)))
-                          .append("</diary_content>\n");
                     }
                     sb.append("</context_item>\n");
                 }
