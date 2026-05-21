@@ -2914,12 +2914,21 @@ h3 {
   }
 
   .composer {
-    gap: 16px;
-    padding: 20px;
+    gap: 12px;
+    padding: 14px;
   }
 
   .composer .section-title {
-    gap: 12px;
+    gap: 8px;
+  }
+
+  .composer .section-title h2 {
+    font-size: 18px;
+  }
+
+  .composer .eyebrow {
+    font-size: 11px;
+    margin-bottom: 0;
   }
 
   .composer-actions .n-button {
