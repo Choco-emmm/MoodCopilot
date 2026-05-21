@@ -101,7 +101,7 @@
           </div>
 
           <!-- RAG 引用折叠面板 -->
-          <div v-if="streaming && ragReferences.length" class="rag-refs-panel">
+          <div v-if="ragReferences.length" class="rag-refs-panel">
             <button class="rag-refs-toggle" @click="showReferences = !showReferences">
               <span class="rag-refs-icon">🔍</span>
               <span>参考了你的 {{ ragReferences.length }} 条记忆</span>
