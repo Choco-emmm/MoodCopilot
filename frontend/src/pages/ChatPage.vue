@@ -1125,7 +1125,10 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   color: var(--color-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-height: 1.4;
   min-width: 0;
 }
 
