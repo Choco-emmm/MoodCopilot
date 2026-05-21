@@ -409,14 +409,26 @@ async function handleSave() {
     display: flex !important;
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
     max-width: 100% !important;
     width: 100% !important;
     box-sizing: border-box !important;
+    touch-action: pan-x !important;
+    white-space: nowrap !important;
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(180, 150, 120, 0.3) transparent !important;
   }
   .composer-editor :deep(.vditor-toolbar::-webkit-scrollbar) {
-    display: none;
+    height: 4px !important;
+    display: block !important;
+  }
+  .composer-editor :deep(.vditor-toolbar::-webkit-scrollbar-thumb) {
+    background: rgba(180, 150, 120, 0.3) !important;
+    border-radius: 2px !important;
+  }
+  .composer-editor :deep(.vditor-toolbar::-webkit-scrollbar-track) {
+    background: transparent !important;
   }
   .composer-editor :deep(.vditor-toolbar__item) {
     flex-shrink: 0 !important;
