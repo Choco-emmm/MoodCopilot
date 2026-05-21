@@ -118,20 +118,22 @@
           <div class="settings-row">
             <n-input
               v-model:value="editingName"
-              :disabled="savingName"
+              :disabled="savingName || auth.remainingNameChanges <= 0"
+              :maxlength="64"
               placeholder="输入新用户名"
               @keyup.enter="saveName"
             />
             <n-button
               size="small"
               type="primary"
-              :disabled="!editingName.trim() || editingName === auth.displayName || savingName"
+              :disabled="!editingName.trim() || editingName === auth.displayName || savingName || auth.remainingNameChanges <= 0"
               @click="saveName"
               class="save-btn"
             >
               保存
             </n-button>
           </div>
+          <p class="settings-hint">本周剩余修改次数：{{ auth.remainingNameChanges }}</p>
           <p v-if="nameMsg" class="settings-hint">{{ nameMsg }}</p>
         </section>
 
@@ -814,8 +816,11 @@ async function saveName() {
       profileName.value = auth.displayName || '我'
     }
     nameMsg.value = '用户名已更新'
-  } catch {
-    nameMsg.value = '保存失败'
+    editingName.value = auth.displayName ?? ''
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || e?.message || ''
+    if (msg) nameMsg.value = msg
+    else nameMsg.value = '保存失败'
   } finally {
     savingName.value = false
   }
