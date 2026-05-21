@@ -49,9 +49,78 @@
 
     <section class="panel profile-list-panel">
       <div class="profile-list-head">
-        <h3>日记列表</h3>
-        <n-button quaternary size="small" :loading="loading" @click="reload">刷新</n-button>
+        <h3>{{ isSearching ? '搜索结果' : '日记列表' }}</h3>
+        <div class="profile-list-actions" style="display: flex; align-items: center; gap: 8px;">
+          <n-button v-if="isSearching" text type="warning" size="small" @click="clearSearch" style="margin-right: 4px;">清除搜索</n-button>
+          <n-button
+            v-if="isOwner"
+            quaternary
+            circle
+            size="small"
+            :type="showSearchPanel ? 'primary' : 'default'"
+            @click="showSearchPanel = !showSearchPanel"
+            title="搜索日记"
+            style="font-size: 14px;"
+          >
+            🔍
+          </n-button>
+          <n-button quaternary size="small" :loading="loading" @click="reload">刷新</n-button>
+        </div>
       </div>
+
+      <!-- 搜索卡片面板 -->
+      <transition name="fade-slide">
+        <div v-if="isOwner && showSearchPanel" class="search-panel-card">
+          <div class="search-grid">
+            <div class="search-field keyword-field">
+              <label class="field-label">关键词</label>
+              <n-input
+                v-model:value="keyword"
+                placeholder="搜索日记内容…"
+                clearable
+                @keyup.enter="triggerSearch"
+              />
+            </div>
+            <div class="search-field">
+              <label class="field-label">起始日期</label>
+              <n-date-picker
+                v-model:value="startDateVal"
+                type="date"
+                clearable
+                placeholder="不限"
+                :is-date-disabled="dateDisabled"
+                style="width: 100%;"
+              />
+            </div>
+            <div class="search-field">
+              <label class="field-label">结束日期</label>
+              <n-date-picker
+                v-model:value="endDateVal"
+                type="date"
+                clearable
+                placeholder="不限"
+                style="width: 100%;"
+              />
+            </div>
+            <div class="search-field">
+              <label class="field-label">公开范围</label>
+              <n-select
+                v-model:value="visibilityFilter"
+                :options="visibilityOpts"
+                placeholder="不限"
+                clearable
+                style="width: 100%;"
+              />
+            </div>
+          </div>
+          <div class="search-actions">
+            <n-button text class="clear-filters-btn" @click="clearFilters">清除筛选</n-button>
+            <div class="search-buttons-group">
+              <n-button type="primary" :loading="loading" @click="triggerSearch">搜索</n-button>
+            </div>
+          </div>
+        </div>
+      </transition>
 
       <div v-if="diaries.length" class="feed">
         <DiaryFeedItem
@@ -74,8 +143,8 @@
       </div>
 
       <div v-else-if="!loading" class="profile-empty-wrap">
-        <n-empty :description="isOwner ? '你还没有写日记' : '暂无公开日记'" />
-        <p class="profile-empty-tip">{{ isOwner ? '从一条简单记录开始，持续比完美更重要。' : '晚点再来看看，或先去广场看看大家的分享。' }}</p>
+        <n-empty :description="isSearching ? '未找到匹配的日记' : (isOwner ? '你还没有写日记' : '暂无公开日记')" />
+        <p class="profile-empty-tip">{{ isSearching ? '尝试缩短或修改搜索关键词、扩大时间范围' : (isOwner ? '从一条简单记录开始，持续比完美更重要。' : '晚点再来看看，或先去广场看看大家的分享。') }}</p>
       </div>
       <n-spin v-else size="small" />
     </section>
@@ -357,7 +426,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NButton, NEmpty, NInput, NModal, NSpin, NSwitch } from 'naive-ui'
+import { NButton, NEmpty, NInput, NModal, NSpin, NSwitch, NDatePicker, NSelect } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import DiaryFeedItem from '../components/DiaryFeedItem.vue'
 import { authApi, diaryApi, memoryApi } from '../api'
@@ -381,6 +450,17 @@ const profileAvatar = ref<string | null>(null)
 const profileSignature = ref('')
 const profileLoading = ref(true)
 const showSettingsModal = ref(false)
+
+const isSearching = ref(false)
+const showSearchPanel = ref(false)
+const keyword = ref('')
+const startDateVal = ref<number | null>(null)
+const endDateVal = ref<number | null>(null)
+const visibilityFilter = ref<string | null>(null)
+const visibilityOpts = [
+  { label: '仅自己看', value: 'PRIVATE' },
+  { label: '公开', value: 'PUBLIC' },
+]
 
 interface MemoryItem {
   id: number
@@ -493,6 +573,36 @@ watch(showCropModal, (val) => {
   }
 })
 
+function dateDisabled(ts: number) {
+  return ts > Date.now()
+}
+
+function fmtDate(d: number | null): string | undefined {
+  if (!d) return undefined
+  const date = new Date(d)
+  return date.getFullYear() + '-' +
+    String(date.getMonth() + 1).padStart(2, '0') + '-' +
+    String(date.getDate()).padStart(2, '0')
+}
+
+function triggerSearch() {
+  isSearching.value = true
+  void reload()
+}
+
+function clearFilters() {
+  keyword.value = ''
+  startDateVal.value = null
+  endDateVal.value = null
+  visibilityFilter.value = null
+}
+
+function clearSearch() {
+  clearFilters()
+  isSearching.value = false
+  void reload()
+}
+
 async function reload() {
   if (!Number.isFinite(profileUserId.value)) {
     diaries.value = []
@@ -504,22 +614,34 @@ async function reload() {
   profileLoading.value = true
   page.value = 1
   try {
-    const [profileRes, diaryRes] = await Promise.all([
-      authApi.profile(profileUserId.value),
-      isOwner.value ? diaryApi.mine(1, 20) : diaryApi.byUser(profileUserId.value, 1, 20),
-    ])
+    const profileRes = await authApi.profile(profileUserId.value)
     const profile = profileRes.data.data
     profileName.value = profile?.displayName || (isOwner.value ? auth.displayName || '我' : '用户')
     profileAvatar.value = profile?.avatar || (isOwner.value ? auth.avatar : null)
     profileSignature.value = profile?.signature || ''
 
-    const data = diaryRes.data.data
-    const items = (data.items ?? []).map(store.normalize)
-    diaries.value = items
-    total.value = data.total ?? items.length
-
     if (!isOwner.value) {
       void followStore.checkStatus(profileUserId.value)
+    }
+
+    if (isSearching.value) {
+      const res = await diaryApi.search({
+        keyword: keyword.value || undefined,
+        startDate: fmtDate(startDateVal.value),
+        endDate: fmtDate(endDateVal.value),
+        visibility: visibilityFilter.value || undefined,
+        page: 1,
+        size: 20,
+      })
+      const items = (res.data.data.items ?? []).map(store.normalize)
+      diaries.value = items
+      total.value = res.data.data.total ?? 0
+    } else {
+      const diaryRes = isOwner.value ? await diaryApi.mine(1, 20) : await diaryApi.byUser(profileUserId.value, 1, 20)
+      const data = diaryRes.data.data
+      const items = (data.items ?? []).map(store.normalize)
+      diaries.value = items
+      total.value = data.total ?? items.length
     }
   } finally {
     profileLoading.value = false
@@ -532,15 +654,31 @@ async function loadMore() {
   loadingMore.value = true
   try {
     const nextPage = page.value + 1
-    const res = isOwner.value
-      ? await diaryApi.mine(nextPage, 20)
-      : await diaryApi.byUser(profileUserId.value, nextPage, 20)
-    const data = res.data.data
-    const items = (data.items ?? []).map(store.normalize)
-    const existing = new Set(diaries.value.map(d => d.id))
-    diaries.value.push(...items.filter((item: Diary) => !existing.has(item.id)))
-    total.value = data.total ?? diaries.value.length
-    page.value = nextPage
+    if (isSearching.value) {
+      const res = await diaryApi.search({
+        keyword: keyword.value || undefined,
+        startDate: fmtDate(startDateVal.value),
+        endDate: fmtDate(endDateVal.value),
+        visibility: visibilityFilter.value || undefined,
+        page: nextPage,
+        size: 20,
+      })
+      const items = (res.data.data.items ?? []).map(store.normalize)
+      const existing = new Set(diaries.value.map(d => d.id))
+      diaries.value.push(...items.filter((item: Diary) => !existing.has(item.id)))
+      total.value = res.data.data.total ?? diaries.value.length
+      page.value = nextPage
+    } else {
+      const res = isOwner.value
+        ? await diaryApi.mine(nextPage, 20)
+        : await diaryApi.byUser(profileUserId.value, nextPage, 20)
+      const data = res.data.data
+      const items = (data.items ?? []).map(store.normalize)
+      const existing = new Set(diaries.value.map(d => d.id))
+      diaries.value.push(...items.filter((item: Diary) => !existing.has(item.id)))
+      total.value = data.total ?? diaries.value.length
+      page.value = nextPage
+    }
   } finally {
     loadingMore.value = false
   }
@@ -1374,6 +1512,56 @@ onBeforeUnmount(() => {
   font-size: 16px;
 }
 
+.search-panel-card {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--color-surface-soft);
+  border: 1px solid color-mix(in srgb, var(--color-border-strong) 15%, transparent 85%);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.search-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.search-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.search-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px dashed color-mix(in srgb, var(--color-border-strong) 25%, transparent 75%);
+  padding-top: 12px;
+}
+
+.clear-filters-btn {
+  font-size: 13px !important;
+  color: var(--color-text-muted) !important;
+}
+
+.clear-filters-btn:hover {
+  color: var(--color-accent) !important;
+}
+
+.search-buttons-group {
+  display: flex;
+  gap: 8px;
+}
+
 @media (max-width: 780px) {
   .profile-head,
   .profile-list-panel {
@@ -1445,5 +1633,22 @@ onBeforeUnmount(() => {
   .memory-actions {
     justify-content: flex-end;
   }
+
+  .search-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.25s var(--ease-out);
+}
+
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 </style>

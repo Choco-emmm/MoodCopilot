@@ -1,5 +1,5 @@
 <template>
-  <n-config-provider :theme-overrides="themeOverrides">
+  <n-config-provider :theme-overrides="themeOverrides" :locale="zhCN" :date-locale="dateZhCN">
     <n-message-provider>
       <MessageEnvironment />
       <router-view v-slot="{ Component, route }">
@@ -46,7 +46,7 @@
 import { computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { defineComponent } from 'vue'
-import { useMessage } from 'naive-ui'
+import { useMessage, zhCN, dateZhCN } from 'naive-ui'
 import { useDiaryStore } from './stores/diary'
 import { useAuthStore } from './stores/auth'
 import { useNotificationStore } from './stores/notification'

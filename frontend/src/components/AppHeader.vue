@@ -230,7 +230,6 @@ const navItems = computed(() => {
     { label: 'MoodCopilot', shortLabel: 'AI', icon: '◌', path: '/chat', cls: 'nav-link-ai' },
     { label: '关注', shortLabel: '关注', icon: '◎', path: '/following' },
     { label: '报告', shortLabel: '报告', icon: '▥', path: '/report' },
-    { label: '搜索', shortLabel: '搜索', icon: '⌕', path: '/search' },
   ]
   if (auth.isAdmin) {
     items.push({ label: '审核', shortLabel: '审核', icon: '!', path: '/admin/reports' })

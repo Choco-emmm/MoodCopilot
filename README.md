@@ -2,7 +2,7 @@
   <img src="./docs/logo.svg" alt="MoodCopilot" width="120" />
 </p>
 
-<h1 align="center">MoodCopilot (情绪副驾)</h1>
+<h1 align="center">MoodCopilot</h1>
 
 <p align="center">
   <strong>🫂 温暖、共情、懂你的开源 AI 情绪伙伴</strong><br />
@@ -18,7 +18,7 @@
 </p>
 
 <h3 align="center">
-  👉 <a href="https://moodcopilot.dpdns.org/">正式上线，点此开始记录 (Production Ready)</a> 👈
+  👉 <a href="https://moodcopilot.dpdns.org/">正式上线，点此开始记录 </a> 👈
 </h3>
 
 ---
@@ -146,6 +146,8 @@ MoodCopilot/
 
 MoodCopilot 正在快速迭代中，目前只有我（网名：自由基）一个人在“用爱发电”，你的想法对我真的很重要！
 
+- **加入 QQ 交流群**：欢迎加入我们的 QQ 群探讨需求和技术，群号：**1094722984**。
+  <br><img src="./docs/qq_group.jpg" alt="QQ群二维码" width="200" />
 - **期待种子用户**：快来体验吧！如果你在使用中觉得“这功能懂我！”，或者是遇到了反人类的 Bug，请毫不犹豫地提 Issue 告诉我！
 - **寻找开源贡献者**：我非常渴望收到你的 Pull Request！你想加入语音日记功能？你想优化 RAG 的召回率？你想写个更炫酷的 UI？一起来折腾吧！
     1. Fork 本仓库并 `git clone` 到本地
