@@ -379,6 +379,7 @@ async function handleSave() {
 }
 
 .composer-editor :deep(.vditor-counter) {
+  position: absolute !important;
   left: 12px !important;
   right: auto !important;
   bottom: 8px !important;
@@ -386,12 +387,15 @@ async function handleSave() {
   background: transparent !important;
   color: #a09080 !important;
   font-size: 12px;
+  pointer-events: none;
+  z-index: 10;
 }
 
 @media (max-width: 780px) {
   .composer-editor :deep(.vditor-toolbar) {
+    display: flex !important;
     flex-wrap: nowrap !important;
-    overflow-x: auto;
+    overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
@@ -399,7 +403,8 @@ async function handleSave() {
     display: none;
   }
   .composer-editor :deep(.vditor-toolbar__item) {
-    flex-shrink: 0;
+    flex-shrink: 0 !important;
+    display: inline-flex !important;
   }
 }
 
