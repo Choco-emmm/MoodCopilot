@@ -372,7 +372,7 @@ async function handleSave() {
   position: relative !important;
   border: 1px solid rgba(180, 150, 120, 0.25) !important;
   border-radius: var(--radius-md, 8px);
-  overflow: hidden;
+  /* overflow: hidden; 移除，防止遮挡 toolbar 的 tooltip */
   --vditor-toolbar-background-color: #fdfcf8;
   --vditor-toolbar-border-color: rgba(180, 150, 120, 0.15);
   width: 100% !important;
