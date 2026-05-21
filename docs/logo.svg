@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4a7c62;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6a9c82;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="58" fill="url(#g)" />
+  <!-- simplified mood face -->
+  <circle cx="42" cy="48" r="5" fill="#fdfbf7" />
+  <circle cx="78" cy="48" r="5" fill="#fdfbf7" />
+  <path d="M40 72 Q60 90 80 72" stroke="#fdfbf7" stroke-width="3.5" fill="none" stroke-linecap="round" />
+  <!-- heart accent -->
+  <text x="60" y="100" text-anchor="middle" font-size="18" fill="#fdfbf7" opacity="0.6">❤</text>
+</svg>
