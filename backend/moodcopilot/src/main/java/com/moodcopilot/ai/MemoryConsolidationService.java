@@ -160,8 +160,8 @@ public class MemoryConsolidationService {
             ragMemoryService.indexUserProfile(userId, latest);
 
         } catch (Exception e) {
-            log.error("整合用户 {} 画像失败: {}", userId, e.getMessage(), e);
-            throw new RuntimeException("整合画像失败", e);
+            log.error("整合用户 {} 画像失败: {}", userId, e.getMessage());
+            // Do not throw so we don't crash the calling thread
         }
     }
 
