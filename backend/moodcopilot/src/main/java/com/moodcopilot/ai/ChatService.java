@@ -236,7 +236,7 @@ public class ChatService {
         userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE);
+        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
         return chatChatClient.prompt()
                 .user(message)
                 .system(s -> {
@@ -287,7 +287,7 @@ public class ChatService {
         userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
 
         long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE);
+        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
         String result = chatChatClient.prompt()
                 .user(message)
                 .system(s -> {
@@ -392,7 +392,7 @@ public class ChatService {
             String enhancedContext = request.context() + buildTimeMetadata()
                     + buildReasoningDataContext(auth)
                     + summaryBlock
-                    + buildRagContextWithFallback(userId, message, request.memory(), 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE);
+                    + buildRagContextWithFallback(userId, message, request.memory(), 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
 
             String userMessage;
             if (!history.isEmpty()) {
@@ -451,7 +451,7 @@ public class ChatService {
             String enhancedContext = request.context() + buildTimeMetadata()
                     + buildReasoningDataContext(auth)
                     + summaryBlock
-                    + buildRagContextWithFallback(userId, message, request.memory(), 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE);
+                    + buildRagContextWithFallback(userId, message, request.memory(), 5, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
 
             String userMessage;
             if (!history.isEmpty()) {

@@ -500,6 +500,15 @@ public class RagMemoryService {
                 }
                 default -> {
                     sb.append("<context_item type=\"text_memory\" date=\"").append(dateStr).append("\">\n");
+                    MusicMeta music = diary.getMusicMeta();
+                    if (music != null) {
+                        sb.append("  <music_meta>歌曲: ").append(escapeXml(music.getTitle()))
+                          .append(", 歌手: ").append(escapeXml(music.getArtist()));
+                        if (music.getUserLyric() != null && !music.getUserLyric().isBlank()) {
+                            sb.append(", 歌词: ").append(escapeXml(music.getUserLyric()));
+                        }
+                        sb.append("</music_meta>\n");
+                    }
                     if (diary.getContent() != null) {
                         sb.append("  <diary_content>").append(escapeXml(truncate(diary.getContent(), 500)))
                           .append("</diary_content>\n");
