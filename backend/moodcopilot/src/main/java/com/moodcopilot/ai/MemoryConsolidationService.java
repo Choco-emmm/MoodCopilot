@@ -9,6 +9,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -51,7 +52,7 @@ public class MemoryConsolidationService {
     private final TransactionOperations transactionOperations;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
 
-    public MemoryConsolidationService(ChatClient chatClient,
+    public MemoryConsolidationService(@Qualifier("analysisChatClient") ChatClient chatClient,
                                       UserProfileMemoryMapper memoryMapper,
                                       MemoryExtractionService memoryExtractionService,
                                       RagMemoryService ragMemoryService,
