@@ -355,14 +355,27 @@ async function handleSave() {
 .composer-editor {
   height: 360px;
   margin-bottom: 4px;
+  width: 100%;
+  min-width: 0;
+  position: relative;
 }
 
 .composer-editor :deep(.vditor) {
+  position: relative !important;
   border: 1px solid rgba(180, 150, 120, 0.25) !important;
   border-radius: var(--radius-sm, 6px);
   overflow: hidden;
   --vditor-toolbar-background-color: #fdfcf8;
   --vditor-toolbar-border-color: rgba(180, 150, 120, 0.15);
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.composer-editor :deep(.vditor-content) {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .composer-editor :deep(.vditor-toolbar) {
@@ -398,6 +411,9 @@ async function handleSave() {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
   .composer-editor :deep(.vditor-toolbar::-webkit-scrollbar) {
     display: none;
