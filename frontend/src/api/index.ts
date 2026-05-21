@@ -129,8 +129,6 @@ export const growthApi = {
   status: () => api.get('/growth/status'),
   checkins: () => api.get('/growth/checkins'),
   progress: () => api.get('/growth/progress'),
-  /** 领取某类行为的今日经验 */
-  claimReward: (action: string) => api.post(`/growth/claim/${action}`),
   /** 签到状态（扁平契约，后端高吞吐存储方案就绪后切换到此接口） */
   checkInStatus: () => api.get('/growth/checkin-status'),
 }

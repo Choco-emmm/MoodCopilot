@@ -33,7 +33,7 @@
             'week-day-today': day.isToday,
           }"
         >
-          <div class="week-day-dot">{{ day.done ? '✓' : day.label }}</div>
+          <div class="week-day-dot">{{ day.done ? '✓' : day.dayOfMonth }}</div>
           <span class="week-day-label">{{ day.label }}</span>
         </div>
       </div>
@@ -90,7 +90,6 @@
           class="task-card"
           :class="{
             'task-card-done': taskStore.taskButtonState(task) === 'done',
-            'task-card-claimable': taskStore.taskButtonState(task) === 'claim',
           }"
         >
           <div class="task-card-info">
@@ -113,24 +112,12 @@
             </div>
             <div class="task-card-foot">
               <span class="task-exp-badge">+{{ task.expPerAction }} EXP/次</span>
-              <span v-if="taskStore.taskButtonState(task) === 'claim'" class="task-claim-hint">
-                可领取 {{ totalTaskExp(task) }} EXP
-              </span>
             </div>
           </div>
 
           <div class="task-card-action">
             <button
-              v-if="taskStore.taskButtonState(task) === 'claim'"
-              class="btn-claim"
-              :disabled="taskStore.claimingField === task.field"
-              @click="handleTaskClick(task)"
-            >
-              <span v-if="taskStore.claimingField === task.field" class="btn-claim-spin">⏳</span>
-              <span v-else>领取</span>
-            </button>
-            <button
-              v-else-if="taskStore.taskButtonState(task) === 'done'"
+              v-if="taskStore.taskButtonState(task) === 'done'"
               class="btn-done"
               disabled
             >
@@ -152,7 +139,7 @@
         {{ claimResult.msg }}
       </div>
 
-      <div v-if="taskStore.allRewardsClaimed && taskStore.checkInState.todaySigned" class="all-done-banner">
+      <div v-if="taskStore.allTasksCompleted && taskStore.checkInState.todaySigned" class="all-done-banner">
         <span class="all-done-icon">🎉</span>
         <span>今日任务全部完成，明天继续加油～</span>
       </div>
@@ -253,16 +240,6 @@ async function handleCheckIn() {
 
 async function handleTaskClick(task: DailyTaskItem) {
   const state = taskStore.taskButtonState(task)
-  if (state === 'claim') {
-    const ok = await taskStore.claimReward(task.field)
-    if (ok) {
-      const earned = totalTaskExp(task)
-      showClaimToast(true, `领取成功！+${earned} EXP`)
-    } else if (taskStore.claimError) {
-      showClaimToast(false, taskStore.claimError)
-    }
-    return
-  }
   if (state === 'done') return
   navigateToTask(task.field)
 }
@@ -588,11 +565,6 @@ function navigateToTask(field: string) {
   border-color: transparent;
 }
 
-.task-card-claimable {
-  border-color: color-mix(in srgb, #e8a840 40%, var(--color-border) 60%);
-  box-shadow: 0 0 0 1px color-mix(in srgb, #e8a840 12%, transparent 88%);
-}
-
 .task-card-info {
   display: grid;
   gap: 8px;
@@ -665,18 +637,12 @@ function navigateToTask(field: string) {
   padding: 2px 8px;
 }
 
-.task-claim-hint {
-  font-size: 11px;
-  font-weight: 700;
-  color: #b87a14;
-}
 
 .task-card-action {
   flex-shrink: 0;
 }
 
 /* 操作按钮 */
-.btn-claim,
 .btn-done,
 .btn-go {
   padding: 6px 18px;
@@ -690,31 +656,6 @@ function navigateToTask(field: string) {
               color var(--duration-fast) var(--ease-out),
               transform var(--duration-fast) var(--ease-out);
   white-space: nowrap;
-}
-
-.btn-claim {
-  background: linear-gradient(135deg, #e8a840, #d4921c);
-  color: #fff;
-  box-shadow: 0 2px 10px color-mix(in srgb, #e8a840 30%, transparent 70%);
-}
-
-.btn-claim:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px color-mix(in srgb, #e8a840 40%, transparent 60%);
-}
-
-.btn-claim:disabled {
-  opacity: 0.7;
-  cursor: default;
-}
-
-.btn-claim-spin {
-  display: inline-block;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .btn-done {
