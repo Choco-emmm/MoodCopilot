@@ -401,7 +401,7 @@ async function handleSave() {
 }
 
 .composer-editor :deep(.vditor-ir) {
-  padding: 16px 20px !important;
+  padding: 16px 20px 36px 20px !important;
 }
 
 .composer-editor :deep(.vditor-toolbar__item > button) {
@@ -460,11 +460,12 @@ async function handleSave() {
     background: transparent !important;
   }
   .composer-editor :deep(.vditor-ir) {
-    padding: 12px 0 !important;
+    padding: 12px 0 32px 0 !important;
     background: transparent !important;
   }
   .composer-editor :deep(.vditor-counter) {
     left: 0 !important;
+    bottom: 8px !important;
   }
 }
 
