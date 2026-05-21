@@ -166,7 +166,12 @@ public class MemoryExtractionService {
                     .user(prompt)
                     .call()
                     .content();
-            MemoryExtractionResponse response = objectMapper.readValue(JsonUtils.cleanJson(json), MemoryExtractionResponse.class);
+            String cleanedJson = JsonUtils.cleanJson(json);
+            if (cleanedJson.isEmpty()) {
+                log.warn("用户 {} 画像提取未返回有效的 JSON，返回原始内容: \n{}", userId, json);
+                return;
+            }
+            MemoryExtractionResponse response = objectMapper.readValue(cleanedJson, MemoryExtractionResponse.class);
             List<MemoryAttribute> sanitizedAttributes = sanitizeAttributes(response.attributes());
             transactionOperations.execute(status -> {
                 syncMemories(userId, existing, sanitizedAttributes);
