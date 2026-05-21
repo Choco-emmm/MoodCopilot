@@ -8,7 +8,7 @@ const DEFAULT_ALLOWED_TAGS = [
     'p', 'br', 'strong', 'em', 'b', 'i', 'u',
     'ul', 'ol', 'li', 'blockquote', 'code', 'pre',
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a',
-    'details', 'summary', 'div'
+    'details', 'summary', 'div', 'span'
 ]
 
 const DEFAULT_ALLOWED_ATTR = ['href', 'target', 'rel', 'class', 'open']
@@ -50,8 +50,6 @@ export function renderSafeMarkdown(
         .replace(/([^\s\dA-Za-z])(-)([^\s\d])/gu, '$1\n- $3') // 普通列表：水-🍫 → 水\n- 🍫
         .replace(/\*\*([""“])/g, '**​$1')   // **" → 零宽空格绕过左边界定界符限制
         .replace(/([""”])\*\*/g, '$1​**')   // "** → 零宽空格绕过右边界定界符限制
-        .replace(/<think>/g, '<details class="think-block"><summary>思考过程</summary><div class="think-content">\n\n')
-        .replace(/<\/think>/g, '\n\n</div></details>')
 
     const html = marked.parse(processedText, { async: false }) as string
     return DOMPurify.sanitize(html, {
