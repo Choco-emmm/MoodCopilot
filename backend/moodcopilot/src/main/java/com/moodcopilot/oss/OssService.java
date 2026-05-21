@@ -62,7 +62,7 @@ public class OssService {
         if (originalName != null && originalName.contains(".")) {
             ext = originalName.substring(originalName.lastIndexOf('.'));
         }
-        String objectKey = "temp/" + UUID.randomUUID() + ext;
+        String objectKey = "images/" + UUID.randomUUID() + ext;
         String contentType = file.getContentType();
         if (contentType == null) contentType = "image/jpeg";
 
@@ -155,59 +155,6 @@ public class OssService {
         if (idx < 0) return null;
         String path = imageUrl.substring(idx + host.length());
         return path.startsWith("/") ? path.substring(1) : path;
-    }
-
-    /**
-     * 将临时目录的图片转正到正式目录（OSS CopyObject）。
-     * 若 URL 为空或不含 /temp/，直接返回原 URL。
-     * 复制成功返回正式 URL，失败则记日志并返回原 URL（降级，不阻塞日记发布）。
-     */
-    public String promoteImage(String imageUrl) {
-        if (imageUrl == null || imageUrl.isBlank() || !imageUrl.contains("/temp/")) {
-            return imageUrl;
-        }
-        String tempKey = extractObjectKey(imageUrl);
-        if (tempKey == null || !tempKey.startsWith("temp/")) {
-            return imageUrl;
-        }
-        String imagesKey = "images/" + tempKey.substring("temp/".length());
-        String host = bucket + "." + endpoint;
-
-        try {
-            String date = DateTimeFormatter.RFC_1123_DATE_TIME
-                    .withZone(ZoneId.of("GMT"))
-                    .withLocale(Locale.US)
-                    .format(Instant.now());
-
-            // OSS CopyObject 签名规范：PUT\n\n\n{date}\nx-oss-copy-source:/{bucket}/{sourceKey}\n/{bucket}/{destKey}
-            String copySource = "/" + bucket + "/" + tempKey;
-            String canonicalString = "PUT\n\n\n" + date + "\nx-oss-copy-source:" + copySource + "\n/" + bucket + "/" + imagesKey;
-            String signature = sign(canonicalString);
-            String auth = "OSS " + accessKey + ":" + signature;
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://" + host + "/" + imagesKey))
-                    .header("Authorization", auth)
-                    .header("Date", date)
-                    .header("x-oss-copy-source", copySource)
-                    .PUT(HttpRequest.BodyPublishers.noBody())
-                    .timeout(Duration.ofSeconds(15))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            int status = response.statusCode();
-            if (status == 200) {
-                String promotedUrl = "https://" + host + "/" + imagesKey;
-                log.info("OSS 图片转正成功: {} → {}", tempKey, imagesKey);
-                return promotedUrl;
-            } else {
-                log.error("OSS 图片转正失败 status={} tempKey={} body={}", status, tempKey, response.body());
-                return imageUrl;
-            }
-        } catch (Exception e) {
-            log.error("OSS 图片转正异常 tempKey={}: {}", tempKey, e.getMessage());
-            return imageUrl;
-        }
     }
 
     /**
