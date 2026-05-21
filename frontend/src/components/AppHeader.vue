@@ -132,7 +132,7 @@
             </tbody>
           </table>
         </div>
-        <p class="quota-modal-footer">AI 聊天 / AI 分析 / 思考 / 检索 / 传图 每日 0 点重置 · 报告每月 1 日重置 · Lv.6 报告无上限</p>
+        <p class="quota-modal-footer">AI 聊天 / AI 分析 / 思考 / 检索 / 传图 每日 0 点重置 · 报告每月 1 日重置</p>
       </div>
     </div>
   </Teleport>
