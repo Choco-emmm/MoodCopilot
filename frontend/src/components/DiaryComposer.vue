@@ -16,20 +16,9 @@
       </div>
     </div>
 
-    <MdEditor
-      v-model="draft"
-      language="zh-CN"
-      theme="light"
-      :toolbars="mdToolbars"
-      :no-mermaid="true"
-      :no-katex="true"
-      :no-echarts="true"
-      :no-highlight="true"
-      :no-img-zoom-in="true"
-      placeholder="今天发生了什么？可以只写一句，也可以把说不清的感觉先放在这里。"
-      :max-length="1000"
-      class="composer-editor"
-    />
+    <div class="composer-editor">
+      <div id="vditor-composer"></div>
+    </div>
 
     <div class="composer-toolbar">
       <button
@@ -132,25 +121,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { MdEditor } from 'md-editor-v3'
-import 'md-editor-v3/lib/style.css'
+import Vditor from 'vditor'
+import 'vditor/dist/index.css'
 import { useDiaryStore, type MusicMeta } from '../stores/diary'
 import { musicApi, imageApi } from '../api'
 import MusicCard from './MusicCard.vue'
-
-const mdToolbars = [
-  'bold', 'italic', 'strikeThrough',
-  '-',
-  'title',
-  'quote',
-  'unorderedList', 'orderedList',
-  '-',
-  'codeRow', 'code', 'link',
-  '=',
-  'preview',
-] as any[]
 
 const props = withDefaults(defineProps<{
   editId?: number
@@ -171,6 +148,8 @@ const isEditMode = computed(() => props.editId != null && props.editId > 0)
 const visibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
 const analyze = ref(true)
 const DRAFT_KEY = 'moodcopilot:draft'
+
+const vditorInst = ref<Vditor | null>(null)
 
 const musicMeta = ref<MusicMeta | null>(null)
 const musicSongUrl = ref('')
@@ -204,8 +183,9 @@ const visibilityCopy = computed(() =>
 const isOverLimit = computed(() => draft.value.length > 1000)
 
 onMounted(() => {
+  let initialValue = ''
   if (isEditMode.value) {
-    draft.value = props.initialContent || ''
+    initialValue = props.initialContent || ''
     visibility.value = props.initialVisibility || 'PRIVATE'
     if (props.initialMusicMeta) {
       musicMeta.value = props.initialMusicMeta
@@ -217,14 +197,38 @@ onMounted(() => {
     }
     draftNotice.value = '正在编辑日记'
     updateDraftSavedAt()
-    return
+  } else {
+    const savedDraft = localStorage.getItem(DRAFT_KEY)
+    if (savedDraft) {
+      draftNotice.value = '已恢复本机草稿'
+      initialValue = savedDraft
+      updateDraftSavedAt()
+    }
   }
-  const savedDraft = localStorage.getItem(DRAFT_KEY)
-  if (savedDraft) {
-    draftNotice.value = '已恢复本机草稿'
-    draft.value = savedDraft
-    updateDraftSavedAt()
-  }
+
+  vditorInst.value = new Vditor('vditor-composer', {
+    mode: 'ir',
+    height: 360,
+    placeholder: '今天发生了什么？可以只写一句，也可以把说不清的感觉先放在这里。',
+    cache: { enable: false },
+    outline: { enable: false },
+    toolbar: [
+      'headings', 'bold', 'italic', 'strike', 'line', 'quote', 'list', 'ordered-list', 'check', 'outdent', 'indent', 'code', 'inline-code', 'undo', 'redo'
+    ],
+    after: () => {
+      if (initialValue) {
+        vditorInst.value?.setValue(initialValue)
+      }
+      draft.value = initialValue
+    },
+    input: (val: string) => {
+      draft.value = val
+    }
+  })
+})
+
+onBeforeUnmount(() => {
+  vditorInst.value?.destroy()
 })
 
 // 粘贴/输入音乐链接后自动解析，无需手动 Enter
@@ -333,6 +337,7 @@ async function handleSave() {
     } else {
       await store.createDiary(draft.value.trim(), visibility.value, musicPayload, analyze.value, imagesPayload)
       draft.value = ''
+      vditorInst.value?.setValue('')
       musicMeta.value = null
       userLyric.value = ''
       imageList.value = []
@@ -349,6 +354,42 @@ async function handleSave() {
 .composer-editor {
   height: 360px;
   margin-bottom: 4px;
+}
+
+.composer-editor :deep(.vditor) {
+  border: 1px solid rgba(180, 150, 120, 0.25) !important;
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+  --vditor-toolbar-background-color: #fdfcf8;
+  --vditor-toolbar-border-color: rgba(180, 150, 120, 0.15);
+}
+
+.composer-editor :deep(.vditor-toolbar) {
+  padding: 4px 8px;
+}
+
+.composer-editor :deep(.vditor-toolbar__item > button) {
+  color: #8a7a6a;
+}
+
+.composer-editor :deep(.vditor-toolbar__item > button:hover) {
+  background-color: rgba(180, 150, 120, 0.1);
+  color: #4a7c62;
+}
+
+@media (max-width: 780px) {
+  .composer-editor :deep(.vditor-toolbar) {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .composer-editor :deep(.vditor-toolbar::-webkit-scrollbar) {
+    display: none;
+  }
+  .composer-editor :deep(.vditor-toolbar__item) {
+    flex-shrink: 0;
+  }
 }
 
 .composer-toggles {
