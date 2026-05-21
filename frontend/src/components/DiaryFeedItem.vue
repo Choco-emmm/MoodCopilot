@@ -36,14 +36,15 @@
       </div>
     </div>
 
-    <p
-      class="feed-content feed-content-clickable"
+    <div
+      class="feed-content feed-content-clickable md-content"
       role="button"
       tabindex="0"
       @click.stop="$emit('open-detail', diary)"
       @keydown.enter.prevent="$emit('open-detail', diary)"
       @keydown.space.prevent="$emit('open-detail', diary)"
-    >{{ visibleContent }}</p>
+      v-html="renderMd(visibleContent)"
+    ></div>
     <button v-if="isLongContent && showExpandToggle" class="feed-expand" type="button" @click="expanded = !expanded">
       {{ expanded ? '收起' : '展开' }}
     </button>
@@ -72,7 +73,7 @@
             <strong>{{ comment.authorName }}</strong>
             <span class="comment-time">{{ formatTime(comment.createdAt) }}</span>
           </p>
-          <p class="comment-body">{{ comment.content }}</p>
+          <div class="comment-body md-content" v-html="renderMd(comment.content)"></div>
           <div class="comment-foot">
             <n-button
               v-if="canDeleteComment(comment)"
@@ -103,7 +104,7 @@
               <span v-if="reply.replyToUserName" class="reply-to"> 回复 @{{ reply.replyToUserName }} </span>
               <span class="comment-time">{{ formatTime(reply.createdAt) }}</span>
             </p>
-            <p class="comment-body">{{ reply.content }}</p>
+            <div class="comment-body md-content" v-html="renderMd(reply.content)"></div>
             <div class="comment-foot">
               <n-button v-if="canDeleteComment(reply)" size="tiny" text type="error" @click="deleteComment(reply.id)">删除</n-button>
             </div>
@@ -135,6 +136,7 @@ import { useDiaryStore } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
 import { useAuthStore } from '../stores/auth'
 import { reportApi } from '../api'
+import { renderSafeMarkdown, stripMarkdown } from '../utils/markdown'
 import MusicCard from './MusicCard.vue'
 import ImageGallery from './ImageGallery.vue'
 
@@ -182,11 +184,15 @@ const enableComments = computed(() => props.enableComments)
 const compact = computed(() => props.compact)
 const showExpandToggle = computed(() => props.showExpandToggle)
 
+function renderMd(text: string) {
+  return renderSafeMarkdown(text)
+}
+
 const isLongContent = computed(() => (props.diary.content ?? '').length > props.previewLimit)
 const visibleContent = computed(() => {
   const content = props.diary.content ?? ''
   if (expanded.value || !isLongContent.value) return content
-  return content.slice(0, props.previewLimit) + '...'
+  return stripMarkdown(content).slice(0, props.previewLimit) + '...'
 })
 
 onMounted(() => {

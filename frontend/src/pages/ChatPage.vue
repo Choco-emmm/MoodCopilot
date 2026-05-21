@@ -71,7 +71,39 @@
             :key="msg.id"
             :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
           >
-            <div v-if="msg.role === 'ai'" class="md-content" v-html="renderMd(msg.content)" />
+            <template v-if="msg.role === 'ai'">
+              <div class="md-content" v-html="renderMd(msg.content)" />
+              <!-- AI 引用面板 -->
+              <div v-if="msg.ragReferences?.length" class="rag-refs-panel">
+                <button class="rag-refs-toggle" @click="toggleMsgRefs(msg.id)">
+                  <span class="rag-refs-icon">🔍</span>
+                  <span>AI 引用了你的 {{ countDiaryRefs(msg.ragReferences) }} 条日记</span>
+                  <span v-if="countProfileRefs(msg.ragReferences)">和 {{ countProfileRefs(msg.ragReferences) }} 条个人画像</span>
+                  <span class="rag-refs-arrow">{{ expandedRefs.has(msg.id) ? '▾' : '▸' }}</span>
+                </button>
+                <div v-if="expandedRefs.has(msg.id)" class="rag-refs-list">
+                  <template v-if="getDiaryRefs(msg.ragReferences).length">
+                    <div class="rag-refs-section-label">📝 日记记忆</div>
+                    <div
+                      v-for="(ref, i) in getDiaryRefs(msg.ragReferences)"
+                      :key="'d'+i"
+                      class="rag-ref-item rag-ref-clickable"
+                      @click="goToDiary(ref.diaryId)"
+                    >
+                      <span class="rag-ref-date">{{ ref.date }}</span>
+                      <span class="rag-ref-snippet">{{ ref.snippet }}</span>
+                      <span class="rag-ref-go">→</span>
+                    </div>
+                  </template>
+                  <template v-if="getProfileRefs(msg.ragReferences).length">
+                    <div class="rag-refs-section-label">🧠 个人画像</div>
+                    <div v-for="(ref, i) in getProfileRefs(msg.ragReferences)" :key="'p'+i" class="rag-ref-item">
+                      <span class="rag-ref-snippet">{{ ref.snippet }}</span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
             <template v-else>
               <p>{{ msg.content }}</p>
               <ul v-if="msg.references?.length" class="chat-user-refs">
@@ -100,20 +132,20 @@
             </div>
           </div>
 
-          <!-- RAG 引用折叠面板 -->
-          <div v-if="ragReferences.length" class="rag-refs-panel">
-            <button class="rag-refs-toggle" @click="showReferences = !showReferences">
+          <!-- 流式回复中的引用面板（仅流式期间显示） -->
+          <div v-if="streaming && streamingRefs.length" class="rag-refs-panel">
+            <button class="rag-refs-toggle" @click="showStreamingRefs = !showStreamingRefs">
               <span class="rag-refs-icon">🔍</span>
-              <span>AI 引用了你的 {{ diaryRefs.length }} 条日记</span>
-              <span v-if="profileRefs.length">和 {{ profileRefs.length }} 条个人画像</span>
-              <span class="rag-refs-arrow">{{ showReferences ? '▾' : '▸' }}</span>
+              <span>AI 引用了你的 {{ streamingDiaryRefs.length }} 条日记</span>
+              <span v-if="streamingProfileRefs.length">和 {{ streamingProfileRefs.length }} 条个人画像</span>
+              <span class="rag-refs-arrow">{{ showStreamingRefs ? '▾' : '▸' }}</span>
             </button>
-            <div v-if="showReferences" class="rag-refs-list">
-              <template v-if="diaryRefs.length">
+            <div v-if="showStreamingRefs" class="rag-refs-list">
+              <template v-if="streamingDiaryRefs.length">
                 <div class="rag-refs-section-label">📝 日记记忆</div>
                 <div
-                  v-for="(ref, i) in diaryRefs"
-                  :key="'d'+i"
+                  v-for="(ref, i) in streamingDiaryRefs"
+                  :key="'sd'+i"
                   class="rag-ref-item rag-ref-clickable"
                   @click="goToDiary(ref.diaryId)"
                 >
@@ -122,9 +154,9 @@
                   <span class="rag-ref-go">→</span>
                 </div>
               </template>
-              <template v-if="profileRefs.length">
+              <template v-if="streamingProfileRefs.length">
                 <div class="rag-refs-section-label">🧠 个人画像</div>
-                <div v-for="(ref, i) in profileRefs" :key="'p'+i" class="rag-ref-item">
+                <div v-for="(ref, i) in streamingProfileRefs" :key="'sp'+i" class="rag-ref-item">
                   <span class="rag-ref-snippet">{{ ref.snippet }}</span>
                 </div>
               </template>
@@ -174,7 +206,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton, NInput } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
@@ -183,11 +215,19 @@ import { chatApi, diaryApi } from '../api'
 import { renderSafeMarkdown } from '../utils/markdown'
 import { tryExpToast } from '../utils/toast'
 
+interface RagRef {
+  type: string
+  diaryId: string
+  date: string
+  snippet: string
+}
+
 interface Message {
   id: string
   role: 'user' | 'ai'
   content: string
   references?: string[]
+  ragReferences?: RagRef[]
 }
 
 function nextMsgId(): string {
@@ -233,24 +273,49 @@ const recentDiariesError = ref<string | null>(null)
 const lastReplyError = ref<string | null>(null)
 const lastReplyRequest = ref<{ convId: number; content: string; refContents: string[] } | null>(null)
 const router = useRouter()
-const ragReferences = ref<Array<{ type: string; diaryId: string; date: string; snippet: string }>>([])
-const showReferences = ref(true)
+const streamingRefs = ref<RagRef[]>([])
+const showStreamingRefs = ref(true)
+const expandedRefs = reactive(new Set<string>())
 
-/** 去重后的日记引用（同 diaryId 合并） */
-const diaryRefs = computed(() => {
+function countDiaryRefs(refs: RagRef[]): number {
   const seen = new Set<string>()
-  return ragReferences.value.filter(r => {
+  return refs.filter(r => {
+    if (r.type === 'profile_memory' || !r.diaryId) return false
+    if (seen.has(r.diaryId)) return false
+    seen.add(r.diaryId)
+    return true
+  }).length
+}
+
+function countProfileRefs(refs: RagRef[]): number {
+  return refs.filter(r => r.type === 'profile_memory').length
+}
+
+function getDiaryRefs(refs: RagRef[]): RagRef[] {
+  const seen = new Set<string>()
+  return refs.filter(r => {
     if (r.type === 'profile_memory' || !r.diaryId) return false
     if (seen.has(r.diaryId)) return false
     seen.add(r.diaryId)
     return true
   })
-})
+}
 
-/** 个人画像引用 */
-const profileRefs = computed(() =>
-  ragReferences.value.filter(r => r.type === 'profile_memory'),
-)
+function getProfileRefs(refs: RagRef[]): RagRef[] {
+  return refs.filter(r => r.type === 'profile_memory')
+}
+
+/** 流式面板用的计算属性 */
+const streamingDiaryRefs = computed(() => getDiaryRefs(streamingRefs.value))
+const streamingProfileRefs = computed(() => getProfileRefs(streamingRefs.value))
+
+function toggleMsgRefs(msgId: string) {
+  if (expandedRefs.has(msgId)) {
+    expandedRefs.delete(msgId)
+  } else {
+    expandedRefs.add(msgId)
+  }
+}
 
 function goToDiary(diaryId: string) {
   if (!diaryId) return
@@ -512,6 +577,7 @@ function normalizeHistoryMessages(raw: any): Message[] {
         role: normalizeMessageRole(item.role),
         content,
         references: references.length ? references : undefined,
+        ragReferences: Array.isArray(item.ragReferences) ? item.ragReferences : undefined,
       }
     })
     .filter((msg): msg is Message => msg != null)
@@ -574,9 +640,10 @@ async function sendReply(convId: number, content: string, refContents: string[],
   const ctrl = new AbortController()
   streamAbortCtrl = ctrl
 
-  ragReferences.value = []
-  showReferences.value = true
+  streamingRefs.value = []
+  showStreamingRefs.value = true
   let fullReply = ''
+  let currentRefs: RagRef[] = []
 
   try {
     await chatApi.replyStream(convId, content, refContents, (chunk) => {
@@ -593,7 +660,8 @@ async function sendReply(convId: number, content: string, refContents: string[],
         })
       }
     }, ctrl, (items) => {
-      ragReferences.value = items
+      currentRefs = items
+      streamingRefs.value = items
     })
 
     // 流正常结束
@@ -604,6 +672,7 @@ async function sendReply(convId: number, content: string, refContents: string[],
       id: nextMsgId(),
       role: 'ai',
       content: fullReply || '我刚才没有组织好语言，你可以再说一遍吗？',
+      ragReferences: currentRefs.length ? currentRefs : undefined,
     })
   } catch (e: any) {
     isThinking.value = false
@@ -629,6 +698,7 @@ async function finishSend(convId: number) {
   }
   streaming.value = false
   streamingText.value = ''
+  streamingRefs.value = []
   isThinking.value = false
   references.value = []
   scrollBottom()

@@ -5,7 +5,7 @@
     <div class="today-side">
       <router-link v-if="matchDiary" :to="'/diary/' + matchDiary.id" class="today-match-mini">
         <span class="today-side-label">今日同频</span>
-        <span class="today-side-snippet">「{{ matchDiary.content?.length > 42 ? matchDiary.content.slice(0, 42) + '...' : matchDiary.content }}」</span>
+        <span class="today-side-snippet">「{{ snippet(matchDiary) }}」</span>
       </router-link>
 
       <router-link v-else to="/write" class="today-match-mini">
@@ -46,6 +46,13 @@ import AppHeader from '../components/AppHeader.vue'
 import PublicFeed from '../components/PublicFeed.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { diaryApi } from '../api'
+import { renderSafeMarkdown, stripMarkdown } from '../utils/markdown'
+
+function snippet(diary: any): string {
+  if (!diary?.content) return ''
+  const text = stripMarkdown(diary.content)
+  return text.length > 42 ? text.slice(0, 42) + '...' : text
+}
 
 const router = useRouter()
 const store = useDiaryStore()

@@ -16,7 +16,7 @@
         @click="$emit('select', diary)"
       >
         <span>{{ diary.authorName }} · {{ formatTime(diary.createdAt) }}</span>
-        <strong>{{ diary.content }}</strong>
+        <strong v-html="renderMd(diary.content)"></strong>
       </button>
     </div>
     <n-empty v-else description="暂时没有更多相似日记" />
@@ -24,7 +24,12 @@
 </template>
 
 <script setup lang="ts">
+import { renderSafeMarkdown } from '../utils/markdown'
 import type { Diary } from '../stores/diary'
+
+function renderMd(text: string) {
+  return renderSafeMarkdown(text)
+}
 
 defineProps<{ diaries: Diary[] }>()
 defineEmits<{ select: [diary: Diary] }>()

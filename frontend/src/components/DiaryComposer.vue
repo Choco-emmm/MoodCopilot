@@ -16,14 +16,19 @@
       </div>
     </div>
 
-    <n-input
-      v-model:value="draft"
-      type="textarea"
-      size="large"
+    <MdEditor
+      v-model="draft"
+      language="zh-CN"
+      theme="light"
+      :toolbars="mdToolbars"
+      :no-mermaid="true"
+      :no-katex="true"
+      :no-echarts="true"
+      :no-highlight="true"
+      :no-img-zoom-in="true"
       placeholder="今天发生了什么？可以只写一句，也可以把说不清的感觉先放在这里。"
-      :autosize="{ minRows: 8, maxRows: 15 }"
-      :status="isOverLimit ? 'error' : undefined"
-      @paste="handlePaste"
+      :max-length="1000"
+      class="composer-editor"
     />
 
     <div class="composer-toolbar">
@@ -129,9 +134,23 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { MdEditor } from 'md-editor-v3'
+import 'md-editor-v3/lib/style.css'
 import { useDiaryStore, type MusicMeta } from '../stores/diary'
 import { musicApi, imageApi } from '../api'
 import MusicCard from './MusicCard.vue'
+
+const mdToolbars = [
+  'bold', 'italic', 'strikeThrough',
+  '-',
+  'title',
+  'quote',
+  'unorderedList', 'orderedList',
+  '-',
+  'codeRow', 'code', 'link',
+  '=',
+  'preview',
+] as any[]
 
 const props = withDefaults(defineProps<{
   editId?: number
@@ -238,17 +257,6 @@ function detectMusicUrl(text: string): string | null {
   return m ? m[0] : null
 }
 
-async function handlePaste(e: ClipboardEvent) {
-  const text = e.clipboardData?.getData('text/plain')
-  if (!text) return
-  const url = detectMusicUrl(text)
-  if (!url) return
-  // Don't parse if already have music attached
-  if (musicMeta.value) return
-
-  await submitMusicUrl(url, text)
-}
-
 function removeMusic() {
   musicMeta.value = null
   musicSongUrl.value = ''
@@ -338,6 +346,11 @@ async function handleSave() {
 </script>
 
 <style scoped>
+.composer-editor {
+  height: 360px;
+  margin-bottom: 4px;
+}
+
 .composer-toggles {
   display: flex;
   align-items: center;

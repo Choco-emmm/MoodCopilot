@@ -84,9 +84,10 @@
               :type="taskStore.taskButtonState(task) === 'claim' ? 'warning' : taskStore.taskButtonState(task) === 'done' ? 'default' : 'primary'"
               :disabled="taskStore.taskButtonState(task) === 'done'"
               :secondary="taskStore.taskButtonState(task) === 'claim'"
+              :loading="taskStore.claimingField === task.field"
               @click="handleTaskClick(task)"
             >
-              {{ taskStore.taskButtonLabel(task) }}
+              {{ taskStore.claimingField === task.field ? '' : taskStore.taskButtonLabel(task) }}
             </n-button>
           </div>
         </div>
@@ -125,10 +126,13 @@ async function handleCheckIn() {
   await taskStore.fetchTasks()
 }
 
-function handleTaskClick(task: DailyTaskItem) {
+async function handleTaskClick(task: DailyTaskItem) {
   const state = taskStore.taskButtonState(task)
   if (state === 'claim') {
-    taskStore.claimReward(task.field)
+    await taskStore.claimReward(task.field)
+    if (taskStore.claimError) {
+      window.alert(taskStore.claimError)
+    }
     return
   }
   if (state === 'done') return

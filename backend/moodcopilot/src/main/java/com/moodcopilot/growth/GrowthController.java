@@ -5,6 +5,7 @@ import com.moodcopilot.entity.UserEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -63,5 +64,30 @@ public class GrowthController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "登录状态已失效");
         }
         return ApiResponse.ok(userGrowthService.getMonthCheckins(user.getId()));
+    }
+
+    @PostMapping("/claim/{action}")
+    public ApiResponse<Map<String, Object>> claim(
+            @AuthenticationPrincipal UserEntity user,
+            @PathVariable String action) {
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "登录状态已失效");
+        }
+        ExpAction expAction;
+        try {
+            expAction = ExpAction.valueOf(action.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "无效的行为类型: " + action);
+        }
+        int exp = userGrowthService.claimExp(user.getId(), expAction);
+        if (exp <= 0) {
+            return ApiResponse.ok(Map.of("claimed", false, "exp", 0, "message", "无可领取的经验～"));
+        }
+        var status = userGrowthService.getGrowthStatus(user.getId());
+        return ApiResponse.ok(Map.of(
+                "claimed", true,
+                "exp", exp,
+                "totalExp", status.exp(),
+                "level", status.level()));
     }
 }

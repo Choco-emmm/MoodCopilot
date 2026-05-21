@@ -19,8 +19,9 @@ export const useTaskStore = defineStore('task', () => {
   const checkingIn = ref(false)
   const checkInMsg = ref('')
 
-  // ── 本地已领取标记（session 级，无后端持久化） ──
-  const claimedRewards = ref<Set<string>>(new Set())
+  // ── 领取中状态 ──
+  const claimingField = ref<string | null>(null)
+  const claimError = ref('')
 
   // ── 计算属性 ──
   const tomorrowExp = computed(() => {
@@ -34,7 +35,7 @@ export const useTaskStore = defineStore('task', () => {
 
   const allRewardsClaimed = computed(() =>
     tasks.value.length > 0 && tasks.value.every(
-      t => t.current >= t.max && claimedRewards.value.has(t.field),
+      t => t.current >= t.max && t.claimed,
     ),
   )
 
@@ -93,7 +94,8 @@ export const useTaskStore = defineStore('task', () => {
           nextExpReward: (data.streak ?? 0) >= 6 ? 25 : 10 + (data.streak ?? 0) * 2,
         }
         checkInMsg.value = `签到成功！+${data.exp} EXP`
-        claimReward('checkin')
+        // 刷新任务列表以更新签到任务的 claimed 状态
+        await fetchTasks()
         return true
       }
       checkInState.value = { ...checkInState.value, todaySigned: true }
@@ -106,15 +108,34 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
-  /** 领取任务奖励 */
-  function claimReward(field: string) {
-    claimedRewards.value = new Set([...claimedRewards.value, field])
+  /** 领取任务奖励（调用后端） */
+  async function claimReward(field: string): Promise<boolean> {
+    if (claimingField.value) return false
+    claimingField.value = field
+    claimError.value = ''
+    try {
+      const res = await growthApi.claimReward(field)
+      const data = res.data.data
+      if (data?.claimed) {
+        // 更新本地任务 claimed 状态
+        const task = tasks.value.find(t => t.field === field)
+        if (task) task.claimed = true
+        return true
+      }
+      return false
+    } catch (e: any) {
+      claimError.value = e?.response?.data?.message || '领取失败，请稍后再试'
+      return false
+    } finally {
+      claimingField.value = null
+    }
   }
 
-  /** 判断某任务是否已领取（签到自动发放，视为已领取） */
+  /** 判断某任务是否已领取（签到自动发放，始终视为已领取） */
   function isClaimed(field: string): boolean {
     if (field === 'checkin' && checkInState.value.todaySigned) return true
-    return claimedRewards.value.has(field)
+    const task = tasks.value.find(t => t.field === field)
+    return task?.claimed ?? false
   }
 
   /** 获取任务按钮文字（签到即时发放，跳过"领取奖励"中间态） */
@@ -131,10 +152,10 @@ export const useTaskStore = defineStore('task', () => {
     return 'go'
   }
 
-  /** 重置每日状态（跨天时清除领取记录） */
+  /** 重置每日状态（跨天时清除本地消息） */
   function resetDaily() {
-    claimedRewards.value = new Set()
     checkInMsg.value = ''
+    claimError.value = ''
   }
 
   return {
@@ -143,6 +164,8 @@ export const useTaskStore = defineStore('task', () => {
     tasksLoading,
     checkingIn,
     checkInMsg,
+    claimingField,
+    claimError,
     tomorrowExp,
     allTasksCompleted,
     allRewardsClaimed,

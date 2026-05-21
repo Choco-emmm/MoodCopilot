@@ -59,7 +59,7 @@
               {{ followStore.isFollowing(diary.authorUserId) ? '已关注' : '关注' }}
             </n-button>
           </div>
-          <p class="diary-content">{{ diary.content }}</p>
+          <div class="diary-content md-content" v-html="renderMd(diary.content)"></div>
 
           <MusicCard
             v-if="diary.musicMeta"
@@ -125,7 +125,7 @@
                 <strong>{{ c.authorName }}</strong>
                 <span class="comment-time">{{ formatTime(c.createdAt) }}</span>
               </div>
-              <p class="comment-body">{{ c.content }}</p>
+              <div class="comment-body md-content" v-html="renderMd(c.content)"></div>
               <div class="comment-foot">
                 <n-button v-if="canDeleteComment(c)" size="tiny" text type="error" :disabled="deleting" @click="deleteComment(c.id)">删除</n-button>
                 <n-button size="tiny" text @click="startReply(c.id, c.id, c.authorName)">回复</n-button>
@@ -141,7 +141,7 @@
                   <span v-if="r.replyToUserName" class="reply-to"> 回复 {{ r.replyToUserName }}</span>
                   <span class="comment-time">{{ formatTime(r.createdAt) }}</span>
                 </div>
-                <p class="comment-body">{{ r.content }}</p>
+                <div class="comment-body md-content" v-html="renderMd(r.content)"></div>
                 <div class="comment-foot">
                   <n-button v-if="canDeleteComment(r)" size="tiny" text type="error" :disabled="deleting" @click="deleteComment(r.id)">删除</n-button>
                   <n-button size="tiny" text @click="startReply(r.id, c.id, r.authorName)">回复</n-button>
@@ -186,6 +186,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { NButton, NInput, NTag, NEmpty, useMessage } from 'naive-ui'
 import { diaryApi, reportApi } from '../api'
 import { tryExpToast } from '../utils/toast'
+import { renderSafeMarkdown } from '../utils/markdown'
 import { useAuthStore } from '../stores/auth'
 import AppHeader from '../components/AppHeader.vue'
 import AiAnalysisCard from '../components/AiAnalysisCard.vue'
@@ -201,6 +202,10 @@ const store = useDiaryStore()
 const followStore = useFollowStore()
 const auth = useAuthStore()
 const message = useMessage()
+function renderMd(text: string) {
+  return renderSafeMarkdown(text)
+}
+
 const diary = ref<Diary | null>(null)
 const commentDraft = ref('')
 const replyDraft = ref('')
