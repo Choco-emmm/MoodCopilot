@@ -54,7 +54,7 @@ spring:
       chat:
         options:
           model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
-          max-tokens: 2048
+          max-tokens: 8192
     rag:
       embedding:
         api-url: ${RAG_EMBEDDING_API_URL:https://api.siliconflow.cn/v1/embeddings}
