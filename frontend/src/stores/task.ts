@@ -37,10 +37,6 @@ export const useTaskStore = defineStore('task', () => {
   const checkingIn = ref(false)
   const checkInMsg = ref('')
 
-  // ── 领取中状态 ──
-  const claimingField = ref<string | null>(null)
-  const claimError = ref('')
-
   // ── 计算属性 ──
   const tomorrowExp = computed(() => {
     const d = checkInState.value.continuousDays + 1
@@ -50,13 +46,6 @@ export const useTaskStore = defineStore('task', () => {
   const allTasksCompleted = computed(() =>
     tasks.value.length > 0 && tasks.value.every(t => t.current >= t.max),
   )
-
-  const allRewardsClaimed = computed(() =>
-    tasks.value.length > 0 && tasks.value.every(
-      t => t.current >= t.max && t.claimed,
-    ),
-  )
-
   // ── 方法 ──
 
   /** 加载签到状态（先用旧接口组装） */
@@ -131,61 +120,28 @@ export const useTaskStore = defineStore('task', () => {
       checkingIn.value = false
     }
   }
-
-  /** 领取任务奖励（调用后端） */
-  async function claimReward(field: string): Promise<boolean> {
-    if (claimingField.value) return false
-    claimingField.value = field
-    claimError.value = ''
-    try {
-      const res = await growthApi.claimReward(field)
-      const data = res.data.data
-      if (data?.claimed) {
-        // 更新本地任务 claimed 状态
-        const task = tasks.value.find(t => t.field === field)
-        if (task) task.claimed = true
-        // 刷新等级经验
-        if (data.totalExp != null) userExp.value = data.totalExp
-        if (data.level != null) {
-          userLevel.value = data.level
-          expToNextLevel.value = LEVEL_THRESHOLDS[data.level] ?? -1
-        }
-        return true
-      }
-      return false
-    } catch (e: any) {
-      claimError.value = e?.response?.data?.message || '领取失败，请稍后再试'
-      return false
-    } finally {
-      claimingField.value = null
-    }
-  }
-
-  /** 判断某任务是否已领取（签到自动发放，始终视为已领取） */
+  /** 判断某任务是否已完成（新版自动发放经验，只要 current >= max 即完成） */
   function isClaimed(field: string): boolean {
     if (field === 'checkin' && checkInState.value.todaySigned) return true
     const task = tasks.value.find(t => t.field === field)
-    return task?.claimed ?? false
+    return task ? task.current >= task.max : false
   }
 
-  /** 获取任务按钮文字（签到即时发放，跳过"领取奖励"中间态） */
+  /** 获取任务按钮文字（自动发放，直接跳过"领取奖励"） */
   function taskButtonLabel(task: DailyTaskItem): string {
-    if (task.current >= task.max && isClaimed(task.field)) return '已完成'
-    if (task.current >= task.max) return task.field === 'checkin' ? '已完成' : '领取奖励'
+    if (task.current >= task.max) return '已完成'
     return '去完成'
   }
 
   /** 获取任务按钮状态 */
-  function taskButtonState(task: DailyTaskItem): 'go' | 'claim' | 'done' {
-    if (task.current >= task.max && isClaimed(task.field)) return 'done'
-    if (task.current >= task.max) return task.field === 'checkin' ? 'done' : 'claim'
+  function taskButtonState(task: DailyTaskItem): 'go' | 'done' {
+    if (task.current >= task.max) return 'done'
     return 'go'
   }
 
   /** 重置每日状态（跨天时清除本地消息） */
   function resetDaily() {
     checkInMsg.value = ''
-    claimError.value = ''
   }
 
   return {
@@ -194,8 +150,6 @@ export const useTaskStore = defineStore('task', () => {
     tasksLoading,
     checkingIn,
     checkInMsg,
-    claimingField,
-    claimError,
     userExp,
     userLevel,
     expToNextLevel,
@@ -203,11 +157,9 @@ export const useTaskStore = defineStore('task', () => {
     monthCheckinDays,
     tomorrowExp,
     allTasksCompleted,
-    allRewardsClaimed,
     fetchCheckInStatus,
     fetchTasks,
     doCheckIn,
-    claimReward,
     isClaimed,
     taskButtonLabel,
     taskButtonState,
