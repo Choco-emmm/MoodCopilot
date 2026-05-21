@@ -214,9 +214,9 @@ onMounted(() => {
     cache: { enable: false },
     counter: { enable: true, max: 1000, type: 'text' },
     outline: { enable: false, position: 'right' },
-    toolbar: [
-      'headings', 'bold', 'italic', 'strike', 'line', 'quote', 'list', 'ordered-list', 'check', 'outdent', 'indent', 'code', 'inline-code', 'undo', 'redo'
-    ],
+    toolbar: window.innerWidth <= 780
+      ? ['bold', 'italic', 'strike', 'line', 'list', 'ordered-list', 'undo', 'redo']
+      : ['headings', 'bold', 'italic', 'strike', 'line', 'quote', 'list', 'ordered-list', 'check', 'outdent', 'indent', 'code', 'inline-code', 'undo', 'redo'],
     after: () => {
       if (initialValue) {
         vditorInst.value?.setValue(initialValue)
