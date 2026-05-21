@@ -179,7 +179,7 @@ const visibilityCopy = computed(() =>
     : '私密日记只进入你的个人记录，也会生成 AI 分析。',
 )
 
-const isOverLimit = computed(() => draft.value.length > 1000)
+const isOverLimit = computed(() => draft.value.length > 3000)
 
 onMounted(() => {
   let initialValue = ''
@@ -212,7 +212,7 @@ onMounted(() => {
     cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.11.2',
     placeholder: '今天发生了什么？可以只写一句，也可以把说不清的感觉先放在这里。',
     cache: { enable: false },
-    counter: { enable: true, max: 1000, type: 'text' },
+    counter: { enable: true, max: 3000, type: 'text' },
     outline: { enable: false, position: 'right' },
     toolbar: window.innerWidth <= 780
       ? ['bold', 'italic', 'strike', 'line', 'list', 'ordered-list', 'undo', 'redo']
