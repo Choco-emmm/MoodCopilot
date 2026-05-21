@@ -207,7 +207,8 @@ onMounted(() => {
 
   vditorInst.value = new Vditor('vditor-composer', {
     mode: 'ir',
-    height: 360,
+    height: 'auto',
+    minHeight: 260,
     cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.11.2',
     placeholder: '今天发生了什么？可以只写一句，也可以把说不清的感觉先放在这里。',
     cache: { enable: false },
@@ -353,7 +354,6 @@ async function handleSave() {
 
 <style scoped>
 .composer-editor {
-  height: 360px;
   margin-bottom: 4px;
   width: 100%;
   min-width: 0;
@@ -361,9 +361,7 @@ async function handleSave() {
 }
 
 @media (max-width: 780px) {
-  .composer-editor {
-    height: 50vh;
-  }
+  /* No height override needed anymore, Vditor will auto-expand */
 }
 
 .composer-editor :deep(.vditor) {
