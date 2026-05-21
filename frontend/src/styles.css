@@ -3225,16 +3225,14 @@ h3 {
   }
 
   .chat-input-area {
-    position: sticky;
-    bottom: calc(88px + env(safe-area-inset-bottom));
-    z-index: 9100;
+    position: static;
     padding: 10px 0 4px;
-    background: linear-gradient(180deg, rgba(248, 246, 241, 0), var(--color-bg) 28%);
+    background: transparent;
   }
 
   body.chat-keyboard-open .chat-input-area {
-    bottom: calc(8px + env(safe-area-inset-bottom));
-    background: linear-gradient(180deg, rgba(248, 246, 241, 0), var(--color-bg) 38%);
+    padding-bottom: 8px;
+    background: transparent;
   }
 
   .chat-input-row {
