@@ -49,19 +49,22 @@ public class MemoryConsolidationService {
     private final RagMemoryService ragMemoryService;
     private final ObjectMapper objectMapper;
     private final TransactionOperations transactionOperations;
+    private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
 
     public MemoryConsolidationService(ChatClient chatClient,
                                       UserProfileMemoryMapper memoryMapper,
                                       MemoryExtractionService memoryExtractionService,
                                       RagMemoryService ragMemoryService,
                                       ObjectMapper objectMapper,
-                                      TransactionOperations transactionOperations) {
+                                      TransactionOperations transactionOperations,
+                                      org.springframework.data.redis.core.StringRedisTemplate redisTemplate) {
         this.chatClient = chatClient;
         this.memoryMapper = memoryMapper;
         this.memoryExtractionService = memoryExtractionService;
         this.ragMemoryService = ragMemoryService;
         this.objectMapper = objectMapper;
         this.transactionOperations = transactionOperations;
+        this.redisTemplate = redisTemplate;
     }
 
     public void consolidateCurrentUserMemories() {
@@ -74,6 +77,16 @@ public class MemoryConsolidationService {
     }
 
     public void consolidateUserMemories(Long userId) {
+        String today = java.time.LocalDate.now().toString();
+        String redisKey = "memory:consolidate:count:" + userId + ":" + today;
+        Long count = redisTemplate.opsForValue().increment(redisKey);
+        if (count != null && count == 1) {
+            redisTemplate.expire(redisKey, java.time.Duration.ofDays(1));
+        }
+        if (count != null && count > 2) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行两次智能整理");
+        }
+
         List<UserProfileMemoryEntity> existing = memoryExtractionService.listUserMemories(userId);
         if (existing.isEmpty() || existing.size() < 2) {
             log.info("用户 {} 记忆条目过少（{}条），无需整理", userId, existing.size());

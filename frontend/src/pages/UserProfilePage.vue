@@ -765,8 +765,13 @@ async function consolidateMemories() {
     await memoryApi.consolidate()
     await loadMemories()
     window.$message?.success('记忆碎片整理完成')
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to consolidate memories', err)
+    if (err.response?.status === 429 || (err.response?.data?.message && err.response.data.message.includes('每天最多只能进行两次'))) {
+      alert('每天最多只能进行两次智能整理，请明天再试吧')
+    } else {
+      alert('记忆碎片整理失败，请稍后重试')
+    }
   } finally {
     consolidatingMemory.value = false
   }
