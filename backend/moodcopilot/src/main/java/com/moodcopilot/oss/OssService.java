@@ -62,7 +62,7 @@ public class OssService {
         if (originalName != null && originalName.contains(".")) {
             ext = originalName.substring(originalName.lastIndexOf('.'));
         }
-        String objectKey = "images/" + UUID.randomUUID() + ext;
+        String objectKey = "temp/" + UUID.randomUUID() + ext;
         String contentType = file.getContentType();
         if (contentType == null) contentType = "image/jpeg";
 
@@ -155,6 +155,58 @@ public class OssService {
         if (idx < 0) return null;
         String path = imageUrl.substring(idx + host.length());
         return path.startsWith("/") ? path.substring(1) : path;
+    }
+
+    /**
+     * 将 temp/ 目录图片复制到 images/ 正式目录（OSS CopyObject）。
+     * 日记发布/更新时调用，实现「临时上传 → 发布转正」的孤儿文件防护。
+     * 失败时降级返回原 URL，不阻塞日记主流程。
+     */
+    public String promoteImage(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank() || !imageUrl.contains("/temp/")) {
+            return imageUrl;
+        }
+        String tempKey = extractObjectKey(imageUrl);
+        if (tempKey == null || !tempKey.startsWith("temp/")) {
+            return imageUrl;
+        }
+        String imagesKey = "images/" + tempKey.substring("temp/".length());
+        String host = bucket + "." + endpoint;
+
+        try {
+            String date = DateTimeFormatter.RFC_1123_DATE_TIME
+                    .withZone(ZoneId.of("GMT"))
+                    .withLocale(Locale.US)
+                    .format(Instant.now());
+
+            String copySource = "/" + bucket + "/" + tempKey;
+            String canonicalString = "PUT\n\n\n" + date + "\nx-oss-copy-source:" + copySource + "\n/" + bucket + "/" + imagesKey;
+            String signature = sign(canonicalString);
+            String auth = "OSS " + accessKey + ":" + signature;
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://" + host + "/" + imagesKey))
+                    .header("Authorization", auth)
+                    .header("Date", date)
+                    .header("x-oss-copy-source", copySource)
+                    .PUT(HttpRequest.BodyPublishers.noBody())
+                    .timeout(Duration.ofSeconds(15))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            int status = response.statusCode();
+            if (status == 200) {
+                String promotedUrl = "https://" + host + "/" + imagesKey;
+                log.info("OSS 图片转正成功: {} -> {}", tempKey, imagesKey);
+                return promotedUrl;
+            } else {
+                log.error("OSS 图片转正失败 status={} tempKey={} body={}", status, tempKey, response.body());
+                return imageUrl;
+            }
+        } catch (Exception e) {
+            log.error("OSS 图片转正异常 tempKey={}: {}", tempKey, e.getMessage());
+            return imageUrl;
+        }
     }
 
     /**

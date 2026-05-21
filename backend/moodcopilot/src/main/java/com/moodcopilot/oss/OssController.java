@@ -77,7 +77,7 @@ public class OssController {
         rateLimitService.tryAcquire(user, RateLimitService.AiApiType.IMAGE_UPLOAD);
 
         if (!ext.startsWith(".")) ext = "." + ext;
-        String objectKey = "images/" + java.util.UUID.randomUUID() + ext;
+        String objectKey = "temp/" + java.util.UUID.randomUUID() + ext;
         Map<String, Object> policy = ossService.postSign(objectKey, MAX_SIZE);
         log.info("用户获取上传策略 userId={} key={}", user.getId(), policy.get("key"));
         return ApiResponse.ok(policy);
