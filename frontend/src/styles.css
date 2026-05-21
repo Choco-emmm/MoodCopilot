@@ -3171,7 +3171,7 @@ h3 {
     padding-left: 8px;
     padding-right: 8px;
     padding-top: 16px;
-    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
     height: 100dvh;
     overflow: hidden;
   }
@@ -3187,6 +3187,7 @@ h3 {
     height: 100%;
     min-height: 0;
     padding-bottom: 0;
+    grid-template-rows: auto 1fr auto;
   }
 
   .chat-messages {
