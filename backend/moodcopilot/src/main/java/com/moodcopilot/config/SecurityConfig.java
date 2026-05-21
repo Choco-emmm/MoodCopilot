@@ -93,7 +93,7 @@ public class SecurityConfig {
                 .httpBasic(basic -> basic.disable())
                 .headers(headers -> headers
                         .contentSecurityPolicy(csp -> csp
-                                .policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' https://challenges.cloudflare.com; connect-src 'self' ws: wss:"))
+                                .policyDirectives("default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob:; frame-src 'self' https://challenges.cloudflare.com; connect-src 'self' ws: wss:"))
                         .httpStrictTransportSecurity(hsts -> hsts
                                 .includeSubDomains(true)
                                 .maxAgeInSeconds(31536000)))
