@@ -12,9 +12,18 @@ import java.util.Map;
 public class UserProfileMemoryController {
 
     private final MemoryExtractionService memoryExtractionService;
+    private final MemoryConsolidationService memoryConsolidationService;
 
-    public UserProfileMemoryController(MemoryExtractionService memoryExtractionService) {
+    public UserProfileMemoryController(MemoryExtractionService memoryExtractionService,
+                                       MemoryConsolidationService memoryConsolidationService) {
         this.memoryExtractionService = memoryExtractionService;
+        this.memoryConsolidationService = memoryConsolidationService;
+    }
+
+    @PostMapping("/consolidate")
+    public ApiResponse<Void> consolidate() {
+        memoryConsolidationService.consolidateCurrentUserMemories();
+        return ApiResponse.ok(null);
     }
 
     @GetMapping
