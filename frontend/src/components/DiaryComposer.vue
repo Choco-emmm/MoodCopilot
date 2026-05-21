@@ -379,7 +379,11 @@ async function handleSave() {
 }
 
 .composer-editor :deep(.vditor-toolbar) {
-  padding: 4px 8px;
+  padding: 6px 16px !important;
+}
+
+.composer-editor :deep(.vditor-ir) {
+  padding: 16px 20px !important;
 }
 
 .composer-editor :deep(.vditor-toolbar__item > button) {
