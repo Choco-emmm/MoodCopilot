@@ -93,6 +93,7 @@ export const useTaskStore = defineStore('task', () => {
           nextExpReward: (data.streak ?? 0) >= 6 ? 25 : 10 + (data.streak ?? 0) * 2,
         }
         checkInMsg.value = `签到成功！+${data.exp} EXP`
+        claimReward('checkin')
         return true
       }
       checkInState.value = { ...checkInState.value, todaySigned: true }
@@ -110,22 +111,23 @@ export const useTaskStore = defineStore('task', () => {
     claimedRewards.value = new Set([...claimedRewards.value, field])
   }
 
-  /** 判断某任务是否已领取 */
+  /** 判断某任务是否已领取（签到自动发放，视为已领取） */
   function isClaimed(field: string): boolean {
+    if (field === 'checkin' && checkInState.value.todaySigned) return true
     return claimedRewards.value.has(field)
   }
 
-  /** 获取任务按钮文字 */
+  /** 获取任务按钮文字（签到即时发放，跳过"领取奖励"中间态） */
   function taskButtonLabel(task: DailyTaskItem): string {
     if (task.current >= task.max && isClaimed(task.field)) return '已完成'
-    if (task.current >= task.max) return '领取奖励'
+    if (task.current >= task.max) return task.field === 'checkin' ? '已完成' : '领取奖励'
     return '去完成'
   }
 
   /** 获取任务按钮状态 */
   function taskButtonState(task: DailyTaskItem): 'go' | 'claim' | 'done' {
     if (task.current >= task.max && isClaimed(task.field)) return 'done'
-    if (task.current >= task.max) return 'claim'
+    if (task.current >= task.max) return task.field === 'checkin' ? 'done' : 'claim'
     return 'go'
   }
 
