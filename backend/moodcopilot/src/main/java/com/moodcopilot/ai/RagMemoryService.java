@@ -476,17 +476,56 @@ public class RagMemoryService {
                 java.util.Map<Long, DiaryEntity> diaryMap = entities.stream()
                         .collect(java.util.stream.Collectors.toMap(DiaryEntity::getId, e -> e));
                 
+                // Group hits by diaryId to find matched image/music hits
+                java.util.Map<Long, java.util.List<RagHit>> hitsByDiaryId = new java.util.HashMap<>();
+                for (RagHit hit : hits) {
+                    if (hit.diaryId() != null) {
+                        hitsByDiaryId.computeIfAbsent(hit.diaryId(), k -> new ArrayList<>()).add(hit);
+                    }
+                }
+
                 // Keep the order of semantic relevance from hits
                 for (Long id : diaryIds) {
                     DiaryEntity d = diaryMap.get(id);
                     if (d != null && d.getCreatedAt() != null) {
+                        StringBuilder prefixSb = new StringBuilder();
+                        
+                        // Check if there is music meta
+                        if (d.getMusicMeta() != null && d.getMusicMeta().getTitle() != null && !d.getMusicMeta().getTitle().isBlank()) {
+                            prefixSb.append("[分享音乐：").append(d.getMusicMeta().getTitle());
+                            if (d.getMusicMeta().getArtist() != null && !d.getMusicMeta().getArtist().isBlank()) {
+                                prefixSb.append(" - ").append(d.getMusicMeta().getArtist());
+                            }
+                            prefixSb.append("] ");
+                        }
+                        
+                        // Check if there is matched image description in RAG hits
+                        List<RagHit> diaryHits = hitsByDiaryId.getOrDefault(id, List.of());
+                        String matchedImageDesc = null;
+                        for (RagHit h : diaryHits) {
+                            if (SOURCE_IMAGE.equals(h.sourceType()) && h.content() != null && !h.content().isBlank()) {
+                                matchedImageDesc = h.content();
+                                if (matchedImageDesc.startsWith("【图片描述】")) {
+                                    matchedImageDesc = matchedImageDesc.substring("【图片描述】".length());
+                                }
+                                break;
+                            }
+                        }
+                        
+                        if (matchedImageDesc != null) {
+                            prefixSb.append("[图片描述：").append(matchedImageDesc).append("] ");
+                        } else if (d.getImages() != null && !d.getImages().isEmpty()) {
+                            prefixSb.append("[分享图片] ");
+                        }
+
                         String snippet = d.getContent();
                         if (snippet != null && snippet.length() > 500) {
                             snippet = snippet.substring(0, 500) + "...";
                         }
-                        // If it's a music or image hit, we could append that info, but snippet is enough for LLM
+                        
+                        String finalSnippet = prefixSb.toString() + (snippet != null ? snippet : "");
                         summaries.add(new com.moodcopilot.diary.DiarySearchResult.DiarySummary(
-                            d.getId(), d.getCreatedAt().toLocalDate(), snippet != null ? snippet : ""));
+                            d.getId(), d.getCreatedAt().toLocalDate(), finalSnippet));
                     }
                 }
             } catch (Exception e) {

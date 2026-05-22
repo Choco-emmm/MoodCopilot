@@ -9,6 +9,7 @@ public record GraphSearchResult(
 
     public record GraphItem(
             String content,
-            String date) {
+            String date,
+            Long diaryId) {
     }
 }

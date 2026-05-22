@@ -68,6 +68,7 @@
                   <span class="rag-refs-icon">🔍</span>
                   <span>已检索 {{ countDiaryRefs(msg.ragReferences) }} 条记录</span>
                   <span v-if="countProfileRefs(msg.ragReferences)"> · {{ countProfileRefs(msg.ragReferences) }} 条画像</span>
+                  <span v-if="countGraphRefs(msg.ragReferences)"> · {{ countGraphRefs(msg.ragReferences) }} 条图谱</span>
                   <span class="rag-refs-arrow">{{ expandedRefs.has(msg.id) ? '▾' : '▸' }}</span>
                 </button>
                 <div v-if="expandedRefs.has(msg.id)" class="rag-refs-list">
@@ -80,7 +81,7 @@
                       @click="ref.diaryId && goToDiary(ref.diaryId)"
                     >
                       <div class="rag-ref-meta">
-                        <span class="rag-ref-date">{{ ref.date }}</span>
+                        <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
                         <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                       </div>
                       <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
@@ -95,6 +96,22 @@
                       <span :class="['rag-ref-snippet', { 'expanded': isProfileSnippetExpanded(msg.id, i) }]" :title="ref.snippet || ref.value">
                         <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}】</span>{{ ref.snippet || ref.value }}
                       </span>
+                    </div>
+                  </template>
+                  <template v-if="getGraphRefs(msg.ragReferences).length">
+                    <div class="rag-refs-section-label">🕸️ 关系图谱</div>
+                    <div
+                      v-for="(ref, i) in getGraphRefs(msg.ragReferences)"
+                      :key="'g'+i"
+                      :class="['rag-ref-item', { 'rag-ref-clickable': ref.diaryId }]"
+                      @click="ref.diaryId && goToDiary(ref.diaryId)"
+                    >
+                      <div class="rag-ref-meta">
+                        <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
+                        <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
+                      </div>
+                      <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
+                      <span v-if="ref.diaryId" class="rag-ref-go">→</span>
                     </div>
                   </template>
                 </div>
@@ -145,6 +162,7 @@
                 <span class="rag-refs-icon">🔍</span>
                 <span>已检索 {{ streamingDiaryRefs.length }} 条记录</span>
                 <span v-if="streamingProfileRefs.length"> · {{ streamingProfileRefs.length }} 条画像</span>
+                <span v-if="streamingGraphRefs.length"> · {{ streamingGraphRefs.length }} 条图谱</span>
                 <span class="rag-refs-arrow">{{ showStreamingRefs ? '▾' : '▸' }}</span>
               </button>
               <div v-if="showStreamingRefs" class="rag-refs-list">
@@ -157,7 +175,7 @@
                     @click="ref.diaryId && goToDiary(ref.diaryId)"
                   >
                     <div class="rag-ref-meta">
-                      <span class="rag-ref-date">{{ ref.date }}</span>
+                      <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
                       <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                     </div>
                     <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
@@ -170,6 +188,22 @@
                     <span class="rag-ref-snippet" :title="ref.snippet || ref.value">
                       <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}】</span>{{ ref.snippet || ref.value }}
                     </span>
+                  </div>
+                </template>
+                <template v-if="streamingGraphRefs.length">
+                  <div class="rag-refs-section-label">🕸️ 关系图谱</div>
+                  <div
+                    v-for="(ref, i) in streamingGraphRefs"
+                    :key="'sg'+i"
+                    :class="['rag-ref-item', { 'rag-ref-clickable': ref.diaryId }]"
+                    @click="ref.diaryId && goToDiary(ref.diaryId)"
+                  >
+                    <div class="rag-ref-meta">
+                      <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
+                      <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
+                    </div>
+                    <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
+                    <span v-if="ref.diaryId" class="rag-ref-go">→</span>
                   </div>
                 </template>
               </div>
@@ -341,13 +375,13 @@ const lastReplyError = ref<string | null>(null)
 const lastReplyRequest = ref<{ convId: number; content: string; refContents: string[] } | null>(null)
 const router = useRouter()
 const streamingRefs = ref<RagRef[]>([])
-const showStreamingRefs = ref(true)
+const showStreamingRefs = ref(false)
 const expandedRefs = reactive(new Set<string>())
 
 function countDiaryRefs(refs: RagRef[]): number {
   const seen = new Set<string>()
   return refs.filter(r => {
-    if (r.type === 'profile_memory' || !r.diaryId) return false
+    if (r.type === 'profile_memory' || r.type === 'graph_memory' || !r.diaryId) return false
     if (seen.has(r.diaryId)) return false
     seen.add(r.diaryId)
     return true
@@ -356,6 +390,10 @@ function countDiaryRefs(refs: RagRef[]): number {
 
 function countProfileRefs(refs: RagRef[]): number {
   return refs.filter(r => r.type === 'profile_memory').length
+}
+
+function countGraphRefs(refs: RagRef[]): number {
+  return getGraphRefs(refs).length
 }
 
 function toolLabel(name?: string): string {
@@ -370,10 +408,25 @@ function toolLabel(name?: string): string {
   return map[name] || name
 }
 
+function formatRefDate(dateStr?: string): string {
+  if (!dateStr) return ''
+  const tIndex = dateStr.indexOf('T')
+  if (tIndex !== -1) {
+    const datePart = dateStr.substring(0, tIndex)
+    const timePart = dateStr.substring(tIndex + 1, tIndex + 6) // "HH:mm"
+    return `${datePart} ${timePart}`
+  }
+  const spaceIndex = dateStr.indexOf(' ')
+  if (spaceIndex !== -1 && dateStr.length > spaceIndex + 6) {
+    return dateStr.substring(0, spaceIndex + 6) // up to "HH:mm"
+  }
+  return dateStr
+}
+
 function getDiaryRefs(refs: RagRef[]): RagRef[] {
   const seen = new Set<string>()
   return refs.filter(r => {
-    if (r.type === 'profile_memory' || !r.diaryId) return false
+    if (r.type === 'profile_memory' || r.type === 'graph_memory' || !r.diaryId) return false
     if (seen.has(r.diaryId)) return false
     seen.add(r.diaryId)
     return true
@@ -384,9 +437,21 @@ function getProfileRefs(refs: RagRef[]): RagRef[] {
   return refs.filter(r => r.type === 'profile_memory')
 }
 
+function getGraphRefs(refs: RagRef[]): RagRef[] {
+  const seen = new Set<string>()
+  return refs.filter(r => {
+    if (r.type !== 'graph_memory') return false
+    if (!r.snippet) return false
+    if (seen.has(r.snippet)) return false
+    seen.add(r.snippet)
+    return true
+  })
+}
+
 /** 流式面板用的计算属性 */
 const streamingDiaryRefs = computed(() => getDiaryRefs(streamingRefs.value))
 const streamingProfileRefs = computed(() => getProfileRefs(streamingRefs.value))
+const streamingGraphRefs = computed(() => getGraphRefs(streamingRefs.value))
 
 function toggleMsgRefs(msgId: string) {
   if (expandedRefs.has(msgId)) {
@@ -722,7 +787,7 @@ async function sendReply(convId: number, content: string, refContents: string[],
   streamAbortCtrl = ctrl
 
   streamingRefs.value = []
-  showStreamingRefs.value = true
+  showStreamingRefs.value = false
   let fullReply = ''
   let currentRefs: RagRef[] = []
 

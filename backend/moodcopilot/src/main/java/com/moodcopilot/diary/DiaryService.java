@@ -506,10 +506,24 @@ public class DiaryService {
         }
 
         List<DiarySearchResult.DiarySummary> diaries = diaryMapper.selectList(query).stream()
-                .map(diary -> new DiarySearchResult.DiarySummary(
-                        diary.getId(),
-                        diary.getCreatedAt().toLocalDate(),
-                        snippet(diary.getContent())))
+                .map(diary -> {
+                    StringBuilder prefixSb = new StringBuilder();
+                    if (diary.getMusicMeta() != null && diary.getMusicMeta().getTitle() != null && !diary.getMusicMeta().getTitle().isBlank()) {
+                        prefixSb.append("[分享音乐：").append(diary.getMusicMeta().getTitle());
+                        if (diary.getMusicMeta().getArtist() != null && !diary.getMusicMeta().getArtist().isBlank()) {
+                            prefixSb.append(" - ").append(diary.getMusicMeta().getArtist());
+                        }
+                        prefixSb.append("] ");
+                    }
+                    if (diary.getImages() != null && !diary.getImages().isEmpty()) {
+                        prefixSb.append("[分享图片] ");
+                    }
+                    String finalSnippet = prefixSb.toString() + snippet(diary.getContent());
+                    return new DiarySearchResult.DiarySummary(
+                            diary.getId(),
+                            diary.getCreatedAt().toLocalDate(),
+                            finalSnippet);
+                })
                 .toList();
 
         String note = diaries.isEmpty()

@@ -3272,9 +3272,13 @@ h3 {
     padding-left: 8px;
     padding-right: 8px;
     padding-top: 16px;
-    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
     height: 100dvh;
     overflow: hidden;
+  }
+
+  body.chat-keyboard-open .app-shell.chat-shell {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
 
   .chat-mobile-conv {

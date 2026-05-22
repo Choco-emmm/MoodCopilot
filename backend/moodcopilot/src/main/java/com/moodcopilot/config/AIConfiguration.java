@@ -291,7 +291,7 @@ public class AIConfiguration {
     }
 
     @Bean(name = GraphSearchFunctionSupport.NAME)
-    public FunctionCallback graphSearchFunction(@Lazy DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper) {
+    public FunctionCallback graphSearchFunction(@Lazy DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper, ObjectMapper objectMapper) {
         log.info("注册 Function Calling 工具：{}", GraphSearchFunctionSupport.NAME);
         return FunctionCallback.builder()
                 .function(GraphSearchFunctionSupport.NAME,
@@ -322,12 +322,42 @@ public class AIConfiguration {
                                     for (DiaryKnowledgeGraphEntity t : triples) {
                                         items.add(new GraphSearchResult.GraphItem(
                                                 t.getHeadEntity() + " " + t.getRelation() + " " + t.getTailEntity(),
-                                                t.getCreatedAt() != null ? t.getCreatedAt().toString() : null));
+                                                t.getCreatedAt() != null ? t.getCreatedAt().toString() : null,
+                                                t.getDiaryId()));
                                     }
                                 }
 
-                                return new GraphSearchResult(items.size(), items,
+                                MemoryQueryResult result; // Actually it returns GraphSearchResult, we're returning GraphSearchResult
+                                GraphSearchResult searchResult = new GraphSearchResult(items.size(), items,
                                         items.isEmpty() ? "未找到与 '" + keyword + "' 相关的图谱三元组" : "已返回图谱三元组");
+
+                                // Emit tool results to SSE if sink is available
+                                @SuppressWarnings("unchecked")
+                                reactor.core.publisher.Sinks.Many<String> sink = 
+                                        (reactor.core.publisher.Sinks.Many<String>) toolContext.getContext().get("sseSink");
+                                if (sink != null && !items.isEmpty()) {
+                                    try {
+                                        java.util.List<java.util.Map<String, String>> eventItems = new java.util.ArrayList<>();
+                                        for (var g : items) {
+                                            eventItems.add(java.util.Map.of(
+                                                "type", "graph_memory",
+                                                "snippet", g.content() != null ? g.content() : "",
+                                                "date", g.date() != null ? g.date() : "",
+                                                "diaryId", g.diaryId() != null ? g.diaryId().toString() : "",
+                                                "toolName", "graphSearch"
+                                            ));
+                                        }
+                                        java.util.Map<String, Object> event = java.util.Map.of(
+                                            "type", "tool_references",
+                                            "items", eventItems
+                                        );
+                                        sink.tryEmitNext("[[TOOL_EVENT]]" + objectMapper.writeValueAsString(event));
+                                    } catch (Exception e) {
+                                        log.warn("Failed to emit tool references for graphSearch", e);
+                                    }
+                                }
+
+                                return searchResult;
                             } finally {
                                 SecurityContextHolder.clearContext();
                             }

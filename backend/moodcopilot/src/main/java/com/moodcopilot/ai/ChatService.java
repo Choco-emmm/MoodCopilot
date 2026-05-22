@@ -589,6 +589,18 @@ public class ChatService {
                         }
                     }
                 }
+                case "graphSearchFunction" -> {
+                    if (result instanceof GraphSearchResult gsr && gsr.items() != null) {
+                        for (var g : gsr.items()) {
+                            items.add(Map.of(
+                                    "type", "graph_memory",
+                                    "snippet", g.content() != null ? g.content() : "",
+                                    "date", g.date() != null ? g.date() : "",
+                                    "diaryId", g.diaryId() != null ? g.diaryId().toString() : "",
+                                    "toolName", "graphSearch"));
+                        }
+                    }
+                }
             }
             if (!items.isEmpty()) {
                 Map<String, Object> event = Map.of("type", "tool_references", "items", items);
@@ -683,7 +695,8 @@ public class ChatService {
                         for (var t : triples) {
                             items.add(new GraphSearchResult.GraphItem(
                                     t.getHeadEntity() + " " + t.getRelation() + " " + t.getTailEntity(),
-                                    t.getCreatedAt() != null ? t.getCreatedAt().toString() : null));
+                                    t.getCreatedAt() != null ? t.getCreatedAt().toString() : null,
+                                    t.getDiaryId()));
                         }
                     }
                     yield new GraphSearchResult(items.size(), items,
