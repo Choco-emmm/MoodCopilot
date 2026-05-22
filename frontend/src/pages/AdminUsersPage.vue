@@ -415,6 +415,11 @@ function getAvatarStyle(name: string) {
 }
 
 @media (max-width: 768px) {
+  .admin-page {
+    display: block;
+    padding: 16px 0 90px;
+  }
+
   .admin-page-head {
     flex-direction: column;
     align-items: stretch;

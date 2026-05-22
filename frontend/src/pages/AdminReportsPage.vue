@@ -217,6 +217,11 @@ function formatTime(value?: string) {
 }
 
 @media (max-width: 600px) {
+  .admin-page {
+    display: block;
+    padding: 16px 0 90px;
+  }
+
   .admin-page-head {
     flex-direction: column;
     align-items: flex-start;
