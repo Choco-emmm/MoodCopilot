@@ -55,28 +55,155 @@
         </div>
 
         <div class="chat-messages" ref="msgBox">
-          <div v-if="messages.length === 0" class="chat-empty" style="flex-direction: column; text-align: center;">
+          <div v-if="messages.length === 0" class="chat-empty">
             <h2 class="chat-header-title">MoodCopilot</h2>
-            <p class="chat-subtitle" style="margin-top: 8px;">可以聊聊最近的心情，分享你的故事和想法</p>
+            <p class="chat-subtitle">可以聊聊最近的心情，分享你的故事和想法</p>
+            
+            <div class="chat-quick-starters">
+              <button 
+                v-for="(item, idx) in quickStarters" 
+                :key="idx" 
+                class="quick-starter-card"
+                type="button"
+                @click="useQuickStarter(item.text)"
+              >
+                <span class="starter-icon">{{ item.icon }}</span>
+                <span class="starter-text">{{ item.text }}</span>
+              </button>
+            </div>
           </div>
 
           <template v-for="msg in messages" :key="msg.id">
             <div :class="['msg-item', msg.role]">
+              <!-- AI Avatar -->
+              <div v-if="msg.role === 'ai'" class="msg-avatar ai-avatar">
+                <span class="ai-avatar-icon">🌿</span>
+              </div>
+
+              <div class="msg-wrapper">
+                <div v-if="msg.role === 'ai' && msg.ragReferences?.length" class="rag-refs-panel rag-refs-above rag-references-fixed">
+                  <button class="rag-refs-toggle" @click="toggleMsgRefs(msg.id)">
+                    <span class="rag-refs-icon">🔍</span>
+                    <span>已检索 {{ countDiaryRefs(msg.ragReferences) }} 条记录</span>
+                    <span v-if="countProfileRefs(msg.ragReferences)"> · {{ countProfileRefs(msg.ragReferences) }} 条画像</span>
+                    <span v-if="countGraphRefs(msg.ragReferences)"> · {{ countGraphRefs(msg.ragReferences) }} 条图谱</span>
+                    <span class="rag-refs-arrow">{{ expandedRefs.has(msg.id) ? '▾' : '▸' }}</span>
+                  </button>
+                  <div v-if="expandedRefs.has(msg.id)" class="rag-refs-list">
+                    <template v-if="getDiaryRefs(msg.ragReferences).length">
+                      <div class="rag-refs-section-label">📝 日记记忆</div>
+                      <div
+                        v-for="(ref, i) in getDiaryRefs(msg.ragReferences)"
+                        :key="'d'+i"
+                        class="rag-ref-item rag-ref-clickable"
+                        @click="ref.diaryId && goToDiary(ref.diaryId)"
+                      >
+                        <div class="rag-ref-meta">
+                          <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
+                          <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
+                        </div>
+                        <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
+                        <span v-if="ref.diaryId" class="rag-ref-go">→</span>
+                      </div>
+                    </template>
+                    <template v-if="getProfileRefs(msg.ragReferences).length">
+                      <div class="rag-refs-section-label">🧠 个人画像</div>
+                      <div v-for="(ref, i) in getProfileRefs(msg.ragReferences)" :key="'p'+i"
+                           class="rag-ref-item-profile"
+                           @click="toggleProfileSnippet(msg.id, i)">
+                        <span :class="['rag-ref-snippet', { 'expanded': isProfileSnippetExpanded(msg.id, i) }]" :title="ref.snippet || ref.value">
+                          <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}】</span>{{ ref.snippet || ref.value }}
+                        </span>
+                      </div>
+                    </template>
+                    <template v-if="getGraphRefs(msg.ragReferences).length">
+                      <div class="rag-refs-section-label">🕸️ 关系图谱</div>
+                      <div
+                        v-for="(ref, i) in getGraphRefs(msg.ragReferences)"
+                        :key="'g'+i"
+                        :class="['rag-ref-item', { 'rag-ref-clickable': ref.diaryId }]"
+                        @click="ref.diaryId && goToDiary(ref.diaryId)"
+                      >
+                        <div class="rag-ref-meta">
+                          <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
+                          <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
+                        </div>
+                        <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
+                        <span v-if="ref.diaryId" class="rag-ref-go">→</span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+                <div
+                  :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
+                >
+                  <template v-if="msg.role === 'ai'">
+                    <details v-if="parseThink(msg.content).think" class="think-block">
+                      <summary>深度思考过程</summary>
+                      <div class="think-content" v-html="renderMd(parseThink(msg.content).think)"></div>
+                    </details>
+                    <div v-if="parseThink(msg.content).text" class="md-content" v-html="renderMd(parseThink(msg.content).text)" />
+                  </template>
+                  <template v-else>
+                    <p>{{ msg.content }}</p>
+                    <ul v-if="msg.references?.length" class="chat-user-refs">
+                      <li v-for="(refText, refIndex) in msg.references" :key="`${msg.id}-ref-${refIndex}`">
+                        引用：{{ refText }}
+                      </li>
+                    </ul>
+                  </template>
+                </div>
+              </div>
+
+              <!-- User Avatar -->
+              <div v-if="msg.role === 'user'" class="msg-avatar user-avatar">
+                <img v-if="authStore.avatar" :src="authStore.avatar" :alt="authStore.displayName || 'Me'" />
+                <span v-else>{{ userInitial }}</span>
+              </div>
+            </div>
+          </template>
+
+          <div v-if="isThinking" class="msg-item ai animate-fade-in">
+            <div class="msg-avatar ai-avatar">
+              <span class="ai-avatar-icon">🌿</span>
+            </div>
             <div class="msg-wrapper">
-              <div v-if="msg.role === 'ai' && msg.ragReferences?.length" class="rag-refs-panel rag-refs-above rag-references-fixed">
-                <button class="rag-refs-toggle" @click="toggleMsgRefs(msg.id)">
+              <div class="chat-bubble chat-ai thinking-bubble">
+                <div class="thinking-header">
+                  <span class="sparkle-icon">✨</span>
+                  <span class="thinking-text">MoodCopilot 正在沉思</span>
+                  <span class="typing-dots"></span>
+                </div>
+                <div class="thinking-dots-loader">
+                  <span class="dot animate-bounce" style="animation-delay: 0ms"></span>
+                  <span class="dot animate-bounce" style="animation-delay: 150ms"></span>
+                  <span class="dot animate-bounce" style="animation-delay: 300ms"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 流式回复（引用先行，文本追加） -->
+          <div v-if="streaming && (streamingText || streamingRefs.length)" class="msg-item ai">
+            <div class="msg-avatar ai-avatar">
+              <span class="ai-avatar-icon">🌿</span>
+            </div>
+            <div class="msg-wrapper">
+              <div v-if="streaming && streamingRefs.length" class="rag-refs-panel rag-refs-above rag-references-fixed">
+                <button class="rag-refs-toggle" @click="showStreamingRefs = !showStreamingRefs">
                   <span class="rag-refs-icon">🔍</span>
-                  <span>已检索 {{ countDiaryRefs(msg.ragReferences) }} 条记录</span>
-                  <span v-if="countProfileRefs(msg.ragReferences)"> · {{ countProfileRefs(msg.ragReferences) }} 条画像</span>
-                  <span v-if="countGraphRefs(msg.ragReferences)"> · {{ countGraphRefs(msg.ragReferences) }} 条图谱</span>
-                  <span class="rag-refs-arrow">{{ expandedRefs.has(msg.id) ? '▾' : '▸' }}</span>
+                  <span>已检索 {{ streamingDiaryRefs.length }} 条记录</span>
+                  <span v-if="streamingProfileRefs.length"> · {{ streamingProfileRefs.length }} 条画像</span>
+                  <span v-if="streamingGraphRefs.length"> · {{ streamingGraphRefs.length }} 条图谱</span>
+                  <span class="rag-refs-arrow">{{ showStreamingRefs ? '▾' : '▸' }}</span>
                 </button>
-                <div v-if="expandedRefs.has(msg.id)" class="rag-refs-list">
-                  <template v-if="getDiaryRefs(msg.ragReferences).length">
+                <div v-if="showStreamingRefs" class="rag-refs-list">
+                  <template v-if="streamingDiaryRefs.length">
                     <div class="rag-refs-section-label">📝 日记记忆</div>
                     <div
-                      v-for="(ref, i) in getDiaryRefs(msg.ragReferences)"
-                      :key="'d'+i"
+                      v-for="(ref, i) in streamingDiaryRefs"
+                      :key="'sd'+i"
                       class="rag-ref-item rag-ref-clickable"
                       @click="ref.diaryId && goToDiary(ref.diaryId)"
                     >
@@ -88,26 +215,24 @@
                       <span v-if="ref.diaryId" class="rag-ref-go">→</span>
                     </div>
                   </template>
-                  <template v-if="getProfileRefs(msg.ragReferences).length">
+                  <template v-if="streamingProfileRefs.length">
                     <div class="rag-refs-section-label">🧠 个人画像</div>
-                    <div v-for="(ref, i) in getProfileRefs(msg.ragReferences)" :key="'p'+i"
-                         class="rag-ref-item-profile"
-                         @click="toggleProfileSnippet(msg.id, i)">
-                      <span :class="['rag-ref-snippet', { 'expanded': isProfileSnippetExpanded(msg.id, i) }]" :title="ref.snippet || ref.value">
+                    <div v-for="(ref, i) in streamingProfileRefs" :key="'sp'+i" class="rag-ref-item">
+                      <span class="rag-ref-snippet" :title="ref.snippet || ref.value">
                         <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}】</span>{{ ref.snippet || ref.value }}
                       </span>
                     </div>
                   </template>
-                  <template v-if="getGraphRefs(msg.ragReferences).length">
+                  <template v-if="streamingGraphRefs.length">
                     <div class="rag-refs-section-label">🕸️ 关系图谱</div>
                     <div
-                      v-for="(ref, i) in getGraphRefs(msg.ragReferences)"
-                      :key="'g'+i"
+                      v-for="(ref, i) in streamingGraphRefs"
+                      :key="'sg'+i"
                       :class="['rag-ref-item', { 'rag-ref-clickable': ref.diaryId }]"
                       @click="ref.diaryId && goToDiary(ref.diaryId)"
                     >
                       <div class="rag-ref-meta">
-                        <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
+                        <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
                         <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                       </div>
                       <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
@@ -117,107 +242,24 @@
                 </div>
               </div>
 
-            <div
-              :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
-            >
-              <template v-if="msg.role === 'ai'">
-                <div v-if="parseThink(msg.content).text" class="md-content" v-html="renderMd(parseThink(msg.content).text)" />
-              </template>
-              <template v-else>
-                <p>{{ msg.content }}</p>
-                <ul v-if="msg.references?.length" class="chat-user-refs">
-                  <li v-for="(refText, refIndex) in msg.references" :key="`${msg.id}-ref-${refIndex}`">
-                    引用：{{ refText }}
-                  </li>
-                </ul>
-              </template>
-            </div>
-            </div>
-            </div>
-          </template>
+              <div class="chat-bubble chat-ai">
+                <!-- Streaming Think Block -->
+                <details v-if="parseThink(streamingText).think" class="think-block" open>
+                  <summary>深度思考过程</summary>
+                  <div class="think-content" v-html="renderStreamingMd(parseThink(streamingText).think, !parseThink(streamingText).text)"></div>
+                </details>
 
-          <div v-if="isThinking" class="flex items-start gap-3 my-2 animate-fade-in">
-            <div class="w-8 h-8 min-w-[2rem] min-h-[2rem] rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0 shadow-sm border border-indigo-100 text-sm animate-pulse">
-              ✨
-            </div>
+                <!-- If text is empty and there is no think block yet, show "正在思考..." -->
+                <div v-if="!parseThink(streamingText).text && !parseThink(streamingText).think" class="thinking-status">
+                  <span class="sparkle-icon">✨</span>
+                  <span class="thinking-text">MoodCopilot 正在思考</span>
+                  <span class="typing-dots"></span>
+                </div>
 
-            <div class="bg-gray-100 text-gray-600 rounded-2xl rounded-tl-none p-4 max-w-[75%] shadow-sm flex flex-col gap-2">
-              <div class="text-sm font-medium text-indigo-500 flex items-center gap-1.5">
-                <span class="animate-pulse">MoodCopilot 正在沉思<span class="typing-dots"></span></span>
-              </div>
-
-              <div class="flex items-center gap-1 h-3 pl-1">
-                <span class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
-                <span class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 150ms"></span>
-                <span class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay: 300ms"></span>
+                <!-- Streaming Text Block -->
+                <div v-if="parseThink(streamingText).text" class="md-content streaming-md" v-html="renderStreamingMd(parseThink(streamingText).text, true)" />
               </div>
             </div>
-          </div>
-
-          <!-- 流式回复（引用先行，文本追加） -->
-          <div v-if="streaming && (streamingText || streamingRefs.length)" class="msg-item ai">
-          <div class="msg-wrapper">
-            <div v-if="streaming && streamingRefs.length" class="rag-refs-panel rag-refs-above rag-references-fixed">
-              <button class="rag-refs-toggle" @click="showStreamingRefs = !showStreamingRefs">
-                <span class="rag-refs-icon">🔍</span>
-                <span>已检索 {{ streamingDiaryRefs.length }} 条记录</span>
-                <span v-if="streamingProfileRefs.length"> · {{ streamingProfileRefs.length }} 条画像</span>
-                <span v-if="streamingGraphRefs.length"> · {{ streamingGraphRefs.length }} 条图谱</span>
-                <span class="rag-refs-arrow">{{ showStreamingRefs ? '▾' : '▸' }}</span>
-              </button>
-              <div v-if="showStreamingRefs" class="rag-refs-list">
-                <template v-if="streamingDiaryRefs.length">
-                  <div class="rag-refs-section-label">📝 日记记忆</div>
-                  <div
-                    v-for="(ref, i) in streamingDiaryRefs"
-                    :key="'sd'+i"
-                    class="rag-ref-item rag-ref-clickable"
-                    @click="ref.diaryId && goToDiary(ref.diaryId)"
-                  >
-                    <div class="rag-ref-meta">
-                      <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
-                      <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
-                    </div>
-                    <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
-                    <span v-if="ref.diaryId" class="rag-ref-go">→</span>
-                  </div>
-                </template>
-                <template v-if="streamingProfileRefs.length">
-                  <div class="rag-refs-section-label">🧠 个人画像</div>
-                  <div v-for="(ref, i) in streamingProfileRefs" :key="'sp'+i" class="rag-ref-item">
-                    <span class="rag-ref-snippet" :title="ref.snippet || ref.value">
-                      <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}】</span>{{ ref.snippet || ref.value }}
-                    </span>
-                  </div>
-                </template>
-                <template v-if="streamingGraphRefs.length">
-                  <div class="rag-refs-section-label">🕸️ 关系图谱</div>
-                  <div
-                    v-for="(ref, i) in streamingGraphRefs"
-                    :key="'sg'+i"
-                    :class="['rag-ref-item', { 'rag-ref-clickable': ref.diaryId }]"
-                    @click="ref.diaryId && goToDiary(ref.diaryId)"
-                  >
-                    <div class="rag-ref-meta">
-                      <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
-                      <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
-                    </div>
-                    <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
-                    <span v-if="ref.diaryId" class="rag-ref-go">→</span>
-                  </div>
-                </template>
-              </div>
-            </div>
-
-            <div class="chat-bubble chat-ai">
-              <div v-if="!parseThink(streamingText).text" class="thinking-status">
-                <span class="sparkle-icon">✨</span>
-                <span class="thinking-text">MoodCopilot 正在深度思考</span>
-                <span class="typing-dots"></span>
-              </div>
-              <div v-if="parseThink(streamingText).text" class="md-content streaming-md" v-html="renderStreamingMd(parseThink(streamingText).text, true)" />
-            </div>
-          </div>
           </div>
         </div>
 
@@ -267,6 +309,12 @@ import ReferenceBar from '../components/ReferenceBar.vue'
 import { chatApi, diaryApi } from '../api'
 import { renderSafeMarkdown } from '../utils/markdown'
 import { tryExpToast } from '../utils/toast'
+import { useAuthStore } from '../stores/auth'
+
+const authStore = useAuthStore()
+const userInitial = computed(() => {
+  return authStore.displayName ? authStore.displayName.trim().charAt(0).toUpperCase() : '我'
+})
 
 interface RagRef {
   type: string
@@ -369,6 +417,18 @@ const msgBox = ref<HTMLElement | null>(null)
 const chatInputArea = ref<HTMLElement | null>(null)
 const references = ref<ChatReference[]>([])
 const recentDiaryOptions = ref<{ id: number; date: string; snippet: string; fullContent: string }[]>([])
+
+const quickStarters = [
+  { icon: '📊', text: '分析我最近三天的情绪波动' },
+  { icon: '💡', text: '帮我回顾我最近开心的事情' },
+  { icon: '🌿', text: '推荐一些适合解压的音乐与方法' },
+  { icon: '💬', text: '今天有些累，陪我随便聊聊吧' }
+]
+
+function useQuickStarter(text: string) {
+  draft.value = text
+  send()
+}
 const recentDiariesLoading = ref(false)
 const recentDiariesError = ref<string | null>(null)
 const lastReplyError = ref<string | null>(null)
@@ -475,6 +535,9 @@ let msgIdCounter = 0
 let streamAbortCtrl: AbortController | null = null
 
 onMounted(async () => {
+  if (authStore.isAuthenticated && !authStore.userId) {
+    authStore.fetchProfile()
+  }
   const state = history.state as any
   let shouldAutoSend = false
   if (state?.references?.length) {
@@ -1329,12 +1392,22 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 .msg-item {
   display: flex;
   width: 100%;
-  margin-bottom: 12px;
+  margin-bottom: 20px !important;
+  gap: 12px;
+}
+
+.msg-item.ai {
+  justify-content: flex-start !important;
 }
 
 .msg-item.user {
-  flex-direction: row-reverse !important;
-  justify-content: flex-start !important;
+  justify-content: flex-end !important;
+}
+
+.msg-wrapper {
+  display: flex;
+  flex-direction: column;
+  max-width: 75% !important;
 }
 
 .msg-item.ai .msg-wrapper {
@@ -1343,22 +1416,6 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 
 .msg-item.user .msg-wrapper {
   align-items: flex-end !important;
-}
-
-.msg-item.ai {
-  flex-direction: row !important;
-  justify-content: flex-start !important;
-}
-
-
-/* 气泡宽度约束 */
-.msg-bubble {
-  max-width: 85%;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  word-wrap: break-word;
 }
 
 /* ── 引用卡片悬浮展开 (chip 风格) ── */
@@ -1413,5 +1470,312 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   0% { opacity: 0.4; }
   50% { opacity: 1; }
   100% { opacity: 0.4; }
+}
+
+/* 沉思加载动画样式 */
+.thinking-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--color-primary, #4a7c62);
+  font-weight: 500;
+}
+
+.thinking-dots-loader {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 8px;
+  padding-left: 2px;
+}
+
+.thinking-dots-loader .dot {
+  width: 6px;
+  height: 6px;
+  background-color: var(--color-primary, #4a7c62);
+  border-radius: 50%;
+}
+
+/* 快捷对话建议卡片 */
+.chat-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  flex: 1;
+  text-align: center;
+  align-self: center;
+  width: 100%;
+  max-width: 560px;
+  box-sizing: border-box;
+}
+
+.chat-header-title {
+  font-size: 28px;
+  color: var(--color-primary, #4a7c62);
+  margin: 0;
+  font-weight: 700;
+}
+
+.chat-subtitle {
+  font-size: 14px;
+  color: var(--color-text-muted, #8a7a6a);
+  margin: 8px 0 24px;
+}
+
+.chat-quick-starters {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  max-width: 560px;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.quick-starter-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(180, 150, 120, 0.15);
+  border-radius: var(--radius-lg, 16px);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: inherit;
+}
+
+.quick-starter-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-primary, #4a7c62);
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 6px 20px rgba(74, 124, 98, 0.06);
+}
+
+.quick-starter-card:active {
+  transform: translateY(0);
+}
+
+.starter-icon {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+
+.starter-text {
+  font-size: 13.5px;
+  color: #4a5a4e;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+@media (max-width: 600px) {
+  .chat-quick-starters {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .quick-starter-card {
+    padding: 12px 14px;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+  .starter-icon {
+    margin-bottom: 0;
+  }
+}
+
+/* --- Premium Custom Styles --- */
+
+.chat-messages {
+  gap: 20px !important;
+  padding: 24px !important;
+  background: #fcfbfa !important;
+  border: 1px solid rgba(180, 150, 120, 0.15) !important;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.01);
+}
+
+.chat-input-area {
+  background: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(180, 150, 120, 0.15) !important;
+  border-radius: 16px !important;
+  padding: 12px 16px !important;
+  box-shadow: 0 8px 30px rgba(74, 124, 98, 0.05) !important;
+  transition: all 0.3s ease;
+}
+
+.chat-input-area:focus-within {
+  border-color: var(--color-primary, #4a7c62) !important;
+  box-shadow: 0 8px 30px rgba(74, 124, 98, 0.08), 0 0 0 2px rgba(74, 124, 98, 0.1) !important;
+}
+
+.chat-input-row {
+  gap: 12px !important;
+}
+
+.chat-input-row :deep(.n-input) {
+  --n-border-radius: 12px !important;
+  --n-border: 1px solid rgba(180, 150, 120, 0.2) !important;
+  --n-border-hover: 1px solid var(--color-primary, #4a7c62) !important;
+  --n-border-focus: 1px solid var(--color-primary, #4a7c62) !important;
+  --n-box-shadow-focus: 0 0 0 2px rgba(74, 124, 98, 0.1) !important;
+  background: #ffffff !important;
+}
+
+.chat-input-row :deep(.n-button) {
+  --n-border-radius: 12px !important;
+  height: 40px !important;
+  padding: 0 20px !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+}
+
+.chat-input-row :deep(.n-button:not([disabled]):hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(74, 124, 98, 0.2);
+}
+
+.rag-references-fixed {
+  background: rgba(244, 247, 245, 0.8) !important;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(74, 124, 98, 0.08) !important;
+  border-radius: 12px !important;
+  padding: 6px 10px !important;
+}
+
+.msg-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.msg-avatar.user-avatar {
+  background: linear-gradient(135deg, #8ba897, #5f836f);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 13px;
+  box-shadow: 0 4px 10px rgba(95, 131, 111, 0.15);
+  border: 1.5px solid #ffffff;
+  overflow: hidden;
+}
+
+.msg-avatar.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.msg-avatar.ai-avatar {
+  background: linear-gradient(135deg, #f0fdf4, #e1f5eb);
+  border: 1.5px solid rgba(74, 124, 98, 0.15);
+  box-shadow: 0 4px 10px rgba(74, 124, 98, 0.08);
+  font-size: 16px;
+}
+
+.chat-bubble {
+  max-width: 100% !important;
+  padding: 12px 18px !important;
+  font-size: 14.5px !important;
+  line-height: 1.6 !important;
+  letter-spacing: 0.01em;
+  box-sizing: border-box;
+}
+
+.chat-bubble.chat-user {
+  background: linear-gradient(135deg, var(--color-primary, #4a7c62), #3a6851) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 18px 18px 4px 18px !important;
+  box-shadow: 0 4px 14px rgba(74, 124, 98, 0.18) !important;
+}
+
+.chat-bubble.chat-user p {
+  margin: 0;
+  color: #ffffff !important;
+}
+
+.chat-bubble.chat-ai {
+  background: #ffffff !important;
+  color: #2c3e35 !important;
+  border: 1px solid rgba(74, 124, 98, 0.08) !important;
+  border-radius: 18px 18px 18px 4px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+}
+
+.chat-user-refs {
+  margin: 8px 0 0;
+  padding-left: 12px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  border-left: 2px solid rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.85);
+  list-style-type: none;
+}
+
+.chat-user-refs li {
+  margin-bottom: 2px;
+}
+
+:deep(.think-block) {
+  margin: 4px 0 12px 0;
+  padding: 10px 12px;
+  background-color: rgba(74, 124, 98, 0.03);
+  border-radius: 8px;
+  border-left: 3px solid rgba(74, 124, 98, 0.25);
+  font-family: Consolas, Monaco, "Andale Mono", monospace;
+  font-size: 12.5px;
+  color: #55685f;
+}
+
+:deep(.think-block summary) {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  color: #4a7c62;
+  user-select: none;
+  outline: none;
+  margin-bottom: 4px;
+}
+
+:deep(.think-content) {
+  margin-top: 8px;
+  border-top: 1px dashed rgba(74, 124, 98, 0.15);
+  padding-top: 8px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.md-content :deep(p) {
+  margin-bottom: 8px !important;
+}
+
+.md-content :deep(p:last-child) {
+  margin-bottom: 0 !important;
+}
+
+.md-content :deep(pre) {
+  background: #f7f6f2 !important;
+  border: 1px solid rgba(180, 150, 120, 0.12) !important;
 }
 </style>

@@ -16,30 +16,34 @@
       </div>
     </div>
 
+
+
     <div class="composer-editor">
       <div id="vditor-composer"></div>
     </div>
 
     <div class="composer-toolbar">
-      <button
-        v-if="!musicMeta && !musicParsing && !showMusicInput"
-        class="music-attach-btn"
-        type="button"
-        @click="showMusicInput = true"
-      >
-        <span class="music-attach-icon">🎵</span> 分享音乐
-      </button>
+      <div class="composer-music-row">
+        <button
+          v-if="!musicMeta && !musicParsing && !showMusicInput"
+          class="music-attach-btn"
+          type="button"
+          @click="showMusicInput = true"
+        >
+          <span class="music-attach-icon">🎵</span> 分享音乐
+        </button>
 
-      <div v-if="showMusicInput && !musicMeta" class="music-input-row">
-        <input
-          ref="musicUrlInput"
-          v-model="musicUrlDraft"
-          class="music-url-input"
-          type="url"
-          placeholder="粘贴网易云音乐链接..."
-          @paste="handleMusicInputPaste"
-          @keyup.enter="handleMusicUrlSubmit"
-        />
+        <div v-if="showMusicInput && !musicMeta" class="music-input-row">
+          <input
+            ref="musicUrlInput"
+            v-model="musicUrlDraft"
+            class="music-url-input"
+            type="url"
+            placeholder="粘贴网易云音乐链接..."
+            @paste="handleMusicInputPaste"
+            @keyup.enter="handleMusicUrlSubmit"
+          />
+        </div>
       </div>
     </div>
 
@@ -72,7 +76,10 @@
             hidden
             @change="handleImageSelect"
           />
-          <span v-if="uploadingImage">上传中...</span>
+          <template v-if="uploadingImage">
+            <span class="shimmer-text">上传中...</span>
+            <div class="upload-shimmer"></div>
+          </template>
           <span v-else>+ 添加图片</span>
         </label>
       </div>
@@ -167,6 +174,8 @@ function updateDraftSavedAt() {
     minute: '2-digit',
   }).format(new Date())
 }
+
+
 
 const visibilityOptions = [
   { label: '仅自己看', value: 'PRIVATE' },
@@ -668,6 +677,61 @@ async function handleSave() {
   cursor: wait;
   opacity: 0.6;
 }
+
+
+
+/* Shimmer animation & entry transition */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes card-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.composer-image-preview {
+  animation: card-slide-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.composer-image-add.uploading {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--color-primary, #4a7c62);
+  background: rgba(74, 124, 98, 0.02);
+}
+
+.upload-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(74, 124, 98, 0.08), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+  pointer-events: none;
+}
+
+.shimmer-text {
+  color: var(--color-primary, #4a7c62);
+  font-weight: 500;
+  z-index: 1;
+  font-size: 11px;
+}
+
+
 
 /* 缩小编辑器内的段落间距 */
 :deep(.vditor-ir p),
