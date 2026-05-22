@@ -254,6 +254,12 @@ public class DiaryService {
             } else {
                 try {
                     rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
+                    
+                    // 删除旧的分析结果，防止前端在轮询时错误获取到旧数据
+                    transactionTemplate.executeWithoutResult(status -> {
+                        diaryAnalysisMapper.deleteById(diaryId);
+                    });
+                    
                     log.info("日记内容已修改，提交后台重新执行 AI 分析，diaryId={}", diaryId);
                     aiTaskProducer.submitDiaryAnalysisTask(diaryId, user.getId());
                     analysisStatus = "analyzing";
