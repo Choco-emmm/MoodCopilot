@@ -139,11 +139,10 @@
                   :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
                 >
                   <template v-if="msg.role === 'ai'">
-                    <details v-if="parseThink(msg.content).think" class="think-block">
-                      <summary>深度思考过程</summary>
-                      <div class="think-content" v-html="renderMd(parseThink(msg.content).think)"></div>
-                    </details>
+                    <!-- think 块内容不对用户展示，只显示正文 -->
                     <div v-if="parseThink(msg.content).text" class="md-content" v-html="renderMd(parseThink(msg.content).text)" />
+                    <!-- 如果只有 think 没有正文（消息异常时的兜底） -->
+                    <span v-else class="ai-think-placeholder">...</span>
                   </template>
                   <template v-else>
                     <p>{{ msg.content }}</p>
@@ -242,20 +241,25 @@
               </div>
 
               <div class="chat-bubble chat-ai">
-                <!-- Streaming Think Block -->
-                <details v-if="parseThink(streamingText).think" class="think-block" open>
-                  <summary>深度思考过程</summary>
-                  <div class="think-content" v-html="renderStreamingMd(parseThink(streamingText).think, !parseThink(streamingText).text)"></div>
-                </details>
+                <!-- 深度思考中：有 think 内容但正文还未出现时，只展示动效，不渲染 think 内容 -->
+                <div v-if="parseThink(streamingText).think && !parseThink(streamingText).text" class="thinking-status">
+                  <span class="sparkle-icon">✨</span>
+                  <span class="thinking-text">深度思考中</span>
+                  <span class="thinking-dots-inline">
+                    <span class="dot animate-bounce" style="animation-delay: 0ms"></span>
+                    <span class="dot animate-bounce" style="animation-delay: 150ms"></span>
+                    <span class="dot animate-bounce" style="animation-delay: 300ms"></span>
+                  </span>
+                </div>
 
-                <!-- If text is empty and there is no think block yet, show "正在思考..." -->
+                <!-- 无任何内容时（还没收到 think 或 text） -->
                 <div v-if="!parseThink(streamingText).text && !parseThink(streamingText).think" class="thinking-status">
                   <span class="sparkle-icon">✨</span>
                   <span class="thinking-text">MoodCopilot 正在思考</span>
                   <span class="typing-dots"></span>
                 </div>
 
-                <!-- Streaming Text Block -->
+                <!-- 正文流式输出 -->
                 <div v-if="parseThink(streamingText).text" class="md-content streaming-md" v-html="renderStreamingMd(parseThink(streamingText).text, true)" />
               </div>
             </div>
@@ -1459,6 +1463,22 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   background-color: transparent;
   border-radius: 8px;
   margin-bottom: 8px;
+}
+
+/* 深度思考动效中的行内跳点容器 */
+.thinking-dots-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 2px;
+}
+
+/* AI 消息只有 think 无正文时的兜底占位 */
+.ai-think-placeholder {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  opacity: 0.5;
+  letter-spacing: 0.1em;
 }
 
 .sparkle-icon {
