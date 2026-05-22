@@ -67,48 +67,79 @@
           <div v-else-if="users.length === 0" class="empty-state">
             <p>暂无数据</p>
           </div>
-          <div v-else class="mobile-cards">
-            <div v-for="user in users" :key="user.id" class="user-card">
-              <div class="user-card-header">
-                <span class="user-id">ID: {{ user.id }}</span>
-                <n-tag :type="user.status === 1 ? 'success' : 'error'" size="small">
-                  {{ user.status === 1 ? '正常' : '已封禁' }}
-                </n-tag>
+          <div v-else>
+            <TransitionGroup name="user-list" tag="div" class="mobile-cards">
+              <div v-for="user in users" :key="user.id" class="user-card-premium">
+                <!-- Card Header: Avatar & Name & Status -->
+                <div class="uc-header">
+                  <div class="uc-avatar" :style="getAvatarStyle(user.displayName)">
+                    {{ user.displayName?.charAt(0).toUpperCase() }}
+                  </div>
+                  <div class="uc-info">
+                    <div class="uc-name-row">
+                      <span class="uc-name">{{ user.displayName }}</span>
+                      <span class="uc-status-badge" :class="user.status === 1 ? 'status-active' : 'status-banned'">
+                        {{ user.status === 1 ? '正常' : '已封禁' }}
+                      </span>
+                    </div>
+                    <span class="uc-email">{{ user.email }}</span>
+                  </div>
+                  <span class="uc-id-badge">#{{ user.id }}</span>
+                </div>
+
+                <!-- Card Body: Metadata flex rows with custom SVGs -->
+                <div class="uc-body">
+                  <div class="uc-meta-row">
+                    <span class="uc-meta-label">
+                      <svg class="meta-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                      </svg>
+                      最后活跃
+                    </span>
+                    <span class="uc-meta-value">{{ formatTime(user.lastActiveTime) }}</span>
+                  </div>
+                  <div class="uc-meta-row">
+                    <span class="uc-meta-label">
+                      <svg class="meta-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                      </svg>
+                      注册时间
+                    </span>
+                    <span class="uc-meta-value">{{ formatTime(user.createdAt) }}</span>
+                  </div>
+                </div>
+
+                <!-- Card Actions -->
+                <div class="uc-actions">
+                  <n-button 
+                    size="medium" 
+                    round 
+                    secondary 
+                    type="primary" 
+                    class="action-btn-pill" 
+                    @click="goToProfile(user.id)"
+                  >
+                    查看主页
+                  </n-button>
+                  <n-button
+                    size="medium"
+                    round
+                    :type="user.status === 1 ? 'error' : 'success'"
+                    ghost
+                    class="action-btn-pill"
+                    @click="toggleStatus(user)"
+                  >
+                    {{ user.status === 1 ? '封禁' : '解禁' }}
+                  </n-button>
+                </div>
               </div>
-              <div class="user-card-body">
-                <div class="info-row">
-                  <span class="info-label">用户名:</span>
-                  <span class="info-value font-medium">{{ user.displayName }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">邮箱:</span>
-                  <span class="info-value">{{ user.email }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">最后活跃:</span>
-                  <span class="info-value">{{ formatTime(user.lastActiveTime) }}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">注册时间:</span>
-                  <span class="info-value">{{ formatTime(user.createdAt) }}</span>
-                </div>
-              </div>
-              <div class="user-card-actions">
-                <n-button size="small" tertiary @click="goToProfile(user.id)">
-                  查看主页
-                </n-button>
-                <n-button
-                  size="small"
-                  :type="user.status === 1 ? 'error' : 'success'"
-                  ghost
-                  @click="toggleStatus(user)"
-                >
-                  {{ user.status === 1 ? '封禁' : '解禁' }}
-                </n-button>
-              </div>
-            </div>
+            </TransitionGroup>
             
-            <div class="mobile-pagination">
+            <div class="mobile-pagination-premium">
               <n-pagination
                 v-model:page="pageNum"
                 :page-size="pageSize"
@@ -298,6 +329,30 @@ function formatTime(value?: string | null) {
     minute: '2-digit',
   }).format(new Date(value))
 }
+
+function getAvatarStyle(name: string) {
+  const colors = [
+    ['#3b82f6', '#1d4ed8'], // Blue
+    ['#10b981', '#047857'], // Emerald/Jade
+    ['#8b5cf6', '#6d28d9'], // Violet
+    ['#f59e0b', '#b45309'], // Amber
+    ['#ec4899', '#be185d'], // Pink
+    ['#06b6d4', '#0891b2'], // Cyan
+  ]
+  let hash = 0
+  if (name) {
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash)
+    }
+  }
+  const index = Math.abs(hash) % colors.length
+  const [start, end] = colors[index]
+  return {
+    background: `linear-gradient(135deg, ${start} 0%, ${end} 100%)`,
+    color: '#ffffff',
+    textShadow: '0 1px 2px rgba(0,0,0,0.15)'
+  }
+}
 </script>
 
 <style scoped>
@@ -312,20 +367,41 @@ function formatTime(value?: string | null) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  gap: 12px;
+  margin-bottom: 24px;
+  gap: 16px;
 }
 
 .admin-actions {
   width: 250px;
 }
 
+/* Custom styling for Naive UI input to match jade/warm theme */
+:deep(.admin-actions .n-input) {
+  border-radius: 20px !important;
+  background-color: var(--color-surface) !important;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-normal) var(--ease-out) !important;
+}
+
+:deep(.admin-actions .n-input .n-input__border) {
+  border-color: var(--color-border) !important;
+}
+
+:deep(.admin-actions .n-input:hover .n-input__border) {
+  border-color: var(--color-primary-light) !important;
+}
+
+:deep(.admin-actions .n-input--focus .n-input__border) {
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px rgba(74, 124, 98, 0.12) !important;
+}
+
 .admin-users-list {
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
-  border: 1px solid #edf2f7;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
 }
 
 .desktop-only {
@@ -339,7 +415,9 @@ function formatTime(value?: string | null) {
 @media (max-width: 768px) {
   .admin-page-head {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 16px;
+    margin-bottom: 20px;
   }
   .admin-actions {
     width: 100%;
@@ -365,88 +443,214 @@ function formatTime(value?: string | null) {
 .mobile-cards {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-.user-card {
-  background: #ffffff;
-  border-radius: 12px;
+.user-card-premium {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
   padding: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-  border: 1px solid #edf2f7;
+  box-shadow: 0 4px 16px rgba(74, 124, 98, 0.03), 0 1px 3px rgba(74, 124, 98, 0.01);
+  border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
+  gap: 14px;
+  transition: transform var(--duration-normal) var(--ease-out), 
+              box-shadow var(--duration-normal) var(--ease-out), 
+              border-color var(--duration-normal) var(--ease-out);
+}
+
+.user-card-premium:hover, .user-card-premium:active {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(74, 124, 98, 0.07), 0 2px 6px rgba(74, 124, 98, 0.02);
+  border-color: var(--color-primary-light);
+}
+
+/* User Card Header */
+.uc-header {
+  display: flex;
+  align-items: center;
   gap: 12px;
 }
 
-.user-card-header {
+.uc-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  flex-shrink: 0;
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 2px 8px rgba(74, 124, 98, 0.1);
+}
+
+.uc-info {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.uc-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.uc-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.uc-status-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.status-active {
+  background: rgba(74, 124, 98, 0.1);
+  color: var(--color-primary);
+}
+
+.status-banned {
+  background: rgba(169, 75, 69, 0.1);
+  color: var(--color-accent);
+}
+
+.uc-email {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uc-id-badge {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--color-text-muted);
+  background: var(--color-surface-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+  align-self: flex-start;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+/* User Card Body */
+.uc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--color-surface-soft);
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.uc-meta-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #f7fafc;
-  padding-bottom: 8px;
+  font-size: var(--text-sm);
 }
 
-.user-id {
-  font-size: 13px;
-  color: #718096;
-  font-family: monospace;
-}
-
-.user-card-body {
+.uc-meta-label {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 14px;
-}
-
-.info-label {
-  color: #718096;
-}
-
-.info-value {
-  color: #2d3748;
-  word-break: break-all;
-  text-align: right;
-  max-width: 70%;
-}
-
-.font-medium {
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
   font-weight: 500;
 }
 
-.user-card-actions {
+.meta-icon-svg {
+  width: 14px;
+  height: 14px;
+  color: var(--color-primary);
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+.uc-meta-value {
+  color: var(--color-text);
+  font-weight: 600;
+  font-family: var(--font-body);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+  text-align: right;
+}
+
+/* Card Actions */
+.uc-actions {
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  border-top: 1px solid #f7fafc;
-  padding-top: 12px;
+  justify-content: space-between;
+  gap: 12px;
   margin-top: 4px;
 }
 
-.mobile-pagination {
+.action-btn-pill {
+  flex: 1;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(74, 124, 98, 0.02);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.action-btn-pill:active {
+  transform: scale(0.96);
+}
+
+/* Mobile pagination */
+.mobile-pagination-premium {
   display: flex;
   justify-content: center;
-  margin-top: 16px;
-  padding: 12px;
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-  border: 1px solid #edf2f7;
+  margin-top: 20px;
+  padding: 14px;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
 }
 
 .mobile-loading {
   text-align: center;
   padding: 30px;
-  color: #718096;
-  background: #ffffff;
-  border-radius: 12px;
-  border: 1px solid #edf2f7;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+}
+
+/* User list transition animations */
+.user-list-enter-active,
+.user-list-leave-active {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.user-list-enter-from {
+  opacity: 0;
+  transform: translateY(24px) scale(0.97);
+}
+.user-list-leave-to {
+  opacity: 0;
+  transform: translateY(-24px) scale(0.97);
+}
+.user-list-move {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .admin-filter-bar {
@@ -459,44 +663,48 @@ function formatTime(value?: string | null) {
 .sort-options {
   display: flex;
   align-items: center;
-  background: #f7fafc;
+  background: var(--color-surface-soft);
   padding: 4px;
-  border-radius: 8px;
-  border: 1px solid #edf2f7;
+  border-radius: 20px;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
 }
 
 .filter-label {
-  font-size: 13px;
-  color: #718096;
+  font-size: 12px;
+  color: var(--color-text-secondary);
   margin-left: 8px;
   margin-right: 4px;
+  font-weight: 500;
 }
 
 .sort-btn {
   border: none;
   background: transparent;
-  padding: 6px 12px;
-  font-size: 13px;
-  color: #4a5568;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 16px;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: all var(--duration-fast) var(--ease-out);
 }
 
 .sort-btn:hover {
-  color: #2d3748;
+  color: var(--color-text);
 }
 
 .sort-btn.active {
-  background: #ffffff;
-  color: var(--color-jade, #10b981);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {
   .admin-filter-bar {
     justify-content: center;
+    margin-bottom: 20px;
   }
 }
 </style>

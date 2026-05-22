@@ -3,7 +3,7 @@
     <div class="feed-head">
       <div class="feed-head-left">
         <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-img" loading="lazy" decoding="async" />
-        <span v-else class="avatar">{{ diary.authorName.charAt(0) }}</span>
+        <span v-else class="avatar" :style="getAvatarStyle(diary.authorName)">{{ diary.authorName?.charAt(0).toUpperCase() }}</span>
         <div>
           <div class="author-row">
             <button type="button" class="author-name-link" @click.stop="openAuthorProfile(diary.authorUserId)">
@@ -296,5 +296,29 @@ function handleCardClick(e: MouseEvent) {
 function openAuthorProfile(userId: number) {
   if (!Number.isFinite(userId)) return
   router.push(`/profile/${userId}`)
+}
+
+function getAvatarStyle(name: string) {
+  const colors = [
+    ['#3b82f6', '#1d4ed8'], // Blue
+    ['#10b981', '#047857'], // Emerald/Jade
+    ['#8b5cf6', '#6d28d9'], // Violet
+    ['#f59e0b', '#b45309'], // Amber
+    ['#ec4899', '#be185d'], // Pink
+    ['#06b6d4', '#0891b2'], // Cyan
+  ]
+  let hash = 0
+  if (name) {
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash)
+    }
+  }
+  const index = Math.abs(hash) % colors.length
+  const [start, end] = colors[index]
+  return {
+    background: `linear-gradient(135deg, ${start} 0%, ${end} 100%)`,
+    color: '#ffffff',
+    textShadow: '0 1px 2px rgba(0,0,0,0.15)'
+  }
 }
 </script>

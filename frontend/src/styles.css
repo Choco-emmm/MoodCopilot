@@ -1479,22 +1479,61 @@ h3 {
 
 /* ── Auth pages ── */
 .auth-page {
+  position: relative;
   display: flex;
   min-height: 100vh;
   align-items: center;
   justify-content: center;
   padding: 2rem;
   background: var(--color-bg);
+  overflow: hidden;
+}
+
+.auth-page::before,
+.auth-page::after {
+  content: "";
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.12;
+  z-index: 0;
+  pointer-events: none;
+  animation: float-blob 12s infinite alternate ease-in-out;
+}
+
+.auth-page::before {
+  background: var(--color-primary);
+  top: 15%;
+  left: 10%;
+}
+
+.auth-page::after {
+  background: var(--color-accent);
+  bottom: 15%;
+  right: 10%;
+  animation-delay: -6s;
+}
+
+@keyframes float-blob {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(30px) scale(1.1); }
 }
 
 .auth-card {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 420px;
   padding: 2.3rem 2.2rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  background: rgba(255, 253, 248, 0.85);
+  border: 1px solid rgba(227, 222, 211, 0.6);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(32, 32, 29, 0.05), 0 1px 3px rgba(32, 32, 29, 0.02);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .turnstile-widget {
@@ -2832,21 +2871,22 @@ h3 {
 
   .mobile-bottom-nav {
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    left: 16px;
+    right: 16px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
     z-index: 9000;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     gap: 4px;
-    overflow-x: auto;
-    overflow-y: visible;
-    padding: 7px 10px calc(7px + env(safe-area-inset-bottom));
-    border-top: 1px solid rgba(212, 205, 188, 0.9);
-    background: rgba(253, 251, 247, 0.96);
-    box-shadow: 0 -8px 24px rgba(28, 25, 21, 0.08);
-    backdrop-filter: blur(14px);
+    padding: 6px 8px;
+    border-radius: 20px;
+    border: 1px solid rgba(74, 124, 98, 0.15);
+    background: rgba(253, 251, 247, 0.88);
+    box-shadow: 0 8px 32px rgba(28, 25, 21, 0.08), 0 2px 8px rgba(28, 25, 21, 0.03);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     scrollbar-width: none;
+    transition: transform 0.3s var(--ease-out), opacity 0.3s var(--ease-out);
   }
 
   .mobile-bottom-nav::-webkit-scrollbar {
@@ -2854,39 +2894,83 @@ h3 {
   }
 
   .mobile-nav-link {
-    flex: 1 0 60px;
-    display: grid;
-    place-items: center;
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     gap: 2px;
-    min-width: 60px;
+    min-width: 44px;
     min-height: 46px;
-    padding: 8px 6px;
-    border-radius: 12px;
+    padding: 4px 2px 6px;
+    border-radius: 14px;
     color: var(--color-text-muted);
     font-size: 11px;
     font-weight: 600;
     line-height: 1.15;
     text-decoration: none;
+    transition: color 0.25s var(--ease-out), transform 0.2s var(--ease-out);
   }
 
   .mobile-nav-icon {
     display: grid;
     place-items: center;
     width: 24px;
-    height: 22px;
-    border-radius: 999px;
-    font-size: 17px;
-    line-height: 1;
+    height: 24px;
+    border-radius: 50%;
+    transition: transform 0.25s var(--ease-out), color 0.25s var(--ease-out);
+  }
+
+  .mobile-nav-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke-width: 2;
+    transition: stroke-width 0.25s var(--ease-out);
   }
 
   .mobile-nav-link.active {
     color: var(--color-jade);
-    background: color-mix(in srgb, var(--color-primary-light) 78%, white 22%);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-jade) 28%, transparent 72%);
+  }
+
+  .mobile-nav-link.active .mobile-nav-icon {
+    transform: translateY(-4px) scale(1.1);
+    color: var(--color-jade);
+  }
+
+  .mobile-nav-link.active .mobile-nav-icon svg {
+    stroke-width: 2.5;
+  }
+
+  .mobile-nav-link::after {
+    content: "";
+    position: absolute;
+    bottom: 2px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--color-jade);
+    opacity: 0;
+    transform: scale(0);
+    transition: opacity 0.25s var(--ease-out), transform 0.25s var(--ease-out);
+  }
+
+  .mobile-nav-link.active::after {
+    opacity: 1;
+    transform: scale(1);
   }
 
   .mobile-nav-link:active {
-    transform: scale(0.98);
+    transform: scale(0.95);
+  }
+
+  .sparkle-icon {
+    animation: gentle-spin 8s linear infinite;
+  }
+
+  @keyframes gentle-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
 
   .masthead-user-link {
