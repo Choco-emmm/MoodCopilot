@@ -173,7 +173,6 @@
                 <div class="thinking-header">
                   <span class="sparkle-icon">✨</span>
                   <span class="thinking-text">MoodCopilot 正在沉思</span>
-                  <span class="typing-dots"></span>
                 </div>
                 <div class="thinking-dots-loader">
                   <span class="dot animate-bounce" style="animation-delay: 0ms"></span>
