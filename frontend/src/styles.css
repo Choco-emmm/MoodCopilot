@@ -614,12 +614,17 @@ h3 {
   min-width: 0;
 }
 
-.diary-content {
+.diary-content,
+.feed-content {
   margin: 0;
   color: var(--color-text);
-  line-height: 1.85;
-  font-size: 16px;
   word-break: break-word;
+}
+
+.diary-content.md-content,
+.feed-content.md-content {
+  font-size: 16px;
+  line-height: 1.8;
 }
 
 .section-divider {
@@ -1157,12 +1162,7 @@ h3 {
   min-height: 32px;
 }
 
-.feed-content {
-  margin: 0;
-  color: var(--color-text);
-  line-height: 1.75;
-  word-break: break-word;
-}
+
 
 .feed-content-clickable {
   cursor: pointer;
@@ -3159,9 +3159,10 @@ h3 {
     overflow: hidden;
   }
 
-  .feed-content {
+  .feed-content.md-content,
+  .diary-content.md-content {
     font-size: 15px;
-    line-height: 1.8;
+    line-height: 1.75;
   }
 
   .feed-item .feed-actions {
