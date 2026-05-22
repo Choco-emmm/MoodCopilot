@@ -92,7 +92,9 @@
                     <div v-for="(ref, i) in getProfileRefs(msg.ragReferences)" :key="'p'+i"
                          class="rag-ref-item-profile"
                          @click="toggleProfileSnippet(msg.id, i)">
-                      <span :class="['rag-ref-snippet', { 'expanded': isProfileSnippetExpanded(msg.id, i) }]" :title="ref.snippet">{{ ref.snippet }}</span>
+                      <span :class="['rag-ref-snippet', { 'expanded': isProfileSnippetExpanded(msg.id, i) }]" :title="ref.snippet || ref.value">
+                        <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}】</span>{{ ref.snippet || ref.value }}
+                      </span>
                     </div>
                   </template>
                 </div>
@@ -165,7 +167,9 @@
                 <template v-if="streamingProfileRefs.length">
                   <div class="rag-refs-section-label">🧠 个人画像</div>
                   <div v-for="(ref, i) in streamingProfileRefs" :key="'sp'+i" class="rag-ref-item">
-                    <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
+                    <span class="rag-ref-snippet" :title="ref.snippet || ref.value">
+                      <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}】</span>{{ ref.snippet || ref.value }}
+                    </span>
                   </div>
                 </template>
               </div>
@@ -233,9 +237,11 @@ import { tryExpToast } from '../utils/toast'
 interface RagRef {
   type: string
   diaryId?: string
-  date: string
-  snippet: string
+  date?: string
+  snippet?: string
   toolName?: string
+  value?: string
+  key?: string
 }
 
 interface Message {
@@ -1234,6 +1240,11 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   white-space: nowrap;
   min-width: 0;
   transition: all 0.2s ease;
+}
+
+.rag-ref-key {
+  font-weight: 600;
+  margin-right: 2px;
 }
 
 .rag-ref-snippet.expanded {
