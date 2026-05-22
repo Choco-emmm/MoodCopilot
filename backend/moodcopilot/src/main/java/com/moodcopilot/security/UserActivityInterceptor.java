@@ -25,11 +25,16 @@ public class UserActivityInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.isAuthenticated() && !authentication.getPrincipal().equals("anonymousUser")) {
+            Object principal = authentication.getPrincipal();
             Long userId = null;
-            try {
-                userId = Long.valueOf(authentication.getName());
-            } catch (NumberFormatException e) {
-                return true;
+            if (principal instanceof com.moodcopilot.entity.UserEntity) {
+                userId = ((com.moodcopilot.entity.UserEntity) principal).getId();
+            } else {
+                try {
+                    userId = Long.valueOf(authentication.getName());
+                } catch (NumberFormatException e) {
+                    // ignore
+                }
             }
 
             if (userId != null) {

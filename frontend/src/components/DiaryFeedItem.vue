@@ -300,12 +300,12 @@ function openAuthorProfile(userId: number) {
 
 function getAvatarStyle(name: string) {
   const colors = [
-    ['#3b82f6', '#1d4ed8'], // Blue
-    ['#10b981', '#047857'], // Emerald/Jade
-    ['#8b5cf6', '#6d28d9'], // Violet
-    ['#f59e0b', '#b45309'], // Amber
-    ['#ec4899', '#be185d'], // Pink
-    ['#06b6d4', '#0891b2'], // Cyan
+    ['#a3b899', '#7f9c73'], // Soft Sage/Jade
+    ['#dfa29c', '#c17a72'], // Dusty Rose/Terracotta
+    ['#e6cb9d', '#caa368'], // Soft Amber/Sand
+    ['#b2afc2', '#8985a0'], // Dusty Lavender/Slate
+    ['#9cbfb8', '#739e95'], // Cozy Teal/Ocean
+    ['#cab8a6', '#9c8874'], // Warm Earth/Oatmeal
   ]
   let hash = 0
   if (name) {
