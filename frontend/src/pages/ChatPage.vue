@@ -77,7 +77,7 @@
             <div :class="['msg-item', msg.role]">
               <!-- AI Avatar -->
               <div v-if="msg.role === 'ai'" class="msg-avatar ai-avatar">
-                <span class="ai-avatar-icon">🌿</span>
+                <img class="ai-avatar-icon" src="/logo.png" alt="MoodCopilot" />
               </div>
 
               <div class="msg-wrapper">
@@ -165,7 +165,7 @@
 
           <div v-if="isThinking" class="msg-item ai animate-fade-in">
             <div class="msg-avatar ai-avatar">
-              <span class="ai-avatar-icon">🌿</span>
+              <img class="ai-avatar-icon" src="/logo.png" alt="MoodCopilot" />
             </div>
             <div class="msg-wrapper">
               <div class="chat-bubble chat-ai thinking-bubble">
@@ -185,7 +185,7 @@
           <!-- 流式回复（引用先行，文本追加） -->
           <div v-if="streaming && (streamingText || streamingRefs.length)" class="msg-item ai">
             <div class="msg-avatar ai-avatar">
-              <span class="ai-avatar-icon">🌿</span>
+              <img class="ai-avatar-icon" src="/logo.png" alt="MoodCopilot" />
             </div>
             <div class="msg-wrapper">
               <div v-if="streaming && streamingRefs.length" class="rag-refs-panel rag-refs-above rag-references-fixed">
@@ -1706,10 +1706,18 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 }
 
 .msg-avatar.ai-avatar {
-  background: linear-gradient(135deg, #f0fdf4, #e1f5eb);
+  background: #ffffff;
   border: 1.5px solid rgba(74, 124, 98, 0.15);
   box-shadow: 0 4px 10px rgba(74, 124, 98, 0.08);
-  font-size: 16px;
+  padding: 4px;
+  overflow: hidden;
+}
+
+.msg-avatar.ai-avatar .ai-avatar-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .chat-bubble {
