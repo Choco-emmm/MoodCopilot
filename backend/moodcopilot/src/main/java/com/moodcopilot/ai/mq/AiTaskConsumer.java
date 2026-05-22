@@ -54,7 +54,6 @@ public class AiTaskConsumer implements StreamListener<String, MapRecord<String, 
     }
 
     private void ack(String recordId) {
-        redisTemplate.opsForStream().acknowledge("ai-group", MapRecord.create(AiTaskProducer.STREAM_KEY, java.util.Map.of()));
         // Note: acknowledge in Spring Data Redis takes (key, group, recordId) 
         redisTemplate.opsForStream().acknowledge(AiTaskProducer.STREAM_KEY, "ai-group", recordId);
     }
