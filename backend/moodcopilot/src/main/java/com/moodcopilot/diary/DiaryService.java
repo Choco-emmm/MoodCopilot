@@ -309,7 +309,14 @@ public class DiaryService {
             analysisEntity.setFeedback(analysis.feedback());
             analysisEntity.setCreatedAt(LocalDateTime.now());
             analysisEntity.setUpdatedAt(LocalDateTime.now());
-            diaryAnalysisMapper.insert(analysisEntity);
+
+            DiaryAnalysisEntity existing = diaryAnalysisMapper.selectById(diaryId);
+            if (existing != null) {
+                analysisEntity.setCreatedAt(existing.getCreatedAt());
+                diaryAnalysisMapper.updateById(analysisEntity);
+            } else {
+                diaryAnalysisMapper.insert(analysisEntity);
+            }
             log.info("日记 AI 分析已落库，diaryId={}，mood={}，topics={}", diaryId, analysis.moodLabel(), analysis.topicLabels());
 
             eventPublisher.publishEvent(new DiaryAnalysisCompletedEvent(

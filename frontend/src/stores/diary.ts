@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { diaryApi } from '../api'
 import { normalizeResourceUrl } from '../utils/resource'
 import { tryExpToast } from '../utils/toast'
@@ -85,6 +85,16 @@ export const useDiaryStore = defineStore('diary', () => {
   const saving = ref(false)
   const errorMessage = ref<string | null>(null)
   const analysisStatus = ref<'idle' | 'saved' | 'analyzing' | 'complete' | 'failed'>('idle')
+  
+  watch(analysisStatus, (val) => {
+    if (val === 'complete' || val === 'failed') {
+      setTimeout(() => {
+        if (analysisStatus.value === val) {
+          analysisStatus.value = 'idle'
+        }
+      }, 5000)
+    }
+  })
   const showGlobalAnalysisModal = ref(false)
   const globalAnalysisDiary = ref<Diary | null>(null)
   const publicPage = ref(1)
