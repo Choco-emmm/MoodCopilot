@@ -49,7 +49,7 @@ public class DiaryController {
             try {
                 rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
                 diary = diary.withAnalysisStatus("analyzing");
-                diaryService.runAiAnalysis(diary.id(), diary.authorUserId(), diary.content(), diary.musicMeta(), diary.images(), user);
+                diaryService.submitAiAnalysisTask(diary.id(), diary.authorUserId());
             } catch (RateLimitException e) {
                 diary = diary.withAnalysisStatus("skipped_quota");
                 log.info("AI分析限额已满，跳过分析，diaryId={}，userId={}", diary.id(), diary.authorUserId());

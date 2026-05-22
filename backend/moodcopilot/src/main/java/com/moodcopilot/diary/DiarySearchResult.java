@@ -13,6 +13,7 @@ public record DiarySearchResult(
 ) {
 
     public record DiarySummary(
+            Long id,
             LocalDate date,
             String snippet
     ) {

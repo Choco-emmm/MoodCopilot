@@ -119,6 +119,7 @@ public class AIConfiguration {
                                         for (var d : result.diaries()) {
                                             items.add(java.util.Map.of(
                                                 "type", "tool_memory",
+                                                "diaryId", d.id() != null ? d.id().toString() : "",
                                                 "date", d.date() != null ? d.date().toString() : "",
                                                 "snippet", d.snippet() != null ? d.snippet() : "",
                                                 "toolName", "diarySearch"
@@ -364,12 +365,9 @@ public class AIConfiguration {
     @Primary
     @Bean(name = "aiExecutor")
     public Executor aiExecutor() {
-        // AI 相关异步任务统一走单独线程池，避免阻塞 Web 请求线程。
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(5);
-        executor.setQueueCapacity(50);
-        executor.setThreadNamePrefix("AI-Task-");
+        // 使用支持虚拟线程的 Executor，极大提高高并发下 AI 大模型请求（I/O 密集型）的吞吐量
+        org.springframework.core.task.SimpleAsyncTaskExecutor executor = new org.springframework.core.task.SimpleAsyncTaskExecutor("AI-Task-");
+        executor.setVirtualThreads(true);
         executor.setTaskDecorator(task -> () -> {
             long startedAt = System.currentTimeMillis();
             try {
@@ -381,15 +379,7 @@ public class AIConfiguration {
                 }
             }
         });
-        executor.setRejectedExecutionHandler((task, pool) -> {
-            log.warn("AI 异步任务队列拥塞，降级为调用线程执行，active={}，poolSize={}，queueSize={}",
-                    pool.getActiveCount(), pool.getPoolSize(), pool.getQueue().size());
-            if (!pool.isShutdown()) {
-                task.run();
-            }
-        });
-        executor.initialize();
-        log.info("AI 异步线程池已初始化 (core=2, max=5, queue=50)");
+        log.info("AI 异步线程池已初始化为虚拟线程模式");
         return executor;
     }
 }

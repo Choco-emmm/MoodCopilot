@@ -18,6 +18,7 @@ export interface Diary {
   authorName: string
   authorAvatar?: string | null
   authorLevel?: number | null
+  authorRole?: string | null
   content: string
   visibility: string
   analysis: DiaryAnalysis | null
@@ -165,6 +166,7 @@ export const useDiaryStore = defineStore('diary', () => {
         replaceIn(myDiaries, { ...diary, analysisStatus: diary.analysisStatus } as Diary)
       }
       if (diary.analysis == null && diary.analysisStatus !== 'skipped_quota' && diary.analysisStatus !== 'skipped_user') {
+        window.$message?.info('已保存，MoodCopilot 正在分析中...', { duration: 5000 })
         pollAnalysis(diary.id)
       }
       if (activeDiary.value) {
@@ -178,16 +180,32 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
-  async function updateDiary(id: number, content: string, visibility: string, musicMeta?: MusicMeta, images?: string[]) {
+  async function updateDiary(id: number, content: string, visibility: string, musicMeta?: MusicMeta, images?: string[], analyze = true) {
     saving.value = true
     errorMessage.value = null
     try {
-      const res = await diaryApi.update(id, { content, visibility, musicMeta, images })
+      const res = await diaryApi.update(id, { content, visibility, musicMeta, images, analyze })
       const updated = normalize(res.data.data)
+      
+      if (updated.analysisStatus === 'skipped_quota') {
+        analysisStatus.value = 'complete'
+        errorMessage.value = '今日 AI 分析次数已用完，日记修改已保存'
+      } else if (updated.analysisStatus === 'skipped_user') {
+        analysisStatus.value = 'complete'
+      } else {
+        analysisStatus.value = updated.analysis == null ? 'analyzing' : 'complete'
+      }
+
       mergeDiary(updated)
       if (activeDiary.value?.id === id) {
         activeDiary.value = updated
       }
+
+      if (updated.analysis == null && updated.analysisStatus !== 'skipped_quota' && updated.analysisStatus !== 'skipped_user') {
+        window.$message?.info('日记已修改，MoodCopilot 正在重新分析中...', { duration: 5000 })
+        pollAnalysis(updated.id)
+      }
+
       return updated
     } catch (e: any) {
       errorMessage.value = e?.response?.data?.message || '更新失败'

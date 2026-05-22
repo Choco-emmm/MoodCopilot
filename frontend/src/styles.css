@@ -1134,6 +1134,17 @@ h3 {
   flex-shrink: 0;
 }
 
+.diary-author-admin {
+  font-size: 10px;
+  font-weight: 700;
+  color: #b23a3a;
+  background: color-mix(in srgb, #b23a3a 12%, transparent);
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
 .feed-follow-btn {
   flex-shrink: 0;
   align-self: flex-start;

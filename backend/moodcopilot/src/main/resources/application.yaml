@@ -1,6 +1,9 @@
 server:
   port: 18080
 spring:
+  threads:
+    virtual:
+      enabled: true
   mvc:
     async:
       request-timeout: 120000
@@ -18,7 +21,7 @@ spring:
       password: ${REDIS_PASSWORD:}
       lettuce:
         pool:
-          max-active: 30
+          max-active: 100
           max-idle: 20
           min-idle: 5
           time-between-eviction-runs: 30s
@@ -30,7 +33,7 @@ spring:
     password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      maximum-pool-size: 30
+      maximum-pool-size: 100
       minimum-idle: 5
       connection-timeout: 5000
       idle-timeout: 300000
