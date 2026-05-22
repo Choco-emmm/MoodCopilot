@@ -78,6 +78,7 @@ public class SecurityConfig {
                                 "/api/auth/register",
                                 "/api/auth/login",
                                 "/api/auth/send-code",
+                                "/api/auth/captcha/**",
                                 "/api/uploads/**",
                                 "/uploads/**",
                                 "/swagger-ui.html",

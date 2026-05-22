@@ -109,8 +109,8 @@ export const useAuthStore = defineStore('auth', () => {
     if (data.token) localStorage.setItem('token', data.token)
   }
 
-  async function login(email: string, password: string, turnstileToken?: string) {
-    const res = await authApi.login({ email, password, turnstileToken })
+  async function login(email: string, password: string, captchaToken?: string) {
+    const res = await authApi.login({ email, password, captchaToken })
     applyAuthData(res.data.data)
   }
 
@@ -122,8 +122,8 @@ export const useAuthStore = defineStore('auth', () => {
     await authApi.sendPasswordChangeCode()
   }
 
-  async function register(name: string, email: string, password: string, verificationCode: string, turnstileToken?: string) {
-    const res = await authApi.register({ displayName: name, email, password, verificationCode, turnstileToken })
+  async function register(name: string, email: string, password: string, verificationCode: string, captchaToken?: string) {
+    const res = await authApi.register({ displayName: name, email, password, verificationCode, captchaToken })
     applyAuthData(res.data.data)
   }
 

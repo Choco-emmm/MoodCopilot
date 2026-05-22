@@ -80,6 +80,7 @@ public class DiaryService {
     private final DiaryHideMapper diaryHideMapper;
     private final DiaryRecommendationExposureMapper exposureMapper;
     private final UserMapper userMapper;
+    private final com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper;
     private static final Logger log = LoggerFactory.getLogger(DiaryService.class);
 
     private final AiAnalysisService aiAnalysisService;
@@ -105,6 +106,7 @@ public class DiaryService {
             DiaryHideMapper diaryHideMapper,
             DiaryRecommendationExposureMapper exposureMapper,
             UserMapper userMapper,
+            com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper,
             AiAnalysisService aiAnalysisService,
             VisionService visionService,
             OssService ossService,
@@ -127,6 +129,7 @@ public class DiaryService {
         this.diaryHideMapper = diaryHideMapper;
         this.exposureMapper = exposureMapper;
         this.userMapper = userMapper;
+        this.diaryKnowledgeGraphMapper = diaryKnowledgeGraphMapper;
         this.aiAnalysisService = aiAnalysisService;
         this.visionService = visionService;
         this.ossService = ossService;
@@ -321,6 +324,60 @@ public class DiaryService {
 
             eventPublisher.publishEvent(new DiaryAnalysisCompletedEvent(
                     this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels()));
+
+            Thread.startVirtualThread(() -> {
+                try {
+                    // 先请求大模型，如果失败也不影响旧数据
+                    java.util.List<AiAnalysisService.KnowledgeTriple> triples = aiAnalysisService.extractKnowledgeGraph(content);
+
+                    // 获取旧数据
+                    java.util.List<com.moodcopilot.entity.DiaryKnowledgeGraphEntity> oldTriples = diaryKnowledgeGraphMapper.selectList(
+                            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
+                                    .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId)
+                    );
+
+                    // 开启事务进行数据库级替换
+                    java.util.List<com.moodcopilot.entity.DiaryKnowledgeGraphEntity> newEntities = new java.util.ArrayList<>();
+                    transactionTemplate.execute(status -> {
+                        if (!oldTriples.isEmpty()) {
+                            diaryKnowledgeGraphMapper.delete(
+                                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
+                                            .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId)
+                            );
+                        }
+                        if (!triples.isEmpty()) {
+                            for (AiAnalysisService.KnowledgeTriple triple : triples) {
+                                com.moodcopilot.entity.DiaryKnowledgeGraphEntity entity = new com.moodcopilot.entity.DiaryKnowledgeGraphEntity();
+                                entity.setUserId(userId);
+                                entity.setDiaryId(diaryId);
+                                entity.setHeadEntity(triple.head());
+                                entity.setRelation(triple.relation());
+                                entity.setTailEntity(triple.tail());
+                                entity.setCreatedAt(java.time.LocalDateTime.now());
+                                diaryKnowledgeGraphMapper.insert(entity);
+                                newEntities.add(entity);
+                            }
+                        }
+                        return null;
+                    });
+
+                    // 事务提交成功后，再执行 Redis 的清理和更新
+                    for (com.moodcopilot.entity.DiaryKnowledgeGraphEntity old : oldTriples) {
+                        ragMemoryService.deleteKnowledgeGraph(old.getId());
+                    }
+                    for (com.moodcopilot.entity.DiaryKnowledgeGraphEntity entity : newEntities) {
+                        ragMemoryService.indexKnowledgeGraph(userId, diaryId, entity.getId(), entity.getHeadEntity(), entity.getRelation(), entity.getTailEntity());
+                    }
+
+                    if (!triples.isEmpty()) {
+                        log.info("日记知识图谱提取完成，diaryId={}，共 {} 条三元组", diaryId, triples.size());
+                    } else if (!oldTriples.isEmpty()) {
+                        log.info("日记知识图谱已被清空（新日记无有效三元组），diaryId={}", diaryId);
+                    }
+                } catch (Exception e) {
+                    log.error("日记知识图谱提取或落库失败，diaryId={}", diaryId, e);
+                }
+            });
 
             memoryExtractionService.extractAndSyncMemory(userId, content, musicMeta, imageDescriptions);
             // VLM 描述拿到后重新索引，让图片信息可被 RAG 检索（独立图片向量，不混入日记正文）
@@ -1586,6 +1643,22 @@ public class DiaryService {
         if ("PUBLIC".equals(diary.getVisibility())) {
             evictPublicDiaryCaches();
         }
+        
+        // Clean up knowledge graph
+        java.util.List<com.moodcopilot.entity.DiaryKnowledgeGraphEntity> oldTriples = diaryKnowledgeGraphMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
+                        .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId)
+        );
+        for (com.moodcopilot.entity.DiaryKnowledgeGraphEntity old : oldTriples) {
+            ragMemoryService.deleteKnowledgeGraph(old.getId());
+        }
+        if (!oldTriples.isEmpty()) {
+            diaryKnowledgeGraphMapper.delete(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
+                            .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId)
+            );
+        }
+
         ragMemoryService.deleteDiaryEmbedding(diaryId);
         ossService.deleteImages(diary.getImages());
         log.info("日记{}删除成功，diaryId={}，操作者UserId={}，原作者UserId={}",

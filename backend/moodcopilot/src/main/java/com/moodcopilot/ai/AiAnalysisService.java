@@ -102,6 +102,51 @@ public class AiAnalysisService {
                 topicLabels, safeSecondary, summary, feedback);
     }
 
+    // ── Knowledge Graph Extraction ──
+
+    private static final String GRAPH_EXTRACTION_SYSTEM_PROMPT = """
+            You are a highly precise knowledge graph extraction assistant. Extract causal, emotional, and relational knowledge from the diary entry provided.
+            Return ONLY a valid JSON array of objects, without markdown code blocks, explanation, or extra text.
+            Each object must contain EXACTLY these three string fields:
+            - head: The subject entity (e.g., "老板", "跑步", "缺乏睡眠")
+            - relation: The relationship verb (e.g., "导致", "缓解", "属于", "觉得")
+            - tail: The object entity (e.g., "焦虑", "压力", "同事")
+            Extract only meaningful relationships. If no relationships are found, return [].
+            Example: [{"head": "无理取闹的客户", "relation": "导致", "tail": "崩溃"}, {"head": "听轻音乐", "relation": "缓解", "tail": "压力"}]
+            """;
+
+    public record KnowledgeTriple(String head, String relation, String tail) {}
+
+    public List<KnowledgeTriple> extractKnowledgeGraph(String content) {
+        if (content == null || content.isBlank()) {
+            return List.of();
+        }
+        int maxRetries = 3;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                String json = analysisChatClient.prompt()
+                        .system(GRAPH_EXTRACTION_SYSTEM_PROMPT)
+                        .user(content)
+                        .call()
+                        .content();
+                return objectMapper.readValue(JsonUtils.cleanJson(json), new TypeReference<List<KnowledgeTriple>>() {});
+            } catch (Exception e) {
+                if (attempt < maxRetries) {
+                    log.warn("AI knowledge graph extraction failed, retrying (attempt {}/{}): {}", attempt, maxRetries, e.getMessage());
+                    try {
+                        Thread.sleep(1000L * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                } else {
+                    log.error("AI knowledge graph extraction failed finally after {} attempts: {}", maxRetries, e.getMessage());
+                }
+            }
+        }
+        return List.of();
+    }
+
     // ── Weekly report ──
 
     public String generateWeeklySummary(List<String> diaryContents, List<DiaryAnalysis> analyses,

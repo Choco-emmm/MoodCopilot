@@ -16,7 +16,7 @@ if [ -f .env ]; then
 fi
 
 # 关键变量校验
-required_vars="JWT_SECRET TURNSTILE_SECRET_KEY TURNSTILE_SITE_KEY"
+required_vars="JWT_SECRET"
 missing=""
 for var in $required_vars; do
   if [ -z "${!var:-}" ]; then

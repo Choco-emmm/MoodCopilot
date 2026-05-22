@@ -5,6 +5,6 @@ public record RegisterRequest(
     String email,
     String password,
     String verificationCode,
-    String turnstileToken
+    String captchaToken
 ) {
 }

@@ -176,7 +176,7 @@ export const useDiaryStore = defineStore('diary', () => {
         replaceIn(myDiaries, { ...diary, analysisStatus: diary.analysisStatus } as Diary)
       }
       if (diary.analysis == null && diary.analysisStatus !== 'skipped_quota' && diary.analysisStatus !== 'skipped_user') {
-        window.$message?.info('已保存，MoodCopilot 正在分析中...', { duration: 5000 })
+        window.$message?.success('已保存，MoodCopilot 正在分析中...', { duration: 5000 })
         pollAnalysis(diary.id)
       }
       if (activeDiary.value) {
@@ -212,7 +212,7 @@ export const useDiaryStore = defineStore('diary', () => {
       }
 
       if (updated.analysis == null && updated.analysisStatus !== 'skipped_quota' && updated.analysisStatus !== 'skipped_user') {
-        window.$message?.info('日记已修改，MoodCopilot 正在重新分析中...', { duration: 5000 })
+        window.$message?.success('日记已修改，MoodCopilot 正在重新分析中...', { duration: 5000 })
         pollAnalysis(updated.id)
       }
 

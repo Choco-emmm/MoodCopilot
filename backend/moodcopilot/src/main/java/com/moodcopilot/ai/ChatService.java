@@ -222,7 +222,7 @@ public class ChatService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity user = currentUser();
         long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
+        String ragCtx = ""; // 已迁移为 Agentic RAG，不再强制前置全量检索
 
         if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
             boolean useReasoning = false;
@@ -268,7 +268,8 @@ public class ChatService {
                         DiarySearchFunctionSupport.NAME,
                         UserStatsFunctionSupport.NAME,
                         ReportSnapshotFunctionSupport.NAME,
-                        MemoryQueryFunctionSupport.NAME)
+                        MemoryQueryFunctionSupport.NAME,
+                        GraphSearchFunctionSupport.NAME)
                 .toolContext(Map.of("auth", auth, "sseSink", sseSink))
                 .stream()
                 .content()
@@ -285,7 +286,7 @@ public class ChatService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity user = currentUser();
         long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = buildRagContextWithFallback(uid, message, request.memory(), 3, RagMemoryService.SOURCE_DIARY, RagMemoryService.SOURCE_PROFILE, RagMemoryService.SOURCE_MUSIC, RagMemoryService.SOURCE_IMAGE);
+        String ragCtx = ""; // 已迁移为 Agentic RAG，不再强制前置全量检索
 
         if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
             boolean useReasoning = false;
@@ -329,77 +330,15 @@ public class ChatService {
                         DiarySearchFunctionSupport.NAME,
                         UserStatsFunctionSupport.NAME,
                         ReportSnapshotFunctionSupport.NAME,
-                        MemoryQueryFunctionSupport.NAME)
+                        MemoryQueryFunctionSupport.NAME,
+                        GraphSearchFunctionSupport.NAME)
                 .toolContext(Map.of("auth", auth))
                 .call()
                 .content();
                 return result;
     }
 
-    /**
-     * RAG 语义搜索，query 经由 HyDE 重写（结合长期画像 + 最近对话历史）
-     * 以提升多轮对话中向量检索的语境感知能力。
-     */
-    private String buildRagContextWithFallback(long userId, String message, ChatMemory memory, int topK, String... sourceTypes) {
-        String memoryBg = memoryExtractionService.buildUserMemoryPrompt();
-        String recentHistory = extractRecentChatHistory(memory);
-        String searchQuery = aiAnalysisService.rewriteQueryForSearch(message, memoryBg, recentHistory);
 
-        // HyDE 重写日志：直观对比原文与改写结果
-        if (!searchQuery.equals(message)) {
-            log.info("RAG HyDE 重写 userId={} orig=\"{}\" rewritten=\"{}\" origLen={} rewrittenLen={}",
-                    userId, message, searchQuery, message.length(), searchQuery.length());
-        } else {
-            log.info("RAG HyDE 未重写（改写失败/被旁路），使用原始查询 userId={} query=\"{}\"",
-                    userId, message);
-        }
-
-        // 从原始用户消息中提取时间表达式，用于向量搜索的时间范围过滤
-        var timeRangeOpt = TimeExpressionParser.parse(message);
-        TimeExpressionParser.TimeRange timeRange = timeRangeOpt.orElse(null);
-        if (timeRange != null) {
-            log.info("RAG 检测到时间词 userId={} origMsg=\"{}\" timeRange=[{} ~ {}]",
-                    userId, message,
-                    TimeExpressionParser.formatDateTime(timeRange.fromTimestamp()),
-                    TimeExpressionParser.formatDateTime(timeRange.toTimestamp()));
-        }
-
-        String ragCtx = ragMemoryService.buildRagContext(userId, searchQuery, topK, timeRange, sourceTypes);
-        if (ragCtx.isBlank()) {
-            if (timeRange != null) {
-                log.info("RAG 时间过滤后零结果，将降级到 diarySearch 工具 userId={} timeRange=[{} ~ {}]",
-                        userId,
-                        TimeExpressionParser.formatDateTime(timeRange.fromTimestamp()),
-                        TimeExpressionParser.formatDateTime(timeRange.toTimestamp()));
-            } else {
-                log.info("RAG 无结果，将依赖模型的 diarySearchFunction 工具主动查询 userId={}", userId);
-            }
-        }
-        return ragCtx;
-    }
-
-    /** 提取最近 3 轮对话历史，格式化为纯文本供 HyDE 重写使用。 */
-    private String extractRecentChatHistory(ChatMemory memory) {
-        List<org.springframework.ai.chat.messages.Message> messages = memory.get("default", Integer.MAX_VALUE);
-        if (messages == null || messages.isEmpty()) {
-            return "";
-        }
-        int start = Math.max(0, messages.size() - 6); // 最近 3 轮（用户+AI 各 3 条）
-        StringBuilder sb = new StringBuilder();
-        for (int i = start; i < messages.size(); i++) {
-            var msg = messages.get(i);
-            String role = switch (msg.getMessageType()) {
-                case USER -> "用户";
-                case ASSISTANT -> "MoodCopilot";
-                default -> null;
-            };
-            if (role == null) continue;
-            String text = msg.getText();
-            if (text == null || text.isBlank()) continue;
-            sb.append("[").append(role).append("]: ").append(text.trim()).append("\n");
-        }
-        return sb.toString();
-    }
 
     private boolean shouldUseReasoning(Long conversationId, String message, List<String> refs,
             String memoryBackground) {
