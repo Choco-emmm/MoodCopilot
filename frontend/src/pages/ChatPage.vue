@@ -1,9 +1,9 @@
-<template>
+﻿<template>
   <main class="app-shell chat-shell">
     <AppHeader />
 
     <div class="chat-layout">
-      <!-- 会话列表侧边�?-->
+      <!-- 会话列表侧边栏 -->
       <aside class="chat-sidebar">
         <div class="sidebar-head">
           <span class="sidebar-title">对话</span>
@@ -84,10 +84,10 @@
                 <div v-if="msg.role === 'ai' && msg.ragReferences?.length" class="rag-refs-panel rag-refs-above rag-references-fixed">
                   <button class="rag-refs-toggle" @click="toggleMsgRefs(msg.id)">
                     <span class="rag-refs-icon">🔍</span>
-                    <span>已检�?{{ countDiaryRefs(msg.ragReferences) }} 条记�?/span>
-                    <span v-if="countProfileRefs(msg.ragReferences)"> · {{ countProfileRefs(msg.ragReferences) }} 条画�?/span>
-                    <span v-if="countGraphRefs(msg.ragReferences)"> · {{ countGraphRefs(msg.ragReferences) }} 条图�?/span>
-                    <span class="rag-refs-arrow">{{ expandedRefs.has(msg.id) ? '�? : '�? }}</span>
+                    <span>已检索 {{ countDiaryRefs(msg.ragReferences) }} 条记录</span>
+                    <span v-if="countProfileRefs(msg.ragReferences)"> · {{ countProfileRefs(msg.ragReferences) }} 条画像</span>
+                    <span v-if="countGraphRefs(msg.ragReferences)"> · {{ countGraphRefs(msg.ragReferences) }} 条图谱</span>
+                    <span class="rag-refs-arrow">{{ expandedRefs.has(msg.id) ? '▾' : '▸' }}</span>
                   </button>
                   <div v-if="expandedRefs.has(msg.id)" class="rag-refs-list">
                     <template v-if="getDiaryRefs(msg.ragReferences).length">
@@ -103,7 +103,7 @@
                           <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                         </div>
                         <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
-                        <span v-if="ref.diaryId" class="rag-ref-go">�?/span>
+                        <span v-if="ref.diaryId" class="rag-ref-go">→</span>
                       </div>
                     </template>
                     <template v-if="getProfileRefs(msg.ragReferences).length">
@@ -112,12 +112,12 @@
                            class="rag-ref-item-profile"
                            @click="toggleProfileSnippet(msg.id, i)">
                         <span :class="['rag-ref-snippet', { 'expanded': isProfileSnippetExpanded(msg.id, i) }]" :title="ref.snippet || ref.value">
-                          <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}�?/span>{{ ref.snippet || ref.value }}
+                          <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}】</span>{{ ref.snippet || ref.value }}
                         </span>
                       </div>
                     </template>
                     <template v-if="getGraphRefs(msg.ragReferences).length">
-                      <div class="rag-refs-section-label">🕸�?关系图谱</div>
+                      <div class="rag-refs-section-label">🕸️ 关系图谱</div>
                       <div
                         v-for="(ref, i) in getGraphRefs(msg.ragReferences)"
                         :key="'g'+i"
@@ -129,7 +129,7 @@
                           <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                         </div>
                         <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
-                        <span v-if="ref.diaryId" class="rag-ref-go">�?/span>
+                        <span v-if="ref.diaryId" class="rag-ref-go">→</span>
                       </div>
                     </template>
                   </div>
@@ -139,7 +139,7 @@
                   :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
                 >
                   <template v-if="msg.role === 'ai'">
-                    <!-- think 块内容不对用户展示，只显示正�?-->
+                    <!-- think 块内容不对用户展示，只显示正文 -->
                     <div v-if="parseThink(msg.content).text" class="md-content" v-html="renderMd(parseThink(msg.content).text)" />
                     <!-- 如果只有 think 没有正文（消息异常时的兜底） -->
                     <span v-else class="ai-think-placeholder">...</span>
@@ -170,8 +170,8 @@
             <div class="msg-wrapper">
               <div class="chat-bubble chat-ai thinking-bubble">
                 <div class="thinking-header">
-                  <span class="sparkle-icon">�?/span>
-                  <span class="thinking-text">MoodCopilot 正在沉�?/span>
+                  <span class="sparkle-icon">✨</span>
+                  <span class="thinking-text">MoodCopilot 正在沉思</span>
                 </div>
                 <div class="thinking-dots-loader">
                   <span class="dot animate-bounce" style="animation-delay: 0ms"></span>
@@ -182,7 +182,7 @@
             </div>
           </div>
 
-          <!-- 流式回复（引用先行，文本追加�?-->
+          <!-- 流式回复（引用先行，文本追加） -->
           <div v-if="streaming && (streamingText || streamingRefs.length)" class="msg-item ai">
             <div class="msg-avatar ai-avatar">
               <img class="ai-avatar-icon" src="/logo.svg" alt="MoodCopilot" />
@@ -191,10 +191,10 @@
               <div v-if="streaming && streamingRefs.length" class="rag-refs-panel rag-refs-above rag-references-fixed">
                 <button class="rag-refs-toggle" @click="showStreamingRefs = !showStreamingRefs">
                   <span class="rag-refs-icon">🔍</span>
-                  <span>已检�?{{ streamingDiaryRefs.length }} 条记�?/span>
-                  <span v-if="streamingProfileRefs.length"> · {{ streamingProfileRefs.length }} 条画�?/span>
-                  <span v-if="streamingGraphRefs.length"> · {{ streamingGraphRefs.length }} 条图�?/span>
-                  <span class="rag-refs-arrow">{{ showStreamingRefs ? '�? : '�? }}</span>
+                  <span>已检索 {{ streamingDiaryRefs.length }} 条记录</span>
+                  <span v-if="streamingProfileRefs.length"> · {{ streamingProfileRefs.length }} 条画像</span>
+                  <span v-if="streamingGraphRefs.length"> · {{ streamingGraphRefs.length }} 条图谱</span>
+                  <span class="rag-refs-arrow">{{ showStreamingRefs ? '▾' : '▸' }}</span>
                 </button>
                 <div v-if="showStreamingRefs" class="rag-refs-list">
                   <template v-if="streamingDiaryRefs.length">
@@ -210,19 +210,19 @@
                         <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                       </div>
                       <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
-                      <span v-if="ref.diaryId" class="rag-ref-go">�?/span>
+                      <span v-if="ref.diaryId" class="rag-ref-go">→</span>
                     </div>
                   </template>
                   <template v-if="streamingProfileRefs.length">
                     <div class="rag-refs-section-label">🧠 个人画像</div>
                     <div v-for="(ref, i) in streamingProfileRefs" :key="'sp'+i" class="rag-ref-item">
                       <span class="rag-ref-snippet" :title="ref.snippet || ref.value">
-                        <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}�?/span>{{ ref.snippet || ref.value }}
+                        <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}】</span>{{ ref.snippet || ref.value }}
                       </span>
                     </div>
                   </template>
                   <template v-if="streamingGraphRefs.length">
-                    <div class="rag-refs-section-label">🕸�?关系图谱</div>
+                    <div class="rag-refs-section-label">🕸️ 关系图谱</div>
                     <div
                       v-for="(ref, i) in streamingGraphRefs"
                       :key="'sg'+i"
@@ -234,7 +234,7 @@
                         <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                       </div>
                       <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
-                      <span v-if="ref.diaryId" class="rag-ref-go">�?/span>
+                      <span v-if="ref.diaryId" class="rag-ref-go">→</span>
                     </div>
                   </template>
                 </div>
@@ -243,7 +243,7 @@
               <div class="chat-bubble chat-ai">
                 <!-- 深度思考中：有 think 内容但正文还未出现时，只展示动效，不渲染 think 内容 -->
                 <div v-if="parseThink(streamingText).think && !parseThink(streamingText).text" class="thinking-status">
-                  <span class="sparkle-icon">�?/span>
+                  <span class="sparkle-icon">✨</span>
                   <span class="thinking-text">深度思考中</span>
                   <span class="thinking-dots-inline">
                     <span class="dot animate-bounce" style="animation-delay: 0ms"></span>
@@ -252,10 +252,10 @@
                   </span>
                 </div>
 
-                <!-- 无任何内容时（还没收�?think �?text�?-->
+                <!-- 无任何内容时（还没收到 think 或 text） -->
                 <div v-if="!parseThink(streamingText).text && !parseThink(streamingText).think" class="thinking-status">
-                  <span class="sparkle-icon">�?/span>
-                  <span class="thinking-text">MoodCopilot 正在思�?/span>
+                  <span class="sparkle-icon">✨</span>
+                  <span class="thinking-text">MoodCopilot 正在思考</span>
                   <span class="typing-dots"></span>
                 </div>
 
@@ -294,7 +294,7 @@
               @keydown.enter.prevent="handleDraftEnter"
             />
             <n-button type="primary" :disabled="!draft.trim() || streaming || creatingConversation || !activeConvId" @click="send">
-              {{ streaming ? '发送中' : '发�? }}
+              {{ streaming ? '发送中' : '发送' }}
             </n-button>
           </div>
         </div>
@@ -316,7 +316,7 @@ import { useAuthStore } from '../stores/auth'
 
 const authStore = useAuthStore()
 const userInitial = computed(() => {
-  return authStore.displayName ? authStore.displayName.trim().charAt(0).toUpperCase() : '�?
+  return authStore.displayName ? authStore.displayName.trim().charAt(0).toUpperCase() : '我'
 })
 
 interface RagRef {
@@ -367,17 +367,17 @@ function parseThink(content: string) {
 
   let think = ''
 
-  // 1. 提取并移除所有已闭合�?<think>...</think> �?
+  // 1. 提取并移除所有已闭合的 <think>...</think> 块
   let text = content.replace(/<think>([\s\S]*?)<\/think>/g, (match, innerThink) => {
     think += (think ? '\n\n' : '') + innerThink.trim()
-    return '' // 将原文本中的 think 块抹�?
+    return '' // 将原文本中的 think 块抹除
   })
 
   // 2. 处理流式输出时，最后一段可能还没闭合的 <think> 标签
   const unclosedMatch = text.match(/<think>([\s\S]*)$/)
   if (unclosedMatch) {
     think += (think ? '\n\n' : '') + unclosedMatch[1].trim()
-    text = text.substring(0, unclosedMatch.index) // 将未闭合�?think 部分从正文中剪裁�?
+    text = text.substring(0, unclosedMatch.index) // 将未闭合的 think 部分从正文中剪裁掉
   }
 
   return {
@@ -403,7 +403,7 @@ function isProfileSnippetExpanded(msgId: string, idx: number) {
 }
 
 function renderStreamingMd(text: string, showCursor: boolean) {
-  const processed = showCursor ? text + '<span class="streaming-cursor">�?/span>' : text
+  const processed = showCursor ? text + '<span class="streaming-cursor">▋</span>' : text
   return renderMd(processed)
 }
 
@@ -425,7 +425,7 @@ const quickStarters = [
   { icon: '📊', text: '分析我最近三天的情绪波动' },
   { icon: '💡', text: '帮我回顾我最近开心的事情' },
   { icon: '🌿', text: '推荐一些适合解压的音乐与方法' },
-  { icon: '💬', text: '今天有些累，陪我随便聊聊�? }
+  { icon: '💬', text: '今天有些累，陪我随便聊聊吧' }
 ]
 
 function useQuickStarter(text: string) {
@@ -511,7 +511,7 @@ function getGraphRefs(refs: RagRef[]): RagRef[] {
   })
 }
 
-/** 流式面板用的计算属�?*/
+/** 流式面板用的计算属性 */
 const streamingDiaryRefs = computed(() => getDiaryRefs(streamingRefs.value))
 const streamingProfileRefs = computed(() => getProfileRefs(streamingRefs.value))
 const streamingGraphRefs = computed(() => getGraphRefs(streamingRefs.value))
@@ -616,7 +616,7 @@ async function loadConversations() {
 
 async function selectConversation(id: number) {
   if (id === activeConvId.value) return
-  // 中止当前�?
+  // 中止当前流
   if (streamAbortCtrl) {
     streamAbortCtrl.abort()
     streamAbortCtrl = null
@@ -706,7 +706,7 @@ async function createConversation() {
   if (creatingConversation.value) return
   creatingConversation.value = true
   try {
-    // 避免用户在会话创建尚未完成时把第一条消息发到旧会话里�?
+    // 避免用户在会话创建尚未完成时把第一条消息发到旧会话里。
     if (activeConvId.value && messages.value.length > 0) {
       await saveToBackend(activeConvId.value).catch(() => {})
     }
@@ -732,7 +732,7 @@ async function deleteConversation(id: number) {
   if (id === activeConvId.value) {
     activeConvId.value = null
     messages.value = []
-    // 自动选第一�?
+    // 自动选第一个
     if (conversations.value.length > 0) {
       await selectConversation(conversations.value[0].id)
     } else {
@@ -834,7 +834,7 @@ async function retryLastReply() {
   if (!lastReplyRequest.value || streaming.value) return
   const { convId, content, refContents } = lastReplyRequest.value
   if (activeConvId.value !== convId) {
-    lastReplyError.value = '会话已切换，请在当前会话重新发送�?
+    lastReplyError.value = '会话已切换，请在当前会话重新发送。'
     return
   }
   streaming.value = true
@@ -882,14 +882,14 @@ async function sendReply(convId: number, content: string, refContents: string[],
       streamingRefs.value = currentRefs
     })
 
-    // 流正常结�?
+    // 流正常结束
     if (activeConvId.value !== convId) return
     lastReplyError.value = null
     lastReplyRequest.value = null
     messages.value.push({
       id: nextMsgId(),
       role: 'ai',
-      content: fullReply || '我刚才没有组织好语言，你可以再说一遍吗�?,
+      content: fullReply || '我刚才没有组织好语言，你可以再说一遍吗？',
       ragReferences: currentRefs.length ? currentRefs : undefined,
     })
   } catch (e: any) {
@@ -963,7 +963,7 @@ function handleMobileConversationChange(event: Event) {
 function deleteActiveConversation() {
   const convId = activeConvId.value
   if (!convId) return
-  const ok = window.confirm('确认删除当前对话吗？删除后不可恢复�?)
+  const ok = window.confirm('确认删除当前对话吗？删除后不可恢复。')
   if (!ok) return
   deleteConversation(convId)
 }
@@ -1012,14 +1012,14 @@ async function loadRecentDiaryOptions() {
         })
       })
     } catch (e) {
-      recentDiariesError.value = '加载最近日记失�?
+      recentDiariesError.value = '加载最近日记失败'
       console.warn('[chat] 加载引用日记失败', e)
     }
 
     recentDiaryOptions.value = options
   } catch {
     recentDiaryOptions.value = []
-    recentDiariesError.value = '加载最近日记失�?
+    recentDiariesError.value = '加载最近日记失败'
   } finally {
     recentDiariesLoading.value = false
   }
@@ -1027,8 +1027,8 @@ async function loadRecentDiaryOptions() {
 
 function chatErrorMessage(status?: number, bizMessage?: string) {
   if (bizMessage && bizMessage !== 'Request failed with status code 429') return bizMessage
-  if (status === 401 || status === 403) return '登录状态过期了，请重新登录后再试�?
-  return '抱歉，我暂时无法回复，请稍后再试�?
+  if (status === 401 || status === 403) return '登录状态过期了，请重新登录后再试。'
+  return '抱歉，我暂时无法回复，请稍后再试。'
 }
 </script>
 
@@ -1090,7 +1090,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   opacity: 0.9;
 }
 
-/* Markdown 动态内容样式穿�?*/
+/* Markdown 动态内容样式穿透 */
 .md-content :deep(p) {
   margin: 0 0 0.5em 0;
   line-height: 1.6;
@@ -1176,7 +1176,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   max-width: 100%;
 }
 
-/* 引用面板内的子项增加呼吸�?*/
+/* 引用面板内的子项增加呼吸感 */
 .rag-refs-list {
   gap: 2px;
 }
@@ -1199,7 +1199,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   max-width: 260px;
 }
 
-/* 消息内容容器：垂直堆叠，引用在上、气泡在下，shrink-wrap 到内容宽�?*/
+/* 消息内容容器：垂直堆叠，引用在上、气泡在下，shrink-wrap 到内容宽度 */
 .msg-wrapper {
   display: flex;
   flex-direction: column;
@@ -1391,7 +1391,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   border: 1px solid var(--color-border);
 }
 
-/* ── 消息对齐：AI 靠左，用户靠�?── */
+/* ── 消息对齐：AI 靠左，用户靠右 ── */
 .msg-item {
   display: flex;
   width: 100%;
@@ -1465,7 +1465,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   margin-bottom: 8px;
 }
 
-/* 深度思考动效中的行内跳点容�?*/
+/* 深度思考动效中的行内跳点容器 */
 .thinking-dots-inline {
   display: inline-flex;
   align-items: center;
@@ -1473,7 +1473,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   margin-left: 2px;
 }
 
-/* AI 消息只有 think 无正文时的兜底占�?*/
+/* AI 消息只有 think 无正文时的兜底占位 */
 .ai-think-placeholder {
   color: var(--color-text-muted);
   font-size: 13px;
@@ -1491,7 +1491,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   100% { opacity: 0.4; }
 }
 
-/* 沉思加载动画样�?*/
+/* 沉思加载动画样式 */
 .thinking-bubble {
   display: flex;
   flex-direction: column;
