@@ -1,6 +1,9 @@
 package com.moodcopilot.config;
 
 import com.moodcopilot.ai.DiarySearchFunctionSupport;
+import com.moodcopilot.ai.GraphSearchFunctionSupport;
+import com.moodcopilot.ai.GraphSearchRequest;
+import com.moodcopilot.ai.GraphSearchResult;
 import com.moodcopilot.ai.MemoryExtractionService;
 import com.moodcopilot.ai.MemoryQueryFunctionSupport;
 import com.moodcopilot.ai.MemoryQueryRequest;
@@ -77,10 +80,12 @@ public class AIConfiguration {
                         - diarySearchFunction：按关键词或日期范围检索用户的日记摘要
                         - userStatsFunction：统计用户最近 N 天的日记数量与情绪分布
                         - reportSnapshotFunction：读取周报/月报的关键指标（主导象限、正向占比、高能量占比）
+                        - userStatsFunction：统计用户的日记和情绪频率
                         - memoryQueryFunction：读取用户当前长期画像条目
+                        - graphSearchFunction：根据实体关键词，从图谱中查询因果/情绪归因关系三元组
 
                         关键行为准则：
-                        当用户提到"最近"、"之前"、"上周"、"上个月"、"以前"、或者你需要核对用户的历史状态时，必须主动调用工具查询事实，不要盲目猜测。
+                        当用户提到"最近"、"之前"、"上周"、"上个月"、"为什么"、或者你需要核对用户的历史因果关系时，必须主动调用工具查询事实，不要盲目猜测。
                         如果用户的问题涉及过往经历或情绪变化，先查询再回答，不要假装记得没有查到的内容。
                         查到日记后，自然引用日期和内容，例如：「根据你 5/9 的日记...」或「你前几天提到...」。
                         **调用工具时，直接执行 function call，严禁在此之前输出任何文字（包括"我帮你查"等过渡语）。拿到数据后再自然回应。**
@@ -97,7 +102,7 @@ public class AIConfiguration {
     }
 
     @Bean(name = DiarySearchFunctionSupport.NAME)
-    public FunctionCallback diarySearchFunction(@Lazy DiaryService diaryService, ObjectMapper objectMapper) {
+    public FunctionCallback diarySearchFunction(@Lazy DiaryService diaryService, @Lazy com.moodcopilot.ai.RagMemoryService ragMemoryService, ObjectMapper objectMapper) {
         log.info("注册 Function Calling 工具：{}", DiarySearchFunctionSupport.NAME);
         return FunctionCallback.builder()
                 .function(DiarySearchFunctionSupport.NAME,
@@ -107,7 +112,11 @@ public class AIConfiguration {
                                 SecurityContextHolder.getContext().setAuthentication(auth);
                             }
                             try {
-                                com.moodcopilot.diary.DiarySearchResult result = diaryService.searchOwnDiarySummaries(input);
+                                long userId = ((com.moodcopilot.entity.UserEntity) auth.getPrincipal()).getId();
+                                com.moodcopilot.diary.DiarySearchResult result = ragMemoryService.searchForTool(userId, input);
+                                if (result == null) {
+                                    result = diaryService.searchOwnDiarySummaries(input);
+                                }
                                 
                                 // Emit tool results to SSE if sink is available
                                 @SuppressWarnings("unchecked")
@@ -140,8 +149,8 @@ public class AIConfiguration {
                             }
                         })
                 .description(
-                        "检索当前登录用户自己的历史日记摘要。keyword、startDate、endDate 都可选，日期格式为 YYYY-MM-DD。"
-                                + "keyword 参数：要搜索的关键词。**绝对不要传入完整的疑问句（如'我喜欢吃什么'），必须提取出最核心的 1-2 个名词或形容词（如'吃'、'美食'、'好吃'）进行模糊搜索。**"
+                        "检索当前登录用户自己的历史日记、图片描述、音乐元数据等。keyword、startDate、endDate 都可选，日期格式为 YYYY-MM-DD。"
+                                + "keyword 参数：要搜索的关键词或语义描述。**由于底层采用向量语义检索，你可以直接输入概念或抽象感觉（例如'关于工作压力的事'、'那张下雨天的图片'），而不需要精确匹配原文词汇。**"
                                 + "如果用户意图宽泛，可以传入空字符串，结合时间参数查询。返回日期和内容片段。")
                 .inputType(DiarySearchRequest.class)
                 .build();
@@ -190,7 +199,7 @@ public class AIConfiguration {
     }
 
     @Bean(name = MemoryQueryFunctionSupport.NAME)
-    public FunctionCallback memoryQueryFunction(@Lazy MemoryExtractionService memoryExtractionService) {
+    public FunctionCallback memoryQueryFunction(@Lazy MemoryExtractionService memoryExtractionService, @Lazy com.moodcopilot.ai.RagMemoryService ragMemoryService, ObjectMapper objectMapper) {
         log.info("注册 Function Calling 工具：{}", MemoryQueryFunctionSupport.NAME);
         return FunctionCallback.builder()
                 .function(MemoryQueryFunctionSupport.NAME,
@@ -200,26 +209,80 @@ public class AIConfiguration {
                                 SecurityContextHolder.getContext().setAuthentication(auth);
                             }
                             try {
+                                long userId = ((com.moodcopilot.entity.UserEntity) auth.getPrincipal()).getId();
                                 int limit = input != null && input.limit() != null ? input.limit() : 20;
                                 int clampedLimit = Math.min(50, Math.max(1, limit));
-                                List<MemoryQueryResult.MemoryItem> items = memoryExtractionService
-                                        .listCurrentUserMemories().stream()
-                                        .sorted(Comparator.comparing(
-                                                m -> m.getUpdateTime(),
-                                                Comparator.nullsLast(Comparator.reverseOrder())))
-                                        .limit(clampedLimit)
-                                        .map(m -> new MemoryQueryResult.MemoryItem(
-                                                m.getAttributeKey(),
-                                                m.getAttributeValue(),
-                                                m.getUpdateTime() != null ? m.getUpdateTime().toString() : null))
-                                        .toList();
-                                return new MemoryQueryResult(items.size(), items,
-                                        items.isEmpty() ? "当前暂无长期画像条目" : "已返回当前长期画像条目");
+                                String keyword = input != null && input.keyword() != null ? input.keyword().trim() : "";
+
+                                List<MemoryQueryResult.MemoryItem> items = new java.util.ArrayList<>();
+                                if (!keyword.isBlank()) {
+                                    // 语义搜索画像
+                                    var hits = ragMemoryService.search(userId, keyword, clampedLimit, com.moodcopilot.ai.RagMemoryService.SOURCE_PROFILE);
+                                    for (var hit : hits) {
+                                        if (hit.content() != null) {
+                                            String content = hit.content();
+                                            String key = "画像片段";
+                                            String val = content;
+                                            if (content.startsWith("用户长期画像 - ")) {
+                                                content = content.substring("用户长期画像 - ".length());
+                                                String[] parts = content.split(":", 2);
+                                                if (parts.length == 2) {
+                                                    key = parts[0].trim();
+                                                    val = parts[1].trim();
+                                                }
+                                            }
+                                            items.add(new MemoryQueryResult.MemoryItem(key, val, null));
+                                        }
+                                    }
+                                } else {
+                                    // 降级全量拉取
+                                    items = memoryExtractionService
+                                            .listCurrentUserMemories().stream()
+                                            .sorted(Comparator.comparing(
+                                                    m -> m.getUpdateTime(),
+                                                    Comparator.nullsLast(Comparator.reverseOrder())))
+                                            .limit(clampedLimit)
+                                            .map(m -> new MemoryQueryResult.MemoryItem(
+                                                    m.getAttributeKey(),
+                                                    m.getAttributeValue(),
+                                                    m.getUpdateTime() != null ? m.getUpdateTime().toString() : null))
+                                            .toList();
+                                }
+
+                                MemoryQueryResult result = new MemoryQueryResult(items.size(), items,
+                                        items.isEmpty() ? "当前暂无符合条件的长期画像条目" : "已返回长期画像条目");
+
+                                // Emit tool results to SSE if sink is available
+                                @SuppressWarnings("unchecked")
+                                reactor.core.publisher.Sinks.Many<String> sink = 
+                                        (reactor.core.publisher.Sinks.Many<String>) toolContext.getContext().get("sseSink");
+                                if (sink != null && !items.isEmpty()) {
+                                    try {
+                                        java.util.List<java.util.Map<String, String>> eventItems = new java.util.ArrayList<>();
+                                        for (var m : items) {
+                                            eventItems.add(java.util.Map.of(
+                                                "type", "profile_memory",
+                                                "key", m.attributeKey() != null ? m.attributeKey() : "",
+                                                "value", m.attributeValue() != null ? m.attributeValue() : "",
+                                                "toolName", "memoryQuery"
+                                            ));
+                                        }
+                                        java.util.Map<String, Object> event = java.util.Map.of(
+                                            "type", "tool_references",
+                                            "items", eventItems
+                                        );
+                                        sink.tryEmitNext("[[TOOL_EVENT]]" + objectMapper.writeValueAsString(event));
+                                    } catch (Exception e) {
+                                        log.warn("Failed to emit tool references for memoryQuery", e);
+                                    }
+                                }
+
+                                return result;
                             } finally {
                                 SecurityContextHolder.clearContext();
                             }
                         })
-                .description("读取当前登录用户的长期画像条目列表。limit 可选，默认 20，最大 50。返回条目 key/value 和更新时间。")
+                .description("读取当前登录用户的长期画像条目列表。可以通过 keyword 进行语义检索特定的画像片段（例如'我喜欢的食物'）。如果不提供 keyword 则返回最近更新的条目。limit 可选，默认 20，最大 50。")
                 .inputType(MemoryQueryRequest.class)
                 .build();
     }

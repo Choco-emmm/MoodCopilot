@@ -105,9 +105,9 @@ export const notificationApi = {
 export const authApi = {
   sendCode: (email: string) => api.post('/auth/send-code', { email }),
   sendPasswordChangeCode: () => api.post('/auth/change-password/send-code'),
-  register: (data: { displayName: string; email: string; password: string; verificationCode: string; turnstileToken?: string }) =>
+  register: (data: { displayName: string; email: string; password: string; verificationCode: string; captchaToken?: string }) =>
     api.post('/auth/register', data),
-  login: (data: { email: string; password: string; turnstileToken?: string }) => api.post('/auth/login', data),
+  login: (data: { email: string; password: string; captchaToken?: string }) => api.post('/auth/login', data),
   changePassword: (data: { oldPassword: string; newPassword: string; confirmNewPassword: string; verificationCode: string }) =>
     api.post('/auth/change-password', data),
   me: () => api.get('/auth/me'),

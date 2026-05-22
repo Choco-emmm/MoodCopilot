@@ -40,6 +40,7 @@ public class RagMemoryService {
     public static final String SOURCE_PROFILE = "profile";
     public static final String SOURCE_MUSIC = "music";
     public static final String SOURCE_IMAGE = "image";
+    public static final String SOURCE_GRAPH = "graph";
 
     private final String embeddingApiUrl;
     private final String embeddingApiKey;
@@ -112,39 +113,69 @@ public class RagMemoryService {
         if (text == null || text.isBlank()) {
             return null;
         }
-        try {
-            String response = restClient.post()
-                    .uri(embeddingApiUrl)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .header("Authorization", "Bearer " + embeddingApiKey)
-                    .body(Map.of(
-                            "model", embeddingModel,
-                            "input", text,
-                            "encoding_format", "float"))
-                    .retrieve()
-                    .body(String.class);
+        
+        int maxRetries = 3;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                String response = restClient.post()
+                        .uri(embeddingApiUrl)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Bearer " + embeddingApiKey)
+                        .body(Map.of(
+                                "model", embeddingModel,
+                                "input", text,
+                                "encoding_format", "float"))
+                        .retrieve()
+                        .body(String.class);
 
-            if (response == null || response.isBlank()) {
-                return null;
+                if (response == null || response.isBlank()) {
+                    return null;
+                }
+                Map<String, Object> parsed = objectMapper.readValue(response, Map.class);
+                List<Map<String, Object>> data = (List<Map<String, Object>>) parsed.get("data");
+                if (data == null || data.isEmpty()) {
+                    return null;
+                }
+                List<Number> raw = (List<Number>) data.get(0).get("embedding");
+                if (raw == null) {
+                    return null;
+                }
+                float[] embedding = new float[raw.size()];
+                for (int i = 0; i < raw.size(); i++) {
+                    embedding[i] = raw.get(i).floatValue();
+                }
+                return embedding;
+            } catch (Exception e) {
+                if (attempt < maxRetries) {
+                    log.warn("Embedding 生成失败，准备重试 (尝试 {}/{}): {}", attempt, maxRetries, e.getMessage());
+                    try {
+                        Thread.sleep(1000L * attempt); // 等待 1s, 2s...
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                } else {
+                    log.error("Embedding 生成彻底失败 (已尝试 {} 次): {}", maxRetries, e.getMessage());
+                }
             }
-            Map<String, Object> parsed = objectMapper.readValue(response, Map.class);
-            List<Map<String, Object>> data = (List<Map<String, Object>>) parsed.get("data");
-            if (data == null || data.isEmpty()) {
-                return null;
-            }
-            List<Number> raw = (List<Number>) data.get(0).get("embedding");
-            if (raw == null) {
-                return null;
-            }
-            float[] embedding = new float[raw.size()];
-            for (int i = 0; i < raw.size(); i++) {
-                embedding[i] = raw.get(i).floatValue();
-            }
-            return embedding;
-        } catch (Exception e) {
-            log.warn("Embedding 生成失败: {}", e.getMessage());
-            return null;
         }
+        return null;
+    }
+
+    @Async
+    public void indexKnowledgeGraph(long userId, long diaryId, long graphId, String head, String relation, String tail) {
+        String content = "记忆图谱：" + head + " " + relation + " " + tail;
+        float[] vector = embed(content);
+        if (vector == null) {
+            return;
+        }
+        storeEmbedding("graph:" + graphId, userId, SOURCE_GRAPH, content, vector);
+        log.info("RAG 知识图谱三元组已索引, userId={}, graphId={}", userId, graphId);
+    }
+
+    public void deleteKnowledgeGraph(long graphId) {
+        String key = KEY_PREFIX + "graph:" + graphId;
+        redis.delete(key);
     }
 
     /**
@@ -413,6 +444,61 @@ public class RagMemoryService {
             return "";
         }
         return buildHydratedRagContext(hits);
+    }
+
+    public com.moodcopilot.diary.DiarySearchResult searchForTool(long userId, com.moodcopilot.diary.DiarySearchRequest request) {
+        String keyword = request != null && request.keyword() != null ? request.keyword().trim() : "";
+        java.time.LocalDate startDate = request != null ? request.startDate() : null;
+        java.time.LocalDate endDate = request != null ? request.endDate() : null;
+
+        if (keyword.isBlank()) {
+            return null; // fallback to DiaryService
+        }
+
+        TimeExpressionParser.TimeRange timeRange = null;
+        if (startDate != null || endDate != null) {
+            long fromTs = startDate != null ? startDate.atStartOfDay(java.time.ZoneId.systemDefault()).toEpochSecond() : 0;
+            long toTs = endDate != null ? endDate.atTime(java.time.LocalTime.MAX).atZone(java.time.ZoneId.systemDefault()).toEpochSecond() : Long.MAX_VALUE;
+            timeRange = new TimeExpressionParser.TimeRange(fromTs, toTs);
+        }
+
+        List<RagHit> hits = search(userId, keyword, 20, timeRange, SOURCE_DIARY, SOURCE_MUSIC, SOURCE_IMAGE);
+        
+        java.util.Set<Long> diaryIds = new java.util.LinkedHashSet<>();
+        for (RagHit hit : hits) {
+            if (hit.diaryId() != null) diaryIds.add(hit.diaryId());
+        }
+
+        List<com.moodcopilot.diary.DiarySearchResult.DiarySummary> summaries = new ArrayList<>();
+        if (!diaryIds.isEmpty()) {
+            try {
+                var entities = diaryMapper.selectBatchIds(new ArrayList<>(diaryIds));
+                java.util.Map<Long, DiaryEntity> diaryMap = entities.stream()
+                        .collect(java.util.stream.Collectors.toMap(DiaryEntity::getId, e -> e));
+                
+                // Keep the order of semantic relevance from hits
+                for (Long id : diaryIds) {
+                    DiaryEntity d = diaryMap.get(id);
+                    if (d != null && d.getCreatedAt() != null) {
+                        String snippet = d.getContent();
+                        if (snippet != null && snippet.length() > 500) {
+                            snippet = snippet.substring(0, 500) + "...";
+                        }
+                        // If it's a music or image hit, we could append that info, but snippet is enough for LLM
+                        summaries.add(new com.moodcopilot.diary.DiarySearchResult.DiarySummary(
+                            d.getId(), d.getCreatedAt().toLocalDate(), snippet != null ? snippet : ""));
+                    }
+                }
+            } catch (Exception e) {
+                log.error("RAG 回表查询日记失败: {}", e.getMessage());
+            }
+        }
+
+        String note = summaries.isEmpty()
+                ? "未找到符合条件的语义检索结果，请尝试其他关键词或时间范围。"
+                : "已返回向量语义检索命中的历史记录（包含日记、图片描述、音乐元数据等）。";
+
+        return new com.moodcopilot.diary.DiarySearchResult(keyword, startDate, endDate, summaries.size(), summaries, note);
     }
 
     /**

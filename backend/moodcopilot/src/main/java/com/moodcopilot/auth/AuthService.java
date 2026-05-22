@@ -4,7 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.security.JwtTokenProvider;
-import com.moodcopilot.security.TurnstileService;
+import cloud.tianai.captcha.application.ImageCaptchaApplication;
+import cloud.tianai.captcha.spring.plugins.secondary.SecondaryVerificationApplication;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -60,31 +61,31 @@ public class AuthService {
     private final Path uploadRoot;
     private final JavaMailSender javaMailSender;
     private final StringRedisTemplate stringRedisTemplate;
-    private final TurnstileService turnstileService;
-    private final boolean turnstileEnabled;
+    private final ImageCaptchaApplication imageCaptchaApplication;
+    private final boolean captchaEnabled;
 
     @Autowired
     public AuthService(UserMapper userMapper, JwtTokenProvider jwtTokenProvider,
             PasswordEncoder passwordEncoder, JavaMailSender javaMailSender,
-            StringRedisTemplate stringRedisTemplate, TurnstileService turnstileService,
+            StringRedisTemplate stringRedisTemplate, ImageCaptchaApplication imageCaptchaApplication,
             @Value("${spring.mail.username}") String mailFrom,
-            @Value("${turnstile.secret-key:}") String turnstileSecretKey) {
+            @Value("${captcha.secondary.enabled:false}") boolean captchaEnabled) {
         this(userMapper, jwtTokenProvider, passwordEncoder, Path.of("uploads"),
-                javaMailSender, stringRedisTemplate, turnstileService, mailFrom, turnstileSecretKey);
+                javaMailSender, stringRedisTemplate, imageCaptchaApplication, mailFrom, captchaEnabled);
     }
 
     AuthService(UserMapper userMapper, JwtTokenProvider jwtTokenProvider,
             PasswordEncoder passwordEncoder, Path uploadRoot,
             JavaMailSender javaMailSender, StringRedisTemplate stringRedisTemplate,
-            TurnstileService turnstileService, String mailFrom, String turnstileSecretKey) {
+            ImageCaptchaApplication imageCaptchaApplication, String mailFrom, boolean captchaEnabled) {
         this.userMapper = userMapper;
         this.jwtTokenProvider = jwtTokenProvider;
         this.passwordEncoder = passwordEncoder;
         this.uploadRoot = uploadRoot;
         this.javaMailSender = javaMailSender;
         this.stringRedisTemplate = stringRedisTemplate;
-        this.turnstileService = turnstileService;
-        this.turnstileEnabled = turnstileSecretKey != null && !turnstileSecretKey.isBlank();
+        this.imageCaptchaApplication = imageCaptchaApplication;
+        this.captchaEnabled = captchaEnabled;
         this.mailFrom = mailFrom;
     }
 
@@ -259,8 +260,17 @@ public class AuthService {
         if (request.password() == null || request.password().length() < 6) {
             throw new ResponseStatusException(BAD_REQUEST, "密码至少6位");
         }
-        if (turnstileEnabled && !turnstileService.verify(request.turnstileToken())) {
-            throw new ResponseStatusException(BAD_REQUEST, "人机验证失败，请刷新页面后重试");
+        if (captchaEnabled) {
+            if (request.captchaToken() == null || request.captchaToken().isBlank()) {
+                throw new ResponseStatusException(BAD_REQUEST, "人机验证失败，请刷新页面后重试");
+            }
+            if (imageCaptchaApplication instanceof SecondaryVerificationApplication secApp) {
+                if (!secApp.secondaryVerification(request.captchaToken())) {
+                    throw new ResponseStatusException(BAD_REQUEST, "人机验证失败，请刷新页面后重试");
+                }
+            } else {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "验证码服务未正确配置");
+            }
         }
         if (request.verificationCode() == null || request.verificationCode().isBlank()) {
             throw new ResponseStatusException(BAD_REQUEST, "验证码不能为空");
@@ -308,8 +318,17 @@ public class AuthService {
         if (request.password() == null || request.password().isBlank()) {
             throw new ResponseStatusException(BAD_REQUEST, "请输入密码");
         }
-        if (turnstileEnabled && !turnstileService.verify(request.turnstileToken())) {
-            throw new ResponseStatusException(BAD_REQUEST, "人机验证失败，请刷新页面后重试");
+        if (captchaEnabled) {
+            if (request.captchaToken() == null || request.captchaToken().isBlank()) {
+                throw new ResponseStatusException(BAD_REQUEST, "人机验证失败，请刷新页面后重试");
+            }
+            if (imageCaptchaApplication instanceof SecondaryVerificationApplication secApp) {
+                if (!secApp.secondaryVerification(request.captchaToken())) {
+                    throw new ResponseStatusException(BAD_REQUEST, "人机验证失败，请刷新页面后重试");
+                }
+            } else {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "验证码服务未正确配置");
+            }
         }
 
         String normalizedEmail = request.email().trim().toLowerCase();

@@ -3407,6 +3407,10 @@ h3 {
     font-size: var(--text-xs);
   }
 
+  .auth-card {
+    padding: 1.5rem 1rem;
+  }
+
   .chat-bubble {
     max-width: 96%;
     font-size: var(--text-sm);
