@@ -2,11 +2,7 @@
   <header class="masthead">
     <div class="masthead-top">
       <router-link to="/" class="brand-mark">
-        <svg class="brand-mark-icon" width="22" height="22" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-          <rect x="14" y="11" width="36" height="42" rx="8" stroke="currentColor" stroke-width="4"/>
-          <path d="M24 11V53" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-          <path d="M36.25 24.5C34.14 21.86 29.9 22.06 28.02 25.03C26.14 28 27.12 31.93 30.55 34.63L32 35.76L33.45 34.63C36.88 31.93 37.86 28 35.98 25.03C35.89 24.9 35.81 24.76 35.72 24.64C35.89 24.58 36.07 24.53 36.25 24.5ZM36.25 24.5C38.31 21.62 42.78 21.62 44.84 24.5C46.96 27.47 45.98 31.46 42.45 34.23L37.8 37.88" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+        <img src="/logo.svg" class="brand-mark-icon" width="22" height="22" alt="MoodCopilot" aria-hidden="true" />
         MoodCopilot
       </router-link>
       <nav class="masthead-nav">
