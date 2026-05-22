@@ -72,8 +72,11 @@
               <div v-for="user in users" :key="user.id" class="user-card-premium">
                 <!-- Card Header: Avatar & Name & Status -->
                 <div class="uc-header">
-                  <div class="uc-avatar" :style="getAvatarStyle(user.displayName)">
-                    {{ user.displayName?.charAt(0).toUpperCase() }}
+                  <div class="uc-avatar" :style="user.avatar ? {} : getAvatarStyle(user.displayName || '')">
+                    <img v-if="user.avatar" :src="user.avatar" class="avatar-img" />
+                    <template v-else>
+                      {{ (user.displayName || '')?.charAt(0).toUpperCase() }}
+                    </template>
                   </div>
                   <div class="uc-info">
                     <div class="uc-name-row">
@@ -126,6 +129,7 @@
                     查看主页
                   </n-button>
                   <n-button
+                    v-if="user.id !== auth.userId && user.role !== 'ADMIN'"
                     size="medium"
                     round
                     :type="user.status === 1 ? 'error' : 'success'"
@@ -163,6 +167,7 @@ import { NButton, NDataTable, NInput, NPagination, NTag, useMessage } from 'naiv
 import AppHeader from '../components/AppHeader.vue'
 import { adminApi } from '../api'
 import { useAuthStore } from '../stores/auth'
+import { normalizeResourceUrl } from '../utils/resource'
 
 const router = useRouter()
 const message = useMessage()
@@ -176,6 +181,7 @@ type UserInfo = {
   role: string
   lastActiveTime: string | null
   createdAt: string
+  avatar: string | null
 }
 
 const users = ref<UserInfo[]>([])
@@ -202,7 +208,16 @@ const columns = [
   {
     title: '用户名',
     key: 'displayName',
-    width: 150
+    width: 200,
+    render(row: UserInfo) {
+      const hasAvatar = !!row.avatar
+      const avatarStyle = hasAvatar ? {} : getAvatarStyle(row.displayName || '')
+      const avatarElement = hasAvatar
+        ? h('img', { src: row.avatar!, class: 'table-avatar-img' })
+        : h('div', { class: 'table-avatar-placeholder', style: avatarStyle }, { default: () => (row.displayName || '')?.charAt(0).toUpperCase() })
+      const textElement = h('span', { class: 'table-username-text' }, { default: () => row.displayName })
+      return h('div', { class: 'table-user-cell' }, [avatarElement, textElement])
+    }
   },
   {
     title: '邮箱',
@@ -248,6 +263,11 @@ const columns = [
         onClick: () => goToProfile(row.id)
       }, { default: () => '查看主页' })
 
+      const isSelfOrAdmin = row.id === auth.userId || row.role === 'ADMIN'
+      if (isSelfOrAdmin) {
+        return [btnView]
+      }
+
       const btnBan = h(NButton, {
         size: 'small',
         type: row.status === 1 ? 'error' : 'success',
@@ -274,7 +294,10 @@ async function loadUsers() {
   try {
     const res = await adminApi.users(searchKeyword.value, sortBy.value, pageNum.value, pageSize)
     const data = res.data.data
-    users.value = data.items ?? []
+    users.value = (data.items ?? []).map((u: any) => ({
+      ...u,
+      avatar: normalizeResourceUrl(u.avatar)
+    }))
     total.value = data.total ?? 0
   } catch (e: any) {
     message.error('加载用户失败')
@@ -492,6 +515,45 @@ function getAvatarStyle(name: string) {
   flex-shrink: 0;
   border: 2px solid var(--color-surface);
   box-shadow: 0 2px 8px rgba(74, 124, 98, 0.1);
+  overflow: hidden;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.table-user-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-avatar-img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.table-avatar-placeholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.table-username-text {
+  font-weight: 500;
+  color: var(--color-text);
 }
 
 .uc-info {
