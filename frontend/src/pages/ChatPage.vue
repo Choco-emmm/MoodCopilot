@@ -60,25 +60,14 @@
             <p class="chat-subtitle" style="margin-top: 8px;">可以聊聊最近的心情，分享你的故事和想法</p>
           </div>
 
-          <div
-            v-for="msg in messages"
-            :key="msg.id"
-            :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
-          >
-            <template v-if="msg.role === 'ai'">
-              <template v-if="parseThink(msg.content).think">
-                <details class="think-block">
-                  <summary>思考过程</summary>
-                  <div class="think-content md-content" v-html="renderMd(parseThink(msg.content).think)"></div>
-                </details>
-              </template>
-              <div v-if="parseThink(msg.content).text" class="md-content" v-html="renderMd(parseThink(msg.content).text)" />
-              <!-- AI 引用面板 -->
-              <div v-if="msg.ragReferences?.length" class="rag-refs-panel">
+          <template v-for="msg in messages" :key="msg.id">
+            <div :class="['msg-item', msg.role]">
+            <div class="msg-wrapper">
+              <div v-if="msg.role === 'ai' && msg.ragReferences?.length" class="rag-refs-panel rag-refs-above rag-references-fixed">
                 <button class="rag-refs-toggle" @click="toggleMsgRefs(msg.id)">
                   <span class="rag-refs-icon">🔍</span>
-                  <span>AI 引用了你的 {{ countDiaryRefs(msg.ragReferences) }} 条日记</span>
-                  <span v-if="countProfileRefs(msg.ragReferences)">和 {{ countProfileRefs(msg.ragReferences) }} 条个人画像</span>
+                  <span>已检索 {{ countDiaryRefs(msg.ragReferences) }} 条记录</span>
+                  <span v-if="countProfileRefs(msg.ragReferences)"> · {{ countProfileRefs(msg.ragReferences) }} 条画像</span>
                   <span class="rag-refs-arrow">{{ expandedRefs.has(msg.id) ? '▾' : '▸' }}</span>
                 </button>
                 <div v-if="expandedRefs.has(msg.id)" class="rag-refs-list">
@@ -92,7 +81,7 @@
                     >
                       <div class="rag-ref-meta">
                         <span class="rag-ref-date">{{ ref.date }}</span>
-                        <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ ref.toolName }}</span>
+                        <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                       </div>
                       <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
                       <span v-if="ref.diaryId" class="rag-ref-go">→</span>
@@ -100,24 +89,33 @@
                   </template>
                   <template v-if="getProfileRefs(msg.ragReferences).length">
                     <div class="rag-refs-section-label">🧠 个人画像</div>
-                    <div v-for="(ref, i) in getProfileRefs(msg.ragReferences)" :key="'p'+i" 
-                         class="rag-ref-item rag-ref-clickable" 
+                    <div v-for="(ref, i) in getProfileRefs(msg.ragReferences)" :key="'p'+i"
+                         class="rag-ref-item-profile"
                          @click="toggleProfileSnippet(msg.id, i)">
                       <span :class="['rag-ref-snippet', { 'expanded': isProfileSnippetExpanded(msg.id, i) }]" :title="ref.snippet">{{ ref.snippet }}</span>
                     </div>
                   </template>
                 </div>
               </div>
-            </template>
-            <template v-else>
-              <p>{{ msg.content }}</p>
-              <ul v-if="msg.references?.length" class="chat-user-refs">
-                <li v-for="(refText, refIndex) in msg.references" :key="`${msg.id}-ref-${refIndex}`">
-                  引用：{{ refText }}
-                </li>
-              </ul>
-            </template>
-          </div>
+
+            <div
+              :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
+            >
+              <template v-if="msg.role === 'ai'">
+                <div v-if="parseThink(msg.content).text" class="md-content" v-html="renderMd(parseThink(msg.content).text)" />
+              </template>
+              <template v-else>
+                <p>{{ msg.content }}</p>
+                <ul v-if="msg.references?.length" class="chat-user-refs">
+                  <li v-for="(refText, refIndex) in msg.references" :key="`${msg.id}-ref-${refIndex}`">
+                    引用：{{ refText }}
+                  </li>
+                </ul>
+              </template>
+            </div>
+            </div>
+            </div>
+          </template>
 
           <div v-if="isThinking" class="flex items-start gap-3 my-2 animate-fade-in">
             <div class="w-8 h-8 min-w-[2rem] min-h-[2rem] rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0 shadow-sm border border-indigo-100 text-sm animate-pulse">
@@ -137,21 +135,14 @@
             </div>
           </div>
 
-          <!-- 流式回复中的引用面板和文本（合并到同一个气泡中） -->
-          <div v-if="streaming && (streamingText || streamingRefs.length)" class="chat-bubble chat-ai">
-            <template v-if="parseThink(streamingText).think">
-              <details class="think-block" :open="isThinkExpanded" @toggle="e => isThinkExpanded = (e.target as HTMLDetailsElement).open">
-                <summary>思考过程<span class="typing-dots" v-if="!parseThink(streamingText).text"></span></summary>
-                <div class="think-content md-content" v-html="renderStreamingMd(parseThink(streamingText).think, !parseThink(streamingText).text)"></div>
-              </details>
-            </template>
-            <div v-if="parseThink(streamingText).text" class="md-content streaming-md" v-html="renderStreamingMd(parseThink(streamingText).text, true)" />
-            
-            <div v-if="streamingRefs.length" class="rag-refs-panel">
+          <!-- 流式回复（引用先行，文本追加） -->
+          <div v-if="streaming && (streamingText || streamingRefs.length)" class="msg-item ai">
+          <div class="msg-wrapper">
+            <div v-if="streaming && streamingRefs.length" class="rag-refs-panel rag-refs-above rag-references-fixed">
               <button class="rag-refs-toggle" @click="showStreamingRefs = !showStreamingRefs">
                 <span class="rag-refs-icon">🔍</span>
-                <span>AI 引用了你的 {{ streamingDiaryRefs.length }} 条日记</span>
-                <span v-if="streamingProfileRefs.length">和 {{ streamingProfileRefs.length }} 条个人画像</span>
+                <span>已检索 {{ streamingDiaryRefs.length }} 条记录</span>
+                <span v-if="streamingProfileRefs.length"> · {{ streamingProfileRefs.length }} 条画像</span>
                 <span class="rag-refs-arrow">{{ showStreamingRefs ? '▾' : '▸' }}</span>
               </button>
               <div v-if="showStreamingRefs" class="rag-refs-list">
@@ -165,7 +156,7 @@
                   >
                     <div class="rag-ref-meta">
                       <span class="rag-ref-date">{{ ref.date }}</span>
-                      <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ ref.toolName }}</span>
+                      <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                     </div>
                     <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
                     <span v-if="ref.diaryId" class="rag-ref-go">→</span>
@@ -179,6 +170,16 @@
                 </template>
               </div>
             </div>
+
+            <div class="chat-bubble chat-ai">
+              <div v-if="!parseThink(streamingText).text" class="thinking-status">
+                <span class="sparkle-icon">✨</span>
+                <span class="thinking-text">MoodCopilot 正在深度思考</span>
+                <span class="typing-dots"></span>
+              </div>
+              <div v-if="parseThink(streamingText).text" class="md-content streaming-md" v-html="renderStreamingMd(parseThink(streamingText).text, true)" />
+            </div>
+          </div>
           </div>
         </div>
 
@@ -272,20 +273,25 @@ function renderMd(text: string) {
 
 function parseThink(content: string) {
   if (!content) return { think: '', text: '' }
-  const thinkStart = content.indexOf('<think>')
-  if (thinkStart === -1) return { think: '', text: content }
-  
-  const thinkEnd = content.indexOf('</think>', thinkStart)
-  if (thinkEnd === -1) {
-    return {
-      think: content.substring(thinkStart + 7),
-      text: content.substring(0, thinkStart)
-    }
+
+  let think = ''
+
+  // 1. 提取并移除所有已闭合的 <think>...</think> 块
+  let text = content.replace(/<think>([\s\S]*?)<\/think>/g, (match, innerThink) => {
+    think += (think ? '\n\n' : '') + innerThink.trim()
+    return '' // 将原文本中的 think 块抹除
+  })
+
+  // 2. 处理流式输出时，最后一段可能还没闭合的 <think> 标签
+  const unclosedMatch = text.match(/<think>([\s\S]*)$/)
+  if (unclosedMatch) {
+    think += (think ? '\n\n' : '') + unclosedMatch[1].trim()
+    text = text.substring(0, unclosedMatch.index) // 将未闭合的 think 部分从正文中剪裁掉
   }
-  
+
   return {
-    think: content.substring(thinkStart + 7, thinkEnd),
-    text: content.substring(0, thinkStart) + content.substring(thinkEnd + 8)
+    think: think.trim(),
+    text: text.trimStart() // 避免因为移除 think 导致正文开头有多余空行
   }
 }
 
@@ -344,6 +350,18 @@ function countDiaryRefs(refs: RagRef[]): number {
 
 function countProfileRefs(refs: RagRef[]): number {
   return refs.filter(r => r.type === 'profile_memory').length
+}
+
+function toolLabel(name?: string): string {
+  if (!name) return ''
+  const map: Record<string, string> = {
+    diarySearch: '日记',
+    userStats: '统计',
+    reportSnapshot: '报告',
+    memoryQuery: '画像',
+    graphSearch: '图谱',
+  }
+  return map[name] || name
 }
 
 function getDiaryRefs(refs: RagRef[]): RagRef[] {
@@ -994,11 +1012,61 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 /* ── RAG 引用折叠面板 ── */
 .rag-refs-panel {
   margin: 6px 0;
-  border: 1px solid var(--color-border);
+  border: none;
   border-radius: var(--radius-md);
-  background: var(--color-surface);
+  background: var(--color-surface-soft, color-mix(in srgb, var(--color-primary) 3%, transparent));
   overflow: hidden;
   animation: refsIn 0.2s var(--ease-out);
+}
+
+/* 引用面板放在气泡上方 */
+.rag-refs-above {
+  margin: 0 0 8px 0;
+  max-width: 85%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 固定引用面板：脱离正文流式溢出，始终保持置顶 */
+.rag-references-fixed {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: var(--color-surface-soft, color-mix(in srgb, var(--color-primary) 3%, transparent));
+  border-radius: 8px;
+  border: none;
+  width: fit-content;
+  max-width: 100%;
+}
+
+/* 引用面板内的子项增加呼吸感 */
+.rag-refs-list {
+  gap: 2px;
+}
+
+.rag-ref-item {
+  padding: 6px 12px;
+}
+
+.rag-ref-snippet {
+  margin-right: 8px;
+  max-width: 260px;
+}
+
+/* 展开面板中的画像项用 chip 风格横向排列 */
+.rag-refs-list .rag-ref-item {
+  max-width: 100%;
+}
+
+.rag-refs-list .rag-ref-snippet {
+  max-width: 260px;
+}
+
+/* 消息内容容器：垂直堆叠，引用在上、气泡在下，shrink-wrap 到内容宽度 */
+.msg-wrapper {
+  display: flex;
+  flex-direction: column;
+  max-width: 88%;
 }
 
 @keyframes refsIn {
@@ -1009,14 +1077,14 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 .rag-refs-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 4px 8px;
   border: none;
   background: none;
-  color: var(--color-text-secondary);
-  font-size: var(--text-xs);
-  font-weight: 600;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 500;
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -1036,62 +1104,84 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 }
 
 .rag-refs-list {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 30%, transparent 70%);
   padding: 2px 0;
 }
 
 .rag-refs-section-label {
-  padding: 4px 12px 2px;
-  font-size: 10px;
-  font-weight: 700;
+  padding: 2px 10px 0;
+  font-size: 9px;
+  font-weight: 600;
   color: var(--color-text-muted);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
 }
 
+/* 日记引用行：日期标签 | 摘要 | 跳转箭头 */
 .rag-ref-item {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 12px;
-  font-size: var(--text-xs);
+  padding: 5px 10px;
+  font-size: 11px;
 }
 
 .rag-ref-item:not(:last-child) {
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent 60%);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 25%, transparent 75%);
 }
 
 .rag-ref-clickable {
   cursor: pointer;
   transition: background 0.12s;
-  grid-template-columns: 52px 1fr auto;
 }
 
 .rag-ref-clickable:hover {
-  background: var(--color-primary-light);
+  background: var(--color-surface-hover);
+}
+
+/* 画像条目：简单横排，无额外列 */
+.rag-ref-item-profile {
+  display: flex;
+  align-items: center;
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.12s;
+  position: relative;
+}
+
+.rag-ref-item-profile:not(:last-child) {
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 25%, transparent 75%);
+}
+
+.rag-ref-item-profile:hover {
+  background: var(--color-surface-hover);
 }
 
 .rag-ref-meta {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  min-width: 56px;
 }
 
 .rag-ref-date {
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  font-size: 10px;
 }
 
 .rag-ref-tool-badge {
-  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   color: var(--color-primary);
-  border-radius: 4px;
-  padding: 1px 4px;
-  font-size: 9px;
+  border-radius: 3px;
+  padding: 0 3px;
+  font-size: 8px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1149,6 +1239,75 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 .rag-ref-snippet.expanded {
   white-space: normal;
   display: block;
+  max-width: 360px;
+  background: var(--color-surface);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  z-index: 10;
+  position: relative;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+}
+
+/* ── 消息对齐：AI 靠左，用户靠右 ── */
+.msg-item {
+  display: flex;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.msg-item.user {
+  flex-direction: row-reverse !important;
+  justify-content: flex-start !important;
+}
+
+.msg-item.ai .msg-wrapper {
+  align-items: flex-start !important;
+}
+
+.msg-item.user .msg-wrapper {
+  align-items: flex-end !important;
+}
+
+.msg-item.ai {
+  flex-direction: row !important;
+  justify-content: flex-start !important;
+}
+
+
+/* 气泡宽度约束 */
+.msg-bubble {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  word-wrap: break-word;
+}
+
+/* ── 引用卡片悬浮展开 (chip 风格) ── */
+.rag-ref-chip {
+  cursor: pointer;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  transition: all 0.2s ease;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rag-ref-chip.expanded {
+  max-width: 400px;
+  white-space: normal;
+  background: var(--color-surface);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  z-index: 10;
+  position: relative;
 }
 
 .rag-ref-go {
@@ -1156,5 +1315,27 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   font-size: 12px;
   font-weight: 700;
   flex-shrink: 0;
+}
+
+.thinking-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: color-mix(in srgb, var(--color-text-secondary) 80%, transparent);
+  font-size: var(--text-sm);
+  padding: 8px 12px;
+  background-color: transparent;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.sparkle-icon {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
 }
 </style>

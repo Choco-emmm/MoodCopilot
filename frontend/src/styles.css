@@ -2272,9 +2272,9 @@ h3 {
   max-height: calc(100vh - 280px);
   min-height: 340px;
   overflow-y: auto;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
-  align-content: start;
   padding: 20px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -2282,7 +2282,7 @@ h3 {
 }
 
 .chat-empty {
-  place-self: center;
+  align-self: center;
   text-align: center;
   color: var(--color-text-muted);
   padding: 56px 20px;

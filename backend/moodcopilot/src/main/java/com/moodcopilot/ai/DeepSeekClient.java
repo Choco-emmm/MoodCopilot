@@ -12,8 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Component
 public class DeepSeekClient {
@@ -22,7 +21,6 @@ public class DeepSeekClient {
 
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
-
     private final String reasoningModel;
 
     public DeepSeekClient(
@@ -39,38 +37,57 @@ public class DeepSeekClient {
                 .build();
     }
 
-    public Flux<String> streamReasoner(List<Map<String, Object>> messages) {
-        Map<String, Object> body = Map.of(
-            "model", this.reasoningModel,
-            "messages", messages,
-            "stream", true,
-            "reasoning_effort", "high"
-        );
+    public Flux<DeepSeekStreamEvent> streamReasoner(List<Map<String, Object>> messages, List<Map<String, Object>> tools) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", this.reasoningModel);
+        body.put("messages", messages);
+        body.put("stream", true);
+        body.put("reasoning_effort", "high");
+        if (tools != null && !tools.isEmpty()) {
+            body.put("tools", tools);
+        }
 
         return Flux.defer(() -> {
             boolean[] thinkingStarted = {false};
             boolean[] thinkingEnded = {false};
+            Map<Integer, ToolCallAccumulator> toolCallAccs = new LinkedHashMap<>();
 
             return webClient.post()
-                .uri("/chat/completions")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
-                .retrieve()
-                .bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>() {})
-                .mapNotNull(ServerSentEvent::data)
-                .filter(data -> !"[DONE]".equals(data))
-                .handle((data, sink) -> {
-                    try {
-                        JsonNode root = objectMapper.readTree(data);
-                        JsonNode choices = root.path("choices");
-                        if (choices.isArray() && !choices.isEmpty()) {
+                    .uri("/chat/completions")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>() {})
+                    .mapNotNull(ServerSentEvent::data)
+                    .filter(data -> !"[DONE]".equals(data))
+                    .<DeepSeekStreamEvent>handle((data, sink) -> {
+                        try {
+                            JsonNode root = objectMapper.readTree(data);
+                            JsonNode choices = root.path("choices");
+                            if (!choices.isArray() || choices.isEmpty()) return;
                             JsonNode delta = choices.get(0).path("delta");
+
+                            JsonNode toolCalls = delta.path("tool_calls");
+                            if (toolCalls.isArray() && !toolCalls.isEmpty()) {
+                                for (JsonNode tc : toolCalls) {
+                                    int index = tc.path("index").asInt();
+                                    ToolCallAccumulator acc = toolCallAccs.computeIfAbsent(index,
+                                            k -> new ToolCallAccumulator());
+                                    String id = tc.path("id").asText(null);
+                                    if (id != null && !id.isEmpty()) acc.id = id;
+                                    JsonNode fn = tc.path("function");
+                                    String name = fn.path("name").asText(null);
+                                    if (name != null && !name.isEmpty()) acc.functionName = name;
+                                    String args = fn.path("arguments").asText(null);
+                                    if (args != null) acc.arguments.append(args);
+                                }
+                                return;
+                            }
 
                             String reasoning = delta.path("reasoning_content").asText("");
                             String content = delta.path("content").asText("");
 
                             StringBuilder out = new StringBuilder();
-
                             if (!reasoning.isEmpty()) {
                                 if (!thinkingStarted[0]) {
                                     thinkingStarted[0] = true;
@@ -78,7 +95,6 @@ public class DeepSeekClient {
                                 }
                                 out.append(reasoning);
                             }
-
                             if (!content.isEmpty()) {
                                 if (thinkingStarted[0] && !thinkingEnded[0]) {
                                     thinkingEnded[0] = true;
@@ -86,15 +102,38 @@ public class DeepSeekClient {
                                 }
                                 out.append(content);
                             }
-
                             if (out.length() > 0) {
-                                sink.next(out.toString());
+                                sink.next(new DeepSeekStreamEvent.TextChunk(out.toString()));
+                            }
+                        } catch (Exception e) {
+                            log.warn("Failed to parse SSE data: {}", data, e);
+                        }
+                    })
+                    .concatWith(Flux.defer(() -> {
+                        if (toolCallAccs.isEmpty()) return Flux.<DeepSeekStreamEvent>empty();
+                        List<DeepSeekStreamEvent> events = new ArrayList<>();
+                        for (ToolCallAccumulator acc : toolCallAccs.values()) {
+                            if (acc.id != null && acc.functionName != null) {
+                                events.add(new DeepSeekStreamEvent.ToolCallReady(
+                                        acc.id, acc.functionName, acc.arguments.toString()));
                             }
                         }
-                    } catch (Exception e) {
-                        log.warn("Failed to parse SSE data: {}", data, e);
-                    }
-                });
+                        if (!events.isEmpty()) {
+                            log.info("reasoning model emitted {} tool call(s)", events.size());
+                        }
+                        return Flux.fromIterable(events);
+                    }));
         });
+    }
+
+    /** Overload for backward compat with callers that don't pass tools. */
+    public Flux<DeepSeekStreamEvent> streamReasoner(List<Map<String, Object>> messages) {
+        return streamReasoner(messages, Collections.emptyList());
+    }
+
+    private static class ToolCallAccumulator {
+        String id;
+        String functionName;
+        final StringBuilder arguments = new StringBuilder();
     }
 }
