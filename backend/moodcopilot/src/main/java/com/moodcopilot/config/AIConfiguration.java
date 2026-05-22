@@ -1,5 +1,6 @@
 package com.moodcopilot.config;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.moodcopilot.ai.DiarySearchFunctionSupport;
 import com.moodcopilot.ai.GraphSearchFunctionSupport;
 import com.moodcopilot.ai.GraphSearchRequest;
@@ -14,6 +15,8 @@ import com.moodcopilot.diary.ReportSnapshotRequest;
 import com.moodcopilot.diary.DiarySearchRequest;
 import com.moodcopilot.diary.DiaryService;
 import com.moodcopilot.diary.UserStatsRequest;
+import com.moodcopilot.entity.DiaryKnowledgeGraphEntity;
+import com.moodcopilot.mapper.DiaryKnowledgeGraphMapper;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -284,6 +287,53 @@ public class AIConfiguration {
                         })
                 .description("读取当前登录用户的长期画像条目列表。可以通过 keyword 进行语义检索特定的画像片段（例如'我喜欢的食物'）。如果不提供 keyword 则返回最近更新的条目。limit 可选，默认 20，最大 50。")
                 .inputType(MemoryQueryRequest.class)
+                .build();
+    }
+
+    @Bean(name = GraphSearchFunctionSupport.NAME)
+    public FunctionCallback graphSearchFunction(@Lazy DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper) {
+        log.info("注册 Function Calling 工具：{}", GraphSearchFunctionSupport.NAME);
+        return FunctionCallback.builder()
+                .function(GraphSearchFunctionSupport.NAME,
+                        (GraphSearchRequest input, ToolContext toolContext) -> {
+                            Authentication auth = (Authentication) toolContext.getContext().get("auth");
+                            if (auth != null) {
+                                SecurityContextHolder.getContext().setAuthentication(auth);
+                            }
+                            try {
+                                long userId = ((com.moodcopilot.entity.UserEntity) auth.getPrincipal()).getId();
+                                String keyword = input != null && input.keyword() != null ? input.keyword().trim() : "";
+                                int limit = input != null && input.limit() != null ? input.limit() : 20;
+                                int clampedLimit = Math.min(50, Math.max(1, limit));
+
+                                List<GraphSearchResult.GraphItem> items = new java.util.ArrayList<>();
+                                if (!keyword.isBlank()) {
+                                    LambdaQueryWrapper<DiaryKnowledgeGraphEntity> wrapper = new LambdaQueryWrapper<DiaryKnowledgeGraphEntity>()
+                                            .eq(DiaryKnowledgeGraphEntity::getUserId, userId)
+                                            .and(w -> w
+                                                    .like(DiaryKnowledgeGraphEntity::getHeadEntity, keyword)
+                                                    .or()
+                                                    .like(DiaryKnowledgeGraphEntity::getRelation, keyword)
+                                                    .or()
+                                                    .like(DiaryKnowledgeGraphEntity::getTailEntity, keyword))
+                                            .orderByDesc(DiaryKnowledgeGraphEntity::getCreatedAt)
+                                            .last("LIMIT " + clampedLimit);
+                                    List<DiaryKnowledgeGraphEntity> triples = diaryKnowledgeGraphMapper.selectList(wrapper);
+                                    for (DiaryKnowledgeGraphEntity t : triples) {
+                                        items.add(new GraphSearchResult.GraphItem(
+                                                t.getHeadEntity() + " " + t.getRelation() + " " + t.getTailEntity(),
+                                                t.getCreatedAt() != null ? t.getCreatedAt().toString() : null));
+                                    }
+                                }
+
+                                return new GraphSearchResult(items.size(), items,
+                                        items.isEmpty() ? "未找到与 '" + keyword + "' 相关的图谱三元组" : "已返回图谱三元组");
+                            } finally {
+                                SecurityContextHolder.clearContext();
+                            }
+                        })
+                .description("根据实体关键词，从知识图谱中查询因果/情绪归因关系三元组。keyword 是要搜索的实体关键词（如'工作'、'失眠'），limit 可选，默认 20，最大 50。返回三元组列表（headEntity relation tailEntity）。适合回答「什么导致了什么」、「为什么」这类因果追溯问题。")
+                .inputType(GraphSearchRequest.class)
                 .build();
     }
 
