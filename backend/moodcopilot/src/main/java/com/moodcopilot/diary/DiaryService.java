@@ -518,7 +518,13 @@ public class DiaryService {
                     if (diary.getImages() != null && !diary.getImages().isEmpty()) {
                         prefixSb.append("[分享图片] ");
                     }
-                    String finalSnippet = prefixSb.toString() + snippet(diary.getContent());
+                    String snip = snippet(diary.getContent());
+                    String finalSnippet;
+                    if (snip == null || snip.isBlank()) {
+                        finalSnippet = prefixSb.toString().trim();
+                    } else {
+                        finalSnippet = snip.trim() + (prefixSb.length() > 0 ? " " + prefixSb.toString().trim() : "");
+                    }
                     return new DiarySearchResult.DiarySummary(
                             diary.getId(),
                             diary.getCreatedAt().toLocalDate(),

@@ -523,7 +523,12 @@ public class RagMemoryService {
                             snippet = snippet.substring(0, 500) + "...";
                         }
                         
-                        String finalSnippet = prefixSb.toString() + (snippet != null ? snippet : "");
+                        String finalSnippet;
+                        if (snippet == null || snippet.isBlank()) {
+                            finalSnippet = prefixSb.toString().trim();
+                        } else {
+                            finalSnippet = snippet.trim() + (prefixSb.length() > 0 ? " " + prefixSb.toString().trim() : "");
+                        }
                         summaries.add(new com.moodcopilot.diary.DiarySearchResult.DiarySummary(
                             d.getId(), d.getCreatedAt().toLocalDate(), finalSnippet));
                     }
