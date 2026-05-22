@@ -9,6 +9,7 @@
             <button type="button" class="author-name-link" @click.stop="openAuthorProfile(diary.authorUserId)">
               {{ diary.authorName }}
             </button>
+            <span v-if="diary.authorRole === 'ADMIN'" class="diary-author-admin">管理员</span>
             <span v-if="diary.authorLevel" class="diary-author-level">Lv.{{ diary.authorLevel }}</span>
           </div>
           <span class="feed-time">

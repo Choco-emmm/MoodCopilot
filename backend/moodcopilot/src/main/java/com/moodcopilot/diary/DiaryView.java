@@ -16,6 +16,7 @@ public record DiaryView(
                 String authorName,
                 String authorAvatar,
                 Integer authorLevel,
+                String authorRole,
                 String content,
                 DiaryVisibility visibility,
                 DiaryAnalysis analysis,
@@ -29,38 +30,38 @@ public record DiaryView(
                 List<DiaryComment> comments) {
 
         public DiaryView withAnalysisStatus(String status) {
-            return new DiaryView(id, authorUserId, authorName, authorAvatar, authorLevel,
+            return new DiaryView(id, authorUserId, authorName, authorAvatar, authorLevel, authorRole,
                     content, visibility, analysis, createdAt, resonanceCount, likedByMe,
                     isPinned, musicMeta, images, status, comments);
         }
         static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments,
                         String authorAvatar, String authorName, Map<Long, String> commentAuthorNames,
                         boolean likedByMe) {
-                return build(diary, analysis, comments, authorAvatar, authorName, null, commentAuthorNames, false, likedByMe);
+                return build(diary, analysis, comments, authorAvatar, authorName, null, null, commentAuthorNames, false, likedByMe);
         }
 
         static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments,
-                        String authorAvatar, String authorName, Integer authorLevel, Map<Long, String> commentAuthorNames,
+                        String authorAvatar, String authorName, Integer authorLevel, String authorRole, Map<Long, String> commentAuthorNames,
                         boolean likedByMe) {
-                return build(diary, analysis, comments, authorAvatar, authorName, authorLevel, commentAuthorNames, false, likedByMe);
+                return build(diary, analysis, comments, authorAvatar, authorName, authorLevel, authorRole, commentAuthorNames, false, likedByMe);
         }
 
         /** 公开视图：仅暴露情绪标签和主题，不暴露强度、摘要、反馈 */
         static DiaryView fromPublic(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments,
                         String authorAvatar, String authorName, Map<Long, String> commentAuthorNames,
                         boolean likedByMe) {
-                return build(diary, analysis, comments, authorAvatar, authorName, null, commentAuthorNames, true, likedByMe);
+                return build(diary, analysis, comments, authorAvatar, authorName, null, null, commentAuthorNames, true, likedByMe);
         }
 
         static DiaryView fromPublic(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments,
-                        String authorAvatar, String authorName, Integer authorLevel, Map<Long, String> commentAuthorNames,
+                        String authorAvatar, String authorName, Integer authorLevel, String authorRole, Map<Long, String> commentAuthorNames,
                         boolean likedByMe) {
-                return build(diary, analysis, comments, authorAvatar, authorName, authorLevel, commentAuthorNames, true, likedByMe);
+                return build(diary, analysis, comments, authorAvatar, authorName, authorLevel, authorRole, commentAuthorNames, true, likedByMe);
         }
 
         private static DiaryView build(DiaryEntity diary, DiaryAnalysisEntity analysis,
                         List<DiaryCommentEntity> comments, String authorAvatar, String authorName,
-                        Integer authorLevel, Map<Long, String> commentAuthorNames, boolean isPublic, boolean likedByMe) {
+                        Integer authorLevel, String authorRole, Map<Long, String> commentAuthorNames, boolean isPublic, boolean likedByMe) {
                 DiaryAnalysis viewAnalysis = null;
                 if (analysis != null) {
                         if (isPublic) {
@@ -88,6 +89,7 @@ public record DiaryView(
                                 authorName,
                                 authorAvatar,
                                 authorLevel,
+                                authorRole,
                                 diary.getContent(),
                                 DiaryVisibility.valueOf(diary.getVisibility()),
                                 viewAnalysis,
@@ -109,12 +111,12 @@ public record DiaryView(
 
         /** Feed 模式公开视图：无评论、裁切内容、仅暴露情绪标签和主题 */
         static DiaryView fromPublicFeed(DiaryEntity diary, DiaryAnalysisEntity analysis,
-                String authorName, String authorAvatar, Integer authorLevel, boolean likedByMe, String feedContent) {
+                String authorName, String authorAvatar, Integer authorLevel, String authorRole, boolean likedByMe, String feedContent) {
             DiaryAnalysis va = analysis != null
                     ? new DiaryAnalysis(analysis.getMoodLabel(), 0, analysis.getTopicLabelsJson(), null, null)
                     : null;
             return new DiaryView(diary.getId(), diary.getAuthorUserId(), authorName, authorAvatar,
-                    authorLevel, feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
+                    authorLevel, authorRole, feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
                     diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
                     Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(), diary.getImages(),
                     va != null ? "complete" : null, List.of());
@@ -122,7 +124,7 @@ public record DiaryView(
 
         /** Feed 模式个人视图：无评论、裁切内容、完整分析 */
         static DiaryView fromFeed(DiaryEntity diary, DiaryAnalysisEntity analysis,
-                String authorName, String authorAvatar, Integer authorLevel, boolean likedByMe, String feedContent) {
+                String authorName, String authorAvatar, Integer authorLevel, String authorRole, boolean likedByMe, String feedContent) {
             DiaryAnalysis va = analysis != null
                     ? new DiaryAnalysis(analysis.getMoodLabel(), analysis.getMoodIntensity(),
                             analysis.getTopicLabelsJson(),
@@ -130,7 +132,7 @@ public record DiaryView(
                             analysis.getSummary(), analysis.getFeedback())
                     : null;
             return new DiaryView(diary.getId(), diary.getAuthorUserId(), authorName, authorAvatar,
-                    authorLevel, feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
+                    authorLevel, authorRole, feedContent, DiaryVisibility.valueOf(diary.getVisibility()), va,
                     diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
                     Boolean.TRUE.equals(diary.getIsPinned()), diary.getMusicMeta(), diary.getImages(),
                     va != null ? "complete" : null, List.of());

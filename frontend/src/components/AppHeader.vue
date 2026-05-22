@@ -23,7 +23,7 @@
           <button
             class="nav-checkin-btn"
             :class="{ 'nav-checkin-btn--done': growth.checkedInToday }"
-            :disabled="checkingIn || growth.checkedInToday"
+            :disabled="checkingIn"
             @click="doCheckIn"
           >
             <span class="checkin-text-full">{{ checkingIn ? '...' : growth.checkedInToday ? '✓ 已签' : '签到 +' + checkinExp }}</span>
@@ -183,6 +183,10 @@ async function fetchGrowth() {
 }
 
 async function doCheckIn() {
+  if (growth.value.checkedInToday) {
+    router.push('/task-center')
+    return
+  }
   checkingIn.value = true
   try {
     const res = await growthApi.checkIn()
@@ -312,12 +316,12 @@ function formatQuota(val: number | undefined, max?: number): string {
 .nav-checkin-btn--done {
   border-color: var(--color-border-strong);
   color: var(--color-text-muted);
-  cursor: default;
+  cursor: pointer;
 }
 
 .nav-checkin-btn--done:hover {
-  background: transparent;
-  color: var(--color-text-muted);
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
 }
 
 .nav-checkin-btn:disabled {

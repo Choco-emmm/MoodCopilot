@@ -62,6 +62,9 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
+import com.moodcopilot.common.RateLimitException;
+import com.moodcopilot.ai.mq.AiTaskProducer;
+
 @Service
 public class DiaryService {
 
@@ -93,6 +96,7 @@ public class DiaryService {
     private final RateLimitService rateLimitService;
     private final UserGrowthService userGrowthService;
     private final TransactionTemplate transactionTemplate;
+    private final AiTaskProducer aiTaskProducer;
 
     public DiaryService(DiaryMapper diaryMapper,
             DiaryAnalysisMapper diaryAnalysisMapper,
@@ -114,7 +118,8 @@ public class DiaryService {
             RagMemoryService ragMemoryService,
             RateLimitService rateLimitService,
             UserGrowthService userGrowthService,
-            TransactionTemplate transactionTemplate) {
+            TransactionTemplate transactionTemplate,
+            @org.springframework.context.annotation.Lazy AiTaskProducer aiTaskProducer) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
@@ -136,6 +141,7 @@ public class DiaryService {
         this.rateLimitService = rateLimitService;
         this.userGrowthService = userGrowthService;
         this.transactionTemplate = transactionTemplate;
+        this.aiTaskProducer = aiTaskProducer;
     }
 
     @jakarta.annotation.PostConstruct
@@ -187,7 +193,7 @@ public class DiaryService {
         ragMemoryService.indexDiary(user.getId(), diary.getId(),
                 diary.getContent(), diary.getMusicMeta());
 
-        return DiaryView.from(diary, List.of(), normalizeAvatar(user.getAvatar()), user.getDisplayName(), Map.of(),
+        return DiaryView.from(diary, null, List.of(), normalizeAvatar(user.getAvatar()), user.getDisplayName(), user.getLevel(), user.getRole(), Map.of(),
                 false);
     }
 
@@ -232,44 +238,27 @@ public class DiaryService {
             diaryMapper.updateById(diary);
         });
 
+        String analysisStatus = null;
         // AI 分析：在事务外执行，避免 HikariCP 连接泄漏
         if (contentChanged) {
-            log.info("日记内容已更新，触发分析与画像重建，diaryId={}，userId={}", diaryId, user.getId());
-            rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
+            log.info("日记内容已更新，触发画像重建，diaryId={}，userId={}", diaryId, user.getId());
             ragMemoryService.indexDiary(user.getId(), diaryId,
                     filteredContent, diary.getMusicMeta());
 
-            String imageDescriptions = visionService.describeImages(diary.getImages());
-//            log.info("图片描述：{}", imageDescriptions);
-            DiaryAnalysis analysis = aiAnalysisService.analyze(filteredContent, diary.getMusicMeta(), imageDescriptions);
-
-            // 分析结果持久化单独一个事务
-            LocalDateTime now = LocalDateTime.now();
-            transactionTemplate.executeWithoutResult(status -> {
-                DiaryAnalysisEntity existingAnalysis = diaryAnalysisMapper.selectById(diaryId);
-                if (existingAnalysis == null) {
-                    DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
-                    analysisEntity.setDiaryId(diaryId);
-                    analysisEntity.setMoodLabel(analysis.moodLabel());
-                    analysisEntity.setMoodIntensity(analysis.moodIntensity());
-                    analysisEntity.setTopicLabelsJson(analysis.topicLabels());
-                    analysisEntity.setSummary(analysis.summary());
-                    analysisEntity.setFeedback(analysis.feedback());
-                    analysisEntity.setCreatedAt(now);
-                    analysisEntity.setUpdatedAt(now);
-                    diaryAnalysisMapper.insert(analysisEntity);
-                } else {
-                    existingAnalysis.setMoodLabel(analysis.moodLabel());
-                    existingAnalysis.setMoodIntensity(analysis.moodIntensity());
-                    existingAnalysis.setTopicLabelsJson(analysis.topicLabels());
-                    existingAnalysis.setSummary(analysis.summary());
-                    existingAnalysis.setFeedback(analysis.feedback());
-                    existingAnalysis.setUpdatedAt(now);
-                    diaryAnalysisMapper.updateById(existingAnalysis);
+            if (!request.isAnalyze()) {
+                analysisStatus = "skipped_user";
+                log.info("用户主动关闭AI分析，不执行日记分析，diaryId={}", diaryId);
+            } else {
+                try {
+                    rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
+                    log.info("日记内容已修改，提交后台重新执行 AI 分析，diaryId={}", diaryId);
+                    aiTaskProducer.submitDiaryAnalysisTask(diaryId, user.getId());
+                    analysisStatus = "analyzing";
+                } catch (RateLimitException e) {
+                    analysisStatus = "skipped_quota";
+                    log.info("AI分析限额已满，跳过分析，diaryId={}", diaryId);
                 }
-            });
-
-            memoryExtractionService.extractAndSyncMemory(user.getId(), filteredContent, diary.getMusicMeta());
+            }
         }
 
         boolean affectsPublicCache = "PUBLIC".equals(visibility.name()) || "PUBLIC".equals(oldVisibility);
@@ -284,12 +273,28 @@ public class DiaryService {
         log.info("日记更新完成，diaryId={}，userId={}，contentChanged={}，visibilityChanged={}，visibility={}",
                 diaryId, user.getId(), contentChanged, visibilityChanged, visibility.name());
 
-        return buildDiaryView(diary, "PUBLIC".equals(diary.getVisibility()));
+        DiaryView view = buildDiaryView(diary, "PUBLIC".equals(diary.getVisibility()));
+        if (analysisStatus != null) {
+            return view.withAnalysisStatus(analysisStatus);
+        }
+        return view;
     }
 
-    @Async("aiExecutor")
-    public void runAiAnalysis(long diaryId, long userId, String content, MusicMeta musicMeta, java.util.List<String> images, UserEntity user) {
-        log.info("开始执行日记 AI 分析，diaryId={}，userId={}，contentLength={}，hasMusic={}，hasImages={}", diaryId, userId,
+    public void submitAiAnalysisTask(long diaryId, long userId) {
+        aiTaskProducer.submitDiaryAnalysisTask(diaryId, userId);
+    }
+
+    public void runAiAnalysisSync(long diaryId, long userId) {
+        DiaryEntity diary = diaryMapper.selectById(diaryId);
+        if (diary == null || diary.getIsDeleted()) {
+            log.warn("无法执行 AI 分析，日记不存在或已删除，diaryId={}", diaryId);
+            return;
+        }
+        String content = diary.getContent();
+        MusicMeta musicMeta = diary.getMusicMeta();
+        java.util.List<String> images = diary.getImages();
+        
+        log.info("开始同步执行日记 AI 分析，diaryId={}，userId={}，contentLength={}，hasMusic={}，hasImages={}", diaryId, userId,
                 content == null ? 0 : content.length(), musicMeta != null, images != null && !images.isEmpty());
         try {
             String imageDescriptions = visionService.describeImages(images);
@@ -318,7 +323,7 @@ public class DiaryService {
                 log.info("RAG 已用图片描述独立索引 diaryId={}", diaryId);
             }
             markReportsStale(userId);
-            DiaryEntity diary = diaryMapper.selectById(diaryId);
+            diary = diaryMapper.selectById(diaryId);
             if (diary != null && "PUBLIC".equals(diary.getVisibility())) {
                 evictPublicDiaryCaches();
             }
@@ -432,6 +437,7 @@ public class DiaryService {
 
         List<DiarySearchResult.DiarySummary> diaries = diaryMapper.selectList(query).stream()
                 .map(diary -> new DiarySearchResult.DiarySummary(
+                        diary.getId(),
                         diary.getCreatedAt().toLocalDate(),
                         snippet(diary.getContent())))
                 .toList();
@@ -1360,12 +1366,13 @@ public class DiaryService {
         String authorAvatar = author != null ? normalizeAvatar(author.getAvatar())
                 : resolveAuthorAvatar(diary.getAuthorUserId());
         Integer authorLevel = author != null ? author.getLevel() : null;
+        String authorRole = author != null ? author.getRole() : null;
         String feedContent = diary.getContent() != null && diary.getContent().length() > 150
                 ? diary.getContent().substring(0, 150) + "..."
                 : diary.getContent();
         return isPublic
-                ? DiaryView.fromPublicFeed(diary, analysis, authorName, authorAvatar, authorLevel, likedByMe, feedContent)
-                : DiaryView.fromFeed(diary, analysis, authorName, authorAvatar, authorLevel, likedByMe, feedContent);
+                ? DiaryView.fromPublicFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole, likedByMe, feedContent)
+                : DiaryView.fromFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole, likedByMe, feedContent);
     }
 
     private DiaryView buildDiaryView(DiaryEntity diary, boolean isPublic) {
@@ -1412,10 +1419,11 @@ public class DiaryService {
                     cu != null ? cu.getDisplayName() : c.getAuthorName());
         }
         Integer authorLevel = author != null ? author.getLevel() : null;
+        String authorRole = author != null ? author.getRole() : null;
         return isPublic
-                ? DiaryView.fromPublic(diary, analysis, comments, authorAvatar, authorName, authorLevel, commentAuthorNames,
+                ? DiaryView.fromPublic(diary, analysis, comments, authorAvatar, authorName, authorLevel, authorRole, commentAuthorNames,
                         likedByMe)
-                : DiaryView.from(diary, analysis, comments, authorAvatar, authorName, authorLevel, commentAuthorNames, likedByMe);
+                : DiaryView.from(diary, analysis, comments, authorAvatar, authorName, authorLevel, authorRole, commentAuthorNames, likedByMe);
     }
 
     private Set<Long> batchLoadLikedDiaryIds(List<Long> diaryIds) {

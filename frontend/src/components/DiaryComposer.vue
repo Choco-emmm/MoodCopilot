@@ -338,7 +338,7 @@ async function handleSave() {
     const imagesPayload = imageList.value.length ? imageList.value : undefined
 
     if (isEditMode.value) {
-      await store.updateDiary(props.editId!, draft.value.trim(), visibility.value, musicPayload, imagesPayload)
+      await store.updateDiary(props.editId!, draft.value.trim(), visibility.value, musicPayload, imagesPayload, analyze.value)
       router.push(`/diary/${props.editId}`)
     } else {
       await store.createDiary(draft.value.trim(), visibility.value, musicPayload, analyze.value, imagesPayload)

@@ -151,8 +151,15 @@ let hintTimer: ReturnType<typeof setInterval> | null = null
 
 function startHintRotation() {
   stopHintTimer()
-  const hints = ['正在读取你的日记...', '正在拆解情绪线索...', '正在进行深层分析...', '正在生成温柔回应...']
+  const hints = [
+    'AI 分析预计需要 15-30 秒，请稍候...',
+    '正在读取你的日记...',
+    '正在拆解情绪线索...',
+    '正在进行深层分析...',
+    '正在生成温柔回应...'
+  ]
   let i = 0
+  progressHint.value = hints[0]
   hintTimer = setInterval(() => {
     i = (i + 1) % hints.length
     progressHint.value = hints[i]

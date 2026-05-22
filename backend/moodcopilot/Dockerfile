@@ -12,7 +12,7 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=40s --retries=5 \
     CMD curl -f http://localhost:18080/api/health || exit 1
 
 ENTRYPOINT ["java", \
-    "-Xms256m", "-Xmx512m", \
+    "-Xms1g", "-Xmx2g", \
     "-XX:+UseG1GC", \
     "-XX:MaxRAMPercentage=75.0", \
     "-XX:+ExitOnOutOfMemoryError", \

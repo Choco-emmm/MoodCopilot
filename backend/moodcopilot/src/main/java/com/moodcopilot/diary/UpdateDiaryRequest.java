@@ -7,5 +7,10 @@ public record UpdateDiaryRequest(
         String visibility,
         Boolean isPinned,
         MusicMeta musicMeta,
-        java.util.List<String> images) {
+        java.util.List<String> images,
+        Boolean analyze
+) {
+    public boolean isAnalyze() {
+        return analyze == null || analyze;
+    }
 }
