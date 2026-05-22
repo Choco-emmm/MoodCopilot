@@ -81,6 +81,10 @@ export const adminApi = {
     api.post(`/admin/reports/${id}/hide-target`, { note: note ?? '' }),
   banUserReport: (id: number, note?: string) =>
     api.post(`/admin/reports/${id}/ban-user`, { note: note ?? '' }),
+  users: (keyword?: string, sortBy = 'lastActiveTime', page = 1, size = 20) =>
+    api.get('/admin/users', { params: { keyword, sortBy, page, size } }),
+  updateUserStatus: (id: number, status: number) =>
+    api.post(`/admin/users/${id}/status`, { status }),
 }
 
 export const notificationApi = {

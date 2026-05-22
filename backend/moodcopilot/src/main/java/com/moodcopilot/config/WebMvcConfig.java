@@ -9,9 +9,27 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import com.moodcopilot.security.UserActivityInterceptor;
+import com.moodcopilot.mapper.UserMapper;
+import org.springframework.data.redis.core.StringRedisTemplate;
+
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
+    private final UserMapper userMapper;
+    private final StringRedisTemplate stringRedisTemplate;
+
+    public WebMvcConfig(UserMapper userMapper, StringRedisTemplate stringRedisTemplate) {
+        this.userMapper = userMapper;
+        this.stringRedisTemplate = stringRedisTemplate;
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(new UserActivityInterceptor(userMapper, stringRedisTemplate))
+                .addPathPatterns("/api/**");
+    }
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         CacheControl avatarCache = CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable();

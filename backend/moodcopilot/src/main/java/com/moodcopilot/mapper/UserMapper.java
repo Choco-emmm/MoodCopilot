@@ -15,4 +15,7 @@ public interface UserMapper extends BaseMapper<UserEntity> {
             "WHERE DATE(d.created_at) = CURDATE() - INTERVAL 1 DAY " +
             "AND u.daily_notify_enabled = 1")
     List<Long> findActiveUsersWithDiariesYesterday();
+
+    @org.apache.ibatis.annotations.Update("UPDATE users SET last_active_time = #{lastActiveTime} WHERE id = #{id}")
+    int updateLastActiveTime(@org.apache.ibatis.annotations.Param("id") Long id, @org.apache.ibatis.annotations.Param("lastActiveTime") java.time.LocalDateTime lastActiveTime);
 }

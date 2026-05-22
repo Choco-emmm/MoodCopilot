@@ -231,12 +231,13 @@ const navItems = computed(() => {
   const items = [
     { label: '广场', shortLabel: '广场', icon: '⌂', path: '/' },
     { label: '写日记', shortLabel: '写', icon: '✎', path: '/write' },
-    { label: 'MoodCopilot', shortLabel: 'AI', icon: '◌', path: '/chat', cls: 'nav-link-ai' },
-    { label: '关注', shortLabel: '关注', icon: '◎', path: '/following' },
-    { label: '报告', shortLabel: '报告', icon: '▥', path: '/report' },
+    { label: 'MoodCopilot', shortLabel: 'AI', icon: '✦', path: '/chat', cls: 'nav-link-ai' },
+    { label: '关注', shortLabel: '关注', icon: '♥', path: '/following' },
+    { label: '报告', shortLabel: '报告', icon: '▤', path: '/report' },
   ]
   if (auth.isAdmin) {
     items.push({ label: '审核', shortLabel: '审核', icon: '!', path: '/admin/reports' })
+    items.push({ label: '用户', shortLabel: '用户', icon: '👥', path: '/admin/users' })
   }
   return items
 })

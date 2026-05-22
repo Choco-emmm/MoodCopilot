@@ -28,6 +28,7 @@ public class UserEntity {
     private LocalDateTime proExpireTime;
     private Integer nameChangeCount = 0;
     private Integer nameChangeWeek = 0;
+    private LocalDateTime lastActiveTime;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -173,6 +174,14 @@ public class UserEntity {
 
     public void setNameChangeWeek(Integer nameChangeWeek) {
         this.nameChangeWeek = nameChangeWeek;
+    }
+
+    public LocalDateTime getLastActiveTime() {
+        return lastActiveTime;
+    }
+
+    public void setLastActiveTime(LocalDateTime lastActiveTime) {
+        this.lastActiveTime = lastActiveTime;
     }
 
     public LocalDateTime getCreatedAt() {

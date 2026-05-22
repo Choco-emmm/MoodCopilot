@@ -51,7 +51,6 @@
 *   **双模型智能路由与深度思考**：底层全面接入 **deepseek-v4-flash** 与 **deepseek-v4-pro**。日常闲聊时使用 flash 模型极速响应，涉及复杂情绪分析和深度日记回顾时，自动无缝切换并开启 pro 模型的**深度思考模式（Reasoning）**。AI 在给出最终回复前会先进行一段心理学角度的沉思，为你提供更有深度、更共情的解答。
 
 <p align="center">
-  <img src="./docs/images/chat_reasoning_screenshot.png" alt="深度思考过程" width="260" />
   &nbsp;&nbsp;
   <img src="./docs/images/chat_snippet_screenshot.png" alt="记忆引用对话" width="260" />
   &nbsp;&nbsp;
