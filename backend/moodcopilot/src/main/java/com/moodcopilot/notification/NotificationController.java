@@ -53,4 +53,10 @@ public class NotificationController {
         notificationService.markAsRead(id, user.getId());
         return ApiResponse.ok(null);
     }
+
+    @PutMapping("/read-all")
+    public ApiResponse<Void> markAllRead(@AuthenticationPrincipal UserEntity user) {
+        notificationService.markAllAsRead(user.getId());
+        return ApiResponse.ok(null);
+    }
 }

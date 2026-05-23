@@ -382,17 +382,10 @@ async function reportComment(commentId: number) {
 }
 
 async function resonateDiary() {
-  if (!diary.value || resonating.value) return
-  resonating.value = true
+  if (!diary.value) return
   if (justLikedTimer) { clearTimeout(justLikedTimer) }
   justLiked.value = true
-  try {
-    const res = await diaryApi.resonate(diary.value.id)
-    diary.value = store.normalize(res.data.data)
-    if (diary.value.likedByMe) tryExpToast('like', '点赞 +2 EXP')
-  } finally {
-    resonating.value = false
-  }
+  void store.resonate(diary.value.id)
   justLikedTimer = window.setTimeout(() => { justLiked.value = false }, 360)
 }
 

@@ -118,6 +118,9 @@ async function loadNotifications(reset = false) {
       return
     }
     hasMore.value = loaded >= PAGE_SIZE
+    if (notif.unreadCount > 0) {
+      void notif.markAllRead()
+    }
     return
   }
 

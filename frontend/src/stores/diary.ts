@@ -317,15 +317,54 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
+  const resonatingKeys = new Set<number>()
+
   async function resonate(diaryId: number) {
-    const res = await diaryApi.resonate(diaryId)
-    const updated = normalize(res.data.data)
-    if (updated.likedByMe) {
-      tryExpToast('like', '点赞 +2 EXP')
+    if (resonatingKeys.has(diaryId)) return
+    resonatingKeys.add(diaryId)
+
+    const target = myDiaries.value.find(d => d.id === diaryId) || 
+                   publicDiaries.value.find(d => d.id === diaryId) || 
+                   (activeDiary.value?.id === diaryId ? activeDiary.value : null)
+    
+    let originalLikedByMe = false
+    let originalCount = 0
+
+    if (target) {
+      originalLikedByMe = !!target.likedByMe
+      originalCount = target.resonanceCount || 0
+
+      const newLikedByMe = !originalLikedByMe
+      const newCount = newLikedByMe ? originalCount + 1 : Math.max(0, originalCount - 1)
+      
+      const tempUpdated = { ...target, likedByMe: newLikedByMe, resonanceCount: newCount }
+      mergeDiary(tempUpdated)
+      if (activeDiary.value?.id === diaryId) {
+        activeDiary.value = tempUpdated
+      }
     }
-    mergeDiary(updated)
-    if (activeDiary.value?.id === diaryId) {
-      activeDiary.value = updated
+
+    try {
+      const res = await diaryApi.resonate(diaryId)
+      const updated = normalize(res.data.data)
+      if (updated.likedByMe && !originalLikedByMe) {
+        tryExpToast('like', '点赞 +2 EXP')
+      }
+      mergeDiary(updated)
+      if (activeDiary.value?.id === diaryId) {
+        activeDiary.value = updated
+      }
+    } catch (e) {
+      if (target) {
+        const revertUpdated = { ...target, likedByMe: originalLikedByMe, resonanceCount: originalCount }
+        mergeDiary(revertUpdated)
+        if (activeDiary.value?.id === diaryId) {
+          activeDiary.value = revertUpdated
+        }
+      }
+      window.$message?.error('点赞失败，请稍后重试')
+    } finally {
+      resonatingKeys.delete(diaryId)
     }
   }
 

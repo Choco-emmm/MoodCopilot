@@ -56,6 +56,18 @@ public class NotificationService {
                         .set(NotificationEntity::getReadAt, LocalDateTime.now()));
     }
 
+    @Transactional
+    public void markAllAsRead(Long recipientUserId) {
+        notificationMapper.update(
+                null,
+                new LambdaUpdateWrapper<NotificationEntity>()
+                        .eq(NotificationEntity::getRecipientUserId, recipientUserId)
+                        .eq(NotificationEntity::getIsRead, false)
+                        .set(NotificationEntity::getIsRead, true)
+                        .set(NotificationEntity::getReadAt, LocalDateTime.now()));
+    }
+
+
     public void notifyComment(UserEntity actor, Long diaryId, Long recipientUserId, Long commentId, String snippet) {
         try {
             NotificationEntity n = new NotificationEntity();

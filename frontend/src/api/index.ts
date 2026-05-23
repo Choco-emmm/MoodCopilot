@@ -91,6 +91,7 @@ export const notificationApi = {
   list: (page = 1, size = 20) => api.get('/notifications', { params: { page, size } }),
   unreadCount: () => api.get('/notifications/unread-count'),
   markRead: (id: number) => api.put(`/notifications/${id}/read`),
+  markAllRead: () => api.put('/notifications/read-all'),
   wsTicket: () => api.post('/notifications/ws-ticket'),
   wsUrl: (ticket: string) => {
     const env = import.meta.env as Record<string, string | undefined>
