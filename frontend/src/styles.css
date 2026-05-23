@@ -2295,8 +2295,8 @@ h3 {
   background: transparent;
   padding: 0;
   border-radius: 0;
-  white-space: pre;
-  word-break: normal;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .md-content strong {
