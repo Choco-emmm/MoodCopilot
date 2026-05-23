@@ -16,6 +16,10 @@
             我已知晓 MoodCopilot 提供的 AI 对话与情绪分析仅供参考与心理疏导，不构成任何专业医疗诊断。开发者不对 AI 生成的内容承担法律责任。
           </n-checkbox>
         </n-form-item>
+        <div class="privacy-disclaimer">
+          <span class="privacy-icon">🔒</span>
+          <span><strong>数据隐私承诺：</strong>我们承诺绝不窥探、使用您的任何个人数据。您的日记和对话仅在程序内部与大模型推理环节中严格流转。</span>
+        </div>
         <div id="captcha-box"></div>
         <n-button type="primary" block :loading="loading" @click="handleLoginClick">登录</n-button>
       </n-form>
@@ -127,5 +131,22 @@ async function doLogin(captchaToken: string) {
     transform-origin: center top;
     margin-bottom: -60px;
   }
+}
+.privacy-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: -12px;
+  margin-bottom: 20px;
+  padding: 10px 12px;
+  background: rgba(74, 124, 98, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(74, 124, 98, 0.15);
+  font-size: 12px;
+  color: #4a5a4e;
+  line-height: 1.5;
+}
+.privacy-icon {
+  font-size: 14px;
 }
 </style>
