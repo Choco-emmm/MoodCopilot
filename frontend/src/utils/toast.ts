@@ -2,7 +2,7 @@ import { reactive } from 'vue'
 import { growthApi } from '../api'
 
 declare global {
-  interface Window { $message?: { success: (msg: string, opts?: { duration?: number }) => void } }
+  interface Window { $message?: { success: (msg: string, opts?: { duration?: number }) => void; error: (msg: string, opts?: { duration?: number }) => void } }
 }
 
 interface DailyCap {
