@@ -18,7 +18,7 @@
         </n-form-item>
         <div class="privacy-disclaimer">
           <span class="privacy-icon">🔒</span>
-          <span><strong>数据隐私承诺：</strong>我们承诺绝不窥探、使用您的任何个人数据。您的日记和对话仅在程序内部与大模型推理环节中严格流转。</span>
+          <span><strong>数据隐私承诺：</strong>默认情况下您的日记与对话仅在您与 AI 之间严格流转，开发者绝不窥探。只有在您主动为单篇日记开启「匿名」或「公开」时，该内容才会参与社区共鸣匹配。</span>
         </div>
         <div id="captcha-box"></div>
         <n-button type="primary" block :loading="loading" @click="handleLoginClick">登录</n-button>
