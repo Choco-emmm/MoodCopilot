@@ -30,7 +30,11 @@ api.interceptors.response.use(
       localStorage.removeItem('role')
       const path = window.location.pathname
       if (path !== '/login' && path !== '/register') {
-        window.location.href = '/login'
+        import('../router').then(({ default: router }) => {
+          router.push('/login')
+        }).catch(() => {
+          window.location.replace('/login')
+        })
       }
     }
     return Promise.reject(error)
