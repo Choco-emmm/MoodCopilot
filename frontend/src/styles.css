@@ -986,8 +986,8 @@ h3 {
 }
 
 .like-btn:hover {
-  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-border) 60%);
-  background: color-mix(in srgb, var(--color-primary-light) 40%, white 60%);
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
 }
 
 .like-btn:hover .like-btn-icon {
