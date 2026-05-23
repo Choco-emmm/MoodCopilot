@@ -3,8 +3,7 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: cloudflare-tunnel
     restart: always
-    # 把下面这行最后的 <你的Token> 换成你刚才复制的那一大串字符
-    command: tunnel --no-autoupdate run --token REPLACE_WITH_CF_TUNNEL_TOKEN
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
   mysql:
     image: mysql:8.0
     environment:
