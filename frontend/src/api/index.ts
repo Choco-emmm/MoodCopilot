@@ -251,6 +251,7 @@ export const chatApi = {
   listConversations: () => api.get('/chat/conversations'),
   createConversation: (title?: string) => api.post('/chat/conversations', { title: title || '' }),
   deleteConversation: (id: number) => api.delete(`/chat/conversations/${id}`),
+  getWelcomeTopics: () => api.get('/chat/welcome-topics'),
   getHistory: (id: number) => api.get(`/chat/conversations/${id}/history`),
   saveHistory: (id: number, messages: any[]) => api.put(`/chat/conversations/${id}/history`, { messages }),
   reply: (id: number, message: string, references: string[] = []) =>

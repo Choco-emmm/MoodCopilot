@@ -59,7 +59,13 @@
             <h2 class="chat-header-title">MoodCopilot</h2>
             <p class="chat-subtitle">可以聊聊最近的心情，分享你的故事和想法</p>
             
-            <div class="chat-quick-starters">
+            <div v-if="quickStartersLoading" class="chat-quick-starters skeleton-starters">
+              <div v-for="i in 4" :key="i" class="quick-starter-card skeleton-card">
+                <div class="skeleton-icon"></div>
+                <div class="skeleton-text"></div>
+              </div>
+            </div>
+            <div v-else class="chat-quick-starters">
               <button 
                 v-for="(item, idx) in quickStarters" 
                 :key="idx" 
@@ -421,12 +427,29 @@ const chatInputArea = ref<HTMLElement | null>(null)
 const references = ref<ChatReference[]>([])
 const recentDiaryOptions = ref<{ id: number; date: string; snippet: string; fullContent: string }[]>([])
 
-const quickStarters = [
-  { icon: '📊', text: '分析我最近三天的情绪波动' },
-  { icon: '💡', text: '帮我回顾我最近开心的事情' },
-  { icon: '🌿', text: '推荐一些适合解压的音乐与方法' },
-  { icon: '💬', text: '今天有些累，陪我随便聊聊吧' }
-]
+const quickStarters = ref<{icon: string; text: string}[]>([])
+const quickStartersLoading = ref(true)
+
+async function loadWelcomeTopics() {
+  quickStartersLoading.value = true
+  try {
+    const res = await chatApi.getWelcomeTopics()
+    if (res.data.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
+      quickStarters.value = res.data.data
+    } else {
+      throw new Error('No dynamic topics')
+    }
+  } catch (err) {
+    quickStarters.value = [
+      { icon: '📊', text: '分析我最近三天的情绪波动' },
+      { icon: '💡', text: '帮我回顾我最近开心的事情' },
+      { icon: '🌿', text: '推荐一些适合解压的音乐与方法' },
+      { icon: '💬', text: '今天有些累，陪我随便聊聊吧' }
+    ]
+  } finally {
+    quickStartersLoading.value = false
+  }
+}
 
 function useQuickStarter(text: string) {
   draft.value = text
@@ -558,6 +581,7 @@ onMounted(async () => {
 
   await loadConversations()
   await loadRecentDiaryOptions()
+  await loadWelcomeTopics()
   if (conversations.value.length > 0) {
     await selectConversation(conversations.value[0].id)
   } else {
@@ -1599,6 +1623,42 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   color: #4a5a4e;
   line-height: 1.4;
   font-weight: 500;
+}
+
+/* Skeleton Loading Styles */
+.skeleton-card {
+  cursor: default;
+}
+.skeleton-card:hover {
+  transform: none;
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.45);
+  border-color: rgba(180, 150, 120, 0.15);
+}
+
+.skeleton-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  margin-bottom: 8px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #fafafa 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+.skeleton-text {
+  width: 80%;
+  height: 14px;
+  border-radius: 4px;
+  margin-top: 4px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #fafafa 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 @media (max-width: 600px) {

@@ -229,6 +229,64 @@ public class ChatService {
 
     // ---- 聊天 ----
 
+    public List<Map<String, String>> getWelcomeTopics() {
+        UserEntity user = currentUser();
+        Long userId = user.getId();
+        String cacheKey = "chat:welcome_topics:" + userId;
+
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                return objectMapper.readValue(cached, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, String>>>() {});
+            }
+        } catch (Exception e) {
+            log.warn("读取 welcome topics 缓存失败", e);
+        }
+
+        String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
+        String systemPrompt = """
+            你是一个懂心理学的情绪树洞助手。请根据用户的画像和最近状态，生成 4 个推荐的聊天开场白话题（每个话题长度在10-20字左右），供用户点击快速开始聊天。
+            请确保话题贴合用户的状态、兴趣或最近可能有的困惑，或者提供一些温暖的日常问候。
+            
+            必须严格返回合法的 JSON 数组，格式如下：
+            [
+              {"icon": "🌟", "text": "分析我最近三天的情绪波动"},
+              {"icon": "💡", "text": "帮我回顾我最近开心的事情"},
+              {"icon": "🌿", "text": "推荐一些适合解压的音乐与方法"},
+              {"icon": "💬", "text": "今天有些累，陪我随便聊聊吧"}
+            ]
+            
+            用户背景画像：
+            """ + memoryBackground;
+
+        try {
+            String response = analysisChatClient.prompt()
+                    .system(systemPrompt)
+                    .user("请直接输出纯 JSON 数组，不要包含任何 Markdown 格式或多余的解释。")
+                    .call()
+                    .content();
+
+            String cleanedJson = JsonUtils.cleanJson(response);
+            List<Map<String, String>> topics = objectMapper.readValue(cleanedJson, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, String>>>() {});
+
+            if (topics != null && !topics.isEmpty()) {
+                // 缓存 4 小时
+                redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(topics), Duration.ofHours(4));
+                return topics;
+            }
+        } catch (Exception e) {
+            log.error("生成 welcome topics 失败", e);
+        }
+
+        // 兜底返回默认
+        return List.of(
+                Map.of("icon", "📊", "text", "分析我最近三天的情绪波动"),
+                Map.of("icon", "💡", "text", "帮我回顾我最近开心的事情"),
+                Map.of("icon", "🌿", "text", "推荐一些适合解压的音乐与方法"),
+                Map.of("icon", "💬", "text", "今天有些累，陪我随便聊聊吧")
+        );
+    }
+
     /** 流式聊天结果：RAG 上下文 + AI 文字流 */
     public record ChatStreamContext(String ragContext, Flux<String> stream) {}
 

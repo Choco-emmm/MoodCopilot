@@ -47,6 +47,11 @@ public class ChatController {
 
     // ---- 会话管理 ----
 
+    @GetMapping("/welcome-topics")
+    public ApiResponse<Object> getWelcomeTopics() {
+        return ApiResponse.ok(chatService.getWelcomeTopics());
+    }
+
     @GetMapping("/conversations")
     public ApiResponse<Object> listConversations() {
         return ApiResponse.ok(chatService.listConversations());
