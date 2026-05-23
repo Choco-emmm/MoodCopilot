@@ -147,7 +147,7 @@ button,
   width: min(100%, 1080px);
   min-height: 100vh;
   margin: 0 auto;
-  padding: 28px 20px 80px;
+  padding: 28px 20px calc(80px + env(safe-area-inset-bottom));
 }
 
 /* ── Masthead / Header ── */

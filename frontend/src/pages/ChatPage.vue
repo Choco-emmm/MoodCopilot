@@ -1627,6 +1627,13 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.01);
 }
 
+.chat-messages::after {
+  content: '';
+  display: block;
+  min-height: 24px;
+  flex-shrink: 0;
+}
+
 .chat-input-area {
   background: rgba(255, 255, 255, 0.6) !important;
   backdrop-filter: blur(12px) !important;

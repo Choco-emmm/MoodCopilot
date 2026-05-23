@@ -34,5 +34,17 @@ export default defineConfig(({ mode }) => {
     preview: {
       allowedHosts: ['moodcopilot.dpdns.org'],
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vue-vendor': ['vue', 'vue-router', 'pinia'],
+            'ui-vendor': ['naive-ui'],
+            'editor-vendor': ['vditor', 'marked', 'dompurify'],
+            'utils-vendor': ['axios', 'cropperjs', '@vicons/ionicons5']
+          }
+        }
+      }
+    }
   }
 })
