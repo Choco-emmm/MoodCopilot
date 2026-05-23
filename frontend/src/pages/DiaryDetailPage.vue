@@ -206,7 +206,10 @@ function renderMd(text: string) {
   return renderSafeMarkdown(text)
 }
 
-const diary = ref<Diary | null>(null)
+const diary = computed({
+  get: () => store.activeDiary,
+  set: (val) => { store.activeDiary = val }
+})
 const commentDraft = ref('')
 const replyDraft = ref('')
 const commentError = ref('')

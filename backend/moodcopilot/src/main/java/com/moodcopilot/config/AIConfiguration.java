@@ -529,7 +529,7 @@ public class AIConfiguration {
     }
 
     @Bean(name = DiaryImageAnalysisFunctionSupport.NAME)
-    @org.springframework.context.annotation.Description("调用视觉大模型对用户日记中的图片进行深度内容与情感分析，当默认的简短图片描述无法回答用户提问时使用。此函数只在用户提问涉及到图片具体细节时才应该被调用。注意：由于视觉模型消耗较大，本功能随用户等级具有严格的每日使用限额。")
+    @org.springframework.context.annotation.Description("调用视觉大模型对用户日记中的图片进行深度分析。触发条件：1. 当默认的简短图片描述无法回答提问（如问具体价格、文字细节等）时；2. 当用户明确要求'详细看看'、'还有别的吗'、'列出全部'等表明图片内还有未提及的隐藏信息时，必须强制调用此工具。注意：此功能随用户等级有每日使用限额。")
     public FunctionCallback diaryImageAnalysisFunction(DiaryImageAnalysisFunctionSupport support) {
         return FunctionCallback.builder()
                 .function(DiaryImageAnalysisFunctionSupport.NAME, support)
