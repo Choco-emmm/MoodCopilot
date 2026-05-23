@@ -28,7 +28,8 @@ public class RateLimitService {
         REASONING(ResetPeriod.DAILY),
         RESONANCE(ResetPeriod.DAILY),
         REPORT(ResetPeriod.MONTHLY),
-        IMAGE_UPLOAD(ResetPeriod.DAILY);
+        IMAGE_UPLOAD(ResetPeriod.DAILY),
+        IMAGE_ANALYSIS(ResetPeriod.DAILY);
 
         public enum ResetPeriod { DAILY, MONTHLY }
 
@@ -44,15 +45,15 @@ public class RateLimitService {
     }
 
     // Row 0 = Pro, Row 1..6 = Lv.1..Lv.6
-    // Col order must match AiApiType enum: CHAT, ANALYSIS, REASONING, RESONANCE, REPORT, IMAGE_UPLOAD
+    // Col order must match AiApiType enum: CHAT, ANALYSIS, REASONING, RESONANCE, REPORT, IMAGE_UPLOAD, IMAGE_ANALYSIS
     private static final int[][] QUOTA = {
-            {150, 50,  30,  50,  30,  50},   // Pro
-            {15,  5,   2,   0,   0,   3},    // Lv.1
-            {25,  8,   4,   3,   0,   5},    // Lv.2
-            {35,  12,  6,   5,   2,   8},    // Lv.3
-            {45,  16,  8,   8,   4,   12},   // Lv.4
-            {55,  20,  10,  10,  6,   16},   // Lv.5
-            {65,  25,  12,  12,  8,   20},   // Lv.6
+            {150, 50,  30,  50,  30,  50, 50},   // Pro
+            {15,  5,   2,   0,   0,   3,  2},    // Lv.1
+            {25,  8,   4,   3,   0,   5,  3},    // Lv.2
+            {35,  12,  6,   5,   2,   8,  5},    // Lv.3
+            {45,  16,  8,   8,   4,   12, 8},    // Lv.4
+            {55,  20,  10,  10,  6,   16, 12},   // Lv.5
+            {65,  25,  12,  12,  8,   20, 15},   // Lv.6
     };
 
     public static int getDynamicLimit(AiApiType type, Integer level, boolean isPro) {
@@ -199,6 +200,7 @@ public class RateLimitService {
             case RESONANCE -> "共鸣检索";
             case REPORT -> "报告生成";
             case IMAGE_UPLOAD -> "图片上传";
+            case IMAGE_ANALYSIS -> "图片深度分析";
         };
     }
 }

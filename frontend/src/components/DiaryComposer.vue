@@ -65,7 +65,7 @@
     <div class="composer-images-section">
       <div class="composer-images-grid">
         <div v-for="(img, i) in imageList" :key="i" class="composer-image-preview">
-          <img :src="img" alt="" />
+          <img :src="img" alt="" @click="previewSrc = img" style="cursor: zoom-in;" />
           <button class="composer-image-remove" @click="removeImage(i)">✕</button>
         </div>
         <label class="composer-image-add" :class="{ uploading: uploadingImage }">
@@ -124,6 +124,14 @@
     </n-alert>
 
   </section>
+
+  <!-- 图片预览 Lightbox -->
+  <Teleport to="body">
+    <div v-if="previewSrc" class="composer-lightbox" @click="previewSrc = ''">
+      <img :src="previewSrc" alt="" @click.stop />
+      <button class="composer-lightbox-close" @click="previewSrc = ''">&times;</button>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -167,6 +175,7 @@ const musicUrlInput = ref<HTMLInputElement | null>(null)
 
 const imageList = ref<string[]>([])
 const uploadingImage = ref(false)
+const previewSrc = ref('')
 
 function updateDraftSavedAt() {
   draftSavedAt.value = new Intl.DateTimeFormat('zh-CN', {
@@ -738,6 +747,45 @@ async function handleSave() {
 :deep(.vditor-wysiwyg p) {
   margin: 0 !important;
   padding: 0 !important;
+}
+
+/* Lightbox */
+.composer-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  cursor: zoom-out;
+}
+
+.composer-lightbox img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+  cursor: default;
+}
+
+.composer-lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 36px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.composer-lightbox-close:hover {
+  opacity: 1;
 }
 </style>
 

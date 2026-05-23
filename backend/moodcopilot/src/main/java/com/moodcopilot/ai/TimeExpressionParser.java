@@ -56,6 +56,12 @@ public final class TimeExpressionParser {
     // ── 工具 ──
 
     static String formatDateTime(long epochSecond) {
+        if (epochSecond >= 253402271999L) { // Year 9999
+            return "未来";
+        }
+        if (epochSecond <= 0) {
+            return "过去";
+        }
         return Instant.ofEpochSecond(epochSecond).atZone(ZONE).format(DT_FMT);
     }
 

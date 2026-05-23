@@ -17,6 +17,8 @@ import com.moodcopilot.diary.DiaryService;
 import com.moodcopilot.diary.UserStatsRequest;
 import com.moodcopilot.entity.DiaryKnowledgeGraphEntity;
 import com.moodcopilot.mapper.DiaryKnowledgeGraphMapper;
+import com.moodcopilot.ai.DiaryImageAnalysisRequest;
+import com.moodcopilot.ai.DiaryImageAnalysisFunctionSupport;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -524,5 +526,15 @@ public class AIConfiguration {
         });
         log.info("AI 异步线程池已初始化为虚拟线程模式");
         return executor;
+    }
+
+    @Bean(name = DiaryImageAnalysisFunctionSupport.NAME)
+    @org.springframework.context.annotation.Description("调用视觉大模型对用户日记中的图片进行深度内容与情感分析，当默认的简短图片描述无法回答用户提问时使用。此函数只在用户提问涉及到图片具体细节时才应该被调用。注意：由于视觉模型消耗较大，本功能随用户等级具有严格的每日使用限额。")
+    public FunctionCallback diaryImageAnalysisFunction(DiaryImageAnalysisFunctionSupport support) {
+        return FunctionCallback.builder()
+                .function(DiaryImageAnalysisFunctionSupport.NAME, support)
+                .description("调用视觉大模型对用户日记中的图片进行深度内容与情感分析。需要传入日记ID列表（可从普通检索中获取）以及希望视觉模型重点关注的提问。")
+                .inputType(DiaryImageAnalysisRequest.class)
+                .build();
     }
 }

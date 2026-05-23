@@ -250,4 +250,35 @@ public class OssService {
             deleteImage(url);
         }
     }
+
+    /**
+     * 生成访问私有 OSS 文件的预签名 URL。
+     * @param imageUrl 原始对象 URL
+     * @param expireSeconds 有效期（秒）
+     * @return 预签名 URL，如果配置缺失则返回原 URL
+     */
+    public String generatePresignedUrl(String imageUrl, long expireSeconds) {
+        if (!isConfigured()) return imageUrl;
+        String objectKey = extractObjectKey(imageUrl);
+        if (objectKey == null) return imageUrl;
+
+        try {
+            String host = bucket + "." + endpoint;
+            long expires = java.time.Instant.now().getEpochSecond() + expireSeconds;
+            String canonicalString = "GET\n\n\n" + expires + "\n/" + bucket + "/" + objectKey;
+            String signature = sign(canonicalString);
+            String encodedSig = java.net.URLEncoder.encode(signature, java.nio.charset.StandardCharsets.UTF_8);
+            return "https://" + host + "/" + objectKey + "?OSSAccessKeyId=" + accessKey + "&Expires=" + expires + "&Signature=" + encodedSig;
+        } catch (Exception e) {
+            log.warn("OSS 生成预签名 URL 失败 url={}: {}", imageUrl, e.getMessage());
+            return imageUrl;
+        }
+    }
+
+    /**
+     * 获取可供模型安全访问的临时 URL（有效期1小时）
+     */
+    public String getAccessibleUrl(String imageUrl) {
+        return generatePresignedUrl(imageUrl, 3600);
+    }
 }

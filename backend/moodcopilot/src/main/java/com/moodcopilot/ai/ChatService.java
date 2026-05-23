@@ -141,6 +141,8 @@ public class ChatService {
     private final AiAnalysisService aiAnalysisService;
     private final DeepSeekClient deepSeekClient;
     private final com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper;
+    private final com.moodcopilot.mapper.DiaryMapper diaryMapper;
+    private final VisionService visionService;
 
     public ChatService(ChatClient chatChatClient,
             ChatClient analysisChatClient,
@@ -157,7 +159,9 @@ public class ChatService {
             RagMemoryService ragMemoryService,
             AiAnalysisService aiAnalysisService,
             DeepSeekClient deepSeekClient,
-            com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper) {
+            com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper,
+            com.moodcopilot.mapper.DiaryMapper diaryMapper,
+            VisionService visionService) {
         this.chatChatClient = chatChatClient;
         this.analysisChatClient = analysisChatClient;
         this.conversationMapper = conversationMapper;
@@ -174,6 +178,8 @@ public class ChatService {
         this.aiAnalysisService = aiAnalysisService;
         this.deepSeekClient = deepSeekClient;
         this.diaryKnowledgeGraphMapper = diaryKnowledgeGraphMapper;
+        this.diaryMapper = diaryMapper;
+        this.visionService = visionService;
     }
 
     // ---- 会话管理 ----
@@ -280,7 +286,8 @@ public class ChatService {
                         UserStatsFunctionSupport.NAME,
                         ReportSnapshotFunctionSupport.NAME,
                         MemoryQueryFunctionSupport.NAME,
-                        GraphSearchFunctionSupport.NAME)
+                        GraphSearchFunctionSupport.NAME,
+                        DiaryImageAnalysisFunctionSupport.NAME)
                 .toolContext(Map.of("auth", auth, "sseSink", sseSink))
                 .stream()
                 .content()
@@ -342,7 +349,8 @@ public class ChatService {
                         UserStatsFunctionSupport.NAME,
                         ReportSnapshotFunctionSupport.NAME,
                         MemoryQueryFunctionSupport.NAME,
-                        GraphSearchFunctionSupport.NAME)
+                        GraphSearchFunctionSupport.NAME,
+                        DiaryImageAnalysisFunctionSupport.NAME)
                 .toolContext(Map.of("auth", auth))
                 .call()
                 .content();
@@ -471,7 +479,14 @@ public class ChatService {
                             put("keyword", Map.of("type", "string", "description", "实体关键词"));
                             put("limit", Map.of("type", "integer", "description", "返回数量上限，默认 20，最大 50"));
                         }},
-                        List.of("keyword", "limit")));
+                        List.of("keyword", "limit")),
+                buildTool("diaryImageAnalysisFunction",
+                        "调用视觉大模型对用户日记中的图片进行深度内容与情感分析，当默认的简短图片描述无法回答用户提问时使用。此函数只在用户提问涉及到图片具体细节时才应该被调用。注意：由于视觉模型消耗较大，本功能随用户等级具有严格的每日使用限额。",
+                        new LinkedHashMap<>() {{
+                            put("diaryIds", Map.of("type", "array", "items", Map.of("type", "integer"), "description", "要深度分析图片的日记 ID 列表"));
+                            put("prompt", Map.of("type", "string", "description", "希望视觉模型重点关注的提问要求"));
+                        }},
+                        List.of("diaryIds", "prompt")));
     }
 
     @SuppressWarnings("unchecked")
@@ -605,6 +620,14 @@ public class ChatService {
                         }
                     }
                 }
+                case "diaryImageAnalysisFunction" -> {
+                    if (result instanceof DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult dir) {
+                        items.add(Map.of(
+                                "type", "image_analysis",
+                                "snippet", dir.analysisResult(),
+                                "toolName", "diaryImageAnalysis"));
+                    }
+                }
             }
             if (!items.isEmpty()) {
                 Map<String, Object> event = Map.of("type", "tool_references", "items", items);
@@ -705,6 +728,30 @@ public class ChatService {
                     }
                     yield new GraphSearchResult(items.size(), items,
                             items.isEmpty() ? "未找到与 '" + keyword + "' 相关的图谱三元组" : "已返回图谱三元组");
+                }
+                case "diaryImageAnalysisFunction" -> {
+                    var req = objectMapper.readValue(argumentsJson, DiaryImageAnalysisRequest.class);
+                    UserEntity user = (UserEntity) auth.getPrincipal();
+                    try {
+                        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.IMAGE_ANALYSIS);
+                    } catch (RateLimitException e) {
+                        yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult("由于今日图片深度分析次数已达限额，无法分析图片，请明日再试。");
+                    }
+                    if (req.diaryIds() == null || req.diaryIds().isEmpty()) {
+                        yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult("未提供日记ID，无法分析");
+                    }
+                    var diaries = diaryMapper.selectBatchIds(req.diaryIds());
+                    List<String> images = new ArrayList<>();
+                    for (var d : diaries) {
+                        if (d.getAuthorUserId().equals(user.getId()) && d.getImages() != null) {
+                            images.addAll(d.getImages());
+                        }
+                    }
+                    if (images.isEmpty()) {
+                        yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult("选定的日记中没有包含任何图片");
+                    }
+                    String res = visionService.analyzeImageDetails(images, req.prompt());
+                    yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult(res);
                 }
                 default -> throw new IllegalArgumentException("未知的工具函数: " + functionName);
             };
