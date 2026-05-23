@@ -732,12 +732,15 @@ public class ChatService {
                 case "diaryImageAnalysisFunction" -> {
                     var req = objectMapper.readValue(argumentsJson, DiaryImageAnalysisRequest.class);
                     UserEntity user = (UserEntity) auth.getPrincipal();
+                    log.info("触发图片深度分析(VLM)工具 userId={}, diaryIds={}, prompt={}", user.getId(), req.diaryIds(), req.prompt());
                     try {
                         rateLimitService.tryAcquire(user, RateLimitService.AiApiType.IMAGE_ANALYSIS);
                     } catch (RateLimitException e) {
+                        log.warn("图片深度分析(VLM)额度不足，拦截请求 userId={}", user.getId());
                         yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult("由于今日图片深度分析次数已达限额，无法分析图片，请明日再试。");
                     }
                     if (req.diaryIds() == null || req.diaryIds().isEmpty()) {
+                        log.info("图片深度分析(VLM)失败：未提供日记ID userId={}", user.getId());
                         yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult("未提供日记ID，无法分析");
                     }
                     var diaries = diaryMapper.selectBatchIds(req.diaryIds());
@@ -748,9 +751,12 @@ public class ChatService {
                         }
                     }
                     if (images.isEmpty()) {
+                        log.info("图片深度分析(VLM)失败：选定的日记中没有图片 userId={}", user.getId());
                         yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult("选定的日记中没有包含任何图片");
                     }
+                    log.info("图片深度分析(VLM)准备请求视觉大模型 userId={}, 图片数量={}", user.getId(), images.size());
                     String res = visionService.analyzeImageDetails(images, req.prompt());
+                    log.info("图片深度分析(VLM)完成 userId={}", user.getId());
                     yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult(res);
                 }
                 default -> throw new IllegalArgumentException("未知的工具函数: " + functionName);
