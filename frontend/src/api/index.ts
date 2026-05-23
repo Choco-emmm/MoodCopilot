@@ -294,3 +294,8 @@ export const chatApi = {
     })
   },
 }
+
+export const suggestionApi = {
+  submit: (content: string) => api.post('/suggestions', { content }),
+  adminList: (page = 1, size = 20) => api.get('/suggestions/admin', { params: { page, size } }),
+}

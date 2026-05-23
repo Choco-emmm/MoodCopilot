@@ -384,6 +384,41 @@
           </n-button>
         </section>
 
+        <section class="settings-section">
+          <div class="section-head">
+            <p class="settings-label">建议与反馈</p>
+            <span class="section-tag">Feedback</span>
+          </div>
+          <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
+            <n-input
+              v-model:value="suggestionContent"
+              type="textarea"
+              :maxlength="1000"
+              :autosize="{ minRows: 2, maxRows: 4 }"
+              placeholder="遇到Bug？或者有好的功能建议？请告诉我们吧！"
+            />
+            <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
+              <n-button
+                v-if="auth.isAdmin"
+                size="small"
+                secondary
+                @click="viewAdminSuggestions"
+              >
+                查看用户建议
+              </n-button>
+              <n-button
+                size="small"
+                type="primary"
+                :loading="submittingSuggestion"
+                :disabled="!suggestionContent.trim()"
+                @click="submitSuggestion"
+              >
+                提交反馈
+              </n-button>
+            </div>
+          </div>
+        </section>
+
         <section class="settings-section danger-zone">
           <div class="section-head">
             <p class="settings-label">账户操作</p>
@@ -391,6 +426,36 @@
           </div>
           <n-button type="error" block @click="handleLogout">退出登录</n-button>
         </section>
+      </div>
+    </n-modal>
+
+    <n-modal
+      v-model:show="showAdminSuggestions"
+      preset="card"
+      title="用户建议列表"
+      style="width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto;"
+    >
+      <div v-if="adminSuggestionsLoading" style="text-align: center; padding: 20px;">
+        <n-spin size="small" />
+      </div>
+      <div v-else-if="!adminSuggestions.length" style="text-align: center; padding: 20px; color: #999;">
+        暂无用户建议
+      </div>
+      <div v-else class="admin-suggestions-list">
+        <div v-for="s in adminSuggestions" :key="s.id" class="suggestion-item" style="border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <img v-if="s.userAvatar" :src="s.userAvatar" style="width: 24px; height: 24px; border-radius: 50%;" />
+              <span v-else style="width: 24px; height: 24px; border-radius: 50%; background: var(--color-border); display: inline-flex; align-items: center; justify-content: center; font-size: 12px;">{{ s.userName.charAt(0) }}</span>
+              <strong>{{ s.userName }}</strong>
+            </div>
+            <span style="font-size: 12px; color: #999;">{{ new Date(s.createdAt).toLocaleString() }}</span>
+          </div>
+          <p style="white-space: pre-wrap; font-size: 14px; margin: 0;">{{ s.content }}</p>
+        </div>
+        <div v-if="hasMoreAdminSuggestions" style="text-align: center; margin-top: 12px;">
+          <n-button size="small" :loading="adminSuggestionsLoadingMore" @click="loadMoreAdminSuggestions">加载更多</n-button>
+        </div>
       </div>
     </n-modal>
 
@@ -436,7 +501,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { NButton, NEmpty, NInput, NModal, NSpin, NSwitch, NDatePicker, NSelect } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import DiaryFeedItem from '../components/DiaryFeedItem.vue'
-import { authApi, diaryApi, memoryApi } from '../api'
+import { authApi, diaryApi, memoryApi, suggestionApi } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
@@ -503,6 +568,15 @@ const passwordCodeCountdown = ref(0)
 const passwordMsg = ref('')
 const showPasswordChange = ref(false)
 let passwordCodeTimer: number | null = null
+
+const suggestionContent = ref('')
+const submittingSuggestion = ref(false)
+const showAdminSuggestions = ref(false)
+const adminSuggestions = ref<any[]>([])
+const adminSuggestionsPage = ref(1)
+const hasMoreAdminSuggestions = ref(false)
+const adminSuggestionsLoading = ref(false)
+const adminSuggestionsLoadingMore = ref(false)
 
 const showCropModal = ref(false)
 const cropImageSrc = ref('')
@@ -701,7 +775,54 @@ async function hydrateSettingsData() {
   await auth.fetchProfile()
   editingName.value = auth.displayName ?? ''
   editingSignature.value = auth.signature ?? ''
+  suggestionContent.value = ''
   await loadMemories()
+}
+
+async function submitSuggestion() {
+  if (!suggestionContent.value.trim()) return
+  submittingSuggestion.value = true
+  try {
+    await suggestionApi.submit(suggestionContent.value.trim())
+    window.$message?.success('反馈提交成功，感谢你的建议！')
+    suggestionContent.value = ''
+  } catch (err: any) {
+    window.$message?.error('提交失败：' + (err.response?.data?.message || err.message))
+  } finally {
+    submittingSuggestion.value = false
+  }
+}
+
+async function viewAdminSuggestions() {
+  showAdminSuggestions.value = true
+  adminSuggestionsLoading.value = true
+  adminSuggestionsPage.value = 1
+  try {
+    const res = await suggestionApi.adminList(1, 20)
+    adminSuggestions.value = res.data.data.items || []
+    hasMoreAdminSuggestions.value = adminSuggestions.value.length < (res.data.data.total || 0)
+  } catch (err: any) {
+    window.$message?.error('获取失败：' + err.message)
+  } finally {
+    adminSuggestionsLoading.value = false
+  }
+}
+
+async function loadMoreAdminSuggestions() {
+  if (adminSuggestionsLoadingMore.value || !hasMoreAdminSuggestions.value) return
+  adminSuggestionsLoadingMore.value = true
+  try {
+    const nextPage = adminSuggestionsPage.value + 1
+    const res = await suggestionApi.adminList(nextPage, 20)
+    const items = res.data.data.items || []
+    adminSuggestions.value.push(...items)
+    adminSuggestionsPage.value = nextPage
+    hasMoreAdminSuggestions.value = adminSuggestions.value.length < (res.data.data.total || 0)
+  } catch (err: any) {
+    window.$message?.error('获取失败：' + err.message)
+  } finally {
+    adminSuggestionsLoadingMore.value = false
+  }
 }
 
 async function loadMemories() {

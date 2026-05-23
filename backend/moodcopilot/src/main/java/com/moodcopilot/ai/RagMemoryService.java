@@ -144,6 +144,7 @@ public class RagMemoryService {
                 for (int i = 0; i < raw.size(); i++) {
                     embedding[i] = raw.get(i).floatValue();
                 }
+                log.info("Embedding 生成成功，dimension={}", embedding.length);
                 return embedding;
             } catch (Exception e) {
                 if (attempt < maxRetries) {

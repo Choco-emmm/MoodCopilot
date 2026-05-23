@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <main class="app-shell chat-shell">
     <AppHeader />
 
@@ -1130,15 +1130,16 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 }
 
 /* 流式输出光标 */
-.streaming-cursor {
-  animation: cursor-blink 1s step-end infinite;
+:deep(.streaming-cursor) {
+  animation: cursor-pulse 1.2s ease-in-out infinite;
   color: var(--color-primary);
   margin-left: 2px;
   vertical-align: baseline;
+  display: inline-block;
 }
-@keyframes cursor-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+@keyframes cursor-pulse {
+  0%, 100% { opacity: 0.3; transform: scaleY(0.9); }
+  50% { opacity: 1; transform: scaleY(1.1); }
 }
 
 @keyframes blink {
