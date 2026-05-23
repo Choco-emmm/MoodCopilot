@@ -629,6 +629,25 @@ public class DiaryService {
                 note);
     }
 
+    private Page<DiaryView> populateLikedByMe(Page<DiaryView> page, long userId) {
+        if (page == null || page.getRecords() == null || page.getRecords().isEmpty()) {
+            return page;
+        }
+        List<Long> diaryIds = page.getRecords().stream().map(DiaryView::id).toList();
+        java.util.Set<Long> likedDiaryIds = new java.util.HashSet<>();
+        String uid = String.valueOf(userId);
+        for (Long diaryId : diaryIds) {
+            if (Boolean.TRUE.equals(redisTemplate.opsForSet().isMember("resonance:" + diaryId, uid))) {
+                likedDiaryIds.add(diaryId);
+            }
+        }
+        List<DiaryView> newRecords = page.getRecords().stream()
+                .map(view -> view.withLikedByMe(likedDiaryIds.contains(view.id())))
+                .toList();
+        page.setRecords(newRecords);
+        return page;
+    }
+
     public Page<DiaryView> publicDiaries(int page, int size) {
         int cappedPage = Math.max(1, page);
         int cappedSize = Math.min(50, Math.max(1, size));
@@ -640,7 +659,7 @@ public class DiaryService {
             if (cached != null) {
                 Page<DiaryView> cachedPage = objectMapper.readValue(cached, new TypeReference<Page<DiaryView>>() {
                 });
-                return filterHiddenViews(cachedPage, userId);
+                return populateLikedByMe(filterHiddenViews(cachedPage, userId), userId);
             }
         } catch (Exception e) {
             log.debug("Cache miss {}", cacheKey);
@@ -653,7 +672,7 @@ public class DiaryService {
         } catch (Exception e) {
             log.debug("Cache write failed");
         }
-        return filterHiddenViews(result, userId);
+        return populateLikedByMe(filterHiddenViews(result, userId), userId);
     }
 
     private Page<DiaryView> queryPublicDiaries(int page, int size) {
@@ -721,8 +740,8 @@ public class DiaryService {
         try {
             String cached = redisTemplate.opsForValue().get(cacheKey);
             if (cached != null)
-                return objectMapper.readValue(cached, new TypeReference<Page<DiaryView>>() {
-                });
+                return populateLikedByMe(objectMapper.readValue(cached, new TypeReference<Page<DiaryView>>() {
+                }), userId);
         } catch (Exception e) {
             log.debug("Cache miss {}", cacheKey);
         }
@@ -734,7 +753,7 @@ public class DiaryService {
         } catch (Exception e) {
             log.debug("Cache write failed");
         }
-        return result;
+        return populateLikedByMe(result, userId);
     }
 
     private Page<DiaryView> queryFollowingDiaries(long userId, int page, int size) {

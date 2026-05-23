@@ -34,6 +34,12 @@ public record DiaryView(
                     content, visibility, analysis, createdAt, resonanceCount, likedByMe,
                     isPinned, musicMeta, images, status, comments);
         }
+
+        public DiaryView withLikedByMe(boolean liked) {
+            return new DiaryView(id, authorUserId, authorName, authorAvatar, authorLevel, authorRole,
+                    content, visibility, analysis, createdAt, resonanceCount, liked,
+                    isPinned, musicMeta, images, analysisStatus, comments);
+        }
         static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments,
                         String authorAvatar, String authorName, Map<Long, String> commentAuthorNames,
                         boolean likedByMe) {
