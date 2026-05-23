@@ -177,7 +177,13 @@
             </tbody>
           </table>
         </div>
-        <p class="quota-modal-footer">AI 聊天 / AI 分析 / 思考 / 检索 / 传图 每日 0 点重置 · 报告每月 1 日重置</p>
+        <div class="quota-rules-desc">
+          <div class="rule-item"><strong>💡 AI 分析：</strong>发布或修改日记时自动触发（含基础配图提炼）。</div>
+          <div class="rule-item"><strong>💡 图片分析：</strong>聊天时向 AI 追问图片内的具体文字、细节（基础提炼未涵盖的内容）时才触发。</div>
+          <div class="rule-item"><strong>💡 深度思考：</strong>聊天时主动开启，消耗配额使用长链路推演模型为您解惑。</div>
+        </div>
+
+        <p class="quota-modal-footer">AI 聊天 / 分析 / 思考 / 检索 / 传图 每日 0 点重置 · 报告每月 1 日重置</p>
       </div>
     </div>
   </Teleport>
@@ -502,10 +508,30 @@ function formatQuota(val: number | undefined, max?: number): string {
 }
 
 .quota-modal-footer {
-  margin: 14px 0 0;
+  margin: 10px 0 0;
   font-size: 11px;
   color: #aaa;
   text-align: center;
+}
+
+.quota-rules-desc {
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(180, 150, 120, 0.05);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #6a5a4a;
+  line-height: 1.6;
+}
+
+.rule-item {
+  margin-bottom: 6px;
+}
+.rule-item:last-child {
+  margin-bottom: 0;
+}
+.rule-item strong {
+  color: #4a7c62;
 }
 
 /* daily exp progress strip */
