@@ -181,6 +181,7 @@
           <div class="rule-item"><strong>💡 AI 分析：</strong>发布或修改日记时自动触发（含基础配图提炼）。</div>
           <div class="rule-item"><strong>💡 图片分析：</strong>聊天时向 AI 追问图片内的具体文字、细节（基础提炼未涵盖的内容）时才触发。</div>
           <div class="rule-item"><strong>💡 深度思考：</strong>当您的问题涉及复杂心理分析、建议或情绪梳理时，后台智能路由会自动为您开启长链路推演。</div>
+          <div class="rule-item" style="opacity: 0.7"><strong>💡 共鸣检索：</strong>功能加紧开发中，敬请期待...</div>
         </div>
 
         <p class="quota-modal-footer">AI 聊天 / 分析 / 思考 / 检索 / 传图 每日 0 点重置 · 报告每月 1 日重置</p>
