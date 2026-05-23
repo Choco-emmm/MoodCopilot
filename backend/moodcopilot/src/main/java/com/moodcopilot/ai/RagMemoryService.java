@@ -407,10 +407,19 @@ public class RagMemoryService {
                 }
                 hits.sort(java.util.Comparator.comparing(RagHit::score, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
                 int rawHits = hits.size();
-                // 质量过滤
-                List<RagHit> qualityHits = hits.stream()
-                        .filter(h -> h.score() != null && h.score() > 0.001 && h.score() < 1.0)
+                List<RagHit> validHits = hits.stream()
+                        .filter(h -> h.score() != null && h.score() > 0.001 && h.score() < 0.55)
                         .toList();
+                validHits = new ArrayList<>(validHits);
+                validHits.sort(java.util.Comparator.comparing(RagHit::score, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
+                
+                // 动态阈值截断：排除与 Top 1 差距过大的噪音数据
+                List<RagHit> qualityHits = new ArrayList<>();
+                if (!validHits.isEmpty()) {
+                    double topScore = validHits.get(0).score();
+                    double threshold = Math.min(0.55, topScore + 0.18);
+                    qualityHits = validHits.stream().filter(h -> h.score() <= threshold).toList();
+                }
                 qualityHits = new ArrayList<>(qualityHits);
                 qualityHits.sort(java.util.Comparator.comparing(RagHit::score, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
                 log.info("RAG 搜索完成 userId={} totalHits={} qualityHits={}",
