@@ -806,6 +806,7 @@ public class DiaryService {
                 String cached = redisTemplate.opsForValue().get(cacheKey);
                 if (cached != null) {
                     WeeklyReportView cachedReport = objectMapper.readValue(cached, WeeklyReportView.class);
+                    cachedReport = patchValenceArousal(cachedReport);
                     return withFreshness(cachedReport, userId, monthOffset, true);
                 }
             } catch (Exception e) {
@@ -814,6 +815,7 @@ public class DiaryService {
 
             WeeklyReportView dbReport = loadReportFromDb(userId, monthOffset, true);
             if (dbReport != null) {
+                dbReport = patchValenceArousal(dbReport);
                 dbReport = withFreshness(dbReport, userId, monthOffset, true);
                 try {
                     redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(dbReport),
@@ -968,6 +970,7 @@ public class DiaryService {
                 String cached = redisTemplate.opsForValue().get(cacheKey);
                 if (cached != null) {
                     WeeklyReportView cachedReport = objectMapper.readValue(cached, WeeklyReportView.class);
+                    cachedReport = patchValenceArousal(cachedReport);
                     return withFreshness(cachedReport, userId, weekOffset, false);
                 }
             } catch (Exception e) {
@@ -976,6 +979,7 @@ public class DiaryService {
 
             WeeklyReportView dbReport = loadReportFromDb(userId, weekOffset, false);
             if (dbReport != null) {
+                dbReport = patchValenceArousal(dbReport);
                 dbReport = withFreshness(dbReport, userId, weekOffset, false);
                 try {
                     redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(dbReport),
@@ -1211,6 +1215,26 @@ public class DiaryService {
             log.debug("Failed to load report from DB for userId={}, offset={}, monthly={}", userId, offset, monthly, e);
             return null;
         }
+    }
+
+    private WeeklyReportView patchValenceArousal(WeeklyReportView report) {
+        if (report == null || report.dailyMoods() == null || report.dailyMoods().isEmpty()) return report;
+        boolean needsPatch = report.dailyMoods().stream()
+                .anyMatch(m -> m.valence() == null || m.arousal() == null);
+        if (!needsPatch) return report;
+        List<WeeklyReportView.DailyMood> patched = report.dailyMoods().stream()
+                .map(m -> new WeeklyReportView.DailyMood(
+                        m.date(), m.moodLabel(), m.moodIntensity(),
+                        m.valence() != null ? m.valence() : AiAnalysisService.estimateValence(m.moodLabel(), m.moodIntensity()),
+                        m.arousal() != null ? m.arousal() : AiAnalysisService.estimateArousal(m.moodLabel(), m.moodIntensity()),
+                        m.diaryIds(), m.contentSnippet()))
+                .toList();
+        return new WeeklyReportView(
+                report.weekLabel(), report.diaryCount(), patched, report.topics(),
+                report.moodDistribution(), report.dominantQuadrant(),
+                report.positiveRatioPercent(), report.highEnergyRatioPercent(),
+                report.aiSummary(), report.insights(), report.suggestions(),
+                report.followUpPrompt(), report.generatedAt(), report.stale());
     }
 
     public boolean hasUnreportedDiaries(long userId, LocalDate startDate, LocalDate endDate,
