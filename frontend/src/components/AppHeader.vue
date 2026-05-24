@@ -198,6 +198,7 @@ import { useAuthStore } from '../stores/auth'
 import { useNotificationStore } from '../stores/notification'
 import { authApi, growthApi } from '../api'
 import { tryExpToast, expToast } from '../utils/toast'
+import { logWarn } from '../utils/logger'
 
 const router = useRouter()
 const route = useRoute()
@@ -231,7 +232,7 @@ async function fetchGrowth() {
   try {
     const res = await growthApi.status()
     if (res.data.data) growth.value = res.data.data
-  } catch { /* ignore */ }
+  } catch (e) { logWarn('header', '加载成长数据失败', e) }
 }
 
 async function doCheckIn() {
@@ -246,7 +247,7 @@ async function doCheckIn() {
       expToast(`签到 +${res.data.data.exp} EXP`)
       await fetchGrowth()
     }
-  } catch { /* ignore */ }
+  } catch (e) { logWarn('header', '签到失败', e) }
   finally { checkingIn.value = false }
 }
 const profilePath = computed(() => (auth.userId != null ? `/profile/${auth.userId}` : '/login'))

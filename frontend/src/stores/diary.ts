@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import { diaryApi } from '../api'
 import { normalizeResourceUrl } from '../utils/resource'
 import { tryExpToast } from '../utils/toast'
+import { logWarn } from '../utils/logger'
 
 export interface MusicMeta {
   title: string
@@ -145,7 +146,8 @@ export const useDiaryStore = defineStore('diary', () => {
       const existing = new Set(publicDiaries.value.map(d => d.id))
       publicDiaries.value.push(...items.filter((item: Diary) => !existing.has(item.id)))
       hasMore.value = hasNextPage(pdata, publicPage.value, 20)
-    } catch {
+    } catch (e) {
+      logWarn('diary', '加载更多公开日记失败', e)
       publicPage.value = Math.max(1, publicPage.value - 1)
       hasMore.value = false
     } finally {
@@ -253,7 +255,8 @@ export const useDiaryStore = defineStore('diary', () => {
           showGlobalAnalysisModal.value = true
           clearAnalysisPollTimer()
         }
-      } catch {
+      } catch (e) {
+        logWarn('diary', '轮询分析结果失败', diaryId, e)
         analysisStatus.value = 'failed'
         clearAnalysisPollTimer()
       }
@@ -279,7 +282,8 @@ export const useDiaryStore = defineStore('diary', () => {
         globalAnalysisDiary.value = updated
         showGlobalAnalysisModal.value = true
       }
-    } catch {
+    } catch (e) {
+      logWarn('diary', '刷新分析失败', diaryId, e)
       analysisStatus.value = 'failed'
     }
   }

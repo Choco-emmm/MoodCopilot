@@ -47,6 +47,7 @@ import PublicFeed from '../components/PublicFeed.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { diaryApi } from '../api'
 import { renderSafeMarkdown, stripMarkdown } from '../utils/markdown'
+import { logWarn } from '../utils/logger'
 
 function snippet(diary: any): string {
   if (!diary?.content) return ''
@@ -60,7 +61,7 @@ const matchDiary = ref<any>(null)
 
 onMounted(async () => {
   store.fetchDiaries()
-  try { const res = await diaryApi.todayMatch(); matchDiary.value = res.data.data } catch { /* ignore */ }
+  try { const res = await diaryApi.todayMatch(); matchDiary.value = res.data.data } catch (e) { logWarn('square', '加载今日同频失败', e) }
 })
 
 </script>

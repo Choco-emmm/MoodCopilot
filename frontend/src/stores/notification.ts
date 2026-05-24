@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { notificationApi } from '../api'
+import { logWarn } from '../utils/logger'
 
 export interface Notification {
   id: number
@@ -58,8 +59,8 @@ export const useNotificationStore = defineStore('notification', () => {
       if (!socket.value || socket.value.readyState !== WebSocket.OPEN) return
       try {
         socket.value.send('ping')
-      } catch {
-        // ignore send errors and let close handler reconnect
+      } catch (e) {
+        logWarn('ws', '心跳发送失败', e)
       }
     }, HEARTBEAT_INTERVAL_MS)
   }
@@ -98,7 +99,8 @@ export const useNotificationStore = defineStore('notification', () => {
     try {
       const res = await notificationApi.wsTicket()
       ticket = res.data.data.ticket
-    } catch {
+    } catch (e) {
+      logWarn('ws', '获取 WS ticket 失败', e)
       // 获取 ticket 失败，启动轮询兜底
       startFallbackPolling()
       scheduleReconnect()
@@ -121,8 +123,8 @@ export const useNotificationStore = defineStore('notification', () => {
         if (payload?.type === 'NOTIFICATION') {
           mergeIncomingNotification(payload.data as Notification)
         }
-      } catch {
-        // ignore malformed payload
+      } catch (e) {
+        logWarn('ws', '收到无法解析的 WS 消息', event.data, e)
       }
     }
 
@@ -180,7 +182,7 @@ export const useNotificationStore = defineStore('notification', () => {
       const res = await notificationApi.unreadCount()
       unreadCount.value = res.data.data.count
       unreadFetchedAt.value = Date.now()
-    } catch { /* ignore */ }
+    } catch (e) { logWarn('notif', '获取未读数失败', e) }
     finally {
       unreadLoading.value = false
     }
@@ -225,7 +227,7 @@ export const useNotificationStore = defineStore('notification', () => {
         isRead: true,
       }))
       unreadCount.value = 0
-    } catch { /* ignore */ }
+    } catch (e) { logWarn('notif', '标记全部已读失败', e) }
   }
 
   return {

@@ -506,6 +506,7 @@ import { authApi, diaryApi, memoryApi, suggestionApi } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
+import { logWarn } from '../utils/logger'
 
 const route = useRoute()
 const router = useRouter()
@@ -831,7 +832,8 @@ async function loadMemories() {
   try {
     const res = await memoryApi.getAll()
     memories.value = (res.data.data ?? []) as MemoryItem[]
-  } catch {
+  } catch (e) {
+    logWarn('profile', '加载记忆失败', e)
     memories.value = []
   } finally {
     memoriesLoading.value = false
@@ -843,8 +845,8 @@ async function forgetMemory(id: number) {
   try {
     await memoryApi.forget(id)
     memories.value = memories.value.filter((m) => m.id !== id)
-  } catch {
-    // ignore
+  } catch (e) {
+    logWarn('profile', '删除记忆失败', id, e)
   } finally {
     deletingMemoryId.value = null
   }
@@ -868,8 +870,8 @@ async function saveMemory(id: number) {
     }
     editingMemoryId.value = null
     editingMemoryValue.value = ''
-  } catch {
-    // ignore
+  } catch (e) {
+    logWarn('profile', '保存记忆失败', id, e)
   } finally {
     savingMemoryId.value = null
   }
@@ -892,6 +894,7 @@ async function consolidateMemories() {
     if (err.response?.status === 429 || (err.response?.data?.message && err.response.data.message.includes('每天最多只能进行两次'))) {
       alert('每天最多只能进行两次智能整理，请明天再试吧')
     } else {
+      logWarn('profile', '记忆整理失败', err)
       alert('记忆碎片整理失败，请稍后重试')
     }
   } finally {
@@ -1083,8 +1086,9 @@ function handleCrop() {
       }
       uploadMsg.value = '头像已更新'
       showCropModal.value = false
-    } catch {
+    } catch (e) {
       uploadMsg.value = '上传失败'
+      logWarn('profile', '头像上传失败', e)
     } finally {
       uploading.value = false
     }
@@ -1104,8 +1108,8 @@ async function checkEditingName() {
     } else {
       if (nameMsg.value === '该用户名已被占用') nameMsg.value = ''
     }
-  } catch {
-    // ignore
+  } catch (e) {
+    logWarn('profile', '检查用户名可用性失败', name, e)
   }
 }
 
@@ -1141,7 +1145,8 @@ async function saveSignature() {
       profileSignature.value = editingSignature.value
     }
     signatureMsg.value = '个性签名已更新'
-  } catch {
+  } catch (e) {
+    logWarn('profile', '保存签名失败', e)
     signatureMsg.value = '保存失败'
   } finally {
     savingSignature.value = false
@@ -1152,8 +1157,8 @@ async function toggleNotify(val: boolean) {
   toggling.value = true
   try {
     await auth.updateSettings(val)
-  } catch {
-    // ignore
+  } catch (e) {
+    logWarn('profile', '更新通知设置失败', e)
   } finally {
     toggling.value = false
   }

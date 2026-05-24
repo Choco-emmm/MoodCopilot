@@ -319,6 +319,7 @@ import { chatApi, diaryApi } from '../api'
 import { renderSafeMarkdown } from '../utils/markdown'
 import { tryExpToast } from '../utils/toast'
 import { useAuthStore } from '../stores/auth'
+import { logWarn } from '../utils/logger'
 
 const authStore = useAuthStore()
 const userInitial = computed(() => {
@@ -649,7 +650,7 @@ async function loadConversations() {
         messages.value = []
       }
     }
-  } catch { conversations.value = [] }
+  } catch (e) { logWarn('chat', '加载会话列表失败', e); conversations.value = [] }
 }
 
 async function selectConversation(id: number) {
@@ -722,8 +723,8 @@ async function syncFromServer(forceScroll: boolean) {
     if (convListSyncTick % 3 === 0) {
       await loadConversations()
     }
-  } catch {
-    // ignore sync failures to avoid interrupting user input
+  } catch (e) {
+    logWarn('chat', '同步消息失败', e)
   }
 }
 
@@ -751,7 +752,7 @@ async function createConversation() {
     activeConvId.value = null
     sessionStorage.removeItem('currentChatId')
     messages.value = []
-  } catch { /* ignore */ }
+  } catch (e) { logWarn('chat', '创建会话失败', e) }
 }
 
 async function doCreateConversationOnServer() {
@@ -765,7 +766,7 @@ async function doCreateConversationOnServer() {
 async function deleteConversation(id: number) {
   try {
     await chatApi.deleteConversation(id)
-  } catch { /* ignore */ }
+  } catch (e) { logWarn('chat', '删除会话失败', id, e) }
   conversations.value = conversations.value.filter(c => c.id !== id)
   if (id === activeConvId.value) {
     activeConvId.value = null
@@ -846,7 +847,8 @@ async function send() {
     creatingConversation.value = true
     try {
       await doCreateConversationOnServer()
-    } catch {
+    } catch (e) {
+      logWarn('chat', '创建会话请求失败', e)
       creatingConversation.value = false
       return
     }
@@ -973,7 +975,8 @@ async function finishSend(convId: number) {
   scrollBottom()
   try {
     await saveToBackend(convId)
-  } catch {
+  } catch (e) {
+    logWarn('chat', '发送后保存历史失败', e)
     syncCooldownUntil.value = Date.now() + 5000
   }
   loadConversations()
@@ -1068,9 +1071,10 @@ async function loadRecentDiaryOptions() {
     }
 
     recentDiaryOptions.value = options
-  } catch {
+  } catch (e) {
     recentDiaryOptions.value = []
     recentDiariesError.value = '加载最近日记失败'
+    logWarn('chat', '加载最近日记选项失败', e)
   } finally {
     recentDiariesLoading.value = false
   }

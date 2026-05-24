@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
+import { logError } from '../utils/logger'
 
 const api = axios.create({ baseURL: '/api' })
 
@@ -24,6 +25,9 @@ api.interceptors.response.use(
   (error) => {
     const status = error.response?.status
     const requestUrl = String(error.config?.url ?? '')
+    const method = String(error.config?.method ?? '').toUpperCase()
+    const msg = error.response?.data?.message || error.message || '未知错误'
+    logError('api', `${method} ${requestUrl} → ${status ?? 'NET_ERR'}: ${msg}`)
     const isQuotaRequest = requestUrl.includes('/user/quota')
     if (status === 401 && !isQuotaRequest) {
       localStorage.removeItem('token')

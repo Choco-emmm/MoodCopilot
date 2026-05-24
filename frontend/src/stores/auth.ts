@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { authApi } from '../api'
 import { normalizeResourceUrl } from '../utils/resource'
+import { logWarn } from '../utils/logger'
 
 function getInitialToken() {
   const token = localStorage.getItem('token')
@@ -68,7 +69,7 @@ export const useAuthStore = defineStore('auth', () => {
       nameChangeCount.value = data.nameChangeCount ?? 0
       nameChangeWeek.value = data.nameChangeWeek ?? 0
       saveRole(data.role)
-    } catch { /* ignore */ }
+    } catch (e) { logWarn('auth', 'fetchProfile 失败', e) }
   }
 
   async function updateProfile(name?: string, avatarUrl?: string, signatureText?: string) {

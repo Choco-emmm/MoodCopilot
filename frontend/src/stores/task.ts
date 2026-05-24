@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { growthApi, type CheckInStatus, type DailyTaskItem } from '../api'
+import { logWarn } from '../utils/logger'
 
 export const useTaskStore = defineStore('task', () => {
   const LEVEL_THRESHOLDS = [0, 150, 500, 1500, 4000, 10000]
@@ -73,8 +74,8 @@ export const useTaskStore = defineStore('task', () => {
         userLevel.value = status.level ?? 1
         expToNextLevel.value = status.expToNextLevel ?? LEVEL_THRESHOLDS[1]
       }
-    } catch {
-      // 静默降级
+    } catch (e) {
+      logWarn('task', '加载签到状态失败', e)
     }
   }
 
@@ -84,7 +85,8 @@ export const useTaskStore = defineStore('task', () => {
     try {
       const res = await growthApi.progress()
       tasks.value = (res.data.data ?? []) as DailyTaskItem[]
-    } catch {
+    } catch (e) {
+      logWarn('task', '加载每日任务失败', e)
       tasks.value = []
     } finally {
       tasksLoading.value = false

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { followApi } from '../api'
+import { logWarn } from '../utils/logger'
 
 export const useFollowStore = defineStore('follow', () => {
   const followingMap = ref<Record<number, boolean>>({})
@@ -10,8 +11,8 @@ export const useFollowStore = defineStore('follow', () => {
     try {
       const res = await followApi.status(userId)
       followingMap.value[userId] = res.data.data.following
-    } catch {
-      // ignore
+    } catch (e) {
+      logWarn('follow', '查询关注状态失败', userId, e)
     }
   }
 
