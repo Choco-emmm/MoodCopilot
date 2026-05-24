@@ -241,6 +241,7 @@ async function loadDiaryByRoute() {
     return
   }
 
+  diary.value = null
   try {
     const res = await diaryApi.get(id)
     diary.value = store.normalize(res.data.data)
