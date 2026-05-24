@@ -91,7 +91,7 @@
                   <n-tag :color="{ color: moodColor(day.moodLabel), textColor: '#fff' }" size="small" round>{{ day.moodLabel }}</n-tag>
                 </div>
                 <div v-if="day.contentSnippet" class="mood-snippet" @click="goDiary(day.diaryIds)">
-                  「{{ day.contentSnippet }}{{ day.contentSnippet.length >= 30 ? '...' : '' }}」
+                  「{{ day.contentSnippet.length > 30 ? day.contentSnippet.slice(0, 30) + '...' : day.contentSnippet }}」
                 </div>
               </div>
             </div>
@@ -234,7 +234,7 @@
                 <span class="mood-snippet-date">{{ formatDay(day.date) }}</span>
                 <span class="mood-snippet-tag" :style="{ color: moodColor(day.moodLabel) }">{{ day.moodLabel }}</span>
                 <span class="mood-snippet-intensity">强度 {{ day.moodIntensity }}/5</span>
-                <span v-if="day.contentSnippet" class="mood-snippet-text">「{{ day.contentSnippet }}{{ day.contentSnippet.length >= 30 ? '...' : '' }}」</span>
+                <span v-if="day.contentSnippet" class="mood-snippet-text">「{{ day.contentSnippet.length > 30 ? day.contentSnippet.slice(0, 30) + '...' : day.contentSnippet }}」</span>
               </div>
             </div>
 
@@ -314,7 +314,7 @@
                   <n-tag :color="{ color: moodColor(day.moodLabel), textColor: '#fff' }" size="small" round>{{ day.moodLabel }}</n-tag>
                 </div>
                 <div v-if="day.contentSnippet" class="mood-snippet" @click="goDiary(day.diaryIds)">
-                  「{{ day.contentSnippet }}{{ day.contentSnippet.length >= 30 ? '...' : '' }}」
+                  「{{ day.contentSnippet.length > 30 ? day.contentSnippet.slice(0, 30) + '...' : day.contentSnippet }}」
                 </div>
               </div>
             </div>
