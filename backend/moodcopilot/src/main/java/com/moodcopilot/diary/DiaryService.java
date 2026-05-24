@@ -1407,7 +1407,7 @@ public class DiaryService {
         comment.setUpdatedAt(LocalDateTime.now());
         diaryCommentMapper.insert(comment);
 
-        String snippet = content.length() > 30 ? content.substring(0, 30) + "..." : content;
+        String snippet = com.moodcopilot.common.TextSnippetUtil.generateSnippet(content, 30);
 
         // 通知日记作者
         if (!commenter.getId().equals(diary.getAuthorUserId())) {
@@ -1496,12 +1496,11 @@ public class DiaryService {
     }
 
     private String toDiarySnippet(String content) {
-        if (content == null)
+        String snippet = com.moodcopilot.common.TextSnippetUtil.generateSnippet(content, 12);
+        if (snippet.isEmpty()) {
             return "这篇日记";
-        String normalized = content.strip();
-        if (normalized.isEmpty())
-            return "这篇日记";
-        return normalized.length() > 12 ? normalized.substring(0, 12) + "..." : normalized;
+        }
+        return snippet;
     }
 
     private DiaryView toDiaryView(DiaryEntity diary) {

@@ -164,9 +164,7 @@ public class NotificationService {
             n.setRecipientUserId(recipientUserId);
             n.setDiaryId(diaryId);
             n.setType("ENCOURAGEMENT");
-            String preview = message != null && message.length() > 30
-                    ? message.substring(0, 30) + "..."
-                    : message;
+            String preview = com.moodcopilot.common.TextSnippetUtil.generateSnippet(message, 30);
             n.setMessage("有人给你的日记送来了鼓励：" + preview);
             n.setIsMarkdown(false);
             n.setIsRead(false);

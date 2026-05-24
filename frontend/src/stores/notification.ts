@@ -84,88 +84,107 @@ export const useNotificationStore = defineStore('notification', () => {
     }, 15000)
   }
 
+  const isConnecting = ref(false)
+
   async function connectRealtime() {
     const token = localStorage.getItem('token')
     if (!token) return
     if (socket.value && (socket.value.readyState === WebSocket.OPEN || socket.value.readyState === WebSocket.CONNECTING)) {
       return
     }
+    if (isConnecting.value) return
 
-    manualClose.value = false
-    clearReconnectTimer()
-    clearFallbackPollTimer()
-
-    // 先请求短期 ticket，再建立 WS 连接（避免 JWT 出现在 URL 日志中）
-    let ticket: string
+    isConnecting.value = true
     try {
-      const res = await notificationApi.wsTicket()
-      ticket = res.data.data.ticket
-    } catch (e) {
-      logWarn('ws', '获取 WS ticket 失败', e)
-      // 获取 ticket 失败，启动轮询兜底
-      startFallbackPolling()
-      scheduleReconnect()
-      return
-    }
-
-    const ws = new WebSocket(notificationApi.wsUrl(ticket))
-    socket.value = ws
-
-    ws.onopen = () => {
-      reconnectAttempts.value = 0
-      startHeartbeat()
+      manualClose.value = false
+      clearReconnectTimer()
       clearFallbackPollTimer()
-      void fetchUnreadCount(true)
-    }
 
-    ws.onmessage = (event) => {
+      // 先请求短期 ticket，再建立 WS 连接（避免 JWT 出现在 URL 日志中）
+      let ticket: string
       try {
-        const payload = JSON.parse(event.data)
-        if (payload?.type === 'NOTIFICATION') {
-          mergeIncomingNotification(payload.data as Notification)
-        } else if (payload?.type === 'MEMORY_UPDATED' || payload?.type === 'GRAPH_UPDATED') {
-          if (window.$notification) {
-            const msg = payload.data?.message || (payload.type === 'MEMORY_UPDATED' ? '✨ AI 已更新了关于你的长期记忆' : '🕸️ AI 已提取了新的事件因果关系')
-            const diff = payload.data?.diff
-
-            const nodes: any[] = []
-            if (diff) {
-              if (payload.type === 'MEMORY_UPDATED') {
-                diff.added?.forEach((item: any) => nodes.push(h('div', { style: 'color: #18a058; margin-top: 4px; font-size: 13px;' }, `+ [${item.key}] ${item.value}`)))
-                diff.updated?.forEach((item: any) => nodes.push(h('div', { style: 'color: #f0a020; margin-top: 4px; font-size: 13px;' }, `~ [${item.key}] ${item.oldValue} ➔ ${item.newValue}`)))
-                diff.deleted?.forEach((item: any) => nodes.push(h('div', { style: 'color: #d03050; text-decoration: line-through; margin-top: 4px; font-size: 13px;' }, `- [${item.key}] ${item.value}`)))
-              } else if (payload.type === 'GRAPH_UPDATED') {
-                diff.added?.forEach((item: any) => nodes.push(h('div', { style: 'color: #18a058; margin-top: 4px; font-size: 13px;' }, `+ ${item.head} —[${item.relation}]→ ${item.tail}`)))
-                diff.deleted?.forEach((item: any) => nodes.push(h('div', { style: 'color: #d03050; text-decoration: line-through; margin-top: 4px; font-size: 13px;' }, `- ${item.head} —[${item.relation}]→ ${item.tail}`)))
-              }
-            }
-
-            window.$notification.create({
-              title: payload.type === 'MEMORY_UPDATED' ? '🧠 画像更新' : '🕸️ 图谱更新',
-              content: () => h('div', null, [
-                h('div', { style: 'font-weight: bold; margin-bottom: 8px;' }, msg),
-                ...nodes
-              ]),
-              meta: new Date().toLocaleTimeString(),
-              duration: 8000,
-              keepAliveOnHover: true
-            })
-          }
-        }
+        const res = await notificationApi.wsTicket()
+        ticket = res.data.data.ticket
       } catch (e) {
-        logWarn('ws', '收到无法解析的 WS 消息', event.data, e)
+        logWarn('ws', '获取 WS ticket 失败', e)
+        // 获取 ticket 失败，启动轮询兜底
+        startFallbackPolling()
+        scheduleReconnect()
+        return
       }
-    }
 
-    ws.onclose = () => {
-      socket.value = null
-      clearHeartbeatTimer()
-      startFallbackPolling()
-      scheduleReconnect()
-    }
+      const ws = new WebSocket(notificationApi.wsUrl(ticket))
+      socket.value = ws
 
-    ws.onerror = () => {
-      ws.close()
+      ws.onopen = () => {
+        reconnectAttempts.value = 0
+        startHeartbeat()
+        clearFallbackPollTimer()
+        void fetchUnreadCount(true)
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data)
+          if (payload?.type === 'NOTIFICATION') {
+            mergeIncomingNotification(payload.data as Notification)
+          } else if (payload?.type === 'MEMORY_UPDATED' || payload?.type === 'GRAPH_UPDATED') {
+            if (window.$notification) {
+              const msg = payload.data?.message || (payload.type === 'MEMORY_UPDATED' ? '✨ AI 已更新了关于你的长期记忆' : '🕸️ AI 已提取了新的事件因果关系')
+              const diff = payload.data?.diff
+
+              const nodes: any[] = []
+              const lineStyle = (color: string) => ({ 
+                style: `color: ${color}; margin-top: 4px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;` 
+              })
+
+              if (diff) {
+                if (payload.type === 'MEMORY_UPDATED') {
+                  diff.added?.forEach((item: any) => nodes.push(h('div', lineStyle('#18a058'), `+ [${item.key}] ${item.value}`)))
+                  diff.updated?.forEach((item: any) => nodes.push(h('div', lineStyle('#f0a020'), `~ [${item.key}] ${item.oldValue} ➔ ${item.newValue}`)))
+                  diff.deleted?.forEach((item: any) => nodes.push(h('div', { ...lineStyle('#d03050'), style: lineStyle('#d03050').style + ' text-decoration: line-through;' }, `- [${item.key}] ${item.value}`)))
+                } else if (payload.type === 'GRAPH_UPDATED') {
+                  diff.added?.forEach((item: any) => nodes.push(h('div', lineStyle('#18a058'), `+ ${item.head} —[${item.relation}]→ ${item.tail}`)))
+                  diff.deleted?.forEach((item: any) => nodes.push(h('div', { ...lineStyle('#d03050'), style: lineStyle('#d03050').style + ' text-decoration: line-through;' }, `- ${item.head} —[${item.relation}]→ ${item.tail}`)))
+                }
+              }
+
+              const MAX_DISPLAY_NODES = 3;
+              if (nodes.length > MAX_DISPLAY_NODES) {
+                const hiddenCount = nodes.length - MAX_DISPLAY_NODES;
+                nodes.splice(MAX_DISPLAY_NODES);
+                nodes.push(h('div', { style: 'color: #999; margin-top: 8px; font-size: 12px; font-style: italic;' }, `...以及其他 ${hiddenCount} 项变更`));
+              }
+
+              window.$notification.create({
+                title: payload.type === 'MEMORY_UPDATED' ? '🧠 画像更新' : '🕸️ 图谱更新',
+                content: () => h('div', null, [
+                  h('div', { style: 'font-weight: bold; margin-bottom: 8px;' }, msg),
+                  ...nodes
+                ]),
+                meta: new Date().toLocaleTimeString(),
+                duration: 8000,
+                keepAliveOnHover: true
+              })
+            }
+          }
+        } catch (e) {
+          logWarn('ws', '收到无法解析的 WS 消息', event.data, e)
+        }
+      }
+
+      ws.onclose = () => {
+        socket.value = null
+        clearHeartbeatTimer()
+        startFallbackPolling()
+        scheduleReconnect()
+      }
+
+      ws.onerror = () => {
+        ws.close()
+      }
+    } finally {
+      isConnecting.value = false
     }
   }
 
