@@ -1735,7 +1735,7 @@ public class DiaryService {
     public static String snippet(String content) {
         if (content == null || content.isEmpty())
             return "";
-        return content.length() > 30 ? content.substring(0, 30) : content;
+        return content.length() > 500 ? content.substring(0, 500) + "..." : content;
     }
 
     // ── Daily status ──
