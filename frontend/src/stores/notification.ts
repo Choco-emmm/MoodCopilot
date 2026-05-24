@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, h } from 'vue'
 import { notificationApi } from '../api'
+import router from '../router'
 import { logWarn } from '../utils/logger'
 
 export interface Notification {
@@ -122,6 +123,17 @@ export const useNotificationStore = defineStore('notification', () => {
         const payload = JSON.parse(event.data)
         if (payload?.type === 'NOTIFICATION') {
           mergeIncomingNotification(payload.data as Notification)
+        } else if (payload?.type === 'MEMORY_UPDATED' || payload?.type === 'GRAPH_UPDATED') {
+          if (window.$message) {
+            const msg = payload.data?.message || (payload.type === 'MEMORY_UPDATED' ? '✨ AI 已更新了关于你的长期记忆' : '🕸️ AI 已提取了新的事件因果关系')
+            window.$message.success(
+              () => h('span', {
+                style: 'cursor: pointer; text-decoration: underline;',
+                onClick: () => router.push('/ai-memory')
+              }, msg + '，点击查看 →'),
+              { duration: 5000 }
+            )
+          }
         }
       } catch (e) {
         logWarn('ws', '收到无法解析的 WS 消息', event.data, e)

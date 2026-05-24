@@ -259,54 +259,7 @@
           </div>
         </section>
 
-        <section class="settings-section">
-          <div class="section-head" style="display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <p class="settings-label">我的记忆</p>
-              <span class="section-tag">Memory</span>
-            </div>
-            <n-button size="tiny" secondary type="primary" :loading="consolidatingMemory" @click="consolidateMemories">
-              ✨ 智能整理记忆
-            </n-button>
-          </div>
-          <p class="memory-desc">MoodCopilot 从你的日记和聊天中学习的长期画像，你可以编辑修正或删除不想要的部分。如果碎片太多，可以尝试智能整理归并。</p>
-          <div v-if="memoriesLoading" class="memory-loading">加载中...</div>
-          <div v-else-if="memories.length === 0" class="memory-empty">
-            MoodCopilot 正在默默观察你，多写点日记或和 AI 聊天吧。
-          </div>
-          <div v-else class="memory-list">
-            <div v-for="m in memories" :key="m.id" class="memory-item">
-              <div class="memory-content">
-                <span class="memory-key">{{ m.attributeKey }}</span>
-                <template v-if="editingMemoryId === m.id">
-                  <n-input
-                    v-model:value="editingMemoryValue"
-                    size="small"
-                    class="memory-edit-input"
-                    :maxlength="500"
-                    @keyup.enter="saveMemory(m.id)"
-                    @keyup.escape="cancelEditMemory"
-                  />
-                </template>
-                <span v-else class="memory-value">{{ m.attributeValue }}</span>
-              </div>
-              <div class="memory-actions" style="display: flex; gap: 4px; align-items: center; margin-left: auto;">
-                <template v-if="editingMemoryId === m.id">
-                  <n-button size="small" secondary type="primary" :disabled="savingMemoryId === m.id" @click="saveMemory(m.id)" style="font-size: 12px; padding: 0 8px;">
-                    {{ savingMemoryId === m.id ? '...' : '保存' }}
-                  </n-button>
-                  <n-button size="small" secondary @click="cancelEditMemory" style="font-size: 12px; padding: 0 8px;">取消</n-button>
-                </template>
-                <template v-else>
-                  <n-button size="small" secondary @click="startEditMemory(m)" style="font-size: 12px; padding: 0 8px;">编辑</n-button>
-                  <n-button size="small" secondary type="error" :disabled="deletingMemoryId === m.id" @click="forgetMemory(m.id)" style="font-size: 12px; padding: 0 8px;">
-                    {{ deletingMemoryId === m.id ? '...' : '删除' }}
-                  </n-button>
-                </template>
-              </div>
-            </div>
-          </div>
-        </section>
+
 
         <section class="settings-section danger-zone">
           <div class="section-head">
@@ -536,19 +489,7 @@ const visibilityOpts = [
   { label: '公开', value: 'PUBLIC' },
 ]
 
-interface MemoryItem {
-  id: number
-  attributeKey: string
-  attributeValue: string
-}
 
-const memories = ref<MemoryItem[]>([])
-const memoriesLoading = ref(false)
-const consolidatingMemory = ref(false)
-const deletingMemoryId = ref<number | null>(null)
-const editingMemoryId = ref<number | null>(null)
-const editingMemoryValue = ref('')
-const savingMemoryId = ref<number | null>(null)
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const editingName = ref('')
@@ -776,9 +717,7 @@ function openSettingsModal() {
 async function hydrateSettingsData() {
   await auth.fetchProfile()
   editingName.value = auth.displayName ?? ''
-  editingSignature.value = auth.signature ?? ''
   suggestionContent.value = ''
-  await loadMemories()
 }
 
 async function submitSuggestion() {
@@ -827,80 +766,7 @@ async function loadMoreAdminSuggestions() {
   }
 }
 
-async function loadMemories() {
-  memoriesLoading.value = true
-  try {
-    const res = await memoryApi.getAll()
-    memories.value = (res.data.data ?? []) as MemoryItem[]
-  } catch (e) {
-    logWarn('profile', '加载记忆失败', e)
-    memories.value = []
-  } finally {
-    memoriesLoading.value = false
-  }
-}
 
-async function forgetMemory(id: number) {
-  deletingMemoryId.value = id
-  try {
-    await memoryApi.forget(id)
-    memories.value = memories.value.filter((m) => m.id !== id)
-  } catch (e) {
-    logWarn('profile', '删除记忆失败', id, e)
-  } finally {
-    deletingMemoryId.value = null
-  }
-}
-
-function startEditMemory(m: MemoryItem) {
-  editingMemoryId.value = m.id
-  editingMemoryValue.value = m.attributeValue
-}
-
-async function saveMemory(id: number) {
-  const value = editingMemoryValue.value.trim()
-  if (!value) return
-
-  savingMemoryId.value = id
-  try {
-    await memoryApi.update(id, { attributeValue: value })
-    const idx = memories.value.findIndex((m) => m.id === id)
-    if (idx !== -1) {
-      memories.value[idx] = { ...memories.value[idx], attributeValue: value }
-    }
-    editingMemoryId.value = null
-    editingMemoryValue.value = ''
-  } catch (e) {
-    logWarn('profile', '保存记忆失败', id, e)
-  } finally {
-    savingMemoryId.value = null
-  }
-}
-
-function cancelEditMemory() {
-  editingMemoryId.value = null
-  editingMemoryValue.value = ''
-}
-
-async function consolidateMemories() {
-  if (consolidatingMemory.value) return
-  consolidatingMemory.value = true
-  try {
-    await memoryApi.consolidate()
-    await loadMemories()
-    window.$message?.success('记忆碎片整理完成')
-  } catch (err: any) {
-    console.error('Failed to consolidate memories', err)
-    if (err.response?.status === 429 || (err.response?.data?.message && err.response.data.message.includes('每天最多只能进行两次'))) {
-      alert('每天最多只能进行两次智能整理，请明天再试吧')
-    } else {
-      logWarn('profile', '记忆整理失败', err)
-      alert('记忆碎片整理失败，请稍后重试')
-    }
-  } finally {
-    consolidatingMemory.value = false
-  }
-}
 
 function triggerUpload() {
   fileInput.value?.click()

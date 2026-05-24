@@ -63,6 +63,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/ai-memory',
+      name: 'ai-memory',
+      component: () => import('../pages/AiMemoryCenter.vue'),
+      meta: { requiresAuth: true, keepAlive: true },
+    },
+    {
       path: '/profile/:userId',
       name: 'profile',
       component: () => import('../pages/UserProfilePage.vue'),

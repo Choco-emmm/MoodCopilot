@@ -32,6 +32,8 @@ import java.util.stream.Collectors;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
+import com.moodcopilot.notification.NotificationService;
+
 @Service
 public class MemoryExtractionService {
 
@@ -120,6 +122,7 @@ public class MemoryExtractionService {
     private final UserMapper userMapper;
     private final StringRedisTemplate redisTemplate;
     private final RagMemoryService ragMemoryService;
+    private final NotificationService notificationService;
 
     public MemoryExtractionService(ChatClient analysisChatClient,
             UserProfileMemoryMapper userProfileMemoryMapper,
@@ -128,7 +131,8 @@ public class MemoryExtractionService {
             DiaryMapper diaryMapper,
             UserMapper userMapper,
             StringRedisTemplate redisTemplate,
-            RagMemoryService ragMemoryService) {
+            RagMemoryService ragMemoryService,
+            NotificationService notificationService) {
         this.analysisChatClient = analysisChatClient;
         this.userProfileMemoryMapper = userProfileMemoryMapper;
         this.objectMapper = objectMapper;
@@ -137,6 +141,7 @@ public class MemoryExtractionService {
         this.userMapper = userMapper;
         this.redisTemplate = redisTemplate;
         this.ragMemoryService = ragMemoryService;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -374,17 +379,19 @@ public class MemoryExtractionService {
         reindexUserProfile(user.getId());
     }
 
-    public void updateMemory(long memoryId, String newValue) {
+    public void updateMemory(long memoryId, String newValue, Boolean isCore) {
         UserEntity user = currentUser();
         UserProfileMemoryEntity entity = userProfileMemoryMapper.selectById(memoryId);
         if (entity == null || !entity.getUserId().equals(user.getId())) {
             throw new ResponseStatusException(BAD_REQUEST, "记忆记录不存在或无权操作");
         }
-        if (newValue == null || newValue.isBlank()) {
-            throw new ResponseStatusException(BAD_REQUEST, "属性值不能为空");
+        if (newValue != null && !newValue.isBlank()) {
+            String sanitized = sanitizeAttributeValue(newValue);
+            entity.setAttributeValue(sanitized);
         }
-        String sanitized = sanitizeAttributeValue(newValue);
-        entity.setAttributeValue(sanitized);
+        if (isCore != null) {
+            entity.setIsCore(isCore);
+        }
         entity.setUpdateTime(LocalDateTime.now());
         userProfileMemoryMapper.updateById(entity);
         log.info("用户手动编辑长期画像属性，userId={}，memoryId={}，attributeKey={}", user.getId(), memoryId,
@@ -602,6 +609,10 @@ public class MemoryExtractionService {
         List<UserProfileMemoryEntity> latest = listUserMemories(userId);
         if (!latest.isEmpty()) {
             ragMemoryService.indexUserProfile(userId, latest);
+        }
+
+        if (insertedCount > 0 || updatedCount > 0 || deletedCount > 0) {
+            notificationService.notifyGlobalEvent(userId, "MEMORY_UPDATED", "✨ AI 已更新了关于你的长期记忆");
         }
     }
 

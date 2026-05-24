@@ -48,7 +48,7 @@
           <span class="checkin-stat-label">本月签到</span>
         </div>
         <div class="checkin-stat">
-          <span class="checkin-stat-num">+{{ tomorrowExp }}</span>
+          <span class="checkin-stat-num">+{{ taskStore.tomorrowExp }}</span>
           <span class="checkin-stat-label">明日经验</span>
         </div>
       </div>
@@ -157,8 +157,6 @@ import type { DailyTaskItem } from '../api'
 
 const router = useRouter()
 const taskStore = useTaskStore()
-
-const tomorrowExp = taskStore.tomorrowExp
 
 const claimResult = reactive({ show: false, ok: false, msg: '', timer: 0 as number })
 

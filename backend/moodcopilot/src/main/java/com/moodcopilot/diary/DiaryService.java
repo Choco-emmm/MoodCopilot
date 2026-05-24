@@ -380,6 +380,7 @@ public class DiaryService {
 
                     if (!triples.isEmpty()) {
                         log.info("日记知识图谱提取完成，diaryId={}，共 {} 条三元组", diaryId, triples.size());
+                        notificationService.notifyGlobalEvent(userId, "GRAPH_UPDATED", "🕸️ AI 已提取了新的事件因果关系");
                     } else if (!oldTriples.isEmpty()) {
                         log.info("日记知识图谱已被清空（新日记无有效三元组），diaryId={}", diaryId);
                     }

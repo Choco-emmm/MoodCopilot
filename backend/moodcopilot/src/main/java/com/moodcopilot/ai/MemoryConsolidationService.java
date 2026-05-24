@@ -68,111 +68,87 @@ public class MemoryConsolidationService {
         this.redisTemplate = redisTemplate;
     }
 
-    public void consolidateCurrentUserMemories() {
-        Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.getPrincipal() instanceof com.moodcopilot.entity.UserEntity user) {
-            consolidateUserMemories(user);
-        } else {
-            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "用户未登录");
+    public List<MemoryExtractionService.MemoryAttribute> previewConsolidation(Long userId) {
+        // Rate limit logic
+        String today = java.time.LocalDate.now().toString();
+        String redisKey = "memory:consolidate:count:" + userId + ":" + today;
+        Long count = redisTemplate.opsForValue().increment(redisKey);
+        if (count != null && count == 1) {
+            redisTemplate.expire(redisKey, java.time.Duration.ofDays(1));
         }
-    }
-
-    public void consolidateUserMemories(com.moodcopilot.entity.UserEntity user) {
-        Long userId = user.getId();
-        
-        boolean isUnlimited = "ADMIN".equals(user.getRole());
-        // TODO: 之后为 PRO 用户放开无上限，框架预留如下：
-        // if (user.getProExpireTime() != null && user.getProExpireTime().isAfter(java.time.LocalDateTime.now())) {
-        //     isUnlimited = true;
-        // }
-        
-        if (!isUnlimited) {
-            String today = java.time.LocalDate.now().toString();
-            String redisKey = "memory:consolidate:count:" + userId + ":" + today;
-            Long count = redisTemplate.opsForValue().increment(redisKey);
-            if (count != null && count == 1) {
-                redisTemplate.expire(redisKey, java.time.Duration.ofDays(1));
-            }
-            if (count != null && count > 2) {
-                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行两次智能整理");
-            }
+        if (count != null && count > 2) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行两次智能整理");
         }
 
         List<UserProfileMemoryEntity> existing = memoryExtractionService.listUserMemories(userId);
         if (existing.isEmpty() || existing.size() < 2) {
-            log.info("用户 {} 记忆条目过少（{}条），无需整理", userId, existing.size());
-            return;
+            throw new RuntimeException("用户记忆条目过少，无需整理");
         }
 
-        log.info("开始整合用户 {} 的长期画像，当前条目数={}", userId, existing.size());
+        log.info("开始预览整合用户 {} 的长期画像", userId);
 
         String prompt = buildConsolidationPrompt(existing);
 
-        try {
-            String json = chatClient.prompt()
-                    .system(CONSOLIDATION_PROMPT)
-                    .user(prompt)
-                    .call()
-                    .content();
+        String json = chatClient.prompt()
+                .system(CONSOLIDATION_PROMPT)
+                .user(prompt)
+                .call()
+                .content();
 
+        try {
             String cleanedJson = JsonUtils.cleanJson(json);
             if (cleanedJson.isEmpty()) {
-                log.warn("用户 {} 画像整合大模型未返回有效的 JSON，返回原始内容: \n{}", userId, json);
-                return;
+                throw new RuntimeException("AI 未返回有效的 JSON");
             }
             MemoryExtractionService.MemoryExtractionResponse response = objectMapper.readValue(cleanedJson, MemoryExtractionService.MemoryExtractionResponse.class);
             List<MemoryExtractionService.MemoryAttribute> attributes = response.attributes();
 
             if (attributes == null || attributes.isEmpty()) {
-                log.warn("用户 {} 画像整合返回为空，跳过更新", userId);
-                return;
+                throw new RuntimeException("AI 返回的属性列表为空");
             }
 
-            // Deduplicate and sanitize using the logic from extraction service if possible, or do it manually
+            // Deduplicate
             Map<String, MemoryExtractionService.MemoryAttribute> deduped = new LinkedHashMap<>();
             for (MemoryExtractionService.MemoryAttribute attr : attributes) {
                 if (attr != null && attr.attributeKey() != null && attr.attributeValue() != null) {
                     deduped.put(attr.attributeKey().trim(), attr);
                 }
             }
-
-            LocalDateTime now = LocalDateTime.now();
-
-            transactionOperations.execute(status -> {
-                // Delete all old memories for this user
-                for (UserProfileMemoryEntity old : existing) {
-                    memoryMapper.deleteById(old.getId());
-                }
-
-                // Insert the new consolidated memories
-                for (MemoryExtractionService.MemoryAttribute attr : deduped.values()) {
-                    UserProfileMemoryEntity entity = new UserProfileMemoryEntity();
-                    entity.setUserId(userId);
-                    // Use a simple sanitize logic or assume LLM output is mostly clean
-                    String key = attr.attributeKey().trim();
-                    if (key.length() > 64) key = key.substring(0, 64);
-                    String val = attr.attributeValue().trim();
-                    if (val.length() > 500) val = val.substring(0, 500);
-
-                    entity.setAttributeKey(key);
-                    entity.setAttributeValue(val);
-                    entity.setIsCore(Boolean.TRUE.equals(attr.isCore()));
-                    entity.setUpdateTime(now);
-                    memoryMapper.insert(entity);
-                }
-                return null;
-            });
-
-            log.info("用户 {} 长期画像整合完成，整理后条目数={}", userId, deduped.size());
-
-            // Re-index
-            List<UserProfileMemoryEntity> latest = memoryExtractionService.listUserMemories(userId);
-            ragMemoryService.indexUserProfile(userId, latest);
-
+            return new java.util.ArrayList<>(deduped.values());
         } catch (Exception e) {
             log.error("整合用户 {} 画像失败: {}", userId, e.getMessage());
-            // Do not throw so we don't crash the calling thread
+            throw new RuntimeException("AI 返回格式解析失败", e);
         }
+    }
+
+    public void applyConsolidation(Long userId, List<MemoryExtractionService.MemoryAttribute> attributes) {
+        List<UserProfileMemoryEntity> existing = memoryExtractionService.listUserMemories(userId);
+        LocalDateTime now = LocalDateTime.now();
+
+        transactionOperations.execute(status -> {
+            for (UserProfileMemoryEntity old : existing) {
+                memoryMapper.deleteById(old.getId());
+            }
+
+            for (MemoryExtractionService.MemoryAttribute attr : attributes) {
+                UserProfileMemoryEntity entity = new UserProfileMemoryEntity();
+                entity.setUserId(userId);
+                String key = attr.attributeKey().trim();
+                if (key.length() > 64) key = key.substring(0, 64);
+                String val = attr.attributeValue().trim();
+                if (val.length() > 500) val = val.substring(0, 500);
+
+                entity.setAttributeKey(key);
+                entity.setAttributeValue(val);
+                entity.setIsCore(Boolean.TRUE.equals(attr.isCore()));
+                entity.setUpdateTime(now);
+                memoryMapper.insert(entity);
+            }
+            return null;
+        });
+
+        List<UserProfileMemoryEntity> latest = memoryExtractionService.listUserMemories(userId);
+        ragMemoryService.indexUserProfile(userId, latest);
     }
 
     private String buildConsolidationPrompt(List<UserProfileMemoryEntity> existing) {

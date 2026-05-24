@@ -201,7 +201,17 @@ export const memoryApi = {
   getAll: () => api.get('/memory'),
   forget: (id: number) => api.delete(`/memory/${id}`),
   update: (id: number, data: { attributeValue: string }) => api.put(`/memory/${id}`, data),
-  consolidate: () => api.post('/memory/consolidate'),
+  previewConsolidate: () => api.post('/memory/consolidate/preview'),
+  applyConsolidate: (data: any) => api.post('/memory/consolidate/apply', data),
+}
+
+export const graphApi = {
+  getUserGraph: () => api.get('/graph/user-graph'),
+  getTriples: () => api.get('/graph/triples'),
+  updateTriple: (id: number, data: { headEntity: string; relation: string; tailEntity: string }) => api.put(`/graph/triples/${id}`, data),
+  deleteTriple: (id: number) => api.delete(`/graph/triples/${id}`),
+  previewConsolidate: () => api.post('/graph/consolidate/preview'),
+  applyConsolidate: (data: any) => api.post('/graph/consolidate/apply', data)
 }
 
 export const imageApi = {

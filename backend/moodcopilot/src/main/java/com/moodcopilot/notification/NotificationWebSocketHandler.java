@@ -114,6 +114,15 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
         sessions.forEach(session -> sendSafely(session, message));
     }
 
+    public void pushGlobalEvent(Long userId, String type, String messageText) {
+        Set<WebSocketSession> sessions = sessionsByUserId.get(userId);
+        if (sessions == null || sessions.isEmpty())
+            return;
+
+        String message = buildEnvelope(type, Map.of("message", messageText));
+        sessions.forEach(session -> sendSafely(session, message));
+    }
+
     private String resolveTicket(WebSocketSession session) {
         URI uri = session.getUri();
         if (uri == null)

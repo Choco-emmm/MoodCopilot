@@ -101,7 +101,6 @@
             v-model:value="commentDraft"
             placeholder="写下你的回应..."
             :disabled="sending"
-            clearable
             @focus="handleCommentFocus"
             @blur="handleCommentBlur"
             @keyup.enter="submitComment(null)"

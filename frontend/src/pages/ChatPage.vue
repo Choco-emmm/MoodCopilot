@@ -295,7 +295,6 @@
               placeholder="聊聊你今天的心情..."
               :disabled="streaming || creatingConversation"
               :maxlength="500"
-              clearable
               @focus="handleDraftFocus"
               @keydown.enter.prevent="handleDraftEnter"
             />

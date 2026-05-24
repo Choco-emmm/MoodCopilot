@@ -177,4 +177,12 @@ public class NotificationService {
             log.warn("Failed to create encouragement notification", e);
         }
     }
+
+    public void notifyGlobalEvent(Long recipientUserId, String type, String message) {
+        try {
+            notificationWebSocketHandler.pushGlobalEvent(recipientUserId, type, message);
+        } catch (Exception e) {
+            log.warn("Failed to push global event notification", e);
+        }
+    }
 }

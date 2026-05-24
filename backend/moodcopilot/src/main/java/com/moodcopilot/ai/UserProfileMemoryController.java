@@ -20,9 +20,16 @@ public class UserProfileMemoryController {
         this.memoryConsolidationService = memoryConsolidationService;
     }
 
-    @PostMapping("/consolidate")
-    public ApiResponse<Void> consolidate() {
-        memoryConsolidationService.consolidateCurrentUserMemories();
+    @PostMapping("/consolidate/preview")
+    public ApiResponse<List<MemoryExtractionService.MemoryAttribute>> previewConsolidate() {
+        var user = (com.moodcopilot.entity.UserEntity) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return ApiResponse.ok(memoryConsolidationService.previewConsolidation(user.getId()));
+    }
+
+    @PostMapping("/consolidate/apply")
+    public ApiResponse<Void> applyConsolidate(@RequestBody List<MemoryExtractionService.MemoryAttribute> attributes) {
+        var user = (com.moodcopilot.entity.UserEntity) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        memoryConsolidationService.applyConsolidation(user.getId(), attributes);
         return ApiResponse.ok(null);
     }
 
@@ -33,7 +40,8 @@ public class UserProfileMemoryController {
                 .map(m -> Map.<String, Object>of(
                         "id", m.getId(),
                         "attributeKey", m.getAttributeKey(),
-                        "attributeValue", m.getAttributeValue()))
+                        "attributeValue", m.getAttributeValue(),
+                        "isCore", Boolean.TRUE.equals(m.getIsCore())))
                 .toList();
         return ApiResponse.ok(result);
     }
@@ -45,9 +53,10 @@ public class UserProfileMemoryController {
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<Void> update(@PathVariable long id, @RequestBody Map<String, String> body) {
-        String newValue = body.get("attributeValue");
-        memoryExtractionService.updateMemory(id, newValue);
+    public ApiResponse<Void> update(@PathVariable long id, @RequestBody Map<String, Object> body) {
+        String newValue = body.containsKey("attributeValue") ? (String) body.get("attributeValue") : null;
+        Boolean isCore = body.containsKey("isCore") ? (Boolean) body.get("isCore") : null;
+        memoryExtractionService.updateMemory(id, newValue, isCore);
         return ApiResponse.ok(null);
     }
 }
