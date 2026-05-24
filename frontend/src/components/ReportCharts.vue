@@ -87,7 +87,7 @@ function handleChartClick(params: any) {
     const mood = props.moods[dataIndex]
     if (mood) {
       selectedMood.value = mood
-      showModal.value = true
+      setTimeout(() => { showModal.value = true }, 50)
     }
   }
 }
