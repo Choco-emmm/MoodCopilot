@@ -52,7 +52,8 @@
 <script setup lang="ts">
 import { ref, reactive, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { NForm, NFormItem, NInput, NButton, NCheckbox, NAlert, type FormInst } from 'naive-ui'
+import { NForm, NFormItem, NInput, NButton, NCheckbox, NAlert } from 'naive-ui'
+import type { FormInst, FormRules } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
 import { authApi } from '../api'
 
@@ -69,12 +70,12 @@ const errorMsg = ref<string | null>(null)
 const formRef = ref<FormInst | null>(null)
 
 const form = reactive({ displayName: '', email: '', password: '', verificationCode: '', agreed: false })
-const rules = {
+const rules: FormRules = {
   displayName: [
     { required: true, message: '请输入用户名' },
     {
       validator: async (_rule: any, value: string) => {
-        if (!value) return true
+        if (!value) return
         try {
           const res = await authApi.checkUsername(value)
           if (!res.data.data.available) {
@@ -83,7 +84,6 @@ const rules = {
         } catch (e: any) {
           if (e.message === '该用户名已被占用') throw e
         }
-        return true
       },
       trigger: 'blur'
     }
