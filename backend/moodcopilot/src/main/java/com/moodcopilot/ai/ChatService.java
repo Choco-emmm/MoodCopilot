@@ -641,7 +641,8 @@ public class ChatService {
 
                                 Map<String, Object> assistantMsg = new LinkedHashMap<>();
                                 assistantMsg.put("role", "assistant");
-                                assistantMsg.put("content", null);
+                                assistantMsg.put("content", "");
+                                assistantMsg.put("reasoning_content", "");
                                 assistantMsg.put("tool_calls", List.of(Map.of(
                                         "id", tool.toolCallId(),
                                         "type", "function",

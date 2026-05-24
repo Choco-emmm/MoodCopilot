@@ -2886,6 +2886,7 @@ h3 {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     scrollbar-width: none;
+    overflow-x: auto;
     transition: transform 0.3s var(--ease-out), opacity 0.3s var(--ease-out);
   }
 
