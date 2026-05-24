@@ -2,6 +2,7 @@
   <div class="report-charts-container">
     <div class="chart-header">
       <h4>情绪波浪线</h4>
+      <p v-if="isMobile" class="chart-hint">双指缩放可放大查看</p>
     </div>
     <v-chart class="chart-box" :option="lineOption" autoresize @click="handleChartClick" />
 
@@ -276,6 +277,11 @@ const scatterOption = computed(() => {
   font-size: 12px;
   color: #64748b;
   margin: 2px 0 8px;
+}
+.chart-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 2px 0 0;
 }
 .chart-box {
   width: 100%;
