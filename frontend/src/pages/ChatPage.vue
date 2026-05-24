@@ -584,13 +584,21 @@ onMounted(async () => {
   await loadWelcomeTopics()
 
   const isNewSession = !sessionStorage.getItem('chatSessionInitialized')
+  const storedConvId = sessionStorage.getItem('currentChatId')
 
   if (isNewSession) {
     sessionStorage.setItem('chatSessionInitialized', 'true')
+    sessionStorage.removeItem('currentChatId')
     await createConversation()
-  } else if (conversations.value.length > 0) {
-    await selectConversation(conversations.value[0].id)
+  } else if (storedConvId) {
+    const id = Number(storedConvId)
+    if (conversations.value.some(c => c.id === id)) {
+      await selectConversation(id)
+    } else {
+      await createConversation()
+    }
   } else {
+    // Session is initialized, but no conversation was started yet in this session.
     await createConversation()
   }
 
@@ -656,6 +664,7 @@ async function selectConversation(id: number) {
     await saveToBackend(activeConvId.value).catch(() => {})
   }
   activeConvId.value = id
+  sessionStorage.setItem('currentChatId', String(id))
   messages.value = await loadFromBackend(id)
   await nextTick()
   scrollBottom()
@@ -740,6 +749,7 @@ async function createConversation() {
       await saveToBackend(activeConvId.value).catch(() => {})
     }
     activeConvId.value = null
+    sessionStorage.removeItem('currentChatId')
     messages.value = []
   } catch { /* ignore */ }
 }
@@ -749,7 +759,7 @@ async function doCreateConversationOnServer() {
   const conv = res.data.data as Conversation
   conversations.value.unshift(conv)
   activeConvId.value = conv.id
-  messages.value = []
+  sessionStorage.setItem('currentChatId', String(conv.id))
 }
 
 async function deleteConversation(id: number) {
