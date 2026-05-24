@@ -315,6 +315,7 @@ public class DiaryService {
             analysisEntity.setMoodIntensity(analysis.moodIntensity());
             analysisEntity.setValence(analysis.valence());
             analysisEntity.setArousal(analysis.arousal());
+            analysisEntity.setSecondaryMoodsJson(analysis.secondaryMoods());
             analysisEntity.setTopicLabelsJson(analysis.topicLabels());
             analysisEntity.setSummary(analysis.summary());
             analysisEntity.setFeedback(analysis.feedback());
