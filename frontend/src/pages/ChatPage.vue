@@ -1039,11 +1039,18 @@ function removeRef(index: number) {
   references.value.splice(index, 1)
 }
 
-function addDiaryRef(diaryId: string) {
+async function addDiaryRef(diaryId: string) {
   const d = recentDiaryOptions.value.find(o => String(o.id) === diaryId)
-  if (d && !references.value.some(r => r.diaryId === d.id)) {
-    references.value.push({ label: '日记 · ' + d.date, content: d.snippet, fullContent: d.fullContent, diaryId: d.id })
+  if (!d || references.value.some(r => r.diaryId === d.id)) return
+  // 列表接口 content 截断为 150 字，需要获取完整内容传给 AI
+  let fullContent = d.fullContent
+  try {
+    const res = await diaryApi.get(d.id)
+    fullContent = res.data.data?.content ?? fullContent
+  } catch (e) {
+    logWarn('chat', '获取完整日记内容失败，使用截断版本', d.id, e)
   }
+  references.value.push({ label: '日记 · ' + d.date, content: d.snippet, fullContent, diaryId: d.id })
 }
 
 async function loadRecentDiaryOptions() {
