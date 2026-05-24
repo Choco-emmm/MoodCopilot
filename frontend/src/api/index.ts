@@ -200,7 +200,7 @@ export const supportApi = {
 export const memoryApi = {
   getAll: () => api.get('/memory'),
   forget: (id: number) => api.delete(`/memory/${id}`),
-  update: (id: number, data: { attributeValue: string }) => api.put(`/memory/${id}`, data),
+  update: (id: number, data: { attributeValue: string; isCore?: boolean }) => api.put(`/memory/${id}`, data),
   previewConsolidate: () => api.post('/memory/consolidate/preview'),
   applyConsolidate: (data: any) => api.post('/memory/consolidate/apply', data),
 }
