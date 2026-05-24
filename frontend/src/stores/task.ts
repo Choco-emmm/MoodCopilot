@@ -40,8 +40,8 @@ export const useTaskStore = defineStore('task', () => {
 
   // ── 计算属性 ──
   const tomorrowExp = computed(() => {
-    const d = checkInState.value.continuousDays + 1
-    return d >= 7 ? 25 : 10 + d * 2
+    const s = checkInState.value.continuousDays
+    return s >= 6 ? 25 : 10 + s * 2
   })
 
   const allTasksCompleted = computed(() =>
