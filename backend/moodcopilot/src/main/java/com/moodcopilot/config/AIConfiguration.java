@@ -295,7 +295,9 @@ public class AIConfiguration {
     }
 
     @Bean(name = GraphSearchFunctionSupport.NAME)
-    public FunctionCallback graphSearchFunction(@Lazy DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper, ObjectMapper objectMapper) {
+    public FunctionCallback graphSearchFunction(@Lazy DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper,
+                                                 @Lazy com.moodcopilot.ai.RagMemoryService ragMemoryService,
+                                                 ObjectMapper objectMapper) {
         log.info("注册 Function Calling 工具：{}", GraphSearchFunctionSupport.NAME);
         return FunctionCallback.builder()
                 .function(GraphSearchFunctionSupport.NAME,
@@ -312,32 +314,43 @@ public class AIConfiguration {
 
                                 List<GraphSearchResult.GraphItem> items = new java.util.ArrayList<>();
                                 if (!keyword.isBlank()) {
-                                    LambdaQueryWrapper<DiaryKnowledgeGraphEntity> wrapper = new LambdaQueryWrapper<DiaryKnowledgeGraphEntity>()
-                                            .eq(DiaryKnowledgeGraphEntity::getUserId, userId)
-                                            .and(w -> w
-                                                    .like(DiaryKnowledgeGraphEntity::getHeadEntity, keyword)
-                                                    .or()
-                                                    .like(DiaryKnowledgeGraphEntity::getRelation, keyword)
-                                                    .or()
-                                                    .like(DiaryKnowledgeGraphEntity::getTailEntity, keyword))
-                                            .orderByDesc(DiaryKnowledgeGraphEntity::getCreatedAt)
-                                            .last("LIMIT " + clampedLimit);
-                                    List<DiaryKnowledgeGraphEntity> triples = diaryKnowledgeGraphMapper.selectList(wrapper);
-                                    for (DiaryKnowledgeGraphEntity t : triples) {
-                                        items.add(new GraphSearchResult.GraphItem(
-                                                t.getHeadEntity() + " " + t.getRelation() + " " + t.getTailEntity(),
-                                                t.getCreatedAt() != null ? t.getCreatedAt().toString() : null,
-                                                t.getDiaryId()));
+                                    // 向量检索
+                                    java.util.List<com.moodcopilot.ai.RagMemoryService.RagHit> hits =
+                                            ragMemoryService.search(userId, keyword, clampedLimit, com.moodcopilot.ai.RagMemoryService.SOURCE_GRAPH);
+
+                                    // 收集命中的 graphId，批量查询 DB
+                                    java.util.Set<Long> graphIds = new java.util.LinkedHashSet<>();
+                                    for (var hit : hits) {
+                                        if (hit.sourceId() != null && hit.sourceId().startsWith("graph:")) {
+                                            try { graphIds.add(Long.parseLong(hit.sourceId().substring(6))); } catch (NumberFormatException ignored) {}
+                                        }
+                                    }
+                                    if (!graphIds.isEmpty()) {
+                                        LambdaQueryWrapper<DiaryKnowledgeGraphEntity> wrapper = new LambdaQueryWrapper<DiaryKnowledgeGraphEntity>()
+                                                .in(DiaryKnowledgeGraphEntity::getId, graphIds);
+                                        java.util.Map<Long, DiaryKnowledgeGraphEntity> byId = new java.util.LinkedHashMap<>();
+                                        for (DiaryKnowledgeGraphEntity t : diaryKnowledgeGraphMapper.selectList(wrapper)) {
+                                            byId.put(t.getId(), t);
+                                        }
+                                        // 按向量相似度顺序返回
+                                        for (Long gid : graphIds) {
+                                            DiaryKnowledgeGraphEntity t = byId.get(gid);
+                                            if (t != null) {
+                                                items.add(new GraphSearchResult.GraphItem(
+                                                        t.getHeadEntity() + " " + t.getRelation() + " " + t.getTailEntity(),
+                                                        t.getCreatedAt() != null ? t.getCreatedAt().toString() : null,
+                                                        t.getDiaryId()));
+                                            }
+                                        }
                                     }
                                 }
 
-                                MemoryQueryResult result; // Actually it returns GraphSearchResult, we're returning GraphSearchResult
                                 GraphSearchResult searchResult = new GraphSearchResult(items.size(), items,
                                         items.isEmpty() ? "未找到与 '" + keyword + "' 相关的图谱三元组" : "已返回图谱三元组");
 
                                 // Emit tool results to SSE if sink is available
                                 @SuppressWarnings("unchecked")
-                                reactor.core.publisher.Sinks.Many<String> sink = 
+                                reactor.core.publisher.Sinks.Many<String> sink =
                                         (reactor.core.publisher.Sinks.Many<String>) toolContext.getContext().get("sseSink");
                                 if (sink != null && !items.isEmpty()) {
                                     try {

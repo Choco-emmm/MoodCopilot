@@ -796,22 +796,29 @@ public class ChatService {
 
                     List<GraphSearchResult.GraphItem> items = new ArrayList<>();
                     if (!keyword.isBlank()) {
-                        var wrapper = new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
-                                .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getUserId, userId)
-                                .and(w -> w
-                                        .like(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getHeadEntity, keyword)
-                                        .or()
-                                        .like(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getRelation, keyword)
-                                        .or()
-                                        .like(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getTailEntity, keyword))
-                                .orderByDesc(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getCreatedAt)
-                                .last("LIMIT " + limit);
-                        var triples = diaryKnowledgeGraphMapper.selectList(wrapper);
-                        for (var t : triples) {
-                            items.add(new GraphSearchResult.GraphItem(
-                                    t.getHeadEntity() + " " + t.getRelation() + " " + t.getTailEntity(),
-                                    t.getCreatedAt() != null ? t.getCreatedAt().toString() : null,
-                                    t.getDiaryId()));
+                        var hits = ragMemoryService.search(userId, keyword, limit, RagMemoryService.SOURCE_GRAPH);
+                        java.util.Set<Long> graphIds = new java.util.LinkedHashSet<>();
+                        for (var hit : hits) {
+                            if (hit.sourceId() != null && hit.sourceId().startsWith("graph:")) {
+                                try { graphIds.add(Long.parseLong(hit.sourceId().substring(6))); } catch (NumberFormatException ignored) {}
+                            }
+                        }
+                        if (!graphIds.isEmpty()) {
+                            var wrapper = new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
+                                    .in(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getId, graphIds);
+                            java.util.Map<Long, com.moodcopilot.entity.DiaryKnowledgeGraphEntity> byId = new java.util.LinkedHashMap<>();
+                            for (var t : diaryKnowledgeGraphMapper.selectList(wrapper)) {
+                                byId.put(t.getId(), t);
+                            }
+                            for (Long gid : graphIds) {
+                                var t = byId.get(gid);
+                                if (t != null) {
+                                    items.add(new GraphSearchResult.GraphItem(
+                                            t.getHeadEntity() + " " + t.getRelation() + " " + t.getTailEntity(),
+                                            t.getCreatedAt() != null ? t.getCreatedAt().toString() : null,
+                                            t.getDiaryId()));
+                                }
+                            }
                         }
                     }
                     yield new GraphSearchResult(items.size(), items,

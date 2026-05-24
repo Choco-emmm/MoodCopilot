@@ -48,19 +48,22 @@ public class GraphConsolidationService {
     private final ObjectMapper objectMapper;
     private final TransactionOperations transactionOperations;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
+    private final RagMemoryService ragMemoryService;
 
     public GraphConsolidationService(@Qualifier("analysisChatClient") ChatClient chatClient,
                                      DiaryKnowledgeGraphMapper graphMapper,
                                      GraphService graphService,
                                      ObjectMapper objectMapper,
                                      TransactionOperations transactionOperations,
-                                     org.springframework.data.redis.core.StringRedisTemplate redisTemplate) {
+                                     org.springframework.data.redis.core.StringRedisTemplate redisTemplate,
+                                     RagMemoryService ragMemoryService) {
         this.chatClient = chatClient;
         this.graphMapper = graphMapper;
         this.graphService = graphService;
         this.objectMapper = objectMapper;
         this.transactionOperations = transactionOperations;
         this.redisTemplate = redisTemplate;
+        this.ragMemoryService = ragMemoryService;
     }
 
     public record ConsolidatedGraphResponse(@JsonProperty("triples") List<ConsolidatedTriple> triples) {}
@@ -106,6 +109,11 @@ public class GraphConsolidationService {
         List<DiaryKnowledgeGraphEntity> existing = graphService.getTriplesForUser(userId);
         LocalDateTime now = LocalDateTime.now();
 
+        // 删除旧的 RAG 向量
+        for (DiaryKnowledgeGraphEntity old : existing) {
+            ragMemoryService.deleteKnowledgeGraph(old.getId());
+        }
+
         transactionOperations.execute(status -> {
             for (DiaryKnowledgeGraphEntity old : existing) {
                 graphMapper.deleteById(old.getId());
@@ -123,6 +131,13 @@ public class GraphConsolidationService {
             }
             return null;
         });
+
+        // 重新向量化
+        List<DiaryKnowledgeGraphEntity> latest = graphService.getTriplesForUser(userId);
+        for (DiaryKnowledgeGraphEntity entity : latest) {
+            ragMemoryService.indexKnowledgeGraph(userId, entity.getDiaryId(), entity.getId(),
+                    entity.getHeadEntity(), entity.getRelation(), entity.getTailEntity());
+        }
     }
 
     private String buildPrompt(List<DiaryKnowledgeGraphEntity> existing) {
