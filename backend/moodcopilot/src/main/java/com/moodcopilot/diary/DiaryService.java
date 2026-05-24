@@ -328,7 +328,7 @@ public class DiaryService {
             } else {
                 diaryAnalysisMapper.insert(analysisEntity);
             }
-            log.info("日记 AI 分析已落库，diaryId={}，mood={}，intensity={}，valence={}，arousal={}，topics={}", diaryId, analysis.moodLabel(), analysis.moodIntensity(), analysis.valence(), analysis.arousal(), analysis.topicLabels());
+            log.info("日记 AI 分析已落库，diaryId={}", diaryId);
 
             eventPublisher.publishEvent(new DiaryAnalysisCompletedEvent(
                     this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels()));

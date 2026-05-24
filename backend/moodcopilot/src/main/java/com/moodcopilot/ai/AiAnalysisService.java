@@ -104,7 +104,7 @@ public class AiAnalysisService {
         if (map.containsKey("arousal") && map.get("arousal") != null) {
             arousal = ((Number) map.get("arousal")).intValue();
         }
-        log.info("AI analysis parsed: moodLabel={}, intensity={}, valence={}, arousal={}", moodLabel, moodIntensity, valence, arousal);
+
 
         List<String> topicLabels = (List<String>) map.get("topicLabels");
         List<String> secondaryMoods = (List<String>) map.get("secondaryMoods");
