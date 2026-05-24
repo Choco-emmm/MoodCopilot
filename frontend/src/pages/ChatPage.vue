@@ -441,10 +441,10 @@ async function loadWelcomeTopics() {
     }
   } catch (err) {
     quickStarters.value = [
-      { icon: '📊', text: '分析我最近三天的情绪波动' },
+      { icon: '🌟', text: '分析我最近三天的情绪波动' },
       { icon: '💡', text: '帮我回顾我最近开心的事情' },
-      { icon: '🌿', text: '推荐一些适合解压的音乐与方法' },
-      { icon: '💬', text: '今天有些累，陪我随便聊聊吧' }
+      { icon: '🌿', text: '推荐一些适合我解压的音乐与方法' },
+      { icon: '💬', text: '今天有点累，陪我聊一下' }
     ]
   } finally {
     quickStartersLoading.value = false
