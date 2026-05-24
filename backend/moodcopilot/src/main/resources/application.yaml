@@ -51,6 +51,12 @@ spring:
       time-to-live: 120000
       cache-null-values: false
   ai:
+    retry:
+      max-attempts: 5
+      backoff:
+        initial-interval: 2000
+        multiplier: 2
+        max-interval: 30000
     openai:
       api-key: ${DEEPSEEK_API_KEY:}
       base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}

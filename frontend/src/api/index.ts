@@ -112,6 +112,8 @@ export const notificationApi = {
 }
 
 export const authApi = {
+  checkUsername: (username: string) => api.get('/auth/check-username', { params: { username } }),
+  checkEmail: (email: string) => api.get('/auth/check-email', { params: { email } }),
   sendCode: (email: string) => api.post('/auth/send-code', { email }),
   sendPasswordChangeCode: () => api.post('/auth/change-password/send-code'),
   register: (data: { displayName: string; email: string; password: string; verificationCode: string; captchaToken?: string }) =>

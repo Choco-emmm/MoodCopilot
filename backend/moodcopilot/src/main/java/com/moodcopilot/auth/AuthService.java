@@ -363,6 +363,16 @@ public class AuthService {
         return response(token, user);
     }
 
+    public boolean isUsernameAvailable(String username) {
+        if (username == null || username.isBlank()) return false;
+        return !userMapper.exists(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getDisplayName, username.trim()));
+    }
+
+    public boolean isEmailAvailable(String email) {
+        if (email == null || email.isBlank()) return false;
+        return !userMapper.exists(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, email.trim().toLowerCase()));
+    }
+
     private void recordLoginFailure(String email) {
         try {
             String failKey = LOGIN_FAIL_PREFIX + email;

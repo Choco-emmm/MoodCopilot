@@ -527,7 +527,7 @@ public class DiaryService {
                     }
                     return new DiarySearchResult.DiarySummary(
                             diary.getId(),
-                            diary.getCreatedAt().toLocalDate(),
+                            diary.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
                             finalSnippet);
                 })
                 .toList();

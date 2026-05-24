@@ -233,6 +233,33 @@ public class ChatService {
         UserEntity user = currentUser();
         Long userId = user.getId();
         String cacheKey = "chat:welcome_topics:" + userId;
+        String lockKey = "chat:welcome_topics:lock:" + userId;
+
+        boolean needRefresh = false;
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(cacheKey))) {
+            if (Boolean.FALSE.equals(redisTemplate.hasKey(lockKey))) {
+                needRefresh = true;
+            }
+        } else {
+            needRefresh = true;
+        }
+
+        if (needRefresh) {
+            // Check and set lock to prevent concurrent generations, lock lasts for 4 hours
+            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", Duration.ofHours(4));
+            if (Boolean.TRUE.equals(acquired)) {
+                String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
+                java.util.concurrent.CompletableFuture.runAsync(() -> {
+                    try {
+                        generateAndCacheWelcomeTopics(userId, memoryBackground);
+                    } catch (Exception e) {
+                        log.error("Async generate welcome topics failed", e);
+                        // If generation failed, delete the lock so it can be retried on next request
+                        redisTemplate.delete(lockKey);
+                    }
+                });
+            }
+        }
 
         try {
             String cached = redisTemplate.opsForValue().get(cacheKey);
@@ -243,7 +270,17 @@ public class ChatService {
             log.warn("读取 welcome topics 缓存失败", e);
         }
 
-        String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
+        // 兜底返回默认
+        return List.of(
+                Map.of("icon", "📊", "text", "分析我最近三天的情绪波动"),
+                Map.of("icon", "💡", "text", "帮我回顾我最近开心的事情"),
+                Map.of("icon", "🌿", "text", "推荐一些适合解压的音乐与方法"),
+                Map.of("icon", "💬", "text", "今天有些累，陪我随便聊聊吧")
+        );
+    }
+
+    private void generateAndCacheWelcomeTopics(Long userId, String memoryBackground) {
+        String cacheKey = "chat:welcome_topics:" + userId;
         String systemPrompt = """
             你是一个懂心理学的情绪树洞助手。请根据用户的画像和最近状态，生成 4 个推荐的聊天开场白话题（每个话题长度在10-20字左右），供用户点击快速开始聊天。
             请确保话题贴合用户的状态、兴趣或最近可能有的困惑，或者提供一些温暖的日常问候。
@@ -270,21 +307,12 @@ public class ChatService {
             List<Map<String, String>> topics = objectMapper.readValue(cleanedJson, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, String>>>() {});
 
             if (topics != null && !topics.isEmpty()) {
-                // 缓存 4 小时
-                redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(topics), Duration.ofHours(4));
-                return topics;
+                // 缓存 7 天（过期则回退到默认话题），靠 4 小时的 lockKey 来控制刷新频率
+                redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(topics), Duration.ofDays(7));
             }
         } catch (Exception e) {
-            log.error("生成 welcome topics 失败", e);
+            throw new RuntimeException(e);
         }
-
-        // 兜底返回默认
-        return List.of(
-                Map.of("icon", "📊", "text", "分析我最近三天的情绪波动"),
-                Map.of("icon", "💡", "text", "帮我回顾我最近开心的事情"),
-                Map.of("icon", "🌿", "text", "推荐一些适合解压的音乐与方法"),
-                Map.of("icon", "💬", "text", "今天有些累，陪我随便聊聊吧")
-        );
     }
 
     /** 流式聊天结果：RAG 上下文 + AI 文字流 */

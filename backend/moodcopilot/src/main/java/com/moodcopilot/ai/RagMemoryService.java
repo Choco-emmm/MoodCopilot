@@ -540,7 +540,7 @@ public class RagMemoryService {
                             finalSnippet = snippet.trim() + (prefixSb.length() > 0 ? " " + prefixSb.toString().trim() : "");
                         }
                         summaries.add(new com.moodcopilot.diary.DiarySearchResult.DiarySummary(
-                            d.getId(), d.getCreatedAt().toLocalDate(), finalSnippet));
+                            d.getId(), d.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")), finalSnippet));
                     }
                 }
             } catch (Exception e) {
@@ -580,13 +580,34 @@ public class RagMemoryService {
             }
         }
 
+        final java.util.Map<Long, DiaryEntity> finalDiaryMap = diaryMap;
+        // Sort hits: profile items first, then by diary.createdAt ASC
+        List<RagHit> sortedHits = new ArrayList<>(hits);
+        sortedHits.sort((h1, h2) -> {
+            boolean isProfile1 = h1.diaryId() == null;
+            boolean isProfile2 = h2.diaryId() == null;
+            if (isProfile1 && !isProfile2) return -1;
+            if (!isProfile1 && isProfile2) return 1;
+            if (isProfile1 && isProfile2) return 0;
+
+            DiaryEntity d1 = finalDiaryMap.get(h1.diaryId());
+            DiaryEntity d2 = finalDiaryMap.get(h2.diaryId());
+            if (d1 == null && d2 == null) return 0;
+            if (d1 == null) return 1;
+            if (d2 == null) return -1;
+            if (d1.getCreatedAt() == null && d2.getCreatedAt() == null) return 0;
+            if (d1.getCreatedAt() == null) return 1;
+            if (d2.getCreatedAt() == null) return -1;
+            return d1.getCreatedAt().compareTo(d2.getCreatedAt());
+        });
+
         StringBuilder sb = new StringBuilder("\n\n<rag_retrieved_context>\n");
-        sb.append("以下是与用户当前问题语义相关的历史记录（由向量检索自动获取，已回表关联完整日记数据）。\n");
+        sb.append("以下是与用户当前问题语义相关的历史记录（由向量检索自动获取，已回表关联完整日记数据，按时间先后顺序排列）。\n");
         sb.append("注意：这些记录中可能包含用户上传图片的视觉描述文本（由视觉模型生成），以及用户分享音乐的文字元数据（歌名/歌手/歌词）。如果你检索到了这些内容，请直接当作你亲眼看到或亲耳听到的信息来理解和引用，不要对用户强调「这是文字描述」或「我无法查看图片/播放音乐」。\n");
 
         java.util.Set<String> rendered = new java.util.HashSet<>();
         int itemIndex = 0;
-        for (RagHit hit : hits) {
+        for (RagHit hit : sortedHits) {
             if (hit.diaryId() == null || hit.sourceType() == null) {
                 // 非日记来源（如 profile），直接输出原始内容
                 String snippet = hit.content().length() > 500
@@ -602,7 +623,7 @@ public class RagMemoryService {
             if (diary == null) continue;
 
             String dateStr = diary.getCreatedAt() != null
-                    ? diary.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                    ? diary.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
                     : "";
 
             // 同一日记在同一类型下只渲染一次

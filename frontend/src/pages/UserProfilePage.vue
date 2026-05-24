@@ -191,6 +191,7 @@
               :maxlength="64"
               placeholder="输入新用户名"
               @keyup.enter="saveName"
+              @blur="checkEditingName"
             />
             <n-button
               size="small"
@@ -1090,6 +1091,24 @@ function handleCrop() {
   }, 'image/jpeg', 0.92)
 }
 
+async function checkEditingName() {
+  const name = editingName.value.trim()
+  if (!name || name === auth.displayName) {
+    if (nameMsg.value === '该用户名已被占用') nameMsg.value = ''
+    return
+  }
+  try {
+    const res = await authApi.checkUsername(name)
+    if (!res.data.data.available) {
+      nameMsg.value = '该用户名已被占用'
+    } else {
+      if (nameMsg.value === '该用户名已被占用') nameMsg.value = ''
+    }
+  } catch {
+    // ignore
+  }
+}
+
 async function saveName() {
   const name = editingName.value.trim()
   if (!name || name === auth.displayName) return
@@ -1105,8 +1124,8 @@ async function saveName() {
     editingName.value = auth.displayName ?? ''
   } catch (e: any) {
     const msg = e?.response?.data?.message || e?.message || ''
-    if (msg) nameMsg.value = msg
-    else nameMsg.value = '保存失败'
+    if (msg && msg !== '该用户名已被占用') nameMsg.value = msg
+    else if (!msg) nameMsg.value = '保存失败'
   } finally {
     savingName.value = false
   }

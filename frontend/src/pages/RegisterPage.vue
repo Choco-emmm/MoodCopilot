@@ -70,8 +70,28 @@ const formRef = ref<FormInst | null>(null)
 
 const form = reactive({ displayName: '', email: '', password: '', verificationCode: '', agreed: false })
 const rules = {
-  displayName: [{ required: true, message: '请输入用户名' }],
-  email: [{ required: true, message: '请输入邮箱' }],
+  displayName: [
+    { required: true, message: '请输入用户名' },
+    {
+      validator: async (_rule: any, value: string) => {
+        if (!value) return true
+        try {
+          const res = await authApi.checkUsername(value)
+          if (!res.data.data.available) {
+            throw new Error('该用户名已被占用')
+          }
+        } catch (e: any) {
+          if (e.message === '该用户名已被占用') throw e
+        }
+        return true
+      },
+      trigger: 'blur'
+    }
+  ],
+  email: [
+    { required: true, message: '请输入邮箱' },
+    { type: 'email', message: '请输入正确的邮箱格式', trigger: ['input', 'blur'] }
+  ],
   password: [{ required: true, message: '请输入密码', min: 6 }],
   verificationCode: [{ required: true, message: '请输入邮箱验证码' }],
   agreed: [

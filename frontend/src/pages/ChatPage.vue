@@ -293,13 +293,13 @@
               v-model:value="draft"
               size="large"
               placeholder="聊聊你今天的心情..."
-              :disabled="streaming || creatingConversation || !activeConvId"
+              :disabled="streaming || creatingConversation"
               :maxlength="500"
               clearable
               @focus="handleDraftFocus"
               @keydown.enter.prevent="handleDraftEnter"
             />
-            <n-button type="primary" :disabled="!draft.trim() || streaming || creatingConversation || !activeConvId" @click="send">
+            <n-button type="primary" :disabled="!draft.trim() || streaming || creatingConversation" @click="send">
               {{ streaming ? '发送中' : '发送' }}
             </n-button>
           </div>
@@ -582,7 +582,13 @@ onMounted(async () => {
   await loadConversations()
   await loadRecentDiaryOptions()
   await loadWelcomeTopics()
-  if (conversations.value.length > 0) {
+
+  const isNewSession = !sessionStorage.getItem('chatSessionInitialized')
+
+  if (isNewSession) {
+    sessionStorage.setItem('chatSessionInitialized', 'true')
+    await createConversation()
+  } else if (conversations.value.length > 0) {
     await selectConversation(conversations.value[0].id)
   } else {
     await createConversation()
@@ -728,7 +734,6 @@ function isNearBottom(el: HTMLElement | null) {
 
 async function createConversation() {
   if (creatingConversation.value) return
-  creatingConversation.value = true
   try {
     // 避免用户在会话创建尚未完成时把第一条消息发到旧会话里。
     if (activeConvId.value && messages.value.length > 0) {
@@ -736,16 +741,15 @@ async function createConversation() {
     }
     activeConvId.value = null
     messages.value = []
-
-    const res = await chatApi.createConversation()
-    const conv = res.data.data as Conversation
-    conversations.value.unshift(conv)
-    activeConvId.value = conv.id
-    messages.value = []
   } catch { /* ignore */ }
-  finally {
-    creatingConversation.value = false
-  }
+}
+
+async function doCreateConversationOnServer() {
+  const res = await chatApi.createConversation()
+  const conv = res.data.data as Conversation
+  conversations.value.unshift(conv)
+  activeConvId.value = conv.id
+  messages.value = []
 }
 
 async function deleteConversation(id: number) {
@@ -826,8 +830,21 @@ function normalizeMessageRole(rawRole: any): 'user' | 'ai' {
 
 async function send() {
   const content = draft.value.trim()
+  if (!content || streaming.value || creatingConversation.value) return
+
+  if (!activeConvId.value) {
+    creatingConversation.value = true
+    try {
+      await doCreateConversationOnServer()
+    } catch {
+      creatingConversation.value = false
+      return
+    }
+    creatingConversation.value = false
+  }
+
   const convId = activeConvId.value
-  if (!content || streaming.value || creatingConversation.value || !convId) return
+  if (!convId) return
 
   lastReplyError.value = null
   lastReplyRequest.value = null
@@ -1435,7 +1452,11 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 .msg-wrapper {
   display: flex;
   flex-direction: column;
-  max-width: 75% !important;
+  max-width: 85% !important;
+}
+
+.msg-item.ai .msg-wrapper {
+  max-width: 92% !important;
 }
 
 .msg-item.ai .msg-wrapper {

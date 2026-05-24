@@ -62,6 +62,16 @@ public class AuthController {
         return ApiResponse.ok(authService.login(request));
     }
 
+    @GetMapping("/check-username")
+    public ApiResponse<Map<String, Boolean>> checkUsername(@RequestParam String username) {
+        return ApiResponse.ok(Map.of("available", authService.isUsernameAvailable(username)));
+    }
+
+    @GetMapping("/check-email")
+    public ApiResponse<Map<String, Boolean>> checkEmail(@RequestParam String email) {
+        return ApiResponse.ok(Map.of("available", authService.isEmailAvailable(email)));
+    }
+
     @GetMapping("/me")
     public ApiResponse<AuthResponse> me(@AuthenticationPrincipal UserEntity user) {
         return ApiResponse.ok(authService.me(requireUser(user).getId()));

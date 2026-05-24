@@ -175,6 +175,12 @@
 
       <!-- 同频推荐（保留） -->
       <SimilarDiariesPanel v-if="!hideSimilarOnMobileInput" :diaries="store.similarDiaries" @select="selectDiary" />
+
+      <!-- 分析中底部提示 -->
+      <div v-if="diary.analysisStatus === 'analyzing'" class="analyzing-footer-hint">
+        <span class="sparkle-icon">✨</span>
+        MoodCopilot分析中，请耐心等待
+      </div>
     </div>
     <n-empty v-else description="日记不存在" />
   </main>
@@ -495,5 +501,28 @@ function ensureCommentInputVisible() {
     flex: 1 0 100%;
     order: -1;
   }
+}
+
+.analyzing-footer-hint {
+  text-align: center;
+  padding: 16px;
+  color: #8c7e70;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #fdfaf6;
+  border-radius: 12px;
+  margin-top: 16px;
+  border: 1px dashed #e6dfd5;
+}
+.analyzing-footer-hint .sparkle-icon {
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
 }
 </style>
