@@ -313,6 +313,8 @@ public class DiaryService {
             analysisEntity.setDiaryId(diaryId);
             analysisEntity.setMoodLabel(analysis.moodLabel());
             analysisEntity.setMoodIntensity(analysis.moodIntensity());
+            analysisEntity.setValence(analysis.valence());
+            analysisEntity.setArousal(analysis.arousal());
             analysisEntity.setTopicLabelsJson(analysis.topicLabels());
             analysisEntity.setSummary(analysis.summary());
             analysisEntity.setFeedback(analysis.feedback());
@@ -326,7 +328,7 @@ public class DiaryService {
             } else {
                 diaryAnalysisMapper.insert(analysisEntity);
             }
-            log.info("日记 AI 分析已落库，diaryId={}，mood={}，topics={}", diaryId, analysis.moodLabel(), analysis.topicLabels());
+            log.info("日记 AI 分析已落库，diaryId={}，mood={}，intensity={}，valence={}，arousal={}，topics={}", diaryId, analysis.moodLabel(), analysis.moodIntensity(), analysis.valence(), analysis.arousal(), analysis.topicLabels());
 
             eventPublisher.publishEvent(new DiaryAnalysisCompletedEvent(
                     this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels()));
