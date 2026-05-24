@@ -1230,11 +1230,11 @@ public class DiaryService {
                         m.diaryIds(), m.contentSnippet()))
                 .toList();
         return new WeeklyReportView(
-                report.weekLabel(), report.diaryCount(), patched, report.topics(),
-                report.moodDistribution(), report.dominantQuadrant(),
+                report.weekLabel(), report.diaryCount(), patched, report.topicCounts(),
+                report.moodDistribution(), report.moodDominantQuadrant(),
                 report.positiveRatioPercent(), report.highEnergyRatioPercent(),
                 report.aiSummary(), report.insights(), report.suggestions(),
-                report.followUpPrompt(), report.generatedAt(), report.stale());
+                report.followUpPrompt(), report.generatedAt(), report.needsRegenerate());
     }
 
     public boolean hasUnreportedDiaries(long userId, LocalDate startDate, LocalDate endDate,
