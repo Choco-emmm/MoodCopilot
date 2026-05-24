@@ -18,6 +18,9 @@
               <n-button size="small" secondary type="primary" :loading="consolidatingMemory" @click="consolidateMemories">
                 ✨ 智能整理记忆
               </n-button>
+              <n-button size="small" secondary :loading="memoriesLoading" @click="loadMemories">
+                 刷新
+              </n-button>
             </div>
             <p class="memory-desc">MoodCopilot 从你的日记和聊天中学习的长期画像，你可以编辑修正或删除不想要的部分。如果碎片太多，可以尝试智能整理归并。</p>
             <div v-if="memoriesLoading" class="memory-loading" style="text-align: center; padding: 40px 0;">
@@ -86,6 +89,9 @@
               </n-button>
               <n-button size="small" secondary type="primary" :loading="consolidatingGraph" @click="consolidateGraph">
                 ✨ 智能整理图谱
+              </n-button>
+              <n-button size="small" secondary :loading="graphLoading" @click="loadGraph">
+                 刷新
               </n-button>
             </div>
           </div>
