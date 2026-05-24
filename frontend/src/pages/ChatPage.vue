@@ -116,8 +116,8 @@
                       <div class="rag-refs-section-label">🧠 个人画像</div>
                       <div v-for="(ref, i) in getProfileRefs(msg.ragReferences)" :key="'p'+i"
                            class="rag-ref-item-profile"
-                           @click="toggleProfileSnippet(msg.id, i)">
-                        <span :class="['rag-ref-snippet', { 'expanded': isProfileSnippetExpanded(msg.id, i) }]" :title="ref.snippet || ref.value">
+                           @click="toggleSnippet(msg.id, i)">
+                        <span :class="['rag-ref-snippet', { 'expanded': isSnippetExpanded(msg.id, i) }]" :title="ref.snippet || ref.value">
                           <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}】</span>{{ ref.snippet || ref.value }}
                         </span>
                       </div>
@@ -127,13 +127,10 @@
                       <div
                         v-for="(ref, i) in getGraphRefs(msg.ragReferences)"
                         :key="'g'+i"
-                        class="rag-ref-item"
+                        class="rag-ref-item-profile"
+                        @click="toggleSnippet(msg.id, 1000 + i)"
                       >
-                        <div class="rag-ref-meta">
-                          <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
-                          <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
-                        </div>
-                        <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
+                        <span :class="['rag-ref-snippet', { 'expanded': isSnippetExpanded(msg.id, 1000 + i) }]" :title="ref.snippet">{{ ref.snippet }}</span>
                       </div>
                     </template>
                   </div>
@@ -219,8 +216,10 @@
                   </template>
                   <template v-if="streamingProfileRefs.length">
                     <div class="rag-refs-section-label">🧠 个人画像</div>
-                    <div v-for="(ref, i) in streamingProfileRefs" :key="'sp'+i" class="rag-ref-item">
-                      <span class="rag-ref-snippet" :title="ref.snippet || ref.value">
+                    <div v-for="(ref, i) in streamingProfileRefs" :key="'sp'+i"
+                         class="rag-ref-item-profile"
+                         @click="toggleSnippet('streaming', i)">
+                      <span :class="['rag-ref-snippet', { 'expanded': isSnippetExpanded('streaming', i) }]" :title="ref.snippet || ref.value">
                         <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}】</span>{{ ref.snippet || ref.value }}
                       </span>
                     </div>
@@ -230,13 +229,14 @@
                     <div
                       v-for="(ref, i) in streamingGraphRefs"
                       :key="'sg'+i"
-                      class="rag-ref-item"
+                      class="rag-ref-item-profile"
+                      @click="toggleSnippet('streaming', 1000 + i)"
                     >
                       <div class="rag-ref-meta">
                         <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
                         <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                       </div>
-                      <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
+                      <span :class="['rag-ref-snippet', { 'expanded': isSnippetExpanded('streaming', 1000 + i) }]" :title="ref.snippet">{{ ref.snippet }}</span>
                     </div>
                   </template>
                 </div>
@@ -389,19 +389,19 @@ function parseThink(content: string) {
 }
 
 const isThinkExpanded = ref(false)
-const expandedProfileSnippets = ref<Set<string>>(new Set())
+const expandedSnippets = ref<Set<string>>(new Set())
 
-function toggleProfileSnippet(msgId: string, idx: number) {
+function toggleSnippet(msgId: string, idx: number) {
   const key = `${msgId}-${idx}`
-  if (expandedProfileSnippets.value.has(key)) {
-    expandedProfileSnippets.value.delete(key)
+  if (expandedSnippets.value.has(key)) {
+    expandedSnippets.value.delete(key)
   } else {
-    expandedProfileSnippets.value.add(key)
+    expandedSnippets.value.add(key)
   }
 }
 
-function isProfileSnippetExpanded(msgId: string, idx: number) {
-  return expandedProfileSnippets.value.has(`${msgId}-${idx}`)
+function isSnippetExpanded(msgId: string, idx: number) {
+  return expandedSnippets.value.has(`${msgId}-${idx}`)
 }
 
 function renderStreamingMd(text: string, showCursor: boolean) {
