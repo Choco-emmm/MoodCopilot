@@ -101,15 +101,15 @@
                       <div
                         v-for="(ref, i) in getDiaryRefs(msg.ragReferences)"
                         :key="'d'+i"
-                        class="rag-ref-item rag-ref-clickable"
-                        @click="ref.diaryId && goToDiary(ref.diaryId)"
+                        :class="['rag-ref-item', { 'rag-ref-clickable': ref.diaryId && String(ref.diaryId) !== '-1' }]"
+                        @click="String(ref.diaryId) !== '-1' && goToDiary(ref.diaryId)"
                       >
                         <div class="rag-ref-meta">
                           <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
                           <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                         </div>
                         <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
-                        <span v-if="ref.diaryId" class="rag-ref-go">→</span>
+                        <span v-if="ref.diaryId && String(ref.diaryId) !== '-1'" class="rag-ref-go">→</span>
                       </div>
                     </template>
                     <template v-if="getProfileRefs(msg.ragReferences).length">
@@ -127,15 +127,13 @@
                       <div
                         v-for="(ref, i) in getGraphRefs(msg.ragReferences)"
                         :key="'g'+i"
-                        :class="['rag-ref-item', { 'rag-ref-clickable': ref.diaryId }]"
-                        @click="ref.diaryId && goToDiary(ref.diaryId)"
+                        class="rag-ref-item"
                       >
                         <div class="rag-ref-meta">
-                          <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
+                          <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
                           <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                         </div>
                         <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
-                        <span v-if="ref.diaryId" class="rag-ref-go">→</span>
                       </div>
                     </template>
                   </div>
@@ -208,15 +206,15 @@
                     <div
                       v-for="(ref, i) in streamingDiaryRefs"
                       :key="'sd'+i"
-                      class="rag-ref-item rag-ref-clickable"
-                      @click="ref.diaryId && goToDiary(ref.diaryId)"
+                      :class="['rag-ref-item', { 'rag-ref-clickable': ref.diaryId && String(ref.diaryId) !== '-1' }]"
+                      @click="String(ref.diaryId) !== '-1' && goToDiary(ref.diaryId)"
                     >
                       <div class="rag-ref-meta">
                         <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
                         <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                       </div>
                       <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
-                      <span v-if="ref.diaryId" class="rag-ref-go">→</span>
+                      <span v-if="ref.diaryId && String(ref.diaryId) !== '-1'" class="rag-ref-go">→</span>
                     </div>
                   </template>
                   <template v-if="streamingProfileRefs.length">
@@ -232,15 +230,13 @@
                     <div
                       v-for="(ref, i) in streamingGraphRefs"
                       :key="'sg'+i"
-                      :class="['rag-ref-item', { 'rag-ref-clickable': ref.diaryId }]"
-                      @click="ref.diaryId && goToDiary(ref.diaryId)"
+                      class="rag-ref-item"
                     >
                       <div class="rag-ref-meta">
                         <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
                         <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
                       </div>
                       <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
-                      <span v-if="ref.diaryId" class="rag-ref-go">→</span>
                     </div>
                   </template>
                 </div>
@@ -547,8 +543,8 @@ function toggleMsgRefs(msgId: string) {
   }
 }
 
-function goToDiary(diaryId: string) {
-  if (!diaryId) return
+function goToDiary(diaryId: string | number | undefined) {
+  if (!diaryId || String(diaryId) === '-1') return
   router.push(`/diary/${diaryId}`)
 }
 const viewportBaseHeight = ref(0)
