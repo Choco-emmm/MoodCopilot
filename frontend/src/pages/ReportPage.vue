@@ -79,6 +79,8 @@
 
             <ReportCharts v-if="report.dailyMoods?.length" :moods="report.dailyMoods" />
 
+            <p v-if="report.dailyMoods?.length" class="chart-footnote">仅展示已勾选 AI 分析的日记数据</p>
+
             <h4>AI 周总结</h4>
             <p class="report-auto-hint">系统会在每周一 00:00 自动生成上一周报告，也可以现在手动生成。</p>
             <div v-if="!report.aiSummary" class="empty-state compact">
@@ -171,6 +173,8 @@
             </div>
 
             <ReportCharts v-if="monthReport.dailyMoods?.length" :moods="monthReport.dailyMoods" />
+
+            <p v-if="monthReport.dailyMoods?.length" class="chart-footnote">仅展示已勾选 AI 分析的日记数据</p>
 
             <div v-if="monthReport.dailyMoods?.length" class="list-switch-row">
               <n-button text size="small" @click="showAllMonthDetails = !showAllMonthDetails">
@@ -277,6 +281,7 @@
               </div>
 
               <ReportCharts v-if="s.dailyMoods?.length" :moods="s.dailyMoods" />
+              <p v-if="s.dailyMoods?.length" class="chart-footnote">仅展示已勾选 AI 分析的日记数据</p>
             </div>
             <div class="md-content summary-body" v-html="renderMd(s.aiSummary)" />
             <div v-if="hasGuidance(s)" class="report-guidance">
@@ -679,5 +684,12 @@ function formatGeneratedAt(value?: string | Date | null) {
   .regenerate-banner button {
     align-self: flex-end;
   }
+}
+
+.chart-footnote {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 4px 0 0;
+  text-align: right;
 }
 </style>
