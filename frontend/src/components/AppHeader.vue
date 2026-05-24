@@ -231,7 +231,11 @@ const levelExpCap = computed(() => {
 async function fetchGrowth() {
   try {
     const res = await growthApi.status()
-    if (res.data.data) growth.value = res.data.data
+    if (res.data.data) {
+      const d = res.data.data
+      // 后端 streak 不含今天，已签到时 +1
+      growth.value = { ...d, streak: d.checkedInToday ? d.streak + 1 : d.streak }
+    }
   } catch (e) { logWarn('header', '加载成长数据失败', e) }
 }
 
@@ -256,11 +260,11 @@ const profilePath = computed(() => (auth.userId != null ? `/profile/${auth.userI
 const LEVEL_LABELS = ['Lv.1', 'Lv.2', 'Lv.3', 'Lv.4', 'Lv.5', 'Lv.6']
 const QUOTA_DATA = [
   { chat: 15,  analysis: 5,  reasoning: 2,  resonance: 0,  report: 0,  imageUpload: 3,  imageAnalysis: 2 },
-  { chat: 25,  analysis: 8,  reasoning: 4,  resonance: 3,  report: 0,  imageUpload: 5,  imageAnalysis: 3 },
-  { chat: 35,  analysis: 12, reasoning: 6,  resonance: 5,  report: 2,  imageUpload: 8,  imageAnalysis: 5 },
-  { chat: 45,  analysis: 16, reasoning: 8,  resonance: 8,  report: 4,  imageUpload: 12, imageAnalysis: 8 },
-  { chat: 55,  analysis: 20, reasoning: 10, resonance: 10, report: 6,  imageUpload: 16, imageAnalysis: 12 },
-  { chat: 65,  analysis: 25, reasoning: 12, resonance: 12, report: 8,  imageUpload: 20, imageAnalysis: 15 },
+  { chat: 25,  analysis: 8,  reasoning: 4,  resonance: 3,  report: 2,  imageUpload: 5,  imageAnalysis: 3 },
+  { chat: 35,  analysis: 12, reasoning: 6,  resonance: 5,  report: 4,  imageUpload: 8,  imageAnalysis: 5 },
+  { chat: 45,  analysis: 16, reasoning: 8,  resonance: 8,  report: 7,  imageUpload: 12, imageAnalysis: 8 },
+  { chat: 55,  analysis: 20, reasoning: 10, resonance: 10, report: 11, imageUpload: 16, imageAnalysis: 12 },
+  { chat: 65,  analysis: 25, reasoning: 12, resonance: 12, report: 16, imageUpload: 20, imageAnalysis: 15 },
 ]
 
 const quotaTable = computed(() => {

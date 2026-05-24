@@ -61,12 +61,15 @@ export const useTaskStore = defineStore('task', () => {
 
       const monthTotal = checkins ? checkins.filter(Boolean).length : (status?.monthCheckins ?? 0)
       if (checkins) monthCheckinDays.value = checkins
-      const streak = status?.streak ?? 0
+      const baseStreak = status?.streak ?? 0
+      const todaySigned = status?.checkedInToday ?? false
+      // 后端 streak 是不含今天的，已签到时需要 +1
+      const streak = todaySigned ? baseStreak + 1 : baseStreak
 
       checkInState.value = {
         continuousDays: streak,
         currentMonthTotal: monthTotal,
-        todaySigned: status?.checkedInToday ?? false,
+        todaySigned,
         nextExpReward: streak >= 6 ? 25 : 10 + streak * 2,
       }
       if (status) {

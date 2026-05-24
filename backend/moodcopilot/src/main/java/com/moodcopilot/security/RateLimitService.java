@@ -49,11 +49,11 @@ public class RateLimitService {
     private static final int[][] QUOTA = {
             {150, 50,  30,  50,  30,  50, 50},   // Pro
             {15,  5,   2,   0,   0,   3,  2},    // Lv.1
-            {25,  8,   4,   3,   0,   5,  3},    // Lv.2
-            {35,  12,  6,   5,   2,   8,  5},    // Lv.3
-            {45,  16,  8,   8,   4,   12, 8},    // Lv.4
-            {55,  20,  10,  10,  6,   16, 12},   // Lv.5
-            {65,  25,  12,  12,  8,   20, 15},   // Lv.6
+            {25,  8,   4,   3,   2,   5,  3},    // Lv.2
+            {35,  12,  6,   5,   4,   8,  5},    // Lv.3
+            {45,  16,  8,   8,   7,   12, 8},    // Lv.4
+            {55,  20,  10,  10,  11,  16, 12},   // Lv.5
+            {65,  25,  12,  12,  16,  20, 15},   // Lv.6
     };
 
     public static int getDynamicLimit(AiApiType type, Integer level, boolean isPro) {
