@@ -1120,7 +1120,8 @@ public class ChatService {
         UserEntity user = currentUser();
         requireOwnedConversation(conversationId, user);
         try {
-            String json = objectMapper.writeValueAsString(body.get("messages"));
+            Object messagesObj = body.get("messages");
+            String json = objectMapper.writeValueAsString(messagesObj);
             redisTemplate.opsForValue().set(MSG_PREFIX + conversationId, json, Duration.ofDays(7));
             log.info("保存聊天历史成功，userId={}，conversationId={}，payloadLength={}", user.getId(), conversationId,
                     json.length());
@@ -1135,8 +1136,6 @@ public class ChatService {
         requireOwnedConversation(conversationId, user);
         try {
             String json = redisTemplate.opsForValue().get(MSG_PREFIX + conversationId);
-            // log.info("读取聊天历史，userId={}，conversationId={}，hit={}", user.getId(),
-            // conversationId, json != null);
             return json != null ? objectMapper.readValue(json, Object.class) : List.of();
         } catch (Exception e) {
             log.warn("读取聊天历史失败，userId={}，conversationId={}，reason={}", user.getId(), conversationId, e.getMessage());

@@ -467,9 +467,14 @@ public class AuthService {
         }
     }
 
-    public void updateSettings(Long userId, Boolean dailyNotifyEnabled) {
+    public void updateSettings(Long userId, Boolean dailyNotifyEnabled, Boolean profileNotifyEnabled) {
         UserEntity user = userMapper.selectById(userId);
-        user.setDailyNotifyEnabled(dailyNotifyEnabled);
+        if (dailyNotifyEnabled != null) {
+            user.setDailyNotifyEnabled(dailyNotifyEnabled);
+        }
+        if (profileNotifyEnabled != null) {
+            user.setProfileNotifyEnabled(profileNotifyEnabled);
+        }
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
     }
@@ -589,7 +594,7 @@ public class AuthService {
         String role = user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole();
         return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getEmail(),
                 normalizeAvatar(user.getAvatar()), user.getSignature(),
-                user.getDailyNotifyEnabled(), role, user.getInviteCode(), user.getInviteQuota(),
+                user.getDailyNotifyEnabled(), user.getProfileNotifyEnabled(), role, user.getInviteCode(), user.getInviteQuota(),
                 user.getExp(), user.getLevel(), user.getProExpireTime(),
                 user.getNameChangeCount(), user.getNameChangeWeek());
     }

@@ -378,11 +378,36 @@ public class DiaryService {
                         ragMemoryService.indexKnowledgeGraph(userId, diaryId, entity.getId(), entity.getHeadEntity(), entity.getRelation(), entity.getTailEntity());
                     }
 
-                    if (!triples.isEmpty()) {
+                    // 比较新旧三元组，看看是否有差异
+                    List<Map<String, String>> diffAdded = new java.util.ArrayList<>();
+                    List<Map<String, String>> diffDeleted = new java.util.ArrayList<>();
+                    Set<String> oldSet = oldTriples.stream().map(t -> t.getHeadEntity() + "|" + t.getRelation() + "|" + t.getTailEntity()).collect(java.util.stream.Collectors.toSet());
+                    Set<String> newSet = triples.stream().map(t -> t.head() + "|" + t.relation() + "|" + t.tail()).collect(java.util.stream.Collectors.toSet());
+
+                    for (com.moodcopilot.entity.DiaryKnowledgeGraphEntity oldT : oldTriples) {
+                        String key = oldT.getHeadEntity() + "|" + oldT.getRelation() + "|" + oldT.getTailEntity();
+                        if (!newSet.contains(key)) {
+                            diffDeleted.add(java.util.Map.of("head", oldT.getHeadEntity(), "relation", oldT.getRelation(), "tail", oldT.getTailEntity()));
+                        }
+                    }
+
+                    for (AiAnalysisService.KnowledgeTriple newT : triples) {
+                        String key = newT.head() + "|" + newT.relation() + "|" + newT.tail();
+                        if (!oldSet.contains(key)) {
+                            diffAdded.add(java.util.Map.of("head", newT.head(), "relation", newT.relation(), "tail", newT.tail()));
+                        }
+                    }
+
+                    if ((!diffAdded.isEmpty() || !diffDeleted.isEmpty())
+                            && Boolean.TRUE.equals(userMapper.selectById(userId).getProfileNotifyEnabled())) {
                         log.info("日记知识图谱提取完成，diaryId={}，共 {} 条三元组", diaryId, triples.size());
-                        notificationService.notifyGlobalEvent(userId, "GRAPH_UPDATED", "🕸️ AI 已提取了新的事件因果关系");
+                        java.util.Map<String, Object> payload = java.util.Map.of(
+                                "message", "🕸️ AI 已提取了新的事件因果关系",
+                                "diff", java.util.Map.of("added", diffAdded, "deleted", diffDeleted)
+                        );
+                        notificationService.notifyGlobalEvent(userId, "GRAPH_UPDATED", payload);
                     } else if (!oldTriples.isEmpty()) {
-                        log.info("日记知识图谱已被清空（新日记无有效三元组），diaryId={}", diaryId);
+                        log.info("日记知识图谱已被清空或无变化，diaryId={}", diaryId);
                     }
                 } catch (Exception e) {
                     log.error("日记知识图谱提取或落库失败，diaryId={}", diaryId, e);
@@ -1993,8 +2018,8 @@ public class DiaryService {
             throw new ResponseStatusException(BAD_REQUEST, "请先写下今天的情绪");
         }
         String normalized = content.trim();
-        if (normalized.length() > 1000) {
-            throw new ResponseStatusException(BAD_REQUEST, "日记内容不能超过 1000 字");
+        if (normalized.length() > 3000) {
+            throw new ResponseStatusException(BAD_REQUEST, "日记内容不能超过 3000 字");
         }
         return normalized;
     }

@@ -257,6 +257,13 @@
             </div>
             <n-switch :value="auth.dailyNotifyEnabled" :disabled="toggling" @update:value="toggleNotify" />
           </div>
+          <div class="settings-row notify-row" style="align-items: center;">
+            <div style="flex: 1; padding-right: 12px;">
+              <p class="notify-title" style="font-size: 14px;">画像/图谱更新通知</p>
+              <p class="settings-desc" style="margin-top: 4px; font-size: 12px;">日记分析后有画像或图谱变更时弹窗提醒</p>
+            </div>
+            <n-switch :value="auth.profileNotifyEnabled" :disabled="toggling" @update:value="toggleProfileNotify" />
+          </div>
         </section>
 
 
@@ -1025,6 +1032,17 @@ async function toggleNotify(val: boolean) {
     await auth.updateSettings(val)
   } catch (e) {
     logWarn('profile', '更新通知设置失败', e)
+  } finally {
+    toggling.value = false
+  }
+}
+
+async function toggleProfileNotify(val: boolean) {
+  toggling.value = true
+  try {
+    await auth.updateSettings(auth.dailyNotifyEnabled, val)
+  } catch (e) {
+    logWarn('profile', '更新画像通知设置失败', e)
   } finally {
     toggling.value = false
   }

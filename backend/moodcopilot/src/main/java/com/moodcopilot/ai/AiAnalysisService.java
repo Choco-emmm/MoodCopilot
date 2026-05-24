@@ -119,14 +119,20 @@ public class AiAnalysisService {
     // ── Knowledge Graph Extraction ──
 
     private static final String GRAPH_EXTRACTION_SYSTEM_PROMPT = """
-            You are a highly precise knowledge graph extraction assistant. Extract causal, emotional, and relational knowledge from the diary entry provided.
-            Return ONLY a valid JSON array of objects, without markdown code blocks, explanation, or extra text.
-            Each object must contain EXACTLY these three string fields:
-            - head: The subject entity (e.g., "老板", "跑步", "缺乏睡眠")
-            - relation: The relationship verb (e.g., "导致", "缓解", "属于", "觉得")
-            - tail: The object entity (e.g., "焦虑", "压力", "同事")
-            Extract only meaningful relationships. If no relationships are found, return [].
-            Example: [{"head": "无理取闹的客户", "relation": "导致", "tail": "崩溃"}, {"head": "听轻音乐", "relation": "缓解", "tail": "压力"}]
+            你是一个专注于情绪与心理分析的知识图谱提取助手。从日记中提取与情绪、心理状态、行为模式相关的因果关系。
+            只返回一个 JSON 数组，不要加 markdown 代码块或任何解释文字。
+            每个对象必须包含以下三个字符串字段：
+            - head: 触发因素或行为主体（如"老板"、"加班"、"缺乏睡眠"）
+            - relation: 关系动词（如"导致"、"缓解"、"引发"、"影响"）
+            - tail: 情绪或心理结果（如"焦虑"、"压力"、"失眠"、"开心"）
+            严格遵守以下规则：
+            1. 只提取与情绪、心理、行为、人际关系相关的因果/影响关系
+            2. 不提取客观事物的物理属性（如食物口感、物品特征）
+            3. 不提取常识性事实（如"番茄含有维生素C"）
+            4. head 和 tail 至少有一个涉及人的情绪、感受、行为或心理状态
+            5. 如果日记中没有符合条件的关系，返回 []
+            正确示例：[{"head": "无理取闹的客户", "relation": "导致", "tail": "崩溃"}, {"head": "听轻音乐", "relation": "缓解", "tail": "压力"}, {"head": "熬夜", "relation": "引发", "tail": "第二天的疲惫"}]
+            错误示例（不要提取这类）：[{"head": "番茄牛腩", "relation": "具有", "tail": "黏黏的口感"}, {"head": "跑步", "relation": "是", "tail": "一种运动"}]
             """;
 
     public record KnowledgeTriple(String head, String relation, String tail) {}

@@ -33,12 +33,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Scope;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.reactive.function.client.ClientRequest;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -369,13 +371,18 @@ public class AIConfiguration {
                 .build();
     }
 
+    /**
+     * 自定义 WebClient.Builder Bean，替代 Spring Boot 自动配置的 WebClient.Builder。
+     * 在每个 WebClient 请求发出前，利用 Jackson 树模型精准清洗消息体：
+     * 强制将 assistant + tool_calls 消息的 content/reasoning_content 补齐为空字符串，
+     * 防止 Node.js 代理网关因 null.length 崩溃。
+     */
     @Bean
-    public WebClientCustomizer deepseekWebClientCustomizer(com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
-        log.info("注册 DeepSeek 稳定版拦截器 (Jackson 树模型精准注入，彻底终结 400 梦魇)");
-        return webClientBuilder -> webClientBuilder.filter((request, next) -> {
-            if (!request.url().getHost().contains("deepseek.com")) {
-                return next.exchange(request);
-            }
+    @Scope("prototype")
+    public WebClient.Builder webClientBuilder(com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+        log.info("注册 AI WebClient.Builder（含 content-null 拦截过滤器）");
+        WebClient.Builder builder = WebClient.builder();
+        return builder.filter((request, next) -> {
 
             // 1. 声明数据捕获容器
             final class BodyCaptureMessage implements org.springframework.http.ReactiveHttpOutputMessage {
@@ -505,6 +512,15 @@ public class AIConfiguration {
                                 });
                     }));
         });
+    }
+
+    /** 向后兼容：旧代码引用 WebClientCustomizer 的地方，改为代理到自定义 Builder。 */
+    @Bean
+    public org.springframework.boot.web.reactive.function.client.WebClientCustomizer deepseekWebClientCustomizer(
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+        // 保留此 Bean 防止其他地方引用 WebClientCustomizer 报错；
+        // 核心拦截逻辑已在 webClientBuilder Bean 中完成。
+        return builder -> {};
     }
 
     @Primary

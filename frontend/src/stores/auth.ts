@@ -23,6 +23,7 @@ export const useAuthStore = defineStore('auth', () => {
   const avatar = ref<string | null>(null)
   const signature = ref<string | null>(null)
   const dailyNotifyEnabled = ref<boolean>(true)
+  const profileNotifyEnabled = ref<boolean>(true)
   const role = ref<string>(localStorage.getItem('role') || 'USER')
   const exp = ref<number>(0)
   const level = ref<number>(1)
@@ -63,6 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
       avatar.value = normalizeResourceUrl(data.avatar)
       signature.value = data.signature ?? null
       dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
+      profileNotifyEnabled.value = data.profileNotifyEnabled !== false
       exp.value = data.exp ?? 0
       level.value = data.level ?? 1
       proExpireTime.value = data.proExpireTime ?? null
@@ -88,9 +90,10 @@ export const useAuthStore = defineStore('auth', () => {
     avatar.value = normalizeResourceUrl(res.data.data.avatar)
   }
 
-  async function updateSettings(enabled: boolean) {
-    await authApi.updateSettings(enabled)
-    dailyNotifyEnabled.value = enabled
+  async function updateSettings(daily: boolean, profile?: boolean) {
+    await authApi.updateSettings(daily, profile)
+    dailyNotifyEnabled.value = daily
+    if (profile !== undefined) profileNotifyEnabled.value = profile
   }
 
   function applyAuthData(data: any) {
@@ -101,6 +104,7 @@ export const useAuthStore = defineStore('auth', () => {
     avatar.value = normalizeResourceUrl(data.avatar)
     signature.value = data.signature ?? null
     dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
+    profileNotifyEnabled.value = data.profileNotifyEnabled !== false
     exp.value = data.exp ?? 0
     level.value = data.level ?? 1
     proExpireTime.value = data.proExpireTime ?? null
@@ -140,6 +144,7 @@ export const useAuthStore = defineStore('auth', () => {
     avatar.value = null
     signature.value = null
     dailyNotifyEnabled.value = true
+    profileNotifyEnabled.value = true
     role.value = 'USER'
     nameChangeCount.value = 0
     nameChangeWeek.value = 0
@@ -153,7 +158,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    token, userId, displayName, email, avatar, signature, dailyNotifyEnabled, role, exp, level, proExpireTime, nameChangeCount, nameChangeWeek, maxWeeklyNameChanges, remainingNameChanges, isPro, isAuthenticated, isAdmin,
+    token, userId, displayName, email, avatar, signature, dailyNotifyEnabled, profileNotifyEnabled, role, exp, level, proExpireTime, nameChangeCount, nameChangeWeek, maxWeeklyNameChanges, remainingNameChanges, isPro, isAuthenticated, isAdmin,
     fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout, sendCode, sendPasswordChangeCode, changePassword
   }
 })

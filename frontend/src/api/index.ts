@@ -134,8 +134,8 @@ export const authApi = {
     fd.append('file', file)
     return api.post('/auth/avatar', fd)
   },
-  updateSettings: (dailyNotifyEnabled: boolean) =>
-    api.put('/auth/settings', { dailyNotifyEnabled }),
+  updateSettings: (dailyNotifyEnabled: boolean, profileNotifyEnabled?: boolean) =>
+    api.put('/auth/settings', { dailyNotifyEnabled, profileNotifyEnabled }),
   getQuota: () => api.get('/user/quota'),
 }
 
@@ -273,7 +273,7 @@ export const chatApi = {
   reply: (id: number, message: string, references: string[] = []) =>
     api.post(`/chat/conversations/${id}/reply`, { message, references }),
   /** SSE 流式请求（JSON Chunk 协议） */
-  replyStream: (
+  replyStream: async (
     id: number,
     message: string,
     references: string[],
@@ -283,36 +283,46 @@ export const chatApi = {
     onToolReferences?: (items: Array<{ type: string; diaryId?: string; date: string; snippet: string; toolName: string }>) => void,
   ): Promise<void> => {
     const token = localStorage.getItem('token')
-    return fetchEventSource(`/api/chat/conversations/${id}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ message, references }),
-      signal: ctrl.signal,
-      openWhenHidden: true,
-      onmessage(event) {
-        const raw = event.data
-        try {
-          const msg = JSON.parse(raw)
-          if (msg.type === 'references') {
-            onReferences?.(msg.items ?? [])
-          } else if (msg.type === 'tool_references') {
-            onToolReferences?.(msg.items ?? [])
-          } else if (msg.type === 'chunk') {
-            onChunk(msg.content ?? '')
+    let doneReceived = false
+    try {
+      await fetchEventSource(`/api/chat/conversations/${id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ message, references }),
+        signal: ctrl.signal,
+        openWhenHidden: true,
+        onmessage(event) {
+          const raw = event.data
+          try {
+            const msg = JSON.parse(raw)
+            if (msg.type === 'references') {
+              onReferences?.(msg.items ?? [])
+            } else if (msg.type === 'tool_references') {
+              onToolReferences?.(msg.items ?? [])
+            } else if (msg.type === 'chunk') {
+              onChunk(msg.content ?? '')
+            } else if (msg.type === 'done') {
+              doneReceived = true
+            }
+          } catch {
+            if (raw !== '[DONE]') onChunk(raw)
           }
-          // 'done' 类型无需处理
-        } catch {
-          // 兼容旧格式：纯文本 chunk
-          if (raw !== '[DONE]') onChunk(raw)
-        }
-      },
-      onerror(err) {
-        throw err
-      },
-    })
+        },
+        onerror(err) {
+          if (doneReceived) {
+            ctrl.abort()
+            throw new Error('__SSE_DONE__')
+          }
+          throw err
+        },
+      })
+    } catch (e: any) {
+      if (e?.message === '__SSE_DONE__') return
+      throw e
+    }
   },
 }
 

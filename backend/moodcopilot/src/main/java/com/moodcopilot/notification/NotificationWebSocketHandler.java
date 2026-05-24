@@ -115,11 +115,15 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
     }
 
     public void pushGlobalEvent(Long userId, String type, String messageText) {
+        pushGlobalEvent(userId, type, Map.of("message", messageText));
+    }
+
+    public void pushGlobalEvent(Long userId, String type, Map<String, Object> data) {
         Set<WebSocketSession> sessions = sessionsByUserId.get(userId);
         if (sessions == null || sessions.isEmpty())
             return;
 
-        String message = buildEnvelope(type, Map.of("message", messageText));
+        String message = buildEnvelope(type, data);
         sessions.forEach(session -> sendSafely(session, message));
     }
 

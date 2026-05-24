@@ -570,11 +570,16 @@ public class MemoryExtractionService {
         int updatedCount = 0;
         int insertedCount = 0;
         int deletedCount = 0;
+        java.util.List<java.util.Map<String, String>> diffAdded = new java.util.ArrayList<>();
+        java.util.List<java.util.Map<String, String>> diffDeleted = new java.util.ArrayList<>();
+        java.util.List<java.util.Map<String, String>> diffUpdated = new java.util.ArrayList<>();
+
         for (MemoryAttribute attribute : attributes) {
             UserProfileMemoryEntity existingEntity = existingByKey.get(attribute.attributeKey());
 
             if (DELETE_MARKER.equals(attribute.attributeValue())) {
                 if (existingEntity != null) {
+                    diffDeleted.add(java.util.Map.of("key", existingEntity.getAttributeKey(), "value", existingEntity.getAttributeValue()));
                     userProfileMemoryMapper.deleteById(existingEntity.getId());
                     deletedCount++;
                     log.info("长期画像属性已通过 DELETE_MARKER 删除，userId={}，attributeKey={}", userId,
@@ -584,6 +589,18 @@ public class MemoryExtractionService {
             }
 
             if (existingEntity != null) {
+                String oldVal = existingEntity.getAttributeValue();
+                String newVal = attribute.attributeValue();
+                if (!oldVal.equals(newVal)) {
+                    java.util.Map<String, String> diffEntry = new java.util.LinkedHashMap<>();
+                    diffEntry.put("key", existingEntity.getAttributeKey());
+                    String[] compact = compactDiff(oldVal, newVal);
+                    if (compact != null) {
+                        diffEntry.put("oldValue", compact[0]);
+                        diffEntry.put("newValue", compact[1]);
+                    }
+                    diffUpdated.add(diffEntry);
+                }
                 existingEntity.setAttributeValue(attribute.attributeValue());
                 existingEntity.setIsCore(Boolean.TRUE.equals(attribute.isCore()));
                 existingEntity.setUpdateTime(now);
@@ -598,6 +615,7 @@ public class MemoryExtractionService {
             entity.setIsCore(Boolean.TRUE.equals(attribute.isCore()));
             entity.setUpdateTime(now);
             userProfileMemoryMapper.insert(entity);
+            diffAdded.add(java.util.Map.of("key", attribute.attributeKey(), "value", attribute.attributeValue()));
             insertedCount++;
         }
 
@@ -611,8 +629,13 @@ public class MemoryExtractionService {
             ragMemoryService.indexUserProfile(userId, latest);
         }
 
-        if (insertedCount > 0 || updatedCount > 0 || deletedCount > 0) {
-            notificationService.notifyGlobalEvent(userId, "MEMORY_UPDATED", "✨ AI 已更新了关于你的长期记忆");
+        if ((!diffAdded.isEmpty() || !diffUpdated.isEmpty() || !diffDeleted.isEmpty())
+                && Boolean.TRUE.equals(userMapper.selectById(userId).getProfileNotifyEnabled())) {
+            java.util.Map<String, Object> payload = java.util.Map.of(
+                    "message", "✨ AI 已更新了关于你的长期记忆",
+                    "diff", java.util.Map.of("added", diffAdded, "deleted", diffDeleted, "updated", diffUpdated)
+            );
+            notificationService.notifyGlobalEvent(userId, "MEMORY_UPDATED", payload);
         }
     }
 
@@ -648,6 +671,54 @@ public class MemoryExtractionService {
             return raw;
         }
         return raw.substring(0, maxLength);
+    }
+
+    private static final String[] DIFF_SEPS = {"。", "；", "，", "、", "!", "！", "?", "？", "\n"};
+
+    /** 按标点分句，只保留新旧值不同的片段，省略相同的前后文。返回 [旧片段, 新片段]，无差异时返回 null。 */
+    private String[] compactDiff(String oldVal, String newVal) {
+        if (oldVal == null || newVal == null || oldVal.equals(newVal)) return null;
+
+        String[] segs = splitBySeps(oldVal);
+        String[] newSegs = splitBySeps(newVal);
+
+        int prefixLen = 0;
+        while (prefixLen < segs.length && prefixLen < newSegs.length
+                && segs[prefixLen].equals(newSegs[prefixLen])) {
+            prefixLen++;
+        }
+        int suffixLen = 0;
+        while (suffixLen < segs.length - prefixLen && suffixLen < newSegs.length - prefixLen
+                && segs[segs.length - 1 - suffixLen].equals(newSegs[newSegs.length - 1 - suffixLen])) {
+            suffixLen++;
+        }
+
+        int oldStart = prefixLen;
+        int oldEnd = segs.length - suffixLen;
+        int newStart = prefixLen;
+        int newEnd = newSegs.length - suffixLen;
+
+        if (oldStart >= oldEnd && newStart >= newEnd) return null;
+
+        StringBuilder oldPart = new StringBuilder();
+        for (int i = oldStart; i < oldEnd; i++) {
+            if (oldPart.length() > 0) oldPart.append(",");
+            oldPart.append(segs[i].trim());
+        }
+        StringBuilder newPart = new StringBuilder();
+        for (int i = newStart; i < newEnd; i++) {
+            if (newPart.length() > 0) newPart.append(",");
+            newPart.append(newSegs[i].trim());
+        }
+
+        String before = prefixLen > 0 ? "…" + oldPart : oldPart.toString();
+        String after = suffixLen > 0 ? newPart + "…" : newPart.toString();
+        return new String[]{before, after};
+    }
+
+    private String[] splitBySeps(String text) {
+        String[] parts = text.split("(?<=[。；，、！？!?\\n])");
+        return parts.length > 0 ? parts : new String[]{text};
     }
 
     private String serializeMemoryFact(UserProfileMemoryEntity memory) {

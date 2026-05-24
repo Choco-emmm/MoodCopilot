@@ -179,8 +179,12 @@ public class NotificationService {
     }
 
     public void notifyGlobalEvent(Long recipientUserId, String type, String message) {
+        notifyGlobalEvent(recipientUserId, type, java.util.Map.of("message", message));
+    }
+
+    public void notifyGlobalEvent(Long recipientUserId, String type, java.util.Map<String, Object> data) {
         try {
-            notificationWebSocketHandler.pushGlobalEvent(recipientUserId, type, message);
+            notificationWebSocketHandler.pushGlobalEvent(recipientUserId, type, data);
         } catch (Exception e) {
             log.warn("Failed to push global event notification", e);
         }

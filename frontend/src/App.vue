@@ -1,44 +1,46 @@
 <template>
   <n-config-provider :theme-overrides="themeOverrides" :locale="zhCN" :date-locale="dateZhCN">
-    <n-message-provider>
-      <MessageEnvironment />
-      <router-view v-slot="{ Component, route }">
-        <keep-alive>
-          <component :is="Component" v-if="route.meta.keepAlive" :key="route.name" />
-        </keep-alive>
-        <component :is="Component" v-if="!route.meta.keepAlive" :key="route.fullPath" />
-      </router-view>
+    <n-notification-provider>
+      <n-message-provider>
+        <MessageEnvironment />
+        <router-view v-slot="{ Component, route }">
+          <keep-alive>
+            <component :is="Component" v-if="route.meta.keepAlive" :key="route.name" />
+          </keep-alive>
+          <component :is="Component" v-if="!route.meta.keepAlive" :key="route.fullPath" />
+        </router-view>
 
-      <n-modal :show="store.showGlobalAnalysisModal" :mask-closable="false" @update:show="onGlobalModalUpdate">
-        <div class="analysis-modal">
-          <div class="modal-header">
-            <h3>分析完成</h3>
-            <button class="modal-close" @click="store.closeAnalysisModal()">&times;</button>
-          </div>
-          <template v-if="store.globalAnalysisDiary?.analysis">
-            <div class="modal-mood">
-              <n-tag :type="moodTagType(store.globalAnalysisDiary.analysis.moodLabel)" size="medium">
-                {{ store.globalAnalysisDiary.analysis.moodLabel }}
-              </n-tag>
-              <span class="mood-intensity">强度 {{ '★'.repeat(store.globalAnalysisDiary.analysis.moodIntensity) }}{{ '☆'.repeat(5 - store.globalAnalysisDiary.analysis.moodIntensity) }}</span>
+        <n-modal :show="store.showGlobalAnalysisModal" :mask-closable="false" @update:show="onGlobalModalUpdate">
+          <div class="analysis-modal">
+            <div class="modal-header">
+              <h3>分析完成</h3>
+              <button class="modal-close" @click="store.closeAnalysisModal()">&times;</button>
             </div>
-            <template v-if="store.globalAnalysisDiary.analysis.secondaryMoods?.length">
-              <div class="modal-secondary">
-                <n-tag v-for="m in store.globalAnalysisDiary.analysis.secondaryMoods" :key="m" size="small" :bordered="true">
-                  {{ m }}
+            <template v-if="store.globalAnalysisDiary?.analysis">
+              <div class="modal-mood">
+                <n-tag :type="moodTagType(store.globalAnalysisDiary.analysis.moodLabel)" size="medium">
+                  {{ store.globalAnalysisDiary.analysis.moodLabel }}
                 </n-tag>
+                <span class="mood-intensity">强度 {{ '★'.repeat(store.globalAnalysisDiary.analysis.moodIntensity) }}{{ '☆'.repeat(5 - store.globalAnalysisDiary.analysis.moodIntensity) }}</span>
               </div>
+              <template v-if="store.globalAnalysisDiary.analysis.secondaryMoods?.length">
+                <div class="modal-secondary">
+                  <n-tag v-for="m in store.globalAnalysisDiary.analysis.secondaryMoods" :key="m" size="small" :bordered="true">
+                    {{ m }}
+                  </n-tag>
+                </div>
+              </template>
+              <p class="modal-summary">{{ store.globalAnalysisDiary.analysis.summary }}</p>
+              <p class="modal-feedback">{{ truncatedFeedback }}</p>
             </template>
-            <p class="modal-summary">{{ store.globalAnalysisDiary.analysis.summary }}</p>
-            <p class="modal-feedback">{{ truncatedFeedback }}</p>
-          </template>
-          <div class="modal-actions">
-            <n-button @click="store.closeAnalysisModal()">关闭</n-button>
-            <n-button type="primary" @click="goToDetail">查看完整分析</n-button>
+            <div class="modal-actions">
+              <n-button @click="store.closeAnalysisModal()">关闭</n-button>
+              <n-button type="primary" @click="goToDetail">查看完整分析</n-button>
+            </div>
           </div>
-        </div>
-      </n-modal>
-    </n-message-provider>
+        </n-modal>
+      </n-message-provider>
+    </n-notification-provider>
   </n-config-provider>
 </template>
 
@@ -46,7 +48,7 @@
 import { computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { defineComponent } from 'vue'
-import { useMessage, zhCN, dateZhCN } from 'naive-ui'
+import { useMessage, useNotification, zhCN, dateZhCN } from 'naive-ui'
 import { useDiaryStore } from './stores/diary'
 import { useAuthStore } from './stores/auth'
 import { useNotificationStore } from './stores/notification'
@@ -60,6 +62,7 @@ const notificationStore = useNotificationStore()
 const MessageEnvironment = defineComponent({
   setup() {
     window.$message = useMessage()
+    window.$notification = useNotification()
     return () => null
   },
 })

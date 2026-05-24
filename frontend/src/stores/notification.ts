@@ -124,15 +124,32 @@ export const useNotificationStore = defineStore('notification', () => {
         if (payload?.type === 'NOTIFICATION') {
           mergeIncomingNotification(payload.data as Notification)
         } else if (payload?.type === 'MEMORY_UPDATED' || payload?.type === 'GRAPH_UPDATED') {
-          if (window.$message) {
+          if (window.$notification) {
             const msg = payload.data?.message || (payload.type === 'MEMORY_UPDATED' ? '✨ AI 已更新了关于你的长期记忆' : '🕸️ AI 已提取了新的事件因果关系')
-            window.$message.success(
-              () => h('span', {
-                style: 'cursor: pointer; text-decoration: underline;',
-                onClick: () => router.push('/ai-memory')
-              }, msg + '，点击查看 →'),
-              { duration: 5000 }
-            )
+            const diff = payload.data?.diff
+
+            const nodes: any[] = []
+            if (diff) {
+              if (payload.type === 'MEMORY_UPDATED') {
+                diff.added?.forEach((item: any) => nodes.push(h('div', { style: 'color: #18a058; margin-top: 4px; font-size: 13px;' }, `+ [${item.key}] ${item.value}`)))
+                diff.updated?.forEach((item: any) => nodes.push(h('div', { style: 'color: #f0a020; margin-top: 4px; font-size: 13px;' }, `~ [${item.key}] ${item.oldValue} ➔ ${item.newValue}`)))
+                diff.deleted?.forEach((item: any) => nodes.push(h('div', { style: 'color: #d03050; text-decoration: line-through; margin-top: 4px; font-size: 13px;' }, `- [${item.key}] ${item.value}`)))
+              } else if (payload.type === 'GRAPH_UPDATED') {
+                diff.added?.forEach((item: any) => nodes.push(h('div', { style: 'color: #18a058; margin-top: 4px; font-size: 13px;' }, `+ ${item.head} —[${item.relation}]→ ${item.tail}`)))
+                diff.deleted?.forEach((item: any) => nodes.push(h('div', { style: 'color: #d03050; text-decoration: line-through; margin-top: 4px; font-size: 13px;' }, `- ${item.head} —[${item.relation}]→ ${item.tail}`)))
+              }
+            }
+
+            window.$notification.create({
+              title: payload.type === 'MEMORY_UPDATED' ? '🧠 画像更新' : '🕸️ 图谱更新',
+              content: () => h('div', null, [
+                h('div', { style: 'font-weight: bold; margin-bottom: 8px;' }, msg),
+                ...nodes
+              ]),
+              meta: new Date().toLocaleTimeString(),
+              duration: 8000,
+              keepAliveOnHover: true
+            })
           }
         }
       } catch (e) {

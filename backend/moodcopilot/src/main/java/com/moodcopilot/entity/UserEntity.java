@@ -20,6 +20,7 @@ public class UserEntity {
     private String avatar;
     private String signature;
     private Boolean dailyNotifyEnabled;
+    private Boolean profileNotifyEnabled;
     private String inviteCode;
     private Integer inviteQuota;
     private Long invitedBy;
@@ -110,6 +111,14 @@ public class UserEntity {
 
     public void setDailyNotifyEnabled(Boolean dailyNotifyEnabled) {
         this.dailyNotifyEnabled = dailyNotifyEnabled;
+    }
+
+    public Boolean getProfileNotifyEnabled() {
+        return profileNotifyEnabled;
+    }
+
+    public void setProfileNotifyEnabled(Boolean profileNotifyEnabled) {
+        this.profileNotifyEnabled = profileNotifyEnabled;
     }
 
     public String getInviteCode() {

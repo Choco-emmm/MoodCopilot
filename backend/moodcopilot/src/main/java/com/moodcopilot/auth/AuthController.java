@@ -104,7 +104,8 @@ public class AuthController {
     public ApiResponse<Void> updateSettings(@AuthenticationPrincipal UserEntity user,
             @RequestBody Map<String, Object> body) {
         Boolean dailyNotifyEnabled = (Boolean) body.get("dailyNotifyEnabled");
-        authService.updateSettings(requireUser(user).getId(), dailyNotifyEnabled);
+        Boolean profileNotifyEnabled = (Boolean) body.get("profileNotifyEnabled");
+        authService.updateSettings(requireUser(user).getId(), dailyNotifyEnabled, profileNotifyEnabled);
         return ApiResponse.ok(null);
     }
 
