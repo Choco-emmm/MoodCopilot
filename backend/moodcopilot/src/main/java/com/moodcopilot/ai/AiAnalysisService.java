@@ -29,6 +29,8 @@ public class AiAnalysisService {
               3 = clearly felt / affecting current attention
               4 = strong / driving physiological reactions or behavior
               5 = overwhelming / hard to control or bear
+            - valence: integer from -100 to 100 representing emotional positivity/negativity. -100 is extreme agony/pain, 0 is neutral, 100 is extreme ecstasy/joy.
+            - arousal: integer from -100 to 100 representing physiological energy/activation. -100 is extreme exhaustion/calm, 0 is neutral, 100 is extreme excitement/tension.
             - secondaryMoods: OPTIONAL array of strings from the same mood list above. Include only if the diary clearly expresses more than one emotion. Return empty array [] when the emotion is singular.
             - topicLabels: array of strings from [人际关系, 工作学习, 睡眠身体, 自我成长, 日常情绪]
             - summary: brief Chinese summary, max 48 characters
@@ -93,12 +95,23 @@ public class AiAnalysisService {
         Map<String, Object> map = objectMapper.readValue(JsonUtils.cleanJson(json), Map.class);
         String moodLabel = (String) map.get("moodLabel");
         int moodIntensity = ((Number) map.get("moodIntensity")).intValue();
+        
+        Integer valence = null;
+        if (map.containsKey("valence") && map.get("valence") != null) {
+            valence = ((Number) map.get("valence")).intValue();
+        }
+        Integer arousal = null;
+        if (map.containsKey("arousal") && map.get("arousal") != null) {
+            arousal = ((Number) map.get("arousal")).intValue();
+        }
+
         List<String> topicLabels = (List<String>) map.get("topicLabels");
         List<String> secondaryMoods = (List<String>) map.get("secondaryMoods");
         String summary = (String) map.get("summary");
         String feedback = (String) map.get("feedback");
         List<String> safeSecondary = (secondaryMoods != null) ? secondaryMoods : List.of();
         return new DiaryAnalysis(moodLabel, Math.min(5, Math.max(1, moodIntensity)),
+                valence, arousal,
                 topicLabels, safeSecondary, summary, feedback);
     }
 
@@ -639,13 +652,28 @@ public class AiAnalysisService {
         String mood = pickMood(content);
         List<String> topics = pickTopics(content);
         List<String> secondary = pickSecondaryMoods(content, mood);
+        int intsy = intensity(content, mood);
         return new DiaryAnalysis(
                 mood,
-                intensity(content, mood),
+                intsy,
+                estimateValence(mood, intsy),
+                estimateArousal(mood, intsy),
                 topics,
                 secondary,
                 summarize(content),
                 feedbackFor(mood, topics));
+    }
+
+    public static Integer estimateValence(String moodLabel, int intensity) {
+        if ("平静".equals(moodLabel)) return 10;
+        int base = List.of("喜悦", "期待", "兴奋", "自豪", "轻松", "平静", "感恩", "满足").contains(moodLabel) ? 60 : -60;
+        return base + (base > 0 ? (intensity - 3) * 15 : -(intensity - 3) * 15);
+    }
+
+    public static Integer estimateArousal(String moodLabel, int intensity) {
+        if ("平静".equals(moodLabel)) return -10;
+        int base = List.of("喜悦", "期待", "兴奋", "自豪", "烦躁", "愤怒", "焦虑", "害怕").contains(moodLabel) ? 60 : -60;
+        return base + (base > 0 ? (intensity - 3) * 15 : -(intensity - 3) * 15);
     }
 
     private String pickMood(String content) {

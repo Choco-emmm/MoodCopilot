@@ -1,0 +1,3 @@
+ALTER TABLE diary_analysis 
+ADD COLUMN valence INT DEFAULT NULL COMMENT '情绪效价(-100到100)',
+ADD COLUMN arousal INT DEFAULT NULL COMMENT '情绪唤醒度(-100到100)';

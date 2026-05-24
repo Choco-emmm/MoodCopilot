@@ -37,6 +37,8 @@ export interface DiaryAnalysis {
   moodIntensity: number
   topicLabels: string[]
   secondaryMoods?: string[]
+  valence?: number
+  arousal?: number
   summary: string
   feedback: string
 }
@@ -62,6 +64,8 @@ export interface DailyMood {
   date: string
   moodLabel: string
   moodIntensity: number
+  valence?: number
+  arousal?: number
   diaryIds?: number[]
   contentSnippet?: string
 }

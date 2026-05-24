@@ -870,6 +870,8 @@ public class DiaryService {
                 DiaryAnalysis analysis = new DiaryAnalysis(
                         analysisEntity.getMoodLabel(),
                         analysisEntity.getMoodIntensity(),
+                        analysisEntity.getValence(),
+                        analysisEntity.getArousal(),
                         analysisEntity.getTopicLabelsJson(),
                         analysisEntity.getSecondaryMoodsJson() != null ? analysisEntity.getSecondaryMoodsJson()
                                 : List.of(),
@@ -880,6 +882,8 @@ public class DiaryService {
                         diary.getCreatedAt().toLocalDate(),
                         analysis.moodLabel(),
                         analysis.moodIntensity(),
+                        analysis.valence() != null ? analysis.valence() : AiAnalysisService.estimateValence(analysis.moodLabel(), analysis.moodIntensity()),
+                        analysis.arousal() != null ? analysis.arousal() : AiAnalysisService.estimateArousal(analysis.moodLabel(), analysis.moodIntensity()),
                         List.of(diary.getId()),
                         snippet(diary.getContent())));
                 for (String topic : analysis.topicLabels()) {
@@ -1028,6 +1032,8 @@ public class DiaryService {
                 DiaryAnalysis analysis = new DiaryAnalysis(
                         analysisEntity.getMoodLabel(),
                         analysisEntity.getMoodIntensity(),
+                        analysisEntity.getValence(),
+                        analysisEntity.getArousal(),
                         analysisEntity.getTopicLabelsJson(),
                         analysisEntity.getSecondaryMoodsJson() != null ? analysisEntity.getSecondaryMoodsJson()
                                 : List.of(),
@@ -1038,6 +1044,8 @@ public class DiaryService {
                         diary.getCreatedAt().toLocalDate(),
                         analysis.moodLabel(),
                         analysis.moodIntensity(),
+                        analysis.valence() != null ? analysis.valence() : AiAnalysisService.estimateValence(analysis.moodLabel(), analysis.moodIntensity()),
+                        analysis.arousal() != null ? analysis.arousal() : AiAnalysisService.estimateArousal(analysis.moodLabel(), analysis.moodIntensity()),
                         List.of(diary.getId()),
                         snippet(diary.getContent())));
                 for (String topic : analysis.topicLabels()) {

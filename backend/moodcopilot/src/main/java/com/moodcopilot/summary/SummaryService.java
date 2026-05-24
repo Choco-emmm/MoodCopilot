@@ -87,13 +87,23 @@ public class SummaryService {
                 DiaryAnalysis a = new DiaryAnalysis(
                         analysisEntity.getMoodLabel(),
                         analysisEntity.getMoodIntensity(),
+                        analysisEntity.getValence(),
+                        analysisEntity.getArousal(),
                         analysisEntity.getTopicLabelsJson(),
                         analysisEntity.getSecondaryMoodsJson() != null ? analysisEntity.getSecondaryMoodsJson() : List.of(),
                         analysisEntity.getSummary(),
                         analysisEntity.getFeedback()
                 );
                 analyses.add(a);
-                dailyMoods.add(new DailyMood(diary.getCreatedAt().toLocalDate(), a.moodLabel(), a.moodIntensity(), List.of(diary.getId()), DiaryService.snippet(diary.getContent())));
+                dailyMoods.add(new DailyMood(
+                        diary.getCreatedAt().toLocalDate(),
+                        a.moodLabel(),
+                        a.moodIntensity(),
+                        a.valence() != null ? a.valence() : AiAnalysisService.estimateValence(a.moodLabel(), a.moodIntensity()),
+                        a.arousal() != null ? a.arousal() : AiAnalysisService.estimateArousal(a.moodLabel(), a.moodIntensity()),
+                        List.of(diary.getId()),
+                        DiaryService.snippet(diary.getContent())
+                ));
                 for (String topic : a.topicLabels()) {
                     topicCounts.merge(topic, 1, Integer::sum);
                 }

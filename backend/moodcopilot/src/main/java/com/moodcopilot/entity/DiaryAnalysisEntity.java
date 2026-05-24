@@ -15,6 +15,8 @@ public class DiaryAnalysisEntity {
     private Long diaryId;
     private String moodLabel;
     private Integer moodIntensity;
+    private Integer valence;
+    private Integer arousal;
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> topicLabelsJson;
     @TableField(typeHandler = JacksonTypeHandler.class)
@@ -32,6 +34,12 @@ public class DiaryAnalysisEntity {
 
     public Integer getMoodIntensity() { return moodIntensity; }
     public void setMoodIntensity(Integer moodIntensity) { this.moodIntensity = moodIntensity; }
+
+    public Integer getValence() { return valence; }
+    public void setValence(Integer valence) { this.valence = valence; }
+
+    public Integer getArousal() { return arousal; }
+    public void setArousal(Integer arousal) { this.arousal = arousal; }
 
     public List<String> getTopicLabelsJson() { return topicLabelsJson; }
     public void setTopicLabelsJson(List<String> topicLabelsJson) { this.topicLabelsJson = topicLabelsJson; }

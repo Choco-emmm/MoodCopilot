@@ -60,6 +60,10 @@
                 <p class="insight-value">{{ report.moodDominantQuadrant || '暂无' }}</p>
               </div>
               <div class="insight-card">
+                <p class="insight-label">总日记量</p>
+                <p class="insight-value">{{ report.diaryCount ?? 0 }} 篇</p>
+              </div>
+              <div class="insight-card">
                 <p class="insight-label">正向占比</p>
                 <p class="insight-value">{{ report.positiveRatioPercent ?? 0 }}%</p>
               </div>
@@ -73,28 +77,7 @@
               <span v-for="(count, label) in report.moodDistribution" :key="label" class="quadrant-chip">{{ label }} {{ count }}</span>
             </div>
 
-            <h4>情绪趋势</h4>
-            <div class="mood-chart">
-              <div
-                v-for="day in report.dailyMoods"
-                :key="day.date + '-' + (day.diaryIds?.[0] ?? '')"
-                class="mood-day-block"
-              >
-                <div
-                  class="mood-bar-row mood-bar-row-clickable"
-                  @click="goDiary(day.diaryIds)"
-                >
-                  <span class="mood-date">{{ formatDay(day.date) }}</span>
-                  <div class="mood-bar-track">
-                    <div class="mood-bar" :style="{ width: (day.moodIntensity / 5) * 100 + '%', background: moodColor(day.moodLabel) }" />
-                  </div>
-                  <n-tag :color="{ color: moodColor(day.moodLabel), textColor: '#fff' }" size="small" round>{{ day.moodLabel }}</n-tag>
-                </div>
-                <div v-if="day.contentSnippet" class="mood-snippet" @click="goDiary(day.diaryIds)">
-                  「{{ day.contentSnippet.length > 30 ? day.contentSnippet.slice(0, 30) + '...' : day.contentSnippet }}」
-                </div>
-              </div>
-            </div>
+            <ReportCharts v-if="report.dailyMoods?.length" :moods="report.dailyMoods" />
 
             <h4>AI 周总结</h4>
             <p class="report-auto-hint">系统会在每周一 00:00 自动生成上一周报告，也可以现在手动生成。</p>
@@ -170,6 +153,10 @@
                 <p class="insight-value">{{ monthReport.moodDominantQuadrant || '暂无' }}</p>
               </div>
               <div class="insight-card">
+                <p class="insight-label">总日记量</p>
+                <p class="insight-value">{{ monthReport.diaryCount ?? 0 }} 篇</p>
+              </div>
+              <div class="insight-card">
                 <p class="insight-label">正向占比</p>
                 <p class="insight-value">{{ monthReport.positiveRatioPercent ?? 0 }}%</p>
               </div>
@@ -183,40 +170,7 @@
               <span v-for="(count, label) in monthReport.moodDistribution" :key="label" class="quadrant-chip">{{ label }} {{ count }}</span>
             </div>
 
-            <h4>情绪走向（纵轴=强度 1-5，越高表示情绪更强）</h4>
-            <svg class="sparkline" :viewBox="'0 0 ' + sparklineW + ' 60'" preserveAspectRatio="xMidYMid meet">
-              <polyline
-                :points="sparklinePoints"
-                fill="none"
-                stroke="#4a7c62"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <polygon
-                :points="sparklineArea"
-                fill="url(#sparkGrad)"
-              />
-              <defs>
-                <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#4a7c62" stop-opacity="0.25" />
-                  <stop offset="100%" stop-color="#4a7c62" stop-opacity="0.02" />
-                </linearGradient>
-              </defs>
-              <g v-for="p in sparklinePointMeta" :key="'p-' + p.date + '-' + p.diaryId">
-                <circle :cx="p.x" :cy="p.y" r="3.2" :fill="p.color" />
-              </g>
-            </svg>
-            <div v-if="activeMoodsTop.length" class="trend-legend">
-              <span v-for="m in activeMoodsTop" :key="m.label" class="legend-item">
-                <i class="legend-dot" :style="{ background: m.color }"></i>{{ m.label }}
-              </span>
-              <span v-if="activeMoodsMoreCount > 0" class="legend-item legend-more">+{{ activeMoodsMoreCount }} 种</span>
-            </div>
-            <div class="sparkline-labels">
-              <span>{{ sparklineFirst }}</span>
-              <span>{{ sparklineLast }}</span>
-            </div>
+            <ReportCharts v-if="monthReport.dailyMoods?.length" :moods="monthReport.dailyMoods" />
 
             <div v-if="monthReport.dailyMoods?.length" class="list-switch-row">
               <n-button text size="small" @click="showAllMonthDetails = !showAllMonthDetails">
@@ -297,26 +251,32 @@
               <h4>{{ s.title }}（{{ s.diaryCount }} 篇日记）</h4>
               <n-button size="tiny" text type="error" @click="remove(s.id)">删除</n-button>
             </div>
-            <div v-if="s.dailyMoods?.length" class="mood-chart">
-              <div
-                v-for="(day, index) in s.dailyMoods"
-                :key="day.date + '-' + (day.diaryIds?.[0] ?? index)"
-                class="mood-day-block"
-              >
-                <div
-                  class="mood-bar-row mood-bar-row-clickable"
-                  @click="goDiary(day.diaryIds)"
-                >
-                  <span class="mood-date">{{ formatDay(day.date) }}</span>
-                  <div class="mood-bar-track">
-                    <div class="mood-bar" :style="{ width: (day.moodIntensity / 5) * 100 + '%', background: moodColor(day.moodLabel) }" />
-                  </div>
-                  <n-tag :color="{ color: moodColor(day.moodLabel), textColor: '#fff' }" size="small" round>{{ day.moodLabel }}</n-tag>
+            <div v-if="s.diaryCount > 0" class="report-detail">
+              <h4 class="focus-title mt-2">本期重点</h4>
+              <div class="insight-strip">
+                <div class="insight-card insight-card-dominant">
+                  <p class="insight-label">主导象限</p>
+                  <p class="insight-value">{{ s.moodDominantQuadrant || '暂无' }}</p>
                 </div>
-                <div v-if="day.contentSnippet" class="mood-snippet" @click="goDiary(day.diaryIds)">
-                  「{{ day.contentSnippet.length > 30 ? day.contentSnippet.slice(0, 30) + '...' : day.contentSnippet }}」
+                <div class="insight-card">
+                  <p class="insight-label">总日记量</p>
+                  <p class="insight-value">{{ s.diaryCount }} 篇</p>
+                </div>
+                <div class="insight-card">
+                  <p class="insight-label">正向占比</p>
+                  <p class="insight-value">{{ s.positiveRatioPercent ?? 0 }}%</p>
+                </div>
+                <div class="insight-card">
+                  <p class="insight-label">高能量占比</p>
+                  <p class="insight-value">{{ s.highEnergyRatioPercent ?? 0 }}%</p>
                 </div>
               </div>
+
+              <div v-if="s.moodDistribution" class="quadrant-list">
+                <span v-for="(count, label) in s.moodDistribution" :key="label" class="quadrant-chip">{{ label }} {{ count }}</span>
+              </div>
+
+              <ReportCharts v-if="s.dailyMoods?.length" :moods="s.dailyMoods" />
             </div>
             <div class="md-content summary-body" v-html="renderMd(s.aiSummary)" />
             <div v-if="hasGuidance(s)" class="report-guidance">
@@ -356,6 +316,8 @@ function renderMd(text: string) {
 }
 
 const router = useRouter()
+import ReportCharts from '../components/ReportCharts.vue'
+
 const store = useDiaryStore()
 
 const mainTab = ref<'regular' | 'custom'>('regular')
@@ -410,63 +372,6 @@ const computedMonthLabelStr = computed(() => {
   return `${targetDate.getFullYear()}年${targetDate.getMonth()+1}月`
 })
 
-// ── SVG sparkline ──
-const sparklineW = 300
-
-const sparklinePoints = computed(() => {
-  const moods = monthReport.value?.dailyMoods ?? []
-  if (moods.length === 0) return ''
-  const step = sparklineW / Math.max(moods.length - 1, 1)
-  return moods.map((d, i) => {
-    const x = Math.round(i * step)
-    const y = Math.round(54 - (d.moodIntensity / 5) * 48)
-    return `${x},${y}`
-  }).join(' ')
-})
-
-const sparklinePointMeta = computed(() => {
-  const moods = monthReport.value?.dailyMoods ?? []
-  if (moods.length === 0) return []
-  const step = sparklineW / Math.max(moods.length - 1, 1)
-  return moods.map((d: any, i: number) => ({
-    x: Math.round(i * step),
-    y: Math.round(54 - (d.moodIntensity / 5) * 48),
-    color: moodColor(d.moodLabel),
-    date: d.date,
-    diaryId: d.diaryIds?.[0] ?? i,
-  }))
-})
-
-const sparklineArea = computed(() => {
-  const pts = sparklinePoints.value
-  if (!pts) return ''
-  return `0,60 ${pts} ${sparklineW},60`
-})
-
-const sparklineFirst = computed(() => {
-  const moods = monthReport.value?.dailyMoods ?? []
-  return moods.length > 0 ? formatDay(moods[0].date) : ''
-})
-const sparklineLast = computed(() => {
-  const moods = monthReport.value?.dailyMoods ?? []
-  return moods.length > 0 ? formatDay(moods[moods.length - 1].date) : ''
-})
-
-const activeMoods = computed(() => {
-  const moods = monthReport.value?.dailyMoods ?? []
-  const seen = new Set<string>()
-  const result: { label: string; color: string }[] = []
-  for (const d of moods) {
-    if (d.moodLabel && !seen.has(d.moodLabel)) {
-      seen.add(d.moodLabel)
-      result.push({ label: d.moodLabel, color: moodColor(d.moodLabel) })
-    }
-  }
-  return result
-})
-
-const activeMoodsTop = computed(() => activeMoods.value.slice(0, 8))
-const activeMoodsMoreCount = computed(() => Math.max(0, activeMoods.value.length - activeMoodsTop.value.length))
 
 const monthDisplayMoods = computed(() => {
   const moods = monthReport.value?.dailyMoods ?? []
@@ -639,7 +544,7 @@ function formatGeneratedAt(value?: string | Date | null) {
 
 .insight-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin: 10px 0 12px;
 }
@@ -745,17 +650,16 @@ function formatGeneratedAt(value?: string | Date | null) {
     padding: 9px 10px;
   }
 
-  .insight-card-dominant {
-    grid-column: 1 / -1;
-  }
 
   .insight-label {
     font-size: 11px;
   }
 
   .insight-value {
-    font-size: 26px;
-    line-height: 1.1;
+    font-size: clamp(16px, 6vw, 24px);
+    line-height: 1.2;
+    white-space: nowrap;
+    letter-spacing: -0.5px;
   }
 
   .report-meta-row {

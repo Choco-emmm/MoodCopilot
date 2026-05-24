@@ -10,6 +10,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+import java.util.LinkedHashMap;
+
 public record SummaryView(
         long id,
         String title,
@@ -24,7 +26,11 @@ public record SummaryView(
         List<String> suggestions,
         String followUpPrompt,
         String reportType,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String moodDominantQuadrant,
+        Integer positiveRatioPercent,
+        Integer highEnergyRatioPercent,
+        Map<String, Integer> moodDistribution
 ) {
     static SummaryView from(DiarySummaryEntity entity, ObjectMapper mapper) {
         List<DailyMood> moods = List.of();
@@ -53,6 +59,38 @@ public record SummaryView(
         } catch (Exception ignored) {
         }
 
+        String dominantQuadrant = "暂无";
+        int posRatio = 0;
+        int highEnergyRatio = 0;
+        Map<String, Integer> distribution = new LinkedHashMap<>();
+        distribution.put("正向高能量", 0);
+        distribution.put("正向低能量", 0);
+        distribution.put("负向高能量", 0);
+        distribution.put("负向低能量", 0);
+
+        if (moods != null && !moods.isEmpty()) {
+            for (DailyMood m : moods) {
+                int v = m.valence() != null ? m.valence() : 0;
+                int a = m.arousal() != null ? m.arousal() : 0;
+                String q;
+                if (v > 0) {
+                    q = a > 0 ? "正向高能量" : "正向低能量";
+                } else {
+                    q = a > 0 ? "负向高能量" : "负向低能量";
+                }
+                distribution.put(q, distribution.get(q) + 1);
+            }
+            int total = moods.size();
+            dominantQuadrant = distribution.entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse("正向低能量");
+            int positive = distribution.get("正向高能量") + distribution.get("正向低能量");
+            posRatio = (int) Math.round((positive * 100.0) / total);
+            int highEnergy = distribution.get("正向高能量") + distribution.get("负向高能量");
+            highEnergyRatio = (int) Math.round((highEnergy * 100.0) / total);
+        }
+
         return new SummaryView(
                 entity.getId(),
                 entity.getTitle(),
@@ -67,7 +105,11 @@ public record SummaryView(
                 suggestions,
                 entity.getFollowUpPrompt(),
                 entity.getReportType(),
-                entity.getCreatedAt()
+                entity.getCreatedAt(),
+                dominantQuadrant,
+                posRatio,
+                highEnergyRatio,
+                distribution
         );
     }
 }
