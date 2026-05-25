@@ -3825,6 +3825,7 @@ h3 {
 
 /* ── black-rice · 黑米暗夜 ── */
 [data-theme="black-rice"] {
+  color-scheme: dark;
   --color-primary: #ffb400;
   --color-primary-hover: #e6a200;
   --color-primary-light: #5a5030;

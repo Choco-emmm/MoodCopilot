@@ -113,6 +113,11 @@ const activeThemeName = computed(() => {
 
 watchEffect(() => {
   document.documentElement.setAttribute('data-theme', activeThemeName.value)
+  const currentTheme = themeOptions.find(t => t.value === activeThemeName.value) || themeOptions[0]
+  const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+  if (metaThemeColor) {
+    metaThemeColor.setAttribute('content', currentTheme.bg)
+  }
 })
 
 const naiveTheme = computed(() => isDark.value ? darkTheme : null)
