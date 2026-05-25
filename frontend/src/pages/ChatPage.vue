@@ -3,30 +3,14 @@
     <AppHeader />
 
     <div class="chat-layout">
-      <!-- 会话列表侧边栏 -->
-      <aside class="chat-sidebar">
-        <div class="sidebar-head">
-          <span class="sidebar-title">对话</span>
-          <n-button size="tiny" text type="primary" :disabled="creatingConversation" @click="createConversation">+ 新建</n-button>
-        </div>
-        <div class="conv-list">
-          <div
-            v-for="conv in conversations"
-            :key="conv.id"
-            :class="['conv-item', { active: conv.id === activeConvId }]"
-            @click="selectConversation(conv.id)"
-          >
-            <span class="conv-title">{{ conv.title }}</span>
-            <n-button
-              size="tiny"
-              text
-              class="conv-delete"
-              @click.stop="deleteConversation(conv.id)"
-            >&times;</n-button>
-          </div>
-          <div v-if="conversations.length === 0" class="conv-empty">暂无对话</div>
-        </div>
-      </aside>
+      <ChatSidebar
+        :conversations="conversations"
+        :active-conv-id="activeConvId"
+        :creating-conversation="creatingConversation"
+        @create="createConversation"
+        @select="selectConversation"
+        @delete="deleteConversation"
+      />
 
       <!-- 聊天区域 -->
       <div class="chat-window">
@@ -79,90 +63,14 @@
             </div>
           </div>
 
-          <template v-for="msg in messages" :key="msg.id">
-            <div :class="['msg-item', msg.role]">
-              <!-- AI Avatar -->
-              <div v-if="msg.role === 'ai'" class="msg-avatar ai-avatar">
-                <img class="ai-avatar-icon" src="/logo.svg" alt="MoodCopilot" />
-              </div>
-
-              <div class="msg-wrapper">
-                <div v-if="msg.role === 'ai' && msg.ragReferences?.length" class="rag-refs-panel rag-refs-above rag-references-fixed">
-                  <button class="rag-refs-toggle" @click="toggleMsgRefs(msg.id)">
-                    <span class="rag-refs-icon">🔍</span>
-                    <span>已检索 {{ countDiaryRefs(msg.ragReferences) }} 条记录</span>
-                    <span v-if="countProfileRefs(msg.ragReferences)"> · {{ countProfileRefs(msg.ragReferences) }} 条画像</span>
-                    <span v-if="countGraphRefs(msg.ragReferences)"> · {{ countGraphRefs(msg.ragReferences) }} 条图谱</span>
-                    <span class="rag-refs-arrow">{{ expandedRefs.has(msg.id) ? '▾' : '▸' }}</span>
-                  </button>
-                  <div v-if="expandedRefs.has(msg.id)" class="rag-refs-list">
-                    <template v-if="getDiaryRefs(msg.ragReferences).length">
-                      <div class="rag-refs-section-label">📝 日记记忆</div>
-                      <div
-                        v-for="(ref, i) in getDiaryRefs(msg.ragReferences)"
-                        :key="'d'+i"
-                        :class="['rag-ref-item', { 'rag-ref-clickable': ref.diaryId && String(ref.diaryId) !== '-1' }]"
-                        @click="String(ref.diaryId) !== '-1' && goToDiary(ref.diaryId)"
-                      >
-                        <div class="rag-ref-meta">
-                          <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
-                          <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
-                        </div>
-                        <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
-                        <span v-if="ref.diaryId && String(ref.diaryId) !== '-1'" class="rag-ref-go">→</span>
-                      </div>
-                    </template>
-                    <template v-if="getProfileRefs(msg.ragReferences).length">
-                      <div class="rag-refs-section-label">🧠 个人画像</div>
-                      <div v-for="(ref, i) in getProfileRefs(msg.ragReferences)" :key="'p'+i"
-                           class="rag-ref-item-profile"
-                           @click="toggleSnippet(msg.id, i)">
-                        <span :class="['rag-ref-snippet', { 'expanded': isSnippetExpanded(msg.id, i) }]" :title="ref.snippet || ref.value">
-                          <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}】</span>{{ ref.snippet || ref.value }}
-                        </span>
-                      </div>
-                    </template>
-                    <template v-if="getGraphRefs(msg.ragReferences).length">
-                      <div class="rag-refs-section-label">🕸️ 关系图谱</div>
-                      <div
-                        v-for="(ref, i) in getGraphRefs(msg.ragReferences)"
-                        :key="'g'+i"
-                        class="rag-ref-item-profile"
-                        @click="toggleSnippet(msg.id, 1000 + i)"
-                      >
-                        <span :class="['rag-ref-snippet', { 'expanded': isSnippetExpanded(msg.id, 1000 + i) }]" :title="ref.snippet">{{ ref.snippet }}</span>
-                      </div>
-                    </template>
-                  </div>
-                </div>
-
-                <div
-                  :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
-                >
-                  <template v-if="msg.role === 'ai'">
-                    <!-- think 块内容不对用户展示，只显示正文 -->
-                    <div v-if="parseThink(msg.content).text" class="md-content" v-html="renderMd(parseThink(msg.content).text)" />
-                    <!-- 如果只有 think 没有正文（消息异常时的兜底） -->
-                    <span v-else class="ai-think-placeholder">...</span>
-                  </template>
-                  <template v-else>
-                    <p>{{ msg.content }}</p>
-                    <ul v-if="msg.references?.length" class="chat-user-refs">
-                      <li v-for="(refText, refIndex) in msg.references" :key="`${msg.id}-ref-${refIndex}`">
-                        引用：{{ refText }}
-                      </li>
-                    </ul>
-                  </template>
-                </div>
-              </div>
-
-              <!-- User Avatar -->
-              <div v-if="msg.role === 'user'" class="msg-avatar user-avatar">
-                <img v-if="authStore.avatar" :src="authStore.avatar" :alt="authStore.displayName || 'Me'" />
-                <span v-else>{{ userInitial }}</span>
-              </div>
-            </div>
-          </template>
+          <ChatMessageItem
+            v-for="msg in messages"
+            :key="msg.id"
+            :msg="msg"
+            :user-avatar="authStore.avatar"
+            :user-initial="userInitial"
+            @go-diary="goToDiary"
+          />
 
           <div v-if="isThinking" class="msg-item ai animate-fade-in">
             <div class="msg-avatar ai-avatar">
@@ -183,121 +91,33 @@
             </div>
           </div>
 
-          <!-- 流式回复（引用先行，文本追加） -->
-          <div v-if="streaming && (streamingText || streamingRefs.length)" class="msg-item ai">
-            <div class="msg-avatar ai-avatar">
-              <img class="ai-avatar-icon" src="/logo.svg" alt="MoodCopilot" />
-            </div>
-            <div class="msg-wrapper">
-              <div v-if="streaming && streamingRefs.length" class="rag-refs-panel rag-refs-above rag-references-fixed">
-                <button class="rag-refs-toggle" @click="showStreamingRefs = !showStreamingRefs">
-                  <span class="rag-refs-icon">🔍</span>
-                  <span>已检索 {{ streamingDiaryRefs.length }} 条记录</span>
-                  <span v-if="streamingProfileRefs.length"> · {{ streamingProfileRefs.length }} 条画像</span>
-                  <span v-if="streamingGraphRefs.length"> · {{ streamingGraphRefs.length }} 条图谱</span>
-                  <span class="rag-refs-arrow">{{ showStreamingRefs ? '▾' : '▸' }}</span>
-                </button>
-                <div v-if="showStreamingRefs" class="rag-refs-list">
-                  <template v-if="streamingDiaryRefs.length">
-                    <div class="rag-refs-section-label">📝 日记记忆</div>
-                    <div
-                      v-for="(ref, i) in streamingDiaryRefs"
-                      :key="'sd'+i"
-                      :class="['rag-ref-item', { 'rag-ref-clickable': ref.diaryId && String(ref.diaryId) !== '-1' }]"
-                      @click="String(ref.diaryId) !== '-1' && goToDiary(ref.diaryId)"
-                    >
-                      <div class="rag-ref-meta">
-                        <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
-                        <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
-                      </div>
-                      <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
-                      <span v-if="ref.diaryId && String(ref.diaryId) !== '-1'" class="rag-ref-go">→</span>
-                    </div>
-                  </template>
-                  <template v-if="streamingProfileRefs.length">
-                    <div class="rag-refs-section-label">🧠 个人画像</div>
-                    <div v-for="(ref, i) in streamingProfileRefs" :key="'sp'+i"
-                         class="rag-ref-item-profile"
-                         @click="toggleSnippet('streaming', i)">
-                      <span :class="['rag-ref-snippet', { 'expanded': isSnippetExpanded('streaming', i) }]" :title="ref.snippet || ref.value">
-                        <span v-if="ref.key" class="rag-ref-key">【{{ ref.key }}】</span>{{ ref.snippet || ref.value }}
-                      </span>
-                    </div>
-                  </template>
-                  <template v-if="streamingGraphRefs.length">
-                    <div class="rag-refs-section-label">🕸️ 关系图谱</div>
-                    <div
-                      v-for="(ref, i) in streamingGraphRefs"
-                      :key="'sg'+i"
-                      class="rag-ref-item-profile"
-                      @click="toggleSnippet('streaming', 1000 + i)"
-                    >
-                      <div class="rag-ref-meta">
-                        <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
-                        <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
-                      </div>
-                      <span :class="['rag-ref-snippet', { 'expanded': isSnippetExpanded('streaming', 1000 + i) }]" :title="ref.snippet">{{ ref.snippet }}</span>
-                    </div>
-                  </template>
-                </div>
-              </div>
-
-              <div class="chat-bubble chat-ai">
-                <!-- 深度思考中：有 think 内容但正文还未出现时，只展示动效，不渲染 think 内容 -->
-                <div v-if="parseThink(streamingText).think && !parseThink(streamingText).text" class="thinking-status">
-                  <span class="sparkle-icon">✨</span>
-                  <span class="thinking-text">深度思考中</span>
-                  <span class="thinking-dots-inline">
-                    <span class="dot animate-bounce" style="animation-delay: 0ms"></span>
-                    <span class="dot animate-bounce" style="animation-delay: 150ms"></span>
-                    <span class="dot animate-bounce" style="animation-delay: 300ms"></span>
-                  </span>
-                </div>
-
-                <!-- 无任何内容时（还没收到 think 或 text） -->
-                <div v-if="!parseThink(streamingText).text && !parseThink(streamingText).think" class="thinking-status">
-                  <span class="sparkle-icon">✨</span>
-                  <span class="thinking-text">MoodCopilot 正在思考</span>
-                  <span class="typing-dots"></span>
-                </div>
-
-                <!-- 正文流式输出 -->
-                <div v-if="parseThink(streamingText).text" class="md-content streaming-md" v-html="renderStreamingMd(parseThink(streamingText).text, true)" />
-              </div>
-            </div>
-          </div>
+          <ChatStreamingItem
+            :streaming="streaming"
+            :streaming-text="streamingText"
+            :streaming-refs="streamingRefs"
+            @go-diary="goToDiary"
+          />
         </div>
 
-        <div ref="chatInputArea" class="chat-input-area">
-          <div v-if="lastReplyError" class="chat-reply-error-bar">
-            <span>{{ lastReplyError }}</span>
-            <n-button size="tiny" text type="primary" :disabled="streaming || !lastReplyRequest" @click="retryLastReply">
-              重试回复
-            </n-button>
-          </div>
-          <ReferenceBar
-            :items="references"
+        <div ref="chatInputArea">
+          <ChatInputBox
+            v-model:draft="draft"
+            :streaming="streaming"
+            :disabled="creatingConversation"
+            :last-reply-error="lastReplyError"
+            :can-retry="!!lastReplyRequest"
+            :references="references"
             :recent-diaries="recentDiaryOptions"
-            :loading="recentDiariesLoading"
-            :error-message="recentDiariesError"
-            @remove="removeRef"
-            @add="addDiaryRef"
-            @retry="loadRecentDiaryOptions"
+            :recent-diaries-loading="recentDiariesLoading"
+            :recent-diaries-error="recentDiariesError"
+            @send="send"
+            @send-enter="handleDraftEnter"
+            @retry="retryLastReply"
+            @remove-ref="removeRef"
+            @add-diary-ref="addDiaryRef"
+            @load-recent-diaries="loadRecentDiaryOptions"
+            @focus="handleDraftFocus"
           />
-          <div class="chat-input-row">
-            <n-input
-              v-model:value="draft"
-              size="large"
-              placeholder="聊聊你今天的心情..."
-              :disabled="streaming || creatingConversation"
-              :maxlength="500"
-              @focus="handleDraftFocus"
-              @keydown.enter.prevent="handleDraftEnter"
-            />
-            <n-button type="primary" :disabled="!draft.trim() || streaming || creatingConversation" @click="send">
-              {{ streaming ? '发送中' : '发送' }}
-            </n-button>
-          </div>
         </div>
       </div>
     </div>
@@ -307,11 +127,13 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton, NInput } from 'naive-ui'
+import { NButton } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
-import ReferenceBar from '../components/ReferenceBar.vue'
+import ChatSidebar from '../components/chat/ChatSidebar.vue'
+import ChatMessageItem from '../components/chat/ChatMessageItem.vue'
+import ChatStreamingItem from '../components/chat/ChatStreamingItem.vue'
+import ChatInputBox from '../components/chat/ChatInputBox.vue'
 import { chatApi, diaryApi } from '../api'
-import { renderSafeMarkdown } from '../utils/markdown'
 import { tryExpToast } from '../utils/toast'
 import { useAuthStore } from '../stores/auth'
 import { logWarn } from '../utils/logger'
@@ -355,59 +177,7 @@ interface ChatReference {
   diaryId?: number
 }
 
-const mdCache = new Map<string, string>()
-function renderMd(text: string) {
-  let cached = mdCache.get(text)
-  if (cached) return cached
-  cached = renderSafeMarkdown(text)
-  mdCache.set(text, cached)
-  return cached
-}
 
-function parseThink(content: string) {
-  if (!content) return { think: '', text: '' }
-
-  let think = ''
-
-  // 1. 提取并移除所有已闭合的 <think>...</think> 块
-  let text = content.replace(/<think>([\s\S]*?)<\/think>/g, (match, innerThink) => {
-    think += (think ? '\n\n' : '') + innerThink.trim()
-    return '' // 将原文本中的 think 块抹除
-  })
-
-  // 2. 处理流式输出时，最后一段可能还没闭合的 <think> 标签
-  const unclosedMatch = text.match(/<think>([\s\S]*)$/)
-  if (unclosedMatch) {
-    think += (think ? '\n\n' : '') + unclosedMatch[1].trim()
-    text = text.substring(0, unclosedMatch.index) // 将未闭合的 think 部分从正文中剪裁掉
-  }
-
-  return {
-    think: think.trim(),
-    text: text.trimStart() // 避免因为移除 think 导致正文开头有多余空行
-  }
-}
-
-const isThinkExpanded = ref(false)
-const expandedSnippets = ref<Set<string>>(new Set())
-
-function toggleSnippet(msgId: string, idx: number) {
-  const key = `${msgId}-${idx}`
-  if (expandedSnippets.value.has(key)) {
-    expandedSnippets.value.delete(key)
-  } else {
-    expandedSnippets.value.add(key)
-  }
-}
-
-function isSnippetExpanded(msgId: string, idx: number) {
-  return expandedSnippets.value.has(`${msgId}-${idx}`)
-}
-
-function renderStreamingMd(text: string, showCursor: boolean) {
-  const processed = showCursor ? text + '<span class="streaming-cursor">▋</span>' : text
-  return renderMd(processed)
-}
 
 const conversations = ref<Conversation[]>([])
 const activeConvId = ref<number | null>(null)
@@ -458,91 +228,6 @@ const lastReplyRequest = ref<{ convId: number; content: string; refContents: str
 const router = useRouter()
 const streamingRefs = ref<RagRef[]>([])
 const showStreamingRefs = ref(false)
-const expandedRefs = reactive(new Set<string>())
-
-function countDiaryRefs(refs: RagRef[]): number {
-  const seen = new Set<string>()
-  return refs.filter(r => {
-    if (r.type === 'profile_memory' || r.type === 'graph_memory' || !r.diaryId) return false
-    if (seen.has(r.diaryId)) return false
-    seen.add(r.diaryId)
-    return true
-  }).length
-}
-
-function countProfileRefs(refs: RagRef[]): number {
-  return refs.filter(r => r.type === 'profile_memory').length
-}
-
-function countGraphRefs(refs: RagRef[]): number {
-  return getGraphRefs(refs).length
-}
-
-function toolLabel(name?: string): string {
-  if (!name) return ''
-  const map: Record<string, string> = {
-    diarySearch: '日记',
-    userStats: '统计',
-    reportSnapshot: '报告',
-    memoryQuery: '画像',
-    graphSearch: '图谱',
-  }
-  return map[name] || name
-}
-
-function formatRefDate(dateStr?: string): string {
-  if (!dateStr) return ''
-  const tIndex = dateStr.indexOf('T')
-  if (tIndex !== -1) {
-    const datePart = dateStr.substring(0, tIndex)
-    const timePart = dateStr.substring(tIndex + 1, tIndex + 6) // "HH:mm"
-    return `${datePart} ${timePart}`
-  }
-  const spaceIndex = dateStr.indexOf(' ')
-  if (spaceIndex !== -1 && dateStr.length > spaceIndex + 6) {
-    return dateStr.substring(0, spaceIndex + 6) // up to "HH:mm"
-  }
-  return dateStr
-}
-
-function getDiaryRefs(refs: RagRef[]): RagRef[] {
-  const seen = new Set<string>()
-  return refs.filter(r => {
-    if (r.type === 'profile_memory' || r.type === 'graph_memory' || !r.diaryId) return false
-    if (seen.has(r.diaryId)) return false
-    seen.add(r.diaryId)
-    return true
-  })
-}
-
-function getProfileRefs(refs: RagRef[]): RagRef[] {
-  return refs.filter(r => r.type === 'profile_memory')
-}
-
-function getGraphRefs(refs: RagRef[]): RagRef[] {
-  const seen = new Set<string>()
-  return refs.filter(r => {
-    if (r.type !== 'graph_memory') return false
-    if (!r.snippet) return false
-    if (seen.has(r.snippet)) return false
-    seen.add(r.snippet)
-    return true
-  })
-}
-
-/** 流式面板用的计算属性 */
-const streamingDiaryRefs = computed(() => getDiaryRefs(streamingRefs.value))
-const streamingProfileRefs = computed(() => getProfileRefs(streamingRefs.value))
-const streamingGraphRefs = computed(() => getGraphRefs(streamingRefs.value))
-
-function toggleMsgRefs(msgId: string) {
-  if (expandedRefs.has(msgId)) {
-    expandedRefs.delete(msgId)
-  } else {
-    expandedRefs.add(msgId)
-  }
-}
-
 function goToDiary(diaryId: string | number | undefined) {
   if (!diaryId || String(diaryId) === '-1') return
   router.push(`/diary/${diaryId}`)
@@ -855,7 +540,7 @@ async function send() {
 
   lastReplyError.value = null
   lastReplyRequest.value = null
-  isThinkExpanded.value = false
+  lastReplyRequest.value = null
 
   const refContents = references.value.slice(0, 2).map(r => r.fullContent || r.content)
   messages.value.push({ id: nextMsgId(), role: 'user', content, references: refContents.length ? refContents : undefined })
@@ -1567,7 +1252,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   align-items: center;
   gap: 6px;
   font-size: 13.5px;
-  color: var(--color-primary, #4a7c62);
+  color: var(--color-primary);
   font-weight: 500;
 }
 
@@ -1582,7 +1267,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 .thinking-dots-loader .dot {
   width: 6px;
   height: 6px;
-  background-color: var(--color-primary, #4a7c62);
+  background-color: var(--color-primary);
   border-radius: 50%;
 }
 
@@ -1603,14 +1288,14 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 
 .chat-header-title {
   font-size: 28px;
-  color: var(--color-primary, #4a7c62);
+  color: var(--color-primary);
   margin: 0;
   font-weight: 700;
 }
 
 .chat-subtitle {
   font-size: 14px;
-  color: var(--color-text-muted, #8a7a6a);
+  color: var(--color-text-secondary);
   margin: 8px 0 24px;
 }
 
@@ -1641,9 +1326,9 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 
 .quick-starter-card:hover {
   transform: translateY(-2px);
-  border-color: var(--color-primary, #4a7c62);
+  border-color: var(--color-primary);
   background: rgba(255, 255, 255, 0.7);
-  box-shadow: 0 6px 20px rgba(74, 124, 98, 0.06);
+  box-shadow: 0 6px 20px var(--color-primary-light);
 }
 
 .quick-starter-card:active {
@@ -1678,7 +1363,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   height: 20px;
   border-radius: 50%;
   margin-bottom: 8px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #fafafa 50%, #f0f0f0 75%);
+  background: linear-gradient(90deg, var(--color-surface-hover) 25%, var(--color-bg) 50%, var(--color-surface-hover) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
 }
@@ -1688,7 +1373,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   height: 14px;
   border-radius: 4px;
   margin-top: 4px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #fafafa 50%, #f0f0f0 75%);
+  background: linear-gradient(90deg, var(--color-surface-hover) 25%, var(--color-bg) 50%, var(--color-surface-hover) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
 }
@@ -1719,7 +1404,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 .chat-messages {
   gap: 20px !important;
   padding: 24px !important;
-  background: #fcfbfa !important;
+  background: var(--color-bg) !important;
   border: 1px solid rgba(180, 150, 120, 0.15) !important;
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.01);
 }
@@ -1738,13 +1423,13 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   border: 1px solid rgba(180, 150, 120, 0.15) !important;
   border-radius: 16px !important;
   padding: 12px 16px !important;
-  box-shadow: 0 8px 30px rgba(74, 124, 98, 0.05) !important;
+  box-shadow: 0 8px 30px var(--color-primary-light) !important;
   transition: all 0.3s ease;
 }
 
 .chat-input-area:focus-within {
-  border-color: var(--color-primary, #4a7c62) !important;
-  box-shadow: 0 8px 30px rgba(74, 124, 98, 0.08), 0 0 0 2px rgba(74, 124, 98, 0.1) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 8px 30px var(--color-primary-light), 0 0 0 2px var(--color-primary-light) !important;
 }
 
 .chat-input-row {
@@ -1754,10 +1439,10 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 .chat-input-row :deep(.n-input) {
   --n-border-radius: 12px !important;
   --n-border: 1px solid rgba(180, 150, 120, 0.2) !important;
-  --n-border-hover: 1px solid var(--color-primary, #4a7c62) !important;
-  --n-border-focus: 1px solid var(--color-primary, #4a7c62) !important;
-  --n-box-shadow-focus: 0 0 0 2px rgba(74, 124, 98, 0.1) !important;
-  background: #ffffff !important;
+  --n-border-hover: 1px solid var(--color-primary) !important;
+  --n-border-focus: 1px solid var(--color-primary) !important;
+  --n-box-shadow-focus: 0 0 0 2px var(--color-primary-light) !important;
+  background: var(--color-surface) !important;
 }
 
 .chat-input-row :deep(.n-button) {
@@ -1770,13 +1455,13 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 
 .chat-input-row :deep(.n-button:not([disabled]):hover) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(74, 124, 98, 0.2);
+  box-shadow: 0 4px 12px var(--color-primary-light);
 }
 
 .rag-references-fixed {
   background: rgba(244, 247, 245, 0.8) !important;
   backdrop-filter: blur(4px);
-  border: 1px solid rgba(74, 124, 98, 0.08) !important;
+  border: 1px solid var(--color-primary-light) !important;
   border-radius: 12px !important;
   padding: 6px 10px !important;
 }
@@ -1796,11 +1481,11 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 
 .msg-avatar.user-avatar {
   background: linear-gradient(135deg, #8ba897, #5f836f);
-  color: #ffffff;
+  color: var(--color-on-primary);
   font-weight: 600;
   font-size: 13px;
   box-shadow: 0 4px 10px rgba(95, 131, 111, 0.15);
-  border: 1.5px solid #ffffff;
+  border: 1.5px solid var(--color-surface);
   overflow: hidden;
 }
 
@@ -1811,9 +1496,9 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 }
 
 .msg-avatar.ai-avatar {
-  background: #ffffff;
-  border: 1.5px solid rgba(74, 124, 98, 0.15);
-  box-shadow: 0 4px 10px rgba(74, 124, 98, 0.08);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-primary-light);
+  box-shadow: 0 4px 10px var(--color-primary-light);
   padding: 4px;
   overflow: hidden;
 }
@@ -1835,22 +1520,22 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 }
 
 .chat-bubble.chat-user {
-  background: linear-gradient(135deg, var(--color-primary, #4a7c62), #3a6851) !important;
-  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--color-primary), #3a6851) !important;
+  color: var(--color-on-primary) !important;
   border: none !important;
   border-radius: 18px 18px 4px 18px !important;
-  box-shadow: 0 4px 14px rgba(74, 124, 98, 0.18) !important;
+  box-shadow: 0 4px 14px var(--color-primary-light) !important;
 }
 
 .chat-bubble.chat-user p {
   margin: 0;
-  color: #ffffff !important;
+  color: var(--color-on-primary) !important;
 }
 
 .chat-bubble.chat-ai {
-  background: #ffffff !important;
-  color: #2c3e35 !important;
-  border: 1px solid rgba(74, 124, 98, 0.08) !important;
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-primary-light) !important;
   border-radius: 18px 18px 18px 4px !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
 }
@@ -1872,19 +1557,19 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 :deep(.think-block) {
   margin: 4px 0 12px 0;
   padding: 10px 12px;
-  background-color: rgba(74, 124, 98, 0.03);
+  background-color: var(--color-primary-light);
   border-radius: 8px;
-  border-left: 3px solid rgba(74, 124, 98, 0.25);
+  border-left: 3px solid var(--color-primary-light);
   font-family: Consolas, Monaco, "Andale Mono", monospace;
   font-size: 12.5px;
-  color: #55685f;
+  color: var(--color-text-secondary);
 }
 
 :deep(.think-block summary) {
   cursor: pointer;
   font-weight: 600;
   font-size: 12px;
-  color: #4a7c62;
+  color: var(--color-primary);
   user-select: none;
   outline: none;
   margin-bottom: 4px;
@@ -1892,7 +1577,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 
 :deep(.think-content) {
   margin-top: 8px;
-  border-top: 1px dashed rgba(74, 124, 98, 0.15);
+  border-top: 1px dashed var(--color-primary-light);
   padding-top: 8px;
   line-height: 1.6;
   white-space: pre-wrap;

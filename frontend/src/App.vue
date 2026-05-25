@@ -103,10 +103,10 @@ watch(() => authStore.token, (newToken, oldToken) => {
 
 const themeOverrides: GlobalThemeOverrides = {
   common: {
-    primaryColor: '#4a7c62',
+    primaryColor: 'var(--color-primary)',
     primaryColorHover: '#3d6a52',
     primaryColorPressed: '#345b46',
-    primaryColorSuppl: '#4a7c62',
+    primaryColorSuppl: 'var(--color-primary)',
     infoColor: '#b5343a',
     infoColorHover: '#9e2d33',
     infoColorPressed: '#87262c',
@@ -114,7 +114,7 @@ const themeOverrides: GlobalThemeOverrides = {
     errorColor: '#b5343a',
     errorColorHover: '#9e2d33',
     errorColorPressed: '#87262c',
-    successColor: '#4a7c62',
+    successColor: 'var(--color-primary)',
     successColorHover: '#3d6a52',
     successColorPressed: '#345b46',
     warningColor: '#c8843c',
@@ -122,7 +122,7 @@ const themeOverrides: GlobalThemeOverrides = {
     warningColorPressed: '#a0682d',
   },
   Button: {
-    colorPrimary: '#4a7c62',
+    colorPrimary: 'var(--color-primary)',
     colorPrimaryHover: '#3d6a52',
     colorPrimaryPressed: '#345b46',
     textColorPrimary: '#fdfbf7',
@@ -131,7 +131,7 @@ const themeOverrides: GlobalThemeOverrides = {
     borderRadiusLarge: '10px',
   },
   Input: {
-    borderFocus: '#4a7c62',
+    borderFocus: 'var(--color-primary)',
     borderHover: '#d4cdbc',
     borderRadius: '6px',
   },
@@ -146,7 +146,7 @@ const themeOverrides: GlobalThemeOverrides = {
 
 <style scoped>
 .analysis-modal {
-  background: #fff;
+  background: var(--color-surface);
   border-radius: 12px;
   padding: 24px;
   max-width: 420px;
@@ -163,21 +163,21 @@ const themeOverrides: GlobalThemeOverrides = {
 .modal-header h3 {
   margin: 0;
   font-size: 18px;
-  color: #333;
+  color: var(--color-text);
 }
 
 .modal-close {
   background: none;
   border: none;
   font-size: 22px;
-  color: #999;
+  color: var(--color-text-light);
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
 }
 
 .modal-close:hover {
-  color: #333;
+  color: var(--color-text);
 }
 
 .modal-mood {
@@ -189,7 +189,7 @@ const themeOverrides: GlobalThemeOverrides = {
 
 .mood-intensity {
   font-size: 13px;
-  color: #666;
+  color: var(--color-text-secondary);
 }
 
 .modal-secondary {
@@ -212,7 +212,7 @@ const themeOverrides: GlobalThemeOverrides = {
   color: #777;
   line-height: 1.6;
   padding: 10px 12px;
-  background: #f8f8f8;
+  background: var(--color-surface-hover);
   border-radius: 8px;
 }
 

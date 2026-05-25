@@ -371,12 +371,12 @@ function navigateToTask(field: string) {
 
 .week-day-done .week-day-dot {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 .week-day-today .week-day-dot {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent 80%);
 }
 
@@ -432,7 +432,7 @@ function navigateToTask(field: string) {
   border: none;
   border-radius: var(--radius-lg);
   background: linear-gradient(135deg, var(--color-primary), #5a9470);
-  color: #fff;
+  color: var(--color-on-primary);
   font-family: var(--font-body);
   font-size: var(--text-base);
   font-weight: 700;
@@ -664,7 +664,7 @@ function navigateToTask(field: string) {
 
 .btn-go {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 20%, transparent 80%);
 }
 

@@ -36,9 +36,9 @@
               </n-button>
             </template>
             <div style="padding: 4px; min-width: 160px; max-width: 260px; white-space: normal; word-break: break-word;">
-              <p style="margin: 0 0 2px; font-weight: bold; font-size: 13px; color: #2f2a24;">Lv.{{ auth.level }} · {{ auth.exp }}/{{ levelExpCap }} EXP</p>
-              <p style="margin: 0 0 8px; font-weight: bold; font-size: 13px; color: #2f2a24;">剩余额度</p>
-              <ul style="margin: 0; padding-left: 18px; font-size: 13px; color: #555;">
+              <p style="margin: 0 0 2px; font-weight: bold; font-size: 13px; color: var(--color-text);">Lv.{{ auth.level }} · {{ auth.exp }}/{{ levelExpCap }} EXP</p>
+              <p style="margin: 0 0 8px; font-weight: bold; font-size: 13px; color: var(--color-text);">剩余额度</p>
+              <ul style="margin: 0; padding-left: 18px; font-size: 13px; color: var(--color-text-secondary);">
                 <li>AI 聊天：{{ formatQuota(quotas.CHAT, levelQuotaMax.chat) }}</li>
                 <li>AI 分析：{{ formatQuota(quotas.ANALYSIS, levelQuotaMax.analysis) }}</li>
                 <li>AI 深度思考：{{ formatQuota(quotas.REASONING, levelQuotaMax.reasoning) }}</li>
@@ -47,7 +47,7 @@
                 <li>图片分析：{{ formatQuota(quotas.IMAGE_ANALYSIS, levelQuotaMax.imageAnalysis) }}</li>
                 <li>报告：{{ formatQuota(quotas.REPORT, levelQuotaMax.report) }}</li>
               </ul>
-              <p style="margin: 8px 0 0; font-size: 11px; color: #888;">AI 聊天 / AI 分析 / 思考 / 检索 / 传图 每日 0 点重置，报告每月重置</p>
+              <p style="margin: 8px 0 0; font-size: 11px; color: var(--color-text-secondary);">AI 聊天 / AI 分析 / 思考 / 检索 / 传图 每日 0 点重置，报告每月重置</p>
               <p style="margin: 6px 0 0; font-size: 12px;">
                 <a href="#" @click.prevent="openQuotaTable" style="color: var(--color-jade); font-weight: 600; text-decoration: none;">查看完整配额表 →</a>
               </p>
@@ -376,7 +376,7 @@ function formatQuota(val: number | undefined, max?: number): string {
 
 .nav-checkin-btn:hover:not(:disabled) {
   background: var(--color-jade);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 .nav-checkin-btn--done {
@@ -398,7 +398,7 @@ function formatQuota(val: number | undefined, max?: number): string {
 .nav-quota-btn {
   margin-right: 8px;
   font-weight: bold;
-  color: #496c58;
+  color: var(--color-primary);
 }
 
 .checkin-text-short { display: none; }
@@ -435,7 +435,7 @@ function formatQuota(val: number | undefined, max?: number): string {
 }
 
 .quota-modal {
-  background: #fff;
+  background: var(--color-surface);
   border-radius: 14px;
   max-width: 640px;
   width: 100%;
@@ -462,7 +462,7 @@ function formatQuota(val: number | undefined, max?: number): string {
   background: none;
   border: none;
   font-size: 24px;
-  color: #999;
+  color: var(--color-text-light);
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
@@ -471,7 +471,7 @@ function formatQuota(val: number | undefined, max?: number): string {
 .quota-modal-desc {
   margin: 0 0 16px;
   font-size: 13px;
-  color: #666;
+  color: var(--color-text-secondary);
 }
 
 .quota-table-wrap {
@@ -488,7 +488,7 @@ function formatQuota(val: number | undefined, max?: number): string {
 .quota-table td {
   padding: 8px 10px;
   text-align: center;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
 }
 
@@ -509,7 +509,7 @@ function formatQuota(val: number | undefined, max?: number): string {
 .quota-unit {
   font-weight: 400;
   font-size: 11px;
-  color: #999;
+  color: var(--color-text-light);
 }
 
 .quota-row-active {
@@ -523,7 +523,7 @@ function formatQuota(val: number | undefined, max?: number): string {
 .quota-modal-footer {
   margin: 10px 0 0;
   font-size: 11px;
-  color: #aaa;
+  color: var(--color-text-light);
   text-align: center;
 }
 
@@ -544,7 +544,7 @@ function formatQuota(val: number | undefined, max?: number): string {
   margin-bottom: 0;
 }
 .rule-item strong {
-  color: #4a7c62;
+  color: var(--color-primary);
 }
 
 /* daily exp progress strip */

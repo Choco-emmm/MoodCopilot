@@ -176,8 +176,8 @@ function toggleLine(index: number) {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--color-primary, #4a7c62);
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   text-decoration: none;
   font-size: 12px;
   transition: background 0.15s;
@@ -227,13 +227,13 @@ function toggleLine(index: number) {
 .music-title-zh {
   font-size: 12px;
   font-weight: 400;
-  color: #8a7a6a;
+  color: var(--color-text-secondary);
   margin-left: 6px;
 }
 
 .music-artist {
   font-size: 12px;
-  color: #8a7a6a;
+  color: var(--color-text-secondary);
 }
 
 .music-user-lyric {
@@ -266,7 +266,7 @@ function toggleLine(index: number) {
   margin-left: 4px;
   font-size: 11px;
   font-style: normal;
-  color: var(--color-primary, #4a7c62);
+  color: var(--color-primary);
   cursor: pointer;
   user-select: none;
 }
@@ -300,12 +300,12 @@ function toggleLine(index: number) {
   padding: 4px 10px;
   border-radius: 8px;
   background: #f0f7f2;
-  border-left: 3px solid var(--color-primary, #4a7c62);
+  border-left: 3px solid var(--color-primary);
 }
 
 .selected-line-text {
   flex: 1;
-  color: var(--color-primary, #4a7c62);
+  color: var(--color-primary);
   font-size: 13px;
   line-height: 1.6;
   white-space: pre-line;
@@ -319,7 +319,7 @@ function toggleLine(index: number) {
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: var(--color-primary, #4a7c62);
+  color: var(--color-primary);
   font-size: 14px;
   line-height: 20px;
   cursor: pointer;
@@ -331,7 +331,7 @@ function toggleLine(index: number) {
 
 .selected-line-x:hover {
   opacity: 1;
-  background: rgba(74, 124, 98, 0.1);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 .lyrics-fetch-btn {
@@ -340,13 +340,13 @@ function toggleLine(index: number) {
   padding: 3px 0;
   border: none;
   background: none;
-  color: #8a7a6a;
+  color: var(--color-text-secondary);
   font-size: 12px;
   cursor: pointer;
   font-family: inherit;
 }
 
-.lyrics-fetch-btn:hover { color: var(--color-primary, #4a7c62); }
+.lyrics-fetch-btn:hover { color: var(--color-primary); }
 .lyrics-fetch-btn:disabled { opacity: 0.6; cursor: wait; }
 
 .lyrics-error {
@@ -374,7 +374,7 @@ function toggleLine(index: number) {
   padding: 4px 10px;
   border: 1px solid rgba(180, 150, 120, 0.25);
   border-radius: 12px;
-  background: #fdfcf8;
+  background: var(--color-bg);
   color: #5a4a3a;
   font-size: 12px;
   cursor: pointer;
@@ -386,11 +386,11 @@ function toggleLine(index: number) {
   word-break: break-word;
 }
 
-.lyric-chip:hover { border-color: var(--color-primary, #4a7c62); }
+.lyric-chip:hover { border-color: var(--color-primary); }
 
 .lyric-chip.selected {
-  border-color: var(--color-primary, #4a7c62);
+  border-color: var(--color-primary);
   background: #f0f7f2;
-  color: var(--color-primary, #4a7c62);
+  color: var(--color-primary);
 }
 </style>

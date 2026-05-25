@@ -79,7 +79,7 @@ onMounted(async () => {
   height: 52px;
   border-radius: 50%;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
   box-shadow: 0 4px 20px color-mix(in srgb, var(--color-primary) 36%, transparent 64%);
   text-decoration: none;
   transition: transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);

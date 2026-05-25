@@ -238,11 +238,11 @@ function formatTime(value?: string) {
 }
 
 .admin-report-card {
-  background: #ffffff;
+  background: var(--color-surface);
   border-radius: 12px;
   padding: 16px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
-  border: 1px solid #edf2f7;
+  border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -257,9 +257,9 @@ function formatTime(value?: string) {
 
 .admin-report-reason {
   font-size: 14px;
-  color: #2d3748;
+  color: var(--color-text);
   line-height: 1.5;
-  background: #f7fafc;
+  background: var(--color-bg);
   padding: 12px;
   border-radius: 8px;
   margin: 6px 0;
@@ -268,7 +268,7 @@ function formatTime(value?: string) {
 
 .admin-report-meta {
   font-size: 12px;
-  color: #718096;
+  color: var(--color-text-secondary);
 }
 
 .admin-report-note {
@@ -284,7 +284,7 @@ function formatTime(value?: string) {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  border-top: 1px solid #edf2f7;
+  border-top: 1px solid var(--color-border);
   padding-top: 12px;
   justify-content: flex-end;
 }

@@ -459,7 +459,7 @@ function ensureCommentInputVisible() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #4f5f53;
+  color: var(--color-text-secondary);
   font-size: 12px;
   margin-bottom: 8px;
 }
@@ -473,9 +473,9 @@ function ensureCommentInputVisible() {
   padding: 8px 12px;
   margin-bottom: 10px;
   border-radius: 10px;
-  border: 1px solid #e5ddd1;
-  background: linear-gradient(180deg, #f9f5ee 0%, #f5efe5 100%);
-  color: #5f584f;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
   font-size: 12px;
 }
 
@@ -506,16 +506,16 @@ function ensureCommentInputVisible() {
 .analyzing-footer-hint {
   text-align: center;
   padding: 16px;
-  color: #8c7e70;
+  color: var(--color-text-secondary);
   font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: #fdfaf6;
+  background: var(--color-bg);
   border-radius: 12px;
   margin-top: 16px;
-  border: 1px dashed #e6dfd5;
+  border: 1px dashed var(--color-border);
 }
 .analyzing-footer-hint .sparkle-icon {
   animation: pulse 2s infinite;

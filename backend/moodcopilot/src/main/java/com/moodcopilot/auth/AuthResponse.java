@@ -3,7 +3,7 @@ package com.moodcopilot.auth;
 import java.time.LocalDateTime;
 
 public record AuthResponse(String token, Long userId, String displayName, String email, String avatar, String signature,
-        Boolean dailyNotifyEnabled, Boolean profileNotifyEnabled, String role, String inviteCode, Integer inviteQuota,
+        String theme, Boolean dailyNotifyEnabled, Boolean profileNotifyEnabled, String role, String inviteCode, Integer inviteQuota,
         Integer exp, Integer level, LocalDateTime proExpireTime,
         Integer nameChangeCount, Integer nameChangeWeek) {
 }

@@ -69,58 +69,19 @@
       </div>
 
       <!-- 搜索卡片面板 -->
-      <transition name="fade-slide">
-        <div v-if="isOwner && showSearchPanel" class="search-panel-card">
-          <div class="search-grid">
-            <div class="search-field keyword-field">
-              <label class="field-label">关键词</label>
-              <n-input
-                v-model:value="keyword"
-                placeholder="搜索日记内容…"
-                clearable
-                @keyup.enter="triggerSearch"
-              />
-            </div>
-            <div class="search-field">
-              <label class="field-label">起始日期</label>
-              <n-date-picker
-                v-model:value="startDateVal"
-                type="date"
-                clearable
-                placeholder="不限"
-                :is-date-disabled="dateDisabled"
-                style="width: 100%;"
-              />
-            </div>
-            <div class="search-field">
-              <label class="field-label">结束日期</label>
-              <n-date-picker
-                v-model:value="endDateVal"
-                type="date"
-                clearable
-                placeholder="不限"
-                style="width: 100%;"
-              />
-            </div>
-            <div class="search-field">
-              <label class="field-label">公开范围</label>
-              <n-select
-                v-model:value="visibilityFilter"
-                :options="visibilityOpts"
-                placeholder="不限"
-                clearable
-                style="width: 100%;"
-              />
-            </div>
-          </div>
-          <div class="search-actions">
-            <n-button text class="clear-filters-btn" @click="clearFilters">清除筛选</n-button>
-            <div class="search-buttons-group">
-              <n-button type="primary" :loading="loading" @click="triggerSearch">搜索</n-button>
-            </div>
-          </div>
-        </div>
-      </transition>
+      <ProfileSearchPanel
+        v-if="isOwner"
+        :show="showSearchPanel"
+        v-model:keyword="keyword"
+        v-model:startDate="startDateVal"
+        v-model:endDate="endDateVal"
+        v-model:visibility="visibilityFilter"
+        :visibility-opts="visibilityOpts"
+        :date-disabled="dateDisabled"
+        :loading="loading"
+        @search="triggerSearch"
+        @clear="clearFilters"
+      />
 
       <div v-if="diaries.length" class="feed">
         <DiaryFeedItem
@@ -149,320 +110,26 @@
       <n-spin v-else size="small" />
     </section>
 
-    <n-modal
+    <ProfileSettingsModal
       v-model:show="showSettingsModal"
-      preset="card"
-      title="设置"
-      class="settings-modal"
-      style="width: 95%; max-width: 650px; max-height: 85vh;"
-    >
-      <div class="settings-modal-scroll">
-        <section class="settings-section">
-          <div class="section-head">
-            <label class="settings-label">头像</label>
-            <span class="section-tag">Avatar</span>
-          </div>
-          <div class="settings-avatar-row">
-            <div class="settings-avatar-preview-wrap">
-              <img v-if="auth.avatar" :src="auth.avatar" class="settings-avatar-preview" decoding="async" />
-              <span v-else class="settings-avatar-placeholder">{{ auth.displayName?.charAt(0) || '我' }}</span>
-            </div>
-            <n-button size="small" @click="triggerUpload">更换头像</n-button>
-          </div>
-          <p v-if="uploadMsg" class="settings-hint">{{ uploadMsg }}</p>
-          <input
-            ref="fileInput"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            hidden
-            @change="onFileChange"
-          />
-        </section>
-
-        <section class="settings-section">
-          <div class="section-head">
-            <label class="settings-label">用户名</label>
-            <span class="section-tag">Identity</span>
-          </div>
-          <div class="settings-row">
-            <n-input
-              v-model:value="editingName"
-              :disabled="savingName || auth.remainingNameChanges <= 0"
-              :maxlength="64"
-              placeholder="输入新用户名"
-              @keyup.enter="saveName"
-              @blur="checkEditingName"
-            />
-            <n-button
-              size="small"
-              type="primary"
-              :disabled="!editingName.trim() || editingName === auth.displayName || savingName || auth.remainingNameChanges <= 0"
-              @click="saveName"
-              class="save-btn"
-            >
-              保存
-            </n-button>
-          </div>
-          <p class="settings-hint">本周剩余修改次数：{{ auth.remainingNameChanges }}</p>
-          <p v-if="nameMsg" class="settings-hint">{{ nameMsg }}</p>
-        </section>
-
-        <section class="settings-section">
-          <div class="section-head">
-            <label class="settings-label">个性签名</label>
-            <span class="section-tag">Profile</span>
-          </div>
-          <div class="settings-row settings-row-signature" style="flex-direction: column; align-items: stretch; gap: 8px;">
-            <n-input
-              v-model:value="editingSignature"
-              type="textarea"
-              :maxlength="160"
-              :autosize="{ minRows: 2, maxRows: 4 }"
-              placeholder="写一句你希望别人看到的状态（最多160字）"
-            />
-            <div style="display: flex; justify-content: flex-end;">
-              <n-button
-                size="small"
-                type="primary"
-                :loading="savingSignature"
-                :disabled="(editingSignature ?? '').trim() === (auth.signature ?? '')"
-                @click="saveSignature"
-                class="save-btn"
-              >
-                保存签名
-              </n-button>
-            </div>
-          </div>
-          <p v-if="signatureMsg" class="settings-hint">{{ signatureMsg }}</p>
-        </section>
-
-        <section class="settings-section">
-          <div class="section-head">
-            <label class="settings-label">邮箱账号</label>
-            <span class="section-tag">Account</span>
-          </div>
-          <div class="settings-inline-tip">{{ auth.email || '未获取到邮箱信息' }}</div>
-          <p class="settings-desc">邮箱账号当前仅用于登录和安全验证，暂不支持直接修改。</p>
-        </section>
-
-        <section class="settings-section">
-          <div class="section-head">
-            <label class="settings-label">提醒与陪伴</label>
-            <span class="section-tag">Routine</span>
-          </div>
-          <div class="settings-row notify-row" style="align-items: center;">
-            <div style="flex: 1; padding-right: 12px;">
-              <p class="notify-title" style="font-size: 14px;">每日跟进通知</p>
-              <p class="settings-desc" style="margin-top: 4px; font-size: 12px;">每天在偏好时段推送一条情绪陪跑通知</p>
-            </div>
-            <n-switch :value="auth.dailyNotifyEnabled" :disabled="toggling" @update:value="toggleNotify" />
-          </div>
-          <div class="settings-row notify-row" style="align-items: center;">
-            <div style="flex: 1; padding-right: 12px;">
-              <p class="notify-title" style="font-size: 14px;">画像/图谱更新通知</p>
-              <p class="settings-desc" style="margin-top: 4px; font-size: 12px;">日记分析后有画像或图谱变更时弹窗提醒</p>
-            </div>
-            <n-switch :value="auth.profileNotifyEnabled" :disabled="toggling" @update:value="toggleProfileNotify" />
-          </div>
-        </section>
-
-
-
-        <section class="settings-section danger-zone">
-          <div class="section-head">
-            <p class="settings-label">账户安全</p>
-            <span class="section-tag">Security</span>
-          </div>
-          <p class="settings-desc">修改密码前会向当前账号邮箱发送验证码，验证通过后才会生效。</p>
-          <n-button v-if="!showPasswordChange" secondary size="small" @click="showPasswordChange = true" class="change-password-btn">
-            <template #icon>
-              <span style="font-size: 14px">🔒</span>
-            </template>
-            修改密码
-          </n-button>
-          <div v-if="showPasswordChange" class="password-change-panel">
-            <div class="password-row-inline">
-              <n-input
-                v-model:value="oldPassword"
-                type="password"
-                show-password-on="click"
-                :maxlength="64"
-                placeholder="输入当前密码"
-              />
-            </div>
-            <div class="password-row-inline">
-              <n-input
-                v-model:value="newPassword"
-                type="password"
-                show-password-on="click"
-                :maxlength="64"
-                placeholder="输入新密码（至少6位）"
-              />
-            </div>
-            <div class="password-row-inline">
-              <n-input
-                v-model:value="confirmNewPassword"
-                type="password"
-                show-password-on="click"
-                :maxlength="64"
-                placeholder="再次输入新密码"
-              />
-            </div>
-            <div class="password-row-inline password-code-row">
-              <n-input
-                v-model:value="passwordVerificationCode"
-                :maxlength="6"
-                placeholder="输入邮箱验证码"
-              />
-              <n-button
-                :disabled="passwordCodeCountdown > 0"
-                :loading="sendingPasswordCode"
-                @click="sendPasswordCode"
-              >
-                {{ passwordCodeCountdown > 0 ? `${passwordCodeCountdown}s` : '发送验证码' }}
-              </n-button>
-            </div>
-            <n-button
-              type="primary"
-              :loading="changingPassword"
-              :disabled="!oldPassword.trim() || !newPassword.trim() || !confirmNewPassword.trim() || !passwordVerificationCode.trim()"
-              @click="submitPasswordChange"
-            >
-              确认修改密码
-            </n-button>
-            <p v-if="passwordMsg" class="settings-hint">{{ passwordMsg }}</p>
-          </div>
-        </section>
-
-        <section class="settings-section support-donate-section">
-          <div class="section-head">
-            <p class="settings-label">请开发者喝杯奶茶</p>
-            <span class="section-tag">🧋</span>
-          </div>
-          <p class="settings-desc">如果 MoodCopilot 帮到了你，欢迎请开发者喝杯奶茶～</p>
-          <n-button quaternary type="primary" @click="showSettingsModal = false; router.push('/support')">
-            去看看 →
-          </n-button>
-        </section>
-
-        <section class="settings-section">
-          <div class="section-head">
-            <p class="settings-label">建议与反馈</p>
-            <span class="section-tag">Feedback</span>
-          </div>
-          <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
-            <n-input
-              v-model:value="suggestionContent"
-              type="textarea"
-              :maxlength="1000"
-              :autosize="{ minRows: 2, maxRows: 4 }"
-              placeholder="遇到Bug？或者有好的功能建议？请告诉我们吧！"
-            />
-            <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
-              <n-button
-                v-if="auth.isAdmin"
-                size="small"
-                secondary
-                @click="viewAdminSuggestions"
-              >
-                查看用户建议
-              </n-button>
-              <n-button
-                size="small"
-                type="primary"
-                :loading="submittingSuggestion"
-                :disabled="!suggestionContent.trim()"
-                @click="submitSuggestion"
-              >
-                提交反馈
-              </n-button>
-            </div>
-          </div>
-        </section>
-
-        <section class="settings-section danger-zone">
-          <div class="section-head">
-            <p class="settings-label">账户操作</p>
-            <span class="section-tag">Security</span>
-          </div>
-          <n-button type="error" block @click="handleLogout">退出登录</n-button>
-        </section>
-      </div>
-    </n-modal>
-
-    <n-modal
-      v-model:show="showAdminSuggestions"
-      preset="card"
-      title="用户建议列表"
-      style="width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto;"
-    >
-      <div v-if="adminSuggestionsLoading" style="text-align: center; padding: 20px;">
-        <n-spin size="small" />
-      </div>
-      <div v-else-if="!adminSuggestions.length" style="text-align: center; padding: 20px; color: #999;">
-        暂无用户建议
-      </div>
-      <div v-else class="admin-suggestions-list">
-        <div v-for="s in adminSuggestions" :key="s.id" class="suggestion-item" style="border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <img v-if="s.userAvatar" :src="s.userAvatar" style="width: 24px; height: 24px; border-radius: 50%;" />
-              <span v-else style="width: 24px; height: 24px; border-radius: 50%; background: var(--color-border); display: inline-flex; align-items: center; justify-content: center; font-size: 12px;">{{ s.userName.charAt(0) }}</span>
-              <strong>{{ s.userName }}</strong>
-            </div>
-            <span style="font-size: 12px; color: #999;">{{ new Date(s.createdAt).toLocaleString() }}</span>
-          </div>
-          <p style="white-space: pre-wrap; font-size: 14px; margin: 0;">{{ s.content }}</p>
-        </div>
-        <div v-if="hasMoreAdminSuggestions" style="text-align: center; margin-top: 12px;">
-          <n-button size="small" :loading="adminSuggestionsLoadingMore" @click="loadMoreAdminSuggestions">加载更多</n-button>
-        </div>
-      </div>
-    </n-modal>
-
-    <n-modal
-      v-model:show="showCropModal"
-      preset="card"
-      title="裁切头像"
-      style="width: 90%; max-width: 420px;"
-      :mask-closable="false"
-    >
-      <div
-        class="crop-area"
-        ref="cropAreaRef"
-        @mousedown="onDragStart"
-        @mousemove="onDragMove"
-        @mouseup="onDragEnd"
-        @mouseleave="onDragEnd"
-        @touchstart.prevent="onTouchStart"
-        @touchmove.prevent="onTouchMove"
-        @touchend="onDragEnd"
-        @wheel.prevent="onWheel"
-      >
-        <canvas ref="cropCanvas" class="crop-canvas"></canvas>
-      </div>
-      <div class="crop-zoom-row">
-        <n-button size="small" @click="zoomOut">−</n-button>
-        <span class="crop-zoom-label">缩放</span>
-        <n-button size="small" @click="zoomIn">＋</n-button>
-      </div>
-      <template #action>
-        <div class="crop-action-row">
-          <n-button @click="showCropModal = false">取消</n-button>
-          <n-button type="primary" :loading="uploading" @click="handleCrop">确定</n-button>
-        </div>
-      </template>
-    </n-modal>
+      :is-owner="isOwner"
+      @profile-updated="handleProfileUpdated"
+      @open-admin-suggestions="showAdminSuggestions = true"
+    />
+    <AdminSuggestionsModal v-model:show="showAdminSuggestions" />
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NButton, NEmpty, NInput, NModal, NSpin, NSwitch, NDatePicker, NSelect } from 'naive-ui'
+import { NButton, NEmpty, NInput, NModal, NSpin, NSwitch, NDatePicker, NSelect, NTabs, NTabPane, NTag, NCheckbox, NPopover } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
+import ProfileSettingsModal from '../components/profile/ProfileSettingsModal.vue'
+import ProfileSearchPanel from '../components/profile/ProfileSearchPanel.vue'
+import AdminSuggestionsModal from '../components/profile/AdminSuggestionsModal.vue'
 import DiaryFeedItem from '../components/DiaryFeedItem.vue'
-import { authApi, diaryApi, memoryApi, suggestionApi } from '../api'
+import { authApi, diaryApi, memoryApi } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
@@ -498,51 +165,7 @@ const visibilityOpts = [
 
 
 
-const fileInput = ref<HTMLInputElement | null>(null)
-const editingName = ref('')
-const editingSignature = ref('')
-const savingName = ref(false)
-const savingSignature = ref(false)
-const nameMsg = ref('')
-const signatureMsg = ref('')
-const uploadMsg = ref('')
-const uploading = ref(false)
-const toggling = ref(false)
-const oldPassword = ref('')
-const newPassword = ref('')
-const confirmNewPassword = ref('')
-const passwordVerificationCode = ref('')
-const sendingPasswordCode = ref(false)
-const changingPassword = ref(false)
-const passwordCodeCountdown = ref(0)
-const passwordMsg = ref('')
-const showPasswordChange = ref(false)
-let passwordCodeTimer: number | null = null
-
-const suggestionContent = ref('')
-const submittingSuggestion = ref(false)
 const showAdminSuggestions = ref(false)
-const adminSuggestions = ref<any[]>([])
-const adminSuggestionsPage = ref(1)
-const hasMoreAdminSuggestions = ref(false)
-const adminSuggestionsLoading = ref(false)
-const adminSuggestionsLoadingMore = ref(false)
-
-const showCropModal = ref(false)
-const cropImageSrc = ref('')
-const cropCanvas = ref<HTMLCanvasElement | null>(null)
-const cropAreaRef = ref<HTMLElement | null>(null)
-
-let cropImg: HTMLImageElement | null = null
-let cropScale = 1
-let cropOffsetX = 0
-let cropOffsetY = 0
-let dragging = false
-let dragStartX = 0
-let dragStartY = 0
-let lastOffsetX = 0
-let lastOffsetY = 0
-let drawRafId: number | null = null
 
 const profileUserId = computed(() => Number(route.params.userId))
 const isOwner = computed(() => auth.userId != null && auth.userId === profileUserId.value)
@@ -594,16 +217,7 @@ watch(() => route.params.userId, () => {
   void reload()
 })
 
-watch(showSettingsModal, (val) => {
-  if (!val) return
-  void hydrateSettingsData()
-})
 
-watch(showCropModal, (val) => {
-  if (val && cropImg) {
-    setTimeout(() => drawCrop(), 150)
-  }
-})
 
 function dateDisabled(ts: number) {
   return ts > Date.now()
@@ -721,420 +335,21 @@ function openSettingsModal() {
   showSettingsModal.value = true
 }
 
-async function hydrateSettingsData() {
-  await auth.fetchProfile()
-  editingName.value = auth.displayName ?? ''
-  suggestionContent.value = ''
-}
-
-async function submitSuggestion() {
-  if (!suggestionContent.value.trim()) return
-  submittingSuggestion.value = true
-  try {
-    await suggestionApi.submit(suggestionContent.value.trim())
-    window.$message?.success('反馈提交成功，感谢你的建议！')
-    suggestionContent.value = ''
-  } catch (err: any) {
-    window.$message?.error('提交失败：' + (err.response?.data?.message || err.message))
-  } finally {
-    submittingSuggestion.value = false
-  }
-}
-
-async function viewAdminSuggestions() {
-  showAdminSuggestions.value = true
-  adminSuggestionsLoading.value = true
-  adminSuggestionsPage.value = 1
-  try {
-    const res = await suggestionApi.adminList(1, 20)
-    adminSuggestions.value = res.data.data.items || []
-    hasMoreAdminSuggestions.value = adminSuggestions.value.length < (res.data.data.total || 0)
-  } catch (err: any) {
-    window.$message?.error('获取失败：' + err.message)
-  } finally {
-    adminSuggestionsLoading.value = false
-  }
-}
-
-async function loadMoreAdminSuggestions() {
-  if (adminSuggestionsLoadingMore.value || !hasMoreAdminSuggestions.value) return
-  adminSuggestionsLoadingMore.value = true
-  try {
-    const nextPage = adminSuggestionsPage.value + 1
-    const res = await suggestionApi.adminList(nextPage, 20)
-    const items = res.data.data.items || []
-    adminSuggestions.value.push(...items)
-    adminSuggestionsPage.value = nextPage
-    hasMoreAdminSuggestions.value = adminSuggestions.value.length < (res.data.data.total || 0)
-  } catch (err: any) {
-    window.$message?.error('获取失败：' + err.message)
-  } finally {
-    adminSuggestionsLoadingMore.value = false
+function handleProfileUpdated() {
+  if (isOwner.value) {
+    profileName.value = auth.displayName || '我'
+    profileSignature.value = auth.signature || ''
+    profileAvatar.value = auth.avatar || null
   }
 }
 
 
 
-function triggerUpload() {
-  fileInput.value?.click()
-}
 
-async function onFileChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
 
-  if (file.size > 10 * 1024 * 1024) {
-    uploadMsg.value = '文件大小不能超过 10MB'
-    return
-  }
 
-  uploadMsg.value = ''
-  const reader = new FileReader()
-  reader.onload = (ev) => {
-    cropImageSrc.value = String(ev.target?.result ?? '')
-    showCropModal.value = true
-    nextTick(() => loadCropImage())
-  }
-  reader.readAsDataURL(file)
 
-  if (fileInput.value) {
-    fileInput.value.value = ''
-  }
-}
 
-function loadCropImage() {
-  const img = new Image()
-  img.onload = () => {
-    cropImg = img
-    cropScale = 1
-    cropOffsetX = 0
-    cropOffsetY = 0
-    setTimeout(() => drawCrop(), 120)
-  }
-  img.src = cropImageSrc.value
-}
-
-function scheduleDrawCrop() {
-  if (drawRafId != null) return
-  drawRafId = window.requestAnimationFrame(() => {
-    drawRafId = null
-    drawCrop()
-  })
-}
-
-function zoomOut() {
-  cropScale = Math.max(0.2, cropScale - 0.1)
-  scheduleDrawCrop()
-}
-
-function zoomIn() {
-  cropScale = Math.min(5, cropScale + 0.1)
-  scheduleDrawCrop()
-}
-
-function drawCrop() {
-  const canvas = cropCanvas.value
-  const area = cropAreaRef.value
-  if (!canvas || !area || !cropImg) return
-
-  const size = Math.min(area.clientWidth || 320, 320)
-  canvas.width = size
-  canvas.height = size
-  canvas.style.width = `${size}px`
-  canvas.style.height = `${size}px`
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  ctx.clearRect(0, 0, size, size)
-
-  const cssVars = getComputedStyle(document.documentElement)
-  const surfaceSoft = cssVars.getPropertyValue('--color-surface-soft').trim() || 'rgba(0, 0, 0, 0.06)'
-  const primary = cssVars.getPropertyValue('--color-primary').trim() || 'rgba(0, 0, 0, 0.4)'
-  ctx.fillStyle = surfaceSoft
-  ctx.fillRect(0, 0, size, size)
-
-  const imgW = cropImg.naturalWidth
-  const imgH = cropImg.naturalHeight
-  const fitScale = size / Math.min(imgW, imgH)
-  const drawW = imgW * fitScale * cropScale
-  const drawH = imgH * fitScale * cropScale
-  const drawX = (size - drawW) / 2 + cropOffsetX
-  const drawY = (size - drawH) / 2 + cropOffsetY
-
-  ctx.drawImage(cropImg, drawX, drawY, drawW, drawH)
-
-  ctx.save()
-  ctx.strokeStyle = primary
-  ctx.globalAlpha = 0.35
-  ctx.lineWidth = 2
-  ctx.beginPath()
-  ctx.arc(size / 2, size / 2, size / 2 - 4, 0, Math.PI * 2)
-  ctx.stroke()
-  ctx.restore()
-}
-
-function onDragStart(e: MouseEvent) {
-  dragging = true
-  dragStartX = e.clientX
-  dragStartY = e.clientY
-  lastOffsetX = cropOffsetX
-  lastOffsetY = cropOffsetY
-}
-
-function onDragMove(e: MouseEvent) {
-  if (!dragging) return
-  cropOffsetX = lastOffsetX + (e.clientX - dragStartX)
-  cropOffsetY = lastOffsetY + (e.clientY - dragStartY)
-  scheduleDrawCrop()
-}
-
-function onDragEnd() {
-  dragging = false
-}
-
-function onTouchStart(e: TouchEvent) {
-  if (e.touches.length !== 1) return
-  dragging = true
-  dragStartX = e.touches[0].clientX
-  dragStartY = e.touches[0].clientY
-  lastOffsetX = cropOffsetX
-  lastOffsetY = cropOffsetY
-}
-
-function onTouchMove(e: TouchEvent) {
-  if (!dragging || e.touches.length !== 1) return
-  cropOffsetX = lastOffsetX + (e.touches[0].clientX - dragStartX)
-  cropOffsetY = lastOffsetY + (e.touches[0].clientY - dragStartY)
-  scheduleDrawCrop()
-}
-
-function onWheel(e: WheelEvent) {
-  cropScale = Math.max(0.2, Math.min(5, cropScale + (e.deltaY > 0 ? -0.1 : 0.1)))
-  scheduleDrawCrop()
-}
-
-function handleCrop() {
-  if (!cropImg) return
-
-  uploading.value = true
-  const outSize = 400
-  const offscreen = document.createElement('canvas')
-  offscreen.width = outSize
-  offscreen.height = outSize
-  const ctx = offscreen.getContext('2d')
-  if (!ctx) {
-    uploading.value = false
-    return
-  }
-
-  const canvas = cropCanvas.value
-  if (!canvas) {
-    uploading.value = false
-    return
-  }
-
-  const displaySize = canvas.width
-  const scale = outSize / displaySize
-
-  const imgW = cropImg.naturalWidth
-  const imgH = cropImg.naturalHeight
-  const fitScale = displaySize / Math.min(imgW, imgH)
-  const drawW = imgW * fitScale * cropScale * scale
-  const drawH = imgH * fitScale * cropScale * scale
-  const drawX = (outSize - drawW) / 2 + cropOffsetX * scale
-  const drawY = (outSize - drawH) / 2 + cropOffsetY * scale
-
-  ctx.drawImage(cropImg, drawX, drawY, drawW, drawH)
-
-  offscreen.toBlob(async (blob) => {
-    if (!blob) {
-      uploading.value = false
-      return
-    }
-    const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
-    try {
-      await auth.uploadAvatar(file)
-      if (isOwner.value) {
-        profileAvatar.value = auth.avatar
-      }
-      uploadMsg.value = '头像已更新'
-      showCropModal.value = false
-    } catch (e) {
-      uploadMsg.value = '上传失败'
-      logWarn('profile', '头像上传失败', e)
-    } finally {
-      uploading.value = false
-    }
-  }, 'image/jpeg', 0.92)
-}
-
-async function checkEditingName() {
-  const name = editingName.value.trim()
-  if (!name || name === auth.displayName) {
-    if (nameMsg.value === '该用户名已被占用') nameMsg.value = ''
-    return
-  }
-  try {
-    const res = await authApi.checkUsername(name)
-    if (!res.data.data.available) {
-      nameMsg.value = '该用户名已被占用'
-    } else {
-      if (nameMsg.value === '该用户名已被占用') nameMsg.value = ''
-    }
-  } catch (e) {
-    logWarn('profile', '检查用户名可用性失败', name, e)
-  }
-}
-
-async function saveName() {
-  const name = editingName.value.trim()
-  if (!name || name === auth.displayName) return
-
-  savingName.value = true
-  nameMsg.value = ''
-  try {
-    await auth.updateProfile(name, undefined)
-    if (isOwner.value) {
-      profileName.value = auth.displayName || '我'
-    }
-    nameMsg.value = '用户名已更新'
-    editingName.value = auth.displayName ?? ''
-  } catch (e: any) {
-    const msg = e?.response?.data?.message || e?.message || ''
-    if (msg && msg !== '该用户名已被占用') nameMsg.value = msg
-    else if (!msg) nameMsg.value = '保存失败'
-  } finally {
-    savingName.value = false
-  }
-}
-
-async function saveSignature() {
-  savingSignature.value = true
-  signatureMsg.value = ''
-  try {
-    await auth.updateProfile(undefined, undefined, editingSignature.value.trim())
-    editingSignature.value = auth.signature ?? ''
-    if (isOwner.value) {
-      profileSignature.value = editingSignature.value
-    }
-    signatureMsg.value = '个性签名已更新'
-  } catch (e) {
-    logWarn('profile', '保存签名失败', e)
-    signatureMsg.value = '保存失败'
-  } finally {
-    savingSignature.value = false
-  }
-}
-
-async function toggleNotify(val: boolean) {
-  toggling.value = true
-  try {
-    await auth.updateSettings(val)
-  } catch (e) {
-    logWarn('profile', '更新通知设置失败', e)
-  } finally {
-    toggling.value = false
-  }
-}
-
-async function toggleProfileNotify(val: boolean) {
-  toggling.value = true
-  try {
-    await auth.updateSettings(auth.dailyNotifyEnabled, val)
-  } catch (e) {
-    logWarn('profile', '更新画像通知设置失败', e)
-  } finally {
-    toggling.value = false
-  }
-}
-
-async function sendPasswordCode() {
-  if (passwordCodeCountdown.value > 0 || sendingPasswordCode.value) return
-
-  passwordMsg.value = ''
-  sendingPasswordCode.value = true
-  try {
-    await auth.sendPasswordChangeCode()
-    passwordCodeCountdown.value = 60
-    if (passwordCodeTimer != null) {
-      window.clearInterval(passwordCodeTimer)
-    }
-    passwordCodeTimer = window.setInterval(() => {
-      passwordCodeCountdown.value -= 1
-      if (passwordCodeCountdown.value <= 0 && passwordCodeTimer != null) {
-        window.clearInterval(passwordCodeTimer)
-        passwordCodeTimer = null
-      }
-    }, 1000)
-    passwordMsg.value = '验证码已发送到你的注册邮箱'
-  } catch (e: any) {
-    passwordMsg.value = e?.response?.data?.message || '验证码发送失败'
-  } finally {
-    sendingPasswordCode.value = false
-  }
-}
-
-async function submitPasswordChange() {
-  if (!oldPassword.value.trim()) {
-    passwordMsg.value = '请输入当前密码'
-    return
-  }
-  if (newPassword.value.trim().length < 6) {
-    passwordMsg.value = '新密码至少 6 位'
-    return
-  }
-  if (!confirmNewPassword.value.trim()) {
-    passwordMsg.value = '请再次输入新密码'
-    return
-  }
-  if (newPassword.value.trim() !== confirmNewPassword.value.trim()) {
-    passwordMsg.value = '两次输入的新密码不一致'
-    return
-  }
-  if (!passwordVerificationCode.value.trim()) {
-    passwordMsg.value = '请输入验证码'
-    return
-  }
-
-  changingPassword.value = true
-  passwordMsg.value = ''
-  try {
-    await auth.changePassword(
-      oldPassword.value.trim(),
-      newPassword.value.trim(),
-      confirmNewPassword.value.trim(),
-      passwordVerificationCode.value.trim(),
-    )
-    showSettingsModal.value = false
-    oldPassword.value = ''
-    newPassword.value = ''
-    confirmNewPassword.value = ''
-    passwordVerificationCode.value = ''
-    auth.logout()
-    await router.push('/login')
-  } catch (e: any) {
-    passwordMsg.value = e?.response?.data?.message || '密码修改失败'
-  } finally {
-    changingPassword.value = false
-  }
-}
-
-function handleLogout() {
-  showSettingsModal.value = false
-  auth.logout()
-  router.push('/login')
-}
-
-onBeforeUnmount(() => {
-  if (drawRafId != null) {
-    window.cancelAnimationFrame(drawRafId)
-    drawRafId = null
-  }
-  if (passwordCodeTimer != null) {
-    window.clearInterval(passwordCodeTimer)
-    passwordCodeTimer = null
-  }
-})
 </script>
 
 <style scoped>
@@ -1214,7 +429,7 @@ onBeforeUnmount(() => {
 
 .profile-follow-btn.following {
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 .profile-follow-btn:hover {
@@ -1271,47 +486,7 @@ onBeforeUnmount(() => {
   padding-right: 4px;
 }
 
-.support-donate-section {
-  text-align: center;
-}
-.support-donate-section .section-head {
-  justify-content: center;
-}
 
-.settings-section {
-  margin-top: 12px;
-  padding: 16px;
-  border-radius: 16px;
-  background: var(--color-surface);
-  border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
-  box-shadow: 0 2px 10px color-mix(in srgb, var(--color-text) 3%, transparent);
-}
-
-.section-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.settings-label {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-.section-tag {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-primary);
-  background: var(--color-primary-light);
-  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent 82%);
-  border-radius: 999px;
-  padding: 2px 9px;
-}
 
 .settings-avatar-row {
   margin-top: 10px;
@@ -1555,7 +730,7 @@ onBeforeUnmount(() => {
   text-decoration: none;
   padding: 8px 12px;
   border-radius: var(--radius-sm);
-  background: var(--color-primary-light);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   transition: background 0.15s, color 0.15s;
 }
 

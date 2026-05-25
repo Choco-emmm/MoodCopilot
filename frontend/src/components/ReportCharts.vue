@@ -22,7 +22,7 @@
         aria-modal="true"
       >
         <template #header-extra>
-          <n-tag :color="{ color: moodColor(selectedMood?.moodLabel || ''), textColor: '#fff' }" round>
+          <n-tag :color="{ color: moodColor(selectedMood?.moodLabel || ''), textColor: 'var(--color-on-primary)' }" round>
             {{ selectedMood?.moodLabel }}
           </n-tag>
         </template>
@@ -257,12 +257,12 @@ const scatterOption = computed(() => {
 .snippet-text {
   font-size: 15px;
   line-height: 1.6;
-  color: #334155;
+  color: var(--color-text);
   margin: 10px 0;
   word-break: break-all;
 }
 .text-muted {
-  color: #94a3b8;
+  color: var(--color-text-secondary);
 }
 .modal-footer {
   margin-top: 10px;
@@ -275,12 +275,12 @@ const scatterOption = computed(() => {
 }
 .chart-subtitle {
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-secondary);
   margin: 2px 0 8px;
 }
 .chart-hint {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--color-text-light);
   margin: 2px 0 0;
 }
 .chart-box {

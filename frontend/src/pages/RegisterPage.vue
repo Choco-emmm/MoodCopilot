@@ -76,6 +76,9 @@ const rules: FormRules = {
     {
       validator: async (_rule: any, value: string) => {
         if (!value) return
+        if (!/^[a-zA-Z0-9\u4e00-\u9fa5_-]{2,20}$/.test(value)) {
+          throw new Error('需为 2-20 位中英文、数字、下划线或横线')
+        }
         try {
           const res = await authApi.checkUsername(value)
           if (!res.data.data.available) {

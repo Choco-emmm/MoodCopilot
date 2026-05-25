@@ -62,7 +62,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  background: #f5f0e8;
+  background: var(--color-surface-hover);
   cursor: pointer;
   transition: opacity 0.15s;
 }
@@ -116,7 +116,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   right: 24px;
   background: none;
   border: none;
-  color: #fff;
+  color: var(--color-on-primary);
   font-size: 36px;
   cursor: pointer;
   opacity: 0.7;

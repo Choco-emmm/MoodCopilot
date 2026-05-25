@@ -446,7 +446,7 @@ function formatGeneratedAt(value?: string | Date | null) {
 .md-content :deep(p) {
   margin: 0 0 0.8em 0;
   line-height: 1.7;
-  color: var(--text-color, #333);
+  color: var(--color-text);
 }
 .md-content :deep(p:last-child) {
   margin-bottom: 0;
@@ -636,7 +636,7 @@ function formatGeneratedAt(value?: string | Date | null) {
 
 .report-switch-tab.active {
   background: var(--color-jade, #3f7a63);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 @media (max-width: 480px) {

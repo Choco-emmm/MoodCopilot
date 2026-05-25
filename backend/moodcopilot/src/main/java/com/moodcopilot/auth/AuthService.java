@@ -254,6 +254,9 @@ public class AuthService {
         if (request.displayName() == null || request.displayName().isBlank()) {
             throw new ResponseStatusException(BAD_REQUEST, "用户名不能为空");
         }
+        if (!request.displayName().trim().matches("^[a-zA-Z0-9\\u4e00-\\u9fa5_-]{2,20}$")) {
+            throw new ResponseStatusException(BAD_REQUEST, "用户名需为 2-20 位中英文、数字、下划线或横线");
+        }
         if (request.email() == null || !request.email().contains("@")) {
             throw new ResponseStatusException(BAD_REQUEST, "邮箱格式不正确");
         }
@@ -401,8 +404,8 @@ public class AuthService {
         UserEntity user = userMapper.selectById(userId);
         if (displayName != null && !displayName.isBlank()) {
             String newName = displayName.trim();
-            if (newName.length() > 64) {
-                throw new ResponseStatusException(BAD_REQUEST, "用户名最多 64 个字符");
+            if (!newName.matches("^[a-zA-Z0-9\\u4e00-\\u9fa5_-]{2,20}$")) {
+                throw new ResponseStatusException(BAD_REQUEST, "用户名需为 2-20 位中英文、数字、下划线或横线");
             }
             if (!newName.equals(user.getDisplayName())) {
                 // 唯一性检查
@@ -467,13 +470,16 @@ public class AuthService {
         }
     }
 
-    public void updateSettings(Long userId, Boolean dailyNotifyEnabled, Boolean profileNotifyEnabled) {
+    public void updateSettings(Long userId, Boolean dailyNotifyEnabled, Boolean profileNotifyEnabled, String theme) {
         UserEntity user = userMapper.selectById(userId);
         if (dailyNotifyEnabled != null) {
             user.setDailyNotifyEnabled(dailyNotifyEnabled);
         }
         if (profileNotifyEnabled != null) {
             user.setProfileNotifyEnabled(profileNotifyEnabled);
+        }
+        if (theme != null) {
+            user.setTheme(theme);
         }
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
@@ -593,7 +599,7 @@ public class AuthService {
     private AuthResponse response(String token, UserEntity user) {
         String role = user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole();
         return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getEmail(),
-                normalizeAvatar(user.getAvatar()), user.getSignature(),
+                normalizeAvatar(user.getAvatar()), user.getSignature(), user.getTheme(),
                 user.getDailyNotifyEnabled(), user.getProfileNotifyEnabled(), role, user.getInviteCode(), user.getInviteQuota(),
                 user.getExp(), user.getLevel(), user.getProExpireTime(),
                 user.getNameChangeCount(), user.getNameChangeWeek());

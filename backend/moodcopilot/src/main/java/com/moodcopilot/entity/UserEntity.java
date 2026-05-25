@@ -19,6 +19,7 @@ public class UserEntity {
     private Boolean isVip;
     private String avatar;
     private String signature;
+    private String theme;
     private Boolean dailyNotifyEnabled;
     private Boolean profileNotifyEnabled;
     private String inviteCode;
@@ -103,6 +104,14 @@ public class UserEntity {
 
     public void setSignature(String signature) {
         this.signature = signature;
+    }
+
+    public String getTheme() {
+        return theme;
+    }
+
+    public void setTheme(String theme) {
+        this.theme = theme;
     }
 
     public Boolean getDailyNotifyEnabled() {

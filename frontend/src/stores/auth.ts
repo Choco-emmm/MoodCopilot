@@ -22,6 +22,7 @@ export const useAuthStore = defineStore('auth', () => {
   const email = ref<string | null>(null)
   const avatar = ref<string | null>(null)
   const signature = ref<string | null>(null)
+  const theme = ref<string>('green')
   const dailyNotifyEnabled = ref<boolean>(true)
   const profileNotifyEnabled = ref<boolean>(true)
   const role = ref<string>(localStorage.getItem('role') || 'USER')
@@ -63,6 +64,8 @@ export const useAuthStore = defineStore('auth', () => {
       email.value = data.email ?? null
       avatar.value = normalizeResourceUrl(data.avatar)
       signature.value = data.signature ?? null
+      theme.value = data.theme ?? 'green'
+      document.documentElement.setAttribute('data-theme', theme.value)
       dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
       profileNotifyEnabled.value = data.profileNotifyEnabled !== false
       exp.value = data.exp ?? 0
@@ -90,10 +93,14 @@ export const useAuthStore = defineStore('auth', () => {
     avatar.value = normalizeResourceUrl(res.data.data.avatar)
   }
 
-  async function updateSettings(daily: boolean, profile?: boolean) {
-    await authApi.updateSettings(daily, profile)
+  async function updateSettings(daily: boolean, profile?: boolean, newTheme?: string) {
+    await authApi.updateSettings(daily, profile, newTheme)
     dailyNotifyEnabled.value = daily
     if (profile !== undefined) profileNotifyEnabled.value = profile
+    if (newTheme !== undefined) {
+      theme.value = newTheme
+      document.documentElement.setAttribute('data-theme', newTheme)
+    }
   }
 
   function applyAuthData(data: any) {
@@ -158,7 +165,11 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    token, userId, displayName, email, avatar, signature, dailyNotifyEnabled, profileNotifyEnabled, role, exp, level, proExpireTime, nameChangeCount, nameChangeWeek, maxWeeklyNameChanges, remainingNameChanges, isPro, isAuthenticated, isAdmin,
+    token, userId, displayName,    email,
+    avatar,
+    signature,
+    theme,
+    dailyNotifyEnabled, profileNotifyEnabled, role, exp, level, proExpireTime, nameChangeCount, nameChangeWeek, maxWeeklyNameChanges, remainingNameChanges, isPro, isAuthenticated, isAdmin,
     fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout, sendCode, sendPasswordChangeCode, changePassword
   }
 })

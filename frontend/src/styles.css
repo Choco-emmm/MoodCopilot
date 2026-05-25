@@ -7,27 +7,31 @@
   /* ── Color ── */
   --color-bg: #f8f6f1;
   --color-surface: #fffdf8;
-  --color-surface-hover: #f1eee6;
-  --color-surface-soft: #f6f2ea;
+  --color-surface-hover: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
+  --color-surface-soft: color-mix(in srgb, var(--color-primary) 3%, var(--color-surface));
 
   --color-text: #20201d;
   --color-text-secondary: #67645d;
   --color-text-muted: #98938a;
+  --color-text-light: #b3b3b3;
+  --color-on-primary: #ffffff;
 
   --color-accent: #a94b45;
   --color-accent-light: #d9827a;
   --color-accent-bg: #fff1ef;
+  --color-error: #b23a3a;
+  --color-warning: #ffb400;
 
   --color-primary: #4a7c62;
-  --color-primary-light: #e7f0eb;
+  --color-primary-light: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
   --color-primary-hover: #326a54;
 
   /* 旧 Jade 别名，保持兼容 */
   --color-jade: var(--color-primary);
   --color-jade-hover: var(--color-primary-hover);
 
-  --color-border: #e3ded3;
-  --color-border-strong: #cdc5b6;
+  --color-border: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  --color-border-strong: color-mix(in srgb, var(--color-primary) 30%, transparent);
 
   /* ── Typography ── */
   --font-display: "Noto Serif SC", "STSong", "Songti SC", "KaiTi", "SimSun", serif;
@@ -3623,4 +3627,80 @@ h3 {
   .desktop-only {
     display: none !important;
   }
+}/* ==== THEME PRESETS ==== */
+[data-theme="salt-lemon"] {
+  --color-primary: #67bac6;
+  --color-primary-hover: #98e5ec;
+  --color-accent: #fdf196;
+  --color-bg: #f2fcfe;
+  --color-surface: #ffffff;
+}
+[data-theme="morning-dew"] {
+  --color-primary: #ffb6b9;
+  --color-primary-hover: #fae3d9;
+  --color-accent: #8ac6d1;
+  --color-bg: #fff5f6;
+  --color-surface: #ffffff;
+}
+[data-theme="lemon-grape"] {
+  --color-primary: #9eb368;
+  --color-primary-hover: #bdcf88;
+  --color-accent: #fffe87;
+  --color-bg: #fafff0;
+  --color-surface: #ffffff;
+}
+[data-theme="matcha-mist"] {
+  --color-primary: #89a3b2;
+  --color-primary-hover: #b2d3be;
+  --color-accent: #f2f4d1;
+  --color-text: #5e6073;
+  --color-bg: #f8fbf5;
+  --color-surface: #ffffff;
+}
+[data-theme="clear-summer"] {
+  --color-primary: #a5ca8b;
+  --color-primary-hover: #d0dd97;
+  --color-accent: #f9de79;
+  --color-bg: #f8fae4;
+  --color-surface: #ffffff;
+}
+[data-theme="black-rice"] {
+  --color-primary: #ffb400;
+  --color-primary-hover: #e6a200;
+  --color-accent: #2994b2;
+  --color-bg: #2b2b29;
+  --color-surface: #474744;
+  --color-text: #fffbe0;
+  --color-text-secondary: #dcdcdc;
+  --color-border: #666663;
+}
+[data-theme="cherry-blossom"] {
+  --color-primary: #ff78ae;
+  --color-primary-hover: #e05b92;
+  --color-bg: #fff0f7;
+  --color-surface: #ffffff;
+}
+[data-theme="cloud-sky"] {
+  --color-primary: #4dd0e1;
+  --color-primary-hover: #26c6da;
+  --color-bg: #f4fdff;
+  --color-surface: #ffffff;
+}
+[data-theme="mint-star"] {
+  --color-primary: #d8c2f9;
+  --color-primary-hover: #bda2eb;
+  --color-bg: #faf7ff;
+  --color-surface: #ffffff;
+}
+[data-theme="forest-dream"] {
+  --color-primary: #346357;
+  --color-primary-hover: #22473e;
+  --color-bg: #f4fcf9;
+  --color-surface: #ffffff;
+}
+[data-theme="night-apple"] {
+  --color-primary: #5a7d9a;
+  --color-primary-hover: #42617a;
+  --color-bg: #f4f8fb;
+  --color-surface: #ffffff;
 }

@@ -137,7 +137,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import Vditor from 'vditor'
+import type Vditor from 'vditor'
 import 'vditor/dist/index.css'
 import { useDiaryStore, type MusicMeta } from '../stores/diary'
 import { musicApi, imageApi } from '../api'
@@ -199,7 +199,7 @@ const visibilityCopy = computed(() =>
 
 const isOverLimit = computed(() => draft.value.length > 3000)
 
-onMounted(() => {
+onMounted(async () => {
   let initialValue = ''
   if (isEditMode.value) {
     initialValue = props.initialContent || ''
@@ -222,6 +222,9 @@ onMounted(() => {
       updateDraftSavedAt()
     }
   }
+
+  const VditorModule = await import('vditor')
+  const Vditor = VditorModule.default
 
   vditorInst.value = new Vditor('vditor-composer', {
     mode: 'ir',
@@ -320,8 +323,9 @@ async function submitMusicUrl(url: string, fullText?: string) {
       showMusicInput.value = false
       musicUrlDraft.value = ''
     }
-  } catch {
-    // if parse fails, ignore silently
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || '解析失败，请检查链接'
+    window.$message?.error(msg)
   } finally {
     musicParsing.value = false
   }
@@ -335,7 +339,10 @@ async function handleImageSelect(e: Event) {
   try {
     const url = await imageApi.uploadDirect(file)
     if (url) imageList.value.push(url)
-  } catch { /* silently ignore */ }
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || '图片上传失败，请稍后重试'
+    window.$message?.error(msg)
+  }
   finally {
     uploadingImage.value = false
     input.value = ''
@@ -391,7 +398,7 @@ async function handleSave() {
   border: 1px solid rgba(180, 150, 120, 0.25) !important;
   border-radius: var(--radius-md, 8px);
   /* overflow: hidden; 移除，防止遮挡 toolbar 的 tooltip */
-  --vditor-toolbar-background-color: #fdfcf8;
+  --vditor-toolbar-background-color: var(--color-bg);
   --vditor-toolbar-border-color: rgba(180, 150, 120, 0.15);
   width: 100% !important;
   max-width: 100% !important;
@@ -400,15 +407,15 @@ async function handleSave() {
 }
 
 .composer-editor:focus-within :deep(.vditor) {
-  border-color: var(--color-primary, #4a7c62) !important;
-  box-shadow: 0 4px 12px rgba(74, 124, 98, 0.08), 0 0 0 3px rgba(74, 124, 98, 0.1) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 8%, transparent), 0 0 0 3px color-mix(in srgb, var(--color-primary) 10%, transparent) !important;
 }
 
 .composer-editor :deep(.vditor-content) {
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .composer-editor :deep(.vditor-reset) {
@@ -427,14 +434,14 @@ async function handleSave() {
 }
 
 .composer-editor :deep(.vditor-toolbar__item > button) {
-  color: #8a7a6a;
+  color: var(--color-text-secondary);
   border-radius: 6px;
   transition: all 0.2s;
 }
 
 .composer-editor :deep(.vditor-toolbar__item > button:hover) {
   background-color: rgba(180, 150, 120, 0.1);
-  color: #4a7c62;
+  color: var(--color-primary);
 }
 
 .composer-editor :deep(.vditor-counter) {
@@ -519,7 +526,7 @@ async function handleSave() {
   padding: 10px 12px;
   border-left: 3px solid #7aa68f;
   border-radius: 8px;
-  background: #f4f8f5;
+  background: var(--color-bg);
   color: #4d5f54;
   font-size: 12px;
   line-height: 1.7;
@@ -543,7 +550,7 @@ async function handleSave() {
   border: 1px dashed #b0a090;
   border-radius: var(--radius-sm, 6px);
   background: transparent;
-  color: #8a7a6a;
+  color: var(--color-text-secondary);
   font-size: 13px;
   cursor: pointer;
   transition: border-color 0.2s, color 0.2s;
@@ -551,8 +558,8 @@ async function handleSave() {
 }
 
 .music-attach-btn:hover {
-  border-color: var(--color-primary, #4a7c62);
-  color: var(--color-primary, #4a7c62);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .music-attach-icon {
@@ -572,7 +579,7 @@ async function handleSave() {
   border-radius: var(--radius-sm, 6px);
   font-size: 13px;
   outline: none;
-  background: #fdfcf8;
+  background: var(--color-bg);
   color: #5a4a3a;
   font-family: inherit;
 }
@@ -583,7 +590,7 @@ async function handleSave() {
 }
 
 .music-url-input:focus {
-  border-color: var(--color-primary, #4a7c62);
+  border-color: var(--color-primary);
 }
 
 .music-parsing {
@@ -593,7 +600,7 @@ async function handleSave() {
   background: #fdf6f0;
   border: 1px solid rgba(180, 150, 120, 0.12);
   font-size: 13px;
-  color: #8a7a6a;
+  color: var(--color-text-secondary);
   text-align: center;
 }
 
@@ -653,7 +660,7 @@ async function handleSave() {
   border: none;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.45);
-  color: #fff;
+  color: var(--color-surface);
   font-size: 10px;
   line-height: 18px;
   cursor: pointer;
@@ -678,8 +685,8 @@ async function handleSave() {
 }
 
 .composer-image-add:hover {
-  border-color: var(--color-primary, #4a7c62);
-  color: var(--color-primary, #4a7c62);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .composer-image-add.uploading {
@@ -717,8 +724,8 @@ async function handleSave() {
 .composer-image-add.uploading {
   position: relative;
   overflow: hidden;
-  border-color: var(--color-primary, #4a7c62);
-  background: rgba(74, 124, 98, 0.02);
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 2%, transparent);
 }
 
 .upload-shimmer {
@@ -727,14 +734,14 @@ async function handleSave() {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(74, 124, 98, 0.08), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-primary) 8%, transparent), transparent);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
   pointer-events: none;
 }
 
 .shimmer-text {
-  color: var(--color-primary, #4a7c62);
+  color: var(--color-primary);
   font-weight: 500;
   z-index: 1;
   font-size: 11px;
@@ -776,7 +783,7 @@ async function handleSave() {
   right: 24px;
   background: none;
   border: none;
-  color: #fff;
+  color: var(--color-surface);
   font-size: 36px;
   cursor: pointer;
   opacity: 0.7;

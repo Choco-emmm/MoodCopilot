@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN theme VARCHAR(32) DEFAULT 'green';
