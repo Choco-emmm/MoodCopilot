@@ -221,6 +221,7 @@ const navItems = computed(() => {
     { label: '写日记', shortLabel: '写', icon: '✎', path: '/write' },
     { label: 'MoodCopilot', shortLabel: 'AI', icon: '✦', path: '/chat', cls: 'nav-link-ai' },
     { label: '关注', shortLabel: '关注', icon: '♥', path: '/following' },
+    { label: '我的', shortLabel: '我的', icon: '◉', path: profilePath.value },
     { label: '报告', shortLabel: '报告', icon: '▤', path: '/report' },
     { label: 'AI记忆', shortLabel: '记忆', icon: '🏛️', path: '/ai-memory' },
   ]
