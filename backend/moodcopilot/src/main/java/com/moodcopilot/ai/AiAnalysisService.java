@@ -187,8 +187,10 @@ public class AiAnalysisService {
                 if (a.hasSecondaryMoods()) {
                     prompt.append("（同时感受到：").append(String.join("、", a.secondaryMoods())).append("）");
                 }
-                prompt.append("，强度：").append(a.moodIntensity())
-                        .append("，主题：").append(String.join("、", a.topicLabels()))
+                prompt.append("，强度：").append(a.moodIntensity());
+                if (a.valence() != null) prompt.append("，正负向：").append(a.valence());
+                if (a.arousal() != null) prompt.append("，唤醒度：").append(a.arousal());
+                prompt.append("，主题：").append(String.join("、", a.topicLabels()))
                         .append("，摘要：").append(a.summary());
             } else {
                 String content = diaryContents.get(i);
@@ -241,8 +243,10 @@ public class AiAnalysisService {
                 if (a.hasSecondaryMoods()) {
                     prompt.append("（同时感受到：").append(String.join("、", a.secondaryMoods())).append("）");
                 }
-                prompt.append("，强度：").append(a.moodIntensity())
-                        .append("，主题：").append(String.join("、", a.topicLabels()))
+                prompt.append("，强度：").append(a.moodIntensity());
+                if (a.valence() != null) prompt.append("，正负向：").append(a.valence());
+                if (a.arousal() != null) prompt.append("，唤醒度：").append(a.arousal());
+                prompt.append("，主题：").append(String.join("、", a.topicLabels()))
                         .append("，摘要：").append(a.summary());
             } else {
                 String content = diaryContents.get(i);
@@ -290,8 +294,10 @@ public class AiAnalysisService {
                 if (a.hasSecondaryMoods()) {
                     prompt.append("（同时感受到：").append(String.join("、", a.secondaryMoods())).append("）");
                 }
-                prompt.append("，强度：").append(a.moodIntensity())
-                        .append("，主题：").append(String.join("、", a.topicLabels()))
+                prompt.append("，强度：").append(a.moodIntensity());
+                if (a.valence() != null) prompt.append("，正负向：").append(a.valence());
+                if (a.arousal() != null) prompt.append("，唤醒度：").append(a.arousal());
+                prompt.append("，主题：").append(String.join("、", a.topicLabels()))
                         .append("，摘要：").append(a.summary());
             } else {
                 String content = diaryContents.get(i);
@@ -340,8 +346,10 @@ public class AiAnalysisService {
                 if (analysis.hasSecondaryMoods()) {
                     prompt.append("（同时：").append(String.join("、", analysis.secondaryMoods())).append("）");
                 }
-                prompt.append("，强度：").append(analysis.moodIntensity())
-                        .append("，主题：").append(String.join("、", analysis.topicLabels()))
+                prompt.append("，强度：").append(analysis.moodIntensity());
+                if (analysis.valence() != null) prompt.append("，正负向：").append(analysis.valence());
+                if (analysis.arousal() != null) prompt.append("，唤醒度：").append(analysis.arousal());
+                prompt.append("，主题：").append(String.join("、", analysis.topicLabels()))
                         .append("，摘要：").append(analysis.summary());
             } else {
                 String content = diaryContents.get(i);

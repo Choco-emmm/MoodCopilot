@@ -31,6 +31,7 @@ public class AdminUserController {
             @RequestParam(defaultValue = "20") int size
     ) {
         Page<UserEntity> userPage = adminUserService.searchUsers(keyword, sortBy, page, size);
+        userPage.getRecords().forEach(u -> u.setEmail(obfuscateEmail(u.getEmail())));
         return ApiResponse.ok(Map.of(
                 "items", userPage.getRecords(),
                 "total", userPage.getTotal(),
@@ -47,5 +48,18 @@ public class AdminUserController {
         }
         adminUserService.updateUserStatus(id, status);
         return ApiResponse.ok();
+    }
+
+    private String obfuscateEmail(String email) {
+        if (email == null || !email.contains("@")) return email;
+        int atIndex = email.indexOf("@");
+        String name = email.substring(0, atIndex);
+        String domain = email.substring(atIndex);
+        if (name.length() > 4) {
+            return name.substring(0, 4) + "****" + domain;
+        } else if (name.length() > 1) {
+            return name.substring(0, 1) + "****" + domain;
+        }
+        return "****" + domain;
     }
 }

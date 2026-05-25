@@ -89,7 +89,7 @@ public class AIConfiguration {
                         - reportSnapshotFunction：读取周报/月报的关键指标（主导象限、正向占比、高能量占比）
                         - userStatsFunction：统计用户的日记和情绪频率
                         - memoryQueryFunction：读取用户当前长期画像条目
-                        - graphSearchFunction：根据实体关键词，从图谱中查询因果/情绪归因关系三元组
+                        - graphSearchFunction：根据实体关键词，从图谱中查询因果/情绪归因关系三元组；也可不传关键词以获取全量图谱概览
 
                         关键行为准则：
                         当用户提到"最近"、"之前"、"上周"、"上个月"、"为什么"、或者你需要核对用户的历史因果关系时，必须主动调用工具查询事实，不要盲目猜测。
@@ -343,6 +343,18 @@ public class AIConfiguration {
                                             }
                                         }
                                     }
+                                } else {
+                                    // 降级全量拉取：返回最近的图谱关系
+                                    LambdaQueryWrapper<DiaryKnowledgeGraphEntity> wrapper = new LambdaQueryWrapper<DiaryKnowledgeGraphEntity>()
+                                            .eq(DiaryKnowledgeGraphEntity::getUserId, userId)
+                                            .orderByDesc(DiaryKnowledgeGraphEntity::getCreatedAt)
+                                            .last("LIMIT " + clampedLimit);
+                                    for (DiaryKnowledgeGraphEntity t : diaryKnowledgeGraphMapper.selectList(wrapper)) {
+                                        items.add(new GraphSearchResult.GraphItem(
+                                                t.getHeadEntity() + " " + t.getRelation() + " " + t.getTailEntity(),
+                                                t.getCreatedAt() != null ? t.getCreatedAt().toString() : null,
+                                                t.getDiaryId()));
+                                    }
                                 }
 
                                 GraphSearchResult searchResult = new GraphSearchResult(items.size(), items,
@@ -379,7 +391,7 @@ public class AIConfiguration {
                                 SecurityContextHolder.clearContext();
                             }
                         })
-                .description("根据实体关键词，从知识图谱中查询因果/情绪归因关系三元组。keyword 是要搜索的实体关键词（如'工作'、'失眠'），limit 可选，默认 20，最大 50。返回三元组列表（headEntity relation tailEntity）。适合回答「什么导致了什么」、「为什么」这类因果追溯问题。")
+                .description("根据实体关键词，从知识图谱中查询因果/情绪归因关系三元组。keyword 是要搜索的实体关键词（如'工作'、'失眠'），limit 可选，默认 20，最大 50。返回三元组列表。适合回答「什么导致了什么」、「为什么」等因果问题。如果想获取用户的整体关系图谱概览，可传入空的 keyword。")
                 .inputType(GraphSearchRequest.class)
                 .build();
     }

@@ -37,11 +37,17 @@ public class UserProfileMemoryController {
     public ApiResponse<List<Map<String, Object>>> list() {
         List<UserProfileMemoryEntity> memories = memoryExtractionService.listCurrentUserMemories();
         List<Map<String, Object>> result = memories.stream()
-                .map(m -> Map.<String, Object>of(
-                        "id", m.getId(),
-                        "attributeKey", m.getAttributeKey(),
-                        "attributeValue", m.getAttributeValue(),
-                        "isCore", Boolean.TRUE.equals(m.getIsCore())))
+                .map(m -> {
+                    Map<String, Object> map = new java.util.LinkedHashMap<>();
+                    map.put("id", m.getId());
+                    map.put("attributeKey", m.getAttributeKey());
+                    map.put("attributeValue", m.getAttributeValue());
+                    map.put("isCore", Boolean.TRUE.equals(m.getIsCore()));
+                    if (m.getUpdateTime() != null) {
+                        map.put("updateTime", m.getUpdateTime().toString());
+                    }
+                    return map;
+                })
                 .toList();
         return ApiResponse.ok(result);
     }

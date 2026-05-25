@@ -561,9 +561,9 @@ public class ChatService {
                         }},
                         List.of("keyword", "limit")),
                 buildTool("graphSearchFunction",
-                        "根据实体关键词，从知识图谱中查询因果/情绪归因关系三元组。keyword 是要搜索的实体关键词（如'工作'、'失眠'），limit 可选，默认 20，最大 50。返回三元组列表（headEntity relation tailEntity）。适合回答「什么导致了什么」、「为什么」这类因果追溯问题。",
+                        "根据实体关键词，从知识图谱中查询因果/情绪归因关系三元组。keyword 是要搜索的实体关键词（如'工作'、'失眠'），limit 可选，默认 20，最大 50。返回三元组列表。适合回答「什么导致了什么」、「为什么」等因果问题。如果想获取用户的整体关系图谱概览，可传入空的 keyword。",
                         new LinkedHashMap<>() {{
-                            put("keyword", Map.of("type", "string", "description", "实体关键词"));
+                            put("keyword", Map.of("type", "string", "description", "实体关键词，传空获取整体概览"));
                             put("limit", Map.of("type", "integer", "description", "返回数量上限，默认 20，最大 50"));
                         }},
                         List.of("keyword", "limit")),
