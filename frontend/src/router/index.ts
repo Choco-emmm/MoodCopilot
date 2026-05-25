@@ -1,11 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-
-function isUsableToken(token: string | null) {
-  if (!token) return false
-  const normalized = token.trim().toLowerCase()
-  return normalized !== '' && normalized !== 'null' && normalized !== 'undefined'
-}
+import { isUsableToken, clearAuthStorage } from '../utils/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -54,7 +49,7 @@ const router = createRouter({
       path: '/notifications',
       name: 'Notifications',
       component: () => import('../pages/NotificationPage.vue'),
-      meta: { requiresAuth: true, keepAlive: true },
+      meta: { requiresAuth: true },
     },
     {
       path: '/diary/:id',
@@ -66,7 +61,7 @@ const router = createRouter({
       path: '/ai-memory',
       name: 'ai-memory',
       component: () => import('../pages/AiMemoryCenter.vue'),
-      meta: { requiresAuth: true, keepAlive: true },
+      meta: { requiresAuth: true },
     },
     {
       path: '/profile/:userId',
@@ -117,8 +112,7 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token')
   if (to.meta.requiresAuth && !isUsableToken(token)) {
-    localStorage.removeItem('token')
-    localStorage.removeItem('role')
+    clearAuthStorage()
     next('/login')
   } else if (to.meta.requiresAdmin && localStorage.getItem('role') !== 'ADMIN') {
     next('/')

@@ -311,7 +311,7 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton, NTag, NDatePicker, NSpin } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
-import { useDiaryStore } from '../stores/diary'
+import { useReportStore } from '../stores/report'
 import { summaryApi } from '../api'
 import { moodColor } from '../utils/mood'
 import { renderSafeMarkdown } from '../utils/markdown'
@@ -323,7 +323,7 @@ function renderMd(text: string) {
 const router = useRouter()
 import ReportCharts from '../components/ReportCharts.vue'
 
-const store = useDiaryStore()
+const store = useReportStore()
 
 const mainTab = ref<'regular' | 'custom'>('regular')
 const mode = ref<'week' | 'month'>('week')

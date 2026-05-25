@@ -1,13 +1,8 @@
 import axios from 'axios'
 import { logError } from '../utils/logger'
+import { isUsableToken, clearAuthStorage } from '../utils/auth'
 
 export const api = axios.create({ baseURL: '/api' })
-
-function isUsableToken(token: string | null) {
-  if (!token) return false
-  const normalized = token.trim().toLowerCase()
-  return normalized !== '' && normalized !== 'null' && normalized !== 'undefined'
-}
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
@@ -29,9 +24,8 @@ api.interceptors.response.use(
     logError('api', `${method} ${requestUrl} → ${status ?? 'NET_ERR'}: ${msg}`)
     const isQuotaRequest = requestUrl.includes('/user/quota')
     if (status === 401 && !isQuotaRequest) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('role')
-      
+      clearAuthStorage()
+
       if (window.$message) {
         window.$message.error('登录状态已失效，请重新登录')
       }

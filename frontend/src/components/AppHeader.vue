@@ -20,25 +20,23 @@
             >{{ item.label }}</router-link>
           </div>
           <div class="nav-sep desktop-only" />
-          <button
-            class="nav-checkin-btn"
-            :class="{ 'nav-checkin-btn--done': growth.checkedInToday }"
-            :disabled="checkingIn"
-            @click="doCheckIn"
-          >
-            <span class="checkin-text-full">{{ checkingIn ? '...' : growth.checkedInToday ? '✓ 已签' : '签到 +' + checkinExp }}</span>
-            <span class="checkin-text-short">{{ checkingIn ? '...' : growth.checkedInToday ? '✓' : '+' + checkinExp }}</span>
-          </button>
+          <CheckinButton
+            :checked-in-today="growth.checkedInToday"
+            :checking-in="checkingIn"
+            :streak="growth.streak"
+            @checkin="doCheckIn"
+            @view-tasks="router.push('/task-center')"
+          />
           <n-popover :show="showQuotaPopover" trigger="click" placement="bottom-end" @update:show="onQuotaPopoverUpdate">
             <template #trigger>
               <n-button text size="small" class="nav-quota-btn">
                 额度
               </n-button>
             </template>
-            <div style="padding: 4px; min-width: 160px; max-width: 260px; white-space: normal; word-break: break-word;">
-              <p style="margin: 0 0 2px; font-weight: bold; font-size: 13px; color: var(--color-text);">Lv.{{ auth.level }} · {{ auth.exp }}/{{ levelExpCap }} EXP</p>
-              <p style="margin: 0 0 8px; font-weight: bold; font-size: 13px; color: var(--color-text);">剩余额度</p>
-              <ul style="margin: 0; padding-left: 18px; font-size: 13px; color: var(--color-text-secondary);">
+            <div class="quota-popover">
+              <p class="quota-popover-title">Lv.{{ auth.level }} · {{ auth.exp }}/{{ levelExpCap }} EXP</p>
+              <p class="quota-popover-subtitle">剩余额度</p>
+              <ul class="quota-popover-list">
                 <li>AI 聊天：{{ formatQuota(quotas.CHAT, levelQuotaMax.chat) }}</li>
                 <li>AI 分析：{{ formatQuota(quotas.ANALYSIS, levelQuotaMax.analysis) }}</li>
                 <li>AI 深度思考：{{ formatQuota(quotas.REASONING, levelQuotaMax.reasoning) }}</li>
@@ -47,11 +45,11 @@
                 <li>图片分析：{{ formatQuota(quotas.IMAGE_ANALYSIS, levelQuotaMax.imageAnalysis) }}</li>
                 <li>报告：{{ formatQuota(quotas.REPORT, levelQuotaMax.report) }}</li>
               </ul>
-              <p style="margin: 8px 0 0; font-size: 11px; color: var(--color-text-secondary);">AI 聊天 / AI 分析 / 思考 / 检索 / 传图 每日 0 点重置，报告每月重置</p>
-              <p style="margin: 6px 0 0; font-size: 12px;">
-                <a href="#" @click.prevent="openQuotaTable" style="color: var(--color-jade); font-weight: 600; text-decoration: none;">查看完整配额表 →</a>
+              <p class="quota-popover-hint">AI 聊天 / AI 分析 / 思考 / 检索 / 传图 每日 0 点重置，报告每月重置</p>
+              <p class="quota-popover-link-wrap">
+                <a href="#" @click.prevent="openQuotaTable" class="quota-popover-link">查看完整配额表 →</a>
               </p>
-              <p v-if="quotaError" style="margin: 6px 0 0; font-size: 11px; color: #b15454;">{{ quotaError }}</p>
+              <p v-if="quotaError" class="quota-popover-error">{{ quotaError }}</p>
             </div>
           </n-popover>
           <router-link to="/notifications" class="nav-notification-link" aria-label="通知">
@@ -145,55 +143,7 @@
   </nav>
 
   <!-- 配额表弹窗 -->
-  <Teleport to="body">
-    <div v-if="showQuotaTable" class="quota-overlay" @click.self="showQuotaTable = false">
-      <div class="quota-modal">
-        <div class="quota-modal-header">
-          <h3>配额表</h3>
-          <button class="quota-modal-close" @click="showQuotaTable = false">&times;</button>
-        </div>
-        <p class="quota-modal-desc">
-          当前：<strong>Lv.{{ auth.level }}</strong>
-        </p>
-        <div class="quota-table-wrap">
-          <table class="quota-table">
-            <thead>
-              <tr>
-                <th>身份 / 等级</th>
-                <th>AI 聊天 <span class="quota-unit">/天</span></th>
-                <th>AI 分析 <span class="quota-unit">/天</span></th>
-                <th>深度思考 <span class="quota-unit">/天</span></th>
-                <th>共鸣检索 <span class="quota-unit">/天</span></th>
-                <th>图片上传 <span class="quota-unit">/天</span></th>
-                <th>图片分析 <span class="quota-unit">/天</span></th>
-                <th>报告 <span class="quota-unit">/月</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in quotaTable" :key="row.label" :class="{ 'quota-row-active': row.isCurrent }">
-                <td :class="{ 'quota-row-active': row.isCurrent }">{{ row.label }}</td>
-                <td>{{ row.chat }}</td>
-                <td>{{ row.analysis }}</td>
-                <td>{{ row.reasoning }}</td>
-                <td>{{ row.resonance }}</td>
-                <td>{{ row.imageUpload }}</td>
-                <td>{{ row.imageAnalysis }}</td>
-                <td>{{ row.report }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="quota-rules-desc">
-          <div class="rule-item"><strong>💡 AI 分析：</strong>发布或修改日记时自动触发（含基础配图提炼）。</div>
-          <div class="rule-item"><strong>💡 图片分析：</strong>聊天时向 AI 追问图片内的具体文字、细节（基础提炼未涵盖的内容）时才触发。</div>
-          <div class="rule-item"><strong>💡 深度思考：</strong>当您的问题涉及复杂心理分析、建议或情绪梳理时，后台智能路由会自动为您开启长链路推演。</div>
-          <div class="rule-item" style="opacity: 0.7"><strong>💡 共鸣检索：</strong>功能加紧开发中，敬请期待...</div>
-        </div>
-
-        <p class="quota-modal-footer">AI 聊天 / 分析 / 思考 / 检索 / 传图 每日 0 点重置 · 报告每月 1 日重置</p>
-      </div>
-    </div>
-  </Teleport>
+  <QuotaTableModal :show="showQuotaTable" :level="auth.level" @close="showQuotaTable = false" />
 </template>
 
 <script setup lang="ts">
@@ -202,6 +152,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { NButton, NBadge, NPopover } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore } from '../stores/notification'
+import CheckinButton from './CheckinButton.vue'
+import QuotaTableModal from './QuotaTableModal.vue'
 import { authApi, growthApi } from '../api'
 import { tryExpToast, expToast } from '../utils/toast'
 import { logWarn } from '../utils/logger'
@@ -222,12 +174,6 @@ const growth = ref({ exp: 0, level: 1, expToNextLevel: 150, streak: 0, monthChec
 
 const LEVEL_EXP_CAPS = [0, 150, 500, 1500, 4000, 10000]
 
-const checkinExp = computed(() => {
-  const s = growth.value.streak
-  if (s >= 6) return 25
-  return 10 + s * 2
-})
-
 const levelExpCap = computed(() => {
   const lv = auth.level || 1
   if (lv >= 6) return 'MAX'
@@ -246,10 +192,6 @@ async function fetchGrowth() {
 }
 
 async function doCheckIn() {
-  if (growth.value.checkedInToday) {
-    router.push('/task-center')
-    return
-  }
   checkingIn.value = true
   try {
     const res = await growthApi.checkIn()
@@ -260,10 +202,10 @@ async function doCheckIn() {
   } catch (e) { logWarn('header', '签到失败', e) }
   finally { checkingIn.value = false }
 }
+
 const profilePath = computed(() => (auth.userId != null ? `/profile/${auth.userId}` : '/login'))
 
-// Lv.1..6
-const LEVEL_LABELS = ['Lv.1', 'Lv.2', 'Lv.3', 'Lv.4', 'Lv.5', 'Lv.6']
+// Quota popover data
 const QUOTA_DATA = [
   { chat: 15,  analysis: 5,  reasoning: 2,  resonance: 0,  report: 0,  imageUpload: 3,  imageAnalysis: 2 },
   { chat: 25,  analysis: 8,  reasoning: 4,  resonance: 3,  report: 2,  imageUpload: 5,  imageAnalysis: 3 },
@@ -272,24 +214,6 @@ const QUOTA_DATA = [
   { chat: 55,  analysis: 20, reasoning: 10, resonance: 10, report: 11, imageUpload: 16, imageAnalysis: 12 },
   { chat: 65,  analysis: 25, reasoning: 12, resonance: 12, report: 16, imageUpload: 20, imageAnalysis: 15 },
 ]
-
-const quotaTable = computed(() => {
-  return LEVEL_LABELS.map((label, i) => {
-    const d = QUOTA_DATA[i]
-    const isCurrent = label === `Lv.${auth.level}`
-    return {
-      label,
-      chat: d.chat > 900 ? '不限' : d.chat + '次',
-      analysis: d.analysis + '次',
-      reasoning: d.reasoning + '次',
-      resonance: d.resonance === 0 ? '—' : d.resonance + '次',
-      report: d.report === 0 ? '—' : d.report > 900 ? '不限' : d.report + '次',
-      imageUpload: d.imageUpload + '次',
-      imageAnalysis: d.imageAnalysis + '次',
-      isCurrent,
-    }
-  })
-})
 
 const navItems = computed(() => {
   const items = [
@@ -359,56 +283,15 @@ function formatQuota(val: number | undefined, max?: number): string {
 
 <style scoped>
 /* checkin button in nav */
-.nav-checkin-btn {
-  margin-right: 8px;
-  padding: 2px 10px;
-  border: 1px solid var(--color-jade);
-  border-radius: 12px;
-  background: transparent;
-  color: var(--color-jade);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
-  flex-shrink: 0;
-}
-
-.nav-checkin-btn:hover:not(:disabled) {
-  background: var(--color-jade);
-  color: var(--color-on-primary);
-}
-
-.nav-checkin-btn--done {
-  border-color: var(--color-border-strong);
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.nav-checkin-btn--done:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text-secondary);
-}
-
-.nav-checkin-btn:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
 .nav-quota-btn {
   margin-right: 8px;
   font-weight: bold;
   color: var(--color-primary);
 }
 
-.checkin-text-short { display: none; }
-
 @media (max-width: 600px) {
-  .checkin-text-full { display: none; }
-  .checkin-text-short { display: inline; }
   .user-level-badge { display: none; }
   .masthead-user-name { display: none; }
-  .nav-checkin-btn { margin-right: 5px; padding: 2px 7px; font-size: 11px; }
   .nav-quota-btn { margin-right: 4px; padding: 0 4px; font-size: 12px; }
 }
 
@@ -422,129 +305,53 @@ function formatQuota(val: number | undefined, max?: number): string {
   flex-shrink: 0;
 }
 
-/* quota table modal */
-.quota-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.35);
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
+/* Quota popover */
+.quota-popover {
+  padding: 4px;
+  min-width: 160px;
+  max-width: 260px;
+  white-space: normal;
+  word-break: break-word;
 }
-
-.quota-modal {
-  background: var(--color-surface);
-  border-radius: 14px;
-  max-width: 640px;
-  width: 100%;
-  max-height: 85vh;
-  overflow-y: auto;
-  padding: 24px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+.quota-popover-title {
+  margin: 0 0 2px;
+  font-weight: bold;
+  font-size: 13px;
+  color: var(--color-text);
 }
-
-.quota-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
+.quota-popover-subtitle {
+  margin: 0 0 8px;
+  font-weight: bold;
+  font-size: 13px;
+  color: var(--color-text);
 }
-
-.quota-modal-header h3 {
+.quota-popover-list {
   margin: 0;
-  font-size: 18px;
-  color: #2f2a24;
-}
-
-.quota-modal-close {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: var(--color-text-light);
-  cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
-}
-
-.quota-modal-desc {
-  margin: 0 0 16px;
+  padding-left: 18px;
   font-size: 13px;
   color: var(--color-text-secondary);
 }
-
-.quota-table-wrap {
-  overflow-x: auto;
-}
-
-.quota-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.quota-table th,
-.quota-table td {
-  padding: 8px 10px;
-  text-align: center;
-  border-bottom: 1px solid var(--color-border);
-  white-space: nowrap;
-}
-
-.quota-table th {
-  font-weight: 600;
-  color: #444;
-  background: #f7f5f2;
-  position: sticky;
-  top: 0;
-}
-
-.quota-table th:first-child,
-.quota-table td:first-child {
-  text-align: left;
-  font-weight: 600;
-}
-
-.quota-unit {
-  font-weight: 400;
+.quota-popover-hint {
+  margin: 8px 0 0;
   font-size: 11px;
   color: var(--color-text-light);
 }
-
-.quota-row-active {
-  background: color-mix(in oklab, var(--color-jade) 8%, transparent);
-}
-
-.quota-row-active td:first-child {
-  color: var(--color-jade);
-}
-
-.quota-modal-footer {
-  margin: 10px 0 0;
-  font-size: 11px;
-  color: var(--color-text-light);
-  text-align: center;
-}
-
-.quota-rules-desc {
-  margin-top: 16px;
-  padding: 12px;
-  background: rgba(180, 150, 120, 0.05);
-  border-radius: 8px;
+.quota-popover-link-wrap {
+  margin: 6px 0 0;
   font-size: 12px;
-  color: #6a5a4a;
-  line-height: 1.6;
 }
-
-.rule-item {
-  margin-bottom: 6px;
+.quota-popover-link {
+  color: var(--color-jade);
+  font-weight: 600;
+  text-decoration: none;
 }
-.rule-item:last-child {
-  margin-bottom: 0;
+.quota-popover-link:hover {
+  color: var(--color-jade-hover);
 }
-.rule-item strong {
-  color: var(--color-primary);
+.quota-popover-error {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--color-error);
 }
 
 /* daily exp progress strip */

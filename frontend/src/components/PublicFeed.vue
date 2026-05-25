@@ -31,9 +31,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import DiaryFeedItem from './DiaryFeedItem.vue'
 import type { Diary } from '../stores/diary'
+import { useInfiniteScroll } from '../composables/useScrollManager'
 
 const props = defineProps<{ diaries: Diary[]; loading: boolean; hasMore?: boolean }>()
 const emit = defineEmits<{
@@ -44,25 +45,9 @@ const emit = defineEmits<{
 }>()
 
 const sentinel = ref<HTMLElement | null>(null)
-let observer: IntersectionObserver | null = null
+const hasMoreRef = computed(() => !!props.hasMore)
 
-onMounted(() => {
-  if (typeof IntersectionObserver === 'undefined') return
-  observer = new IntersectionObserver((entries) => {
-    if (entries[0].isIntersecting && props.hasMore && !props.loading) {
-      emit('loadMore')
-    }
-  }, { rootMargin: '200px' })
-})
-
-onUnmounted(() => {
-  observer?.disconnect()
-})
-
-function setupSentinel(el: HTMLElement | null) {
-  observer?.disconnect()
-  if (el) observer?.observe(el)
-}
-
-watch(sentinel, (el) => setupSentinel(el))
+useInfiniteScroll(sentinel, () => {
+  if (!props.loading) emit('loadMore')
+}, { enabled: hasMoreRef, rootMargin: '200px' })
 </script>

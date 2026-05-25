@@ -22,6 +22,7 @@
       <div v-for="m in memories" :key="m.id" class="memory-item">
         <div class="memory-content">
           <span class="memory-key">{{ m.attributeKey }}</span>
+          <n-tag v-if="isRecentlyUpdated(m)" size="small" type="success" style="margin-left: 8px; vertical-align: text-bottom;">✨ 近期变动</n-tag>
           <template v-if="editingMemoryId === m.id">
             <div style="display: flex; flex-direction: column; gap: 8px;">
               <n-input
@@ -81,7 +82,7 @@
           <div style="font-weight: bold; color: var(--color-primary); margin-bottom: 4px;">
             {{ item.attributeKey }}
             <n-tag v-if="item.isCore" size="small" type="warning" style="margin-left: 8px;">核心</n-tag>
-            <n-tag v-if="isMemoryNew(item)" size="small" type="success" style="margin-left: 8px;">✨ 已合并</n-tag>
+            <n-tag v-if="isMemoryNew(item)" size="small" type="success" style="margin-left: 8px;">✨ 已变动</n-tag>
             <n-tag v-else size="small" style="margin-left: 8px;">无变化</n-tag>
           </div>
           <div style="font-size: 13px; color: var(--color-text); white-space: pre-wrap;">{{ item.attributeValue }}</div>
@@ -146,6 +147,13 @@ async function loadMemories() {
 
 function isMemoryNew(item: any) {
   return !memories.value.some(old => old.attributeKey === item.attributeKey && old.attributeValue === item.attributeValue)
+}
+
+function isRecentlyUpdated(item: any) {
+  if (!item.updateTime) return false
+  const ut = new Date(item.updateTime).getTime()
+  // within 5 minutes
+  return Date.now() - ut < 5 * 60 * 1000
 }
 
 async function forgetMemory(id: number) {

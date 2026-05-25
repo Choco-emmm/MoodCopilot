@@ -24,7 +24,7 @@
           :compact="true"
           :preview-limit="120"
           :show-expand-toggle="false"
-          @resonate="(d: Diary) => store.resonate(d.id)"
+          @resonate="(d: Diary) => store.resonate(d.id, d)"
           @open-detail="(d: Diary) => router.push(`/diary/${d.id}`)"
         />
 
@@ -38,12 +38,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import DiaryFeedItem from '../components/DiaryFeedItem.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
+import { useInfiniteScroll } from '../composables/useScrollManager'
 import { diaryApi } from '../api'
 
 const router = useRouter()
@@ -55,26 +56,13 @@ const hasMore = ref(true)
 const errorMessage = ref('')
 const sentinel = ref<HTMLElement | null>(null)
 
-let io: IntersectionObserver | null = null
+useInfiniteScroll(sentinel, loadMore, {
+  enabled: hasMore,
+  rootMargin: '300px',
+})
 
 onMounted(async () => {
   await loadFirst()
-  if (typeof IntersectionObserver !== 'undefined') {
-    io = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasMore.value && !loading.value) {
-        loadMore()
-      }
-    }, { rootMargin: '300px' })
-  }
-})
-
-onUnmounted(() => {
-  io?.disconnect()
-})
-
-watch(sentinel, (el) => {
-  io?.disconnect()
-  if (el) io?.observe(el)
 })
 
 async function loadFirst() {

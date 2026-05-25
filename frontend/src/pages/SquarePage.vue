@@ -29,7 +29,7 @@
       :has-more="store.hasMore"
       @refresh="store.fetchDiaries()"
       @load-more="store.loadMorePublic()"
-      @resonate="(d: Diary) => store.resonate(d.id)"
+      @resonate="(d: Diary) => store.resonate(d.id, d)"
       @open-detail="(d: Diary) => router.push(`/diary/${d.id}`)"
     />
 

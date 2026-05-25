@@ -21,9 +21,9 @@ defineProps<{
   margin-top: 12px;
   padding: 16px;
   border-radius: 16px;
-  background: var(--color-surface);
-  border: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent);
-  box-shadow: 0 2px 10px color-mix(in oklab, var(--color-text) 3%, transparent);
+  background: color-mix(in oklab, var(--color-surface) 70%, transparent);
+  border: none;
+  box-shadow: 0 4px 16px color-mix(in oklab, var(--color-primary) 6%, transparent);
 }
 
 .section-head {

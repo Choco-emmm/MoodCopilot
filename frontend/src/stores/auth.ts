@@ -3,20 +3,10 @@ import { ref, computed } from 'vue'
 import { authApi } from '../api'
 import { normalizeResourceUrl } from '../utils/resource'
 import { logWarn } from '../utils/logger'
-
-function getInitialToken() {
-  const token = localStorage.getItem('token')
-  if (!token) return null
-  const normalized = token.trim().toLowerCase()
-  if (normalized === '' || normalized === 'null' || normalized === 'undefined') {
-    localStorage.removeItem('token')
-    return null
-  }
-  return token
-}
+import { getStoredToken, clearAuthStorage } from '../utils/auth'
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(getInitialToken())
+  const token = ref<string | null>(getStoredToken())
   const userId = ref<number | null>(null)
   const displayName = ref<string | null>(null)
   const email = ref<string | null>(null)
@@ -155,8 +145,7 @@ export const useAuthStore = defineStore('auth', () => {
     role.value = 'USER'
     nameChangeCount.value = 0
     nameChangeWeek.value = 0
-    localStorage.removeItem('token')
-    localStorage.removeItem('role')
+    clearAuthStorage()
   }
 
   function saveRole(value?: string) {

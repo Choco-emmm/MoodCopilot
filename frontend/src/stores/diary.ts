@@ -1,9 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
+import type { Ref } from 'vue'
 import { diaryApi } from '../api'
+import type { PaginatedData } from '../api'
 import { normalizeResourceUrl } from '../utils/resource'
 import { tryExpToast } from '../utils/toast'
 import { logWarn } from '../utils/logger'
+import { useCommentStore, type DiaryComment } from './comment'
 
 export interface MusicMeta {
   title: string
@@ -44,43 +47,6 @@ export interface DiaryAnalysis {
   feedback: string
 }
 
-export interface WeeklyReport {
-  weekLabel: string
-  diaryCount: number
-  dailyMoods: DailyMood[]
-  topicCounts: Record<string, number>
-  moodDistribution?: Record<string, number>
-  moodDominantQuadrant?: string
-  positiveRatioPercent?: number
-  highEnergyRatioPercent?: number
-  aiSummary: string
-  insights?: string[]
-  suggestions?: string[]
-  followUpPrompt?: string
-  generatedAt?: string | null
-  needsRegenerate?: boolean
-}
-
-export interface DailyMood {
-  date: string
-  moodLabel: string
-  moodIntensity: number
-  valence?: number
-  arousal?: number
-  diaryIds?: number[]
-  contentSnippet?: string
-}
-
-export interface DiaryComment {
-  id: number
-  parentCommentId: number | null
-  replyToUserName: string | null
-  authorName: string
-  content: string
-  createdAt: string
-  replies: DiaryComment[]
-}
-
 export const useDiaryStore = defineStore('diary', () => {
   const myDiaries = ref<Diary[]>([])
   const publicDiaries = ref<Diary[]>([])
@@ -90,7 +56,7 @@ export const useDiaryStore = defineStore('diary', () => {
   const saving = ref(false)
   const errorMessage = ref<string | null>(null)
   const analysisStatus = ref<'idle' | 'saved' | 'analyzing' | 'complete' | 'failed'>('idle')
-  
+
   watch(analysisStatus, (val) => {
     if (val === 'complete' || val === 'failed') {
       setTimeout(() => {
@@ -100,18 +66,34 @@ export const useDiaryStore = defineStore('diary', () => {
       }, 5000)
     }
   })
+
   const showGlobalAnalysisModal = ref(false)
   const globalAnalysisDiary = ref<Diary | null>(null)
   const publicPage = ref(1)
   const publicTotal = ref(0)
   const hasMore = ref(true)
-  const weeklyReport = ref<WeeklyReport | null>(null)
-  const reportLoading = ref(false)
-  const generatingWeekly = ref(false)
-  const reportError = ref<string | null>(null)
+
   let analysisPollTimer: ReturnType<typeof setInterval> | null = null
   let analysisPollAttempts = 0
   const ANALYSIS_POLL_MAX_ATTEMPTS = 30
+
+  // ── Helpers ──
+
+  function mergeDiary(updated: Diary) {
+    replaceIn(myDiaries, updated)
+    replaceIn(publicDiaries, updated)
+  }
+
+  function normalize(d: any): Diary {
+    return {
+      ...d,
+      likedByMe: Boolean(d.likedByMe),
+      authorAvatar: normalizeResourceUrl(d.authorAvatar),
+      comments: d.comments || [],
+    }
+  }
+
+  // ── Fetch ──
 
   async function fetchDiaries() {
     loading.value = true
@@ -155,6 +137,8 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
+  // ── Create / Update / Delete ──
+
   async function createDiary(content: string, visibility: string, musicMeta?: MusicMeta, analyze = true, images?: string[]) {
     saving.value = true
     errorMessage.value = null
@@ -177,7 +161,6 @@ export const useDiaryStore = defineStore('diary', () => {
         tryExpToast('diary', `写日记 ${bonus} EXP`)
       }
       await fetchDiaries()
-      // 修正：fetchDiaries 会用服务端列表覆盖，跳过分析的日记会被重置为 null，手动修正
       if (diary.analysisStatus === 'skipped_quota' || diary.analysisStatus === 'skipped_user') {
         replaceIn(myDiaries, { ...diary, analysisStatus: diary.analysisStatus } as Diary)
       }
@@ -202,7 +185,7 @@ export const useDiaryStore = defineStore('diary', () => {
     try {
       const res = await diaryApi.update(id, { content, visibility, musicMeta, images, analyze })
       const updated = normalize(res.data.data)
-      
+
       if (updated.analysisStatus === 'skipped_quota') {
         analysisStatus.value = 'complete'
         errorMessage.value = '今日 AI 分析次数已用完，日记修改已保存'
@@ -230,6 +213,15 @@ export const useDiaryStore = defineStore('diary', () => {
       saving.value = false
     }
   }
+
+  async function deleteDiary(id: number) {
+    await diaryApi.delete(id)
+    myDiaries.value = myDiaries.value.filter(d => d.id !== id)
+    publicDiaries.value = publicDiaries.value.filter(d => d.id !== id)
+    if (activeDiary.value?.id === id) activeDiary.value = null
+  }
+
+  // ── Analysis ──
 
   function pollAnalysis(diaryId: number) {
     clearAnalysisPollTimer()
@@ -288,24 +280,33 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
+  function closeAnalysisModal() {
+    showGlobalAnalysisModal.value = false
+  }
+
+  // ── Similar ──
+
   async function loadSimilar(diaryId: number) {
     const res = await diaryApi.similar(diaryId, 3)
     similarDiaries.value = res.data.data.map(normalize)
   }
 
+  // ── Comments ──
+
   async function addComment(diaryId: number, content: string, parentCommentId?: number) {
-    const res = await diaryApi.addComment(diaryId, content, parentCommentId)
-    const updated = normalize(res.data.data)
-    tryExpToast('comment', '回复 +3 EXP')
-    mergeDiary(updated)
+    const commentStore = useCommentStore()
+    const updated = await commentStore.addComment(diaryId, content, parentCommentId)
+    const normalized = normalize(updated)
+    mergeDiary(normalized)
     if (activeDiary.value?.id === diaryId) {
-      activeDiary.value = updated
+      activeDiary.value = normalized
     }
   }
 
   async function deleteComment(diaryId: number, commentId: number) {
-    const res = await diaryApi.deleteComment(diaryId, commentId)
-    const updated = res?.data?.data ? normalize(res.data.data) : null
+    const commentStore = useCommentStore()
+    const data = await commentStore.deleteComment(diaryId, commentId)
+    const updated = data ? normalize(data) : null
 
     if (updated) {
       mergeDiary(updated)
@@ -315,26 +316,28 @@ export const useDiaryStore = defineStore('diary', () => {
       return
     }
 
-    removeCommentIn(myDiaries, diaryId, commentId)
-    removeCommentIn(publicDiaries, diaryId, commentId)
+    removeCommentIn(myDiaries, diaryId, commentId, commentStore)
+    removeCommentIn(publicDiaries, diaryId, commentId, commentStore)
     if (activeDiary.value?.id === diaryId) {
       activeDiary.value = {
         ...activeDiary.value,
-        comments: removeCommentFromTree(activeDiary.value.comments || [], commentId),
+        comments: commentStore.removeCommentFromTree(activeDiary.value.comments || [], commentId),
       }
     }
   }
 
+  // ── Social ──
+
   const resonatingKeys = new Set<number>()
 
-  async function resonate(diaryId: number) {
+  async function resonate(diaryId: number, localTarget?: Diary) {
     if (resonatingKeys.has(diaryId)) return
     resonatingKeys.add(diaryId)
 
-    const target = myDiaries.value.find(d => d.id === diaryId) || 
-                   publicDiaries.value.find(d => d.id === diaryId) || 
+    const target = localTarget || myDiaries.value.find(d => d.id === diaryId) ||
+                   publicDiaries.value.find(d => d.id === diaryId) ||
                    (activeDiary.value?.id === diaryId ? activeDiary.value : null)
-    
+
     let originalLikedByMe = false
     let originalCount = 0
 
@@ -344,11 +347,14 @@ export const useDiaryStore = defineStore('diary', () => {
 
       const newLikedByMe = !originalLikedByMe
       const newCount = newLikedByMe ? originalCount + 1 : Math.max(0, originalCount - 1)
-      
-      const tempUpdated = { ...target, likedByMe: newLikedByMe, resonanceCount: newCount }
-      mergeDiary(tempUpdated)
+
+      // In-place mutation for reactive components that hold a reference to target
+      target.likedByMe = newLikedByMe
+      target.resonanceCount = newCount
+
+      mergeDiary({ ...target })
       if (activeDiary.value?.id === diaryId) {
-        activeDiary.value = tempUpdated
+        activeDiary.value = { ...target }
       }
     }
 
@@ -358,16 +364,23 @@ export const useDiaryStore = defineStore('diary', () => {
       if (updated.likedByMe && !originalLikedByMe) {
         tryExpToast('like', '点赞 +2 EXP')
       }
+
+      if (target) {
+        Object.assign(target, updated)
+      }
+
       mergeDiary(updated)
       if (activeDiary.value?.id === diaryId) {
         activeDiary.value = updated
       }
     } catch (e) {
       if (target) {
-        const revertUpdated = { ...target, likedByMe: originalLikedByMe, resonanceCount: originalCount }
-        mergeDiary(revertUpdated)
+        target.likedByMe = originalLikedByMe
+        target.resonanceCount = originalCount
+
+        mergeDiary({ ...target })
         if (activeDiary.value?.id === diaryId) {
-          activeDiary.value = revertUpdated
+          activeDiary.value = { ...target }
         }
       }
       window.$message?.error('点赞失败，请稍后重试')
@@ -385,106 +398,24 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
-  async function fetchWeeklyReport(weekOffset = 0) {
-    reportLoading.value = true
-    reportError.value = null
-    try {
-      const res = await diaryApi.weeklyReport(weekOffset)
-      weeklyReport.value = res.data.data
-    } catch (e: any) {
-      weeklyReport.value = null
-      reportError.value = formatReportError(e)
-    } finally {
-      reportLoading.value = false
-    }
-  }
-
-  async function generateWeeklyAiSummary(weekOffset = 0) {
-    generatingWeekly.value = true
-    reportError.value = null
-    try {
-      const res = await diaryApi.generateWeeklyReport(weekOffset)
-      weeklyReport.value = res.data.data
-    } catch (e: any) {
-      reportError.value = formatReportError(e)
-    } finally {
-      generatingWeekly.value = false
-    }
-  }
-
-  const monthlyReport = ref<WeeklyReport | null>(null)
-  const monthLoading = ref(false)
-  const generatingMonthly = ref(false)
-  const monthError = ref<string | null>(null)
-
-  async function fetchMonthlyReport(monthOffset = 0) {
-    monthLoading.value = true
-    monthError.value = null
-    try {
-      const res = await diaryApi.monthlyReport(monthOffset)
-      monthlyReport.value = res.data.data
-    } catch (e: any) {
-      monthlyReport.value = null
-      monthError.value = formatReportError(e)
-    } finally {
-      monthLoading.value = false
-    }
-  }
-
-  async function generateMonthlyAiSummary(monthOffset = 0) {
-    generatingMonthly.value = true
-    monthError.value = null
-    try {
-      const res = await diaryApi.generateMonthlyReport(monthOffset)
-      monthlyReport.value = res.data.data
-    } catch (e: any) {
-      monthError.value = formatReportError(e)
-    } finally {
-      generatingMonthly.value = false
-    }
-  }
-
-  function closeAnalysisModal() {
-    showGlobalAnalysisModal.value = false
-  }
-
-  function mergeDiary(updated: Diary) {
-    replaceIn(myDiaries, updated)
-    replaceIn(publicDiaries, updated)
-  }
-
-  function normalize(d: any): Diary {
-    return {
-      ...d,
-      likedByMe: Boolean(d.likedByMe),
-      authorAvatar: normalizeResourceUrl(d.authorAvatar),
-      comments: d.comments || [],
-    }
-  }
-
-  async function deleteDiary(id: number) {
-    await diaryApi.delete(id)
-    myDiaries.value = myDiaries.value.filter(d => d.id !== id)
-    publicDiaries.value = publicDiaries.value.filter(d => d.id !== id)
-    if (activeDiary.value?.id === id) activeDiary.value = null
-  }
-
   return {
     myDiaries, publicDiaries, activeDiary, similarDiaries, loading, saving, errorMessage,
     analysisStatus, showGlobalAnalysisModal, globalAnalysisDiary, closeAnalysisModal,
-    hasMore, weeklyReport, reportLoading, generatingWeekly, reportError, monthlyReport, monthLoading, generatingMonthly, monthError,
-    fetchDiaries, loadMorePublic, createDiary, updateDiary, loadSimilar, addComment, resonate, sendEncouragement, deleteDiary,
-    refreshAnalysis, deleteComment,
-    fetchWeeklyReport, fetchMonthlyReport, generateWeeklyAiSummary, generateMonthlyAiSummary, normalize,
+    hasMore, publicTotal,
+    fetchDiaries, loadMorePublic, createDiary, updateDiary, deleteDiary,
+    loadSimilar, addComment, deleteComment, resonate, sendEncouragement,
+    refreshAnalysis, normalize,
   }
 })
+
+// ── Private helpers ──
 
 function replaceIn(list: Ref<Diary[]>, updated: Diary) {
   const idx = list.value.findIndex((d) => d.id === updated.id)
   if (idx !== -1) list.value[idx] = updated
 }
 
-function normalizePageData(data: any) {
+function normalizePageData(data: any): PaginatedData<Diary> {
   if (Array.isArray(data)) return { items: data, total: data.length, page: 1, size: data.length || 20 }
   return {
     items: data?.items ?? [],
@@ -500,23 +431,8 @@ function hasNextPage(data: any, page: number, size: number) {
   return Array.isArray(items) && items.length >= size
 }
 
-function formatReportError(e: any) {
-  return e?.response?.data?.message || '报告暂时加载失败，可以稍后重试。'
-}
-
-function removeCommentIn(list: Ref<Diary[]>, diaryId: number, commentId: number) {
+function removeCommentIn(list: Ref<Diary[]>, diaryId: number, commentId: number, commentStore: ReturnType<typeof useCommentStore>) {
   const target = list.value.find((d) => d.id === diaryId)
   if (!target) return
-  target.comments = removeCommentFromTree(target.comments || [], commentId)
+  target.comments = commentStore.removeCommentFromTree(target.comments || [], commentId)
 }
-
-function removeCommentFromTree(comments: DiaryComment[], commentId: number): DiaryComment[] {
-  return comments
-    .filter((comment) => comment.id !== commentId)
-    .map((comment) => ({
-      ...comment,
-      replies: removeCommentFromTree(comment.replies || [], commentId),
-    }))
-}
-
-import type { Ref } from 'vue'

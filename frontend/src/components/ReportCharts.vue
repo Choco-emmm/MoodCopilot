@@ -58,7 +58,7 @@ import {
   MarkLineComponent
 } from 'echarts/components'
 import VChart from 'vue-echarts'
-import type { DailyMood } from '../stores/diary'
+import type { DailyMood } from '../stores/report'
 import { moodColor } from '../utils/mood'
 
 use([

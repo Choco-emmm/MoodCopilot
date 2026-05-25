@@ -93,7 +93,7 @@
           :preview-limit="120"
           :show-expand-toggle="false"
           :hide-follow-btn="!isOwner"
-          @resonate="(d: Diary) => store.resonate(d.id)"
+          @resonate="(d: Diary) => store.resonate(d.id, d)"
           @open-detail="(d: Diary) => router.push(`/diary/${d.id}`)"
         />
 
@@ -121,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NEmpty, NInput, NModal, NSpin, NSwitch, NDatePicker, NSelect, NTabs, NTabPane, NTag, NCheckbox, NPopover } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
@@ -133,6 +133,7 @@ import { authApi, diaryApi, memoryApi } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
+import { useInfiniteScroll } from '../composables/useScrollManager'
 import { logWarn } from '../utils/logger'
 
 const route = useRoute()
@@ -191,26 +192,10 @@ const sentinel = ref<HTMLElement | null>(null)
 const hasMore = computed(() => diaries.value.length < total.value)
 const profileInitial = computed(() => (profileName.value || '用').charAt(0))
 
-let io: IntersectionObserver | null = null
+useInfiniteScroll(sentinel, loadMore, { enabled: hasMore, rootMargin: '300px' })
 
 onMounted(() => {
   void reload()
-  if (typeof IntersectionObserver !== 'undefined') {
-    io = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasMore.value && !loadingMore.value) {
-        loadMore()
-      }
-    }, { rootMargin: '300px' })
-  }
-})
-
-onUnmounted(() => {
-  io?.disconnect()
-})
-
-watch(sentinel, (el) => {
-  io?.disconnect()
-  if (el) io?.observe(el)
 })
 
 watch(() => route.params.userId, () => {

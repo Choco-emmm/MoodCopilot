@@ -28,7 +28,7 @@
       </div>
       
       <!-- Graph View -->
-      <div v-else-if="!isGraphListView" style="flex: 1; min-height: 500px; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; background: var(--color-bg);">
+      <div v-else-if="!isGraphListView" style="flex: 1; min-height: 500px; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; background: var(--color-surface-soft);">
         <VChart class="chart" :option="graphOptions" autoresize style="height: 100%; min-height: 500px;" />
       </div>
 
@@ -47,16 +47,17 @@
                 <span style="font-weight: bold; color: var(--color-primary);">{{ t.headEntity }}</span>
                 <span style="color: var(--color-text-light); margin: 0 6px;">--({{ t.relation }})--></span>
                 <span style="font-weight: bold; color: var(--color-primary);">{{ t.tailEntity }}</span>
+                <n-tag v-if="isRecentlyUpdated(t)" size="small" type="success" style="margin-left: 8px;">✨ 近期新增</n-tag>
               </template>
             </div>
             <div class="memory-actions">
               <template v-if="editingTripleId === t.id">
-                <n-button size="small" secondary type="primary" :disabled="savingTripleId === t.id" @click="saveTriple(t.id)">保存</n-button>
-                <n-button size="small" secondary @click="cancelEditTriple">取消</n-button>
+                <n-button class="memory-action-btn save-btn" size="small" :disabled="savingTripleId === t.id" @click="saveTriple(t.id)">保存</n-button>
+                <n-button class="memory-action-btn cancel-btn" size="small" @click="cancelEditTriple">取消</n-button>
               </template>
               <template v-else>
-                <n-button size="small" secondary @click="startEditTriple(t)">编辑</n-button>
-                <n-button size="small" secondary type="error" :disabled="deletingTripleId === t.id" @click="deleteTriple(t.id)">删除</n-button>
+                <n-button class="memory-action-btn edit-btn" size="small" @click="startEditTriple(t)">编辑</n-button>
+                <n-button class="memory-action-btn delete-btn" size="small" :disabled="deletingTripleId === t.id" @click="deleteTriple(t.id)">删除</n-button>
               </template>
             </div>
          </div>
@@ -82,7 +83,7 @@
           <span style="font-weight: bold; color: var(--color-primary);">{{ t.headEntity }}</span>
           <span style="color: var(--color-text-light); margin: 0 6px;">--({{ t.relation }})--></span>
           <span style="font-weight: bold; color: var(--color-primary);">{{ t.tailEntity }}</span>
-          <n-tag v-if="isTripleNew(t)" size="small" type="success" style="margin-left: 8px;">✨ 已合并</n-tag>
+          <n-tag v-if="isTripleNew(t)" size="small" type="success" style="margin-left: 8px;">✨ 已变动</n-tag>
           <n-tag v-else size="small" style="margin-left: 8px;">无变化</n-tag>
         </div>
       </div>
@@ -154,6 +155,12 @@ async function loadGraph() {
       return
     }
 
+    const style = getComputedStyle(document.documentElement)
+    const primaryColor = style.getPropertyValue('--color-primary').trim() || '#e4509a'
+    const textColor = style.getPropertyValue('--color-text').trim() || '#333'
+    const textSecColor = style.getPropertyValue('--color-text-secondary').trim() || '#666'
+    const lineColor = style.getPropertyValue('--color-border-strong').trim() || '#ccc'
+
     graphOptions.value = {
       tooltip: {
         trigger: 'item',
@@ -175,25 +182,25 @@ async function loadGraph() {
             show: true,
             position: 'right',
             formatter: '{b}',
-            color: 'var(--color-text)'
+            color: textColor
           },
           force: {
             repulsion: 300,
             edgeLength: 100
           },
           lineStyle: {
-            color: '#a3c2b1',
+            color: lineColor,
             curveness: 0.2,
             width: 2
           },
           itemStyle: {
-            color: 'var(--color-primary)'
+            color: primaryColor
           },
           edgeLabel: {
             show: true,
             fontSize: 10,
             formatter: (params: any) => params.data.label,
-            color: 'var(--color-text-secondary)'
+            color: textSecColor
           },
           data: data.nodes.map((n: any) => ({
             name: n.name,
@@ -230,6 +237,13 @@ async function loadTriples() {
 
 function isTripleNew(t: any) {
   return !triples.value.some(old => old.headEntity === t.headEntity && old.relation === t.relation && old.tailEntity === t.tailEntity)
+}
+
+function isRecentlyUpdated(t: any) {
+  if (!t.createdAt) return false
+  const ut = new Date(t.createdAt).getTime()
+  // within 5 minutes
+  return Date.now() - ut < 5 * 60 * 1000
 }
 
 function startEditTriple(t: TripleItem) {
@@ -362,9 +376,32 @@ async function applyGraphConsolidation() {
   align-items: center;
   flex-shrink: 0;
 }
-.memory-actions .n-button {
-  font-size: 12px;
-  padding: 0 10px;
+.memory-action-btn {
+  font-size: 12px !important;
+  padding: 0 12px !important;
+  background: var(--color-surface-hover) !important;
+  border: none !important;
+  transition: all 0.2s ease !important;
+}
+.memory-action-btn.edit-btn,
+.memory-action-btn.save-btn {
+  color: var(--color-primary) !important;
+}
+.memory-action-btn.edit-btn:hover,
+.memory-action-btn.save-btn:hover {
+  background: color-mix(in oklab, var(--color-primary) 12%, transparent) !important;
+}
+.memory-action-btn.delete-btn {
+  color: var(--color-error) !important;
+}
+.memory-action-btn.delete-btn:hover {
+  background: color-mix(in oklab, var(--color-error) 12%, transparent) !important;
+}
+.memory-action-btn.cancel-btn {
+  color: var(--color-text-secondary) !important;
+}
+.memory-action-btn.cancel-btn:hover {
+  background: color-mix(in oklab, var(--color-text-secondary) 12%, transparent) !important;
 }
 .chart {
   width: 100%;

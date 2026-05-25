@@ -65,7 +65,7 @@
     <div class="composer-images-section">
       <div class="composer-images-grid">
         <div v-for="(img, i) in imageList" :key="i" class="composer-image-preview">
-          <img :src="img" alt="" @click="previewSrc = img" style="cursor: zoom-in;" />
+          <img :src="img" alt="" loading="lazy" decoding="async" @click="previewSrc = img" style="cursor: zoom-in;" />
           <button class="composer-image-remove" @click="removeImage(i)">✕</button>
         </div>
         <label class="composer-image-add" :class="{ uploading: uploadingImage }">

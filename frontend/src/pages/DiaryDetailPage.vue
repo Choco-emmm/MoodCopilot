@@ -6,7 +6,7 @@
       <article class="panel analysis-panel">
         <div class="diary-content-section">
           <div class="diary-author-row">
-            <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-img" decoding="async" />
+            <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-img" loading="lazy" decoding="async" />
             <span v-else class="avatar">{{ diary.authorName.charAt(0) }}</span>
             <n-button text class="author-name-link" @click="openAuthorProfile">{{ diary.authorName }}</n-button>
             <span class="diary-time">{{ formatTime(diary.createdAt) }}</span>
@@ -394,7 +394,7 @@ async function resonateDiary() {
   if (!diary.value) return
   if (justLikedTimer) { clearTimeout(justLikedTimer) }
   justLiked.value = true
-  void store.resonate(diary.value.id)
+  void store.resonate(diary.value.id, diary.value)
   justLikedTimer = window.setTimeout(() => { justLiked.value = false }, 360)
 }
 

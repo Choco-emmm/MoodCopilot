@@ -125,655 +125,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { NButton } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import ChatSidebar from '../components/chat/ChatSidebar.vue'
 import ChatMessageItem from '../components/chat/ChatMessageItem.vue'
 import ChatStreamingItem from '../components/chat/ChatStreamingItem.vue'
 import ChatInputBox from '../components/chat/ChatInputBox.vue'
-import { chatApi, diaryApi } from '../api'
-import { tryExpToast } from '../utils/toast'
-import { useAuthStore } from '../stores/auth'
-import { logWarn } from '../utils/logger'
-
-const authStore = useAuthStore()
-const userInitial = computed(() => {
-  return authStore.displayName ? authStore.displayName.trim().charAt(0).toUpperCase() : '我'
-})
-
-interface RagRef {
-  type: string
-  diaryId?: string
-  date?: string
-  snippet?: string
-  toolName?: string
-  value?: string
-  key?: string
-}
-
-interface Message {
-  id: string
-  role: 'user' | 'ai'
-  content: string
-  references?: string[]
-  ragReferences?: RagRef[]
-}
-
-function nextMsgId(): string {
-  return `${Date.now()}-${++msgIdCounter}-${Math.random().toString(36).slice(2, 6)}`
-}
-
-interface Conversation {
-  id: number
-  title: string
-}
-
-interface ChatReference {
-  label: string
-  content: string
-  fullContent: string
-  diaryId?: number
-}
-
-
-
-const conversations = ref<Conversation[]>([])
-const activeConvId = ref<number | null>(null)
-const messages = ref<Message[]>([])
-const draft = ref('')
-const streaming = ref(false)
-const streamingText = ref('')
-let pendingStreamText = ''
-let streamRafId: number | null = null
-const isThinking = ref(false)
-const msgBox = ref<HTMLElement | null>(null)
-const chatInputArea = ref<HTMLElement | null>(null)
-const references = ref<ChatReference[]>([])
-const recentDiaryOptions = ref<{ id: number; date: string; snippet: string; fullContent: string }[]>([])
-
-const quickStarters = ref<{icon: string; text: string}[]>([])
-const quickStartersLoading = ref(true)
-
-async function loadWelcomeTopics() {
-  quickStartersLoading.value = true
-  try {
-    const res = await chatApi.getWelcomeTopics()
-    if (res.data.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
-      quickStarters.value = res.data.data
-    } else {
-      throw new Error('No dynamic topics')
-    }
-  } catch (err) {
-    quickStarters.value = [
-      { icon: '🌟', text: '分析我最近三天的情绪波动' },
-      { icon: '💡', text: '帮我回顾我最近开心的事情' },
-      { icon: '🌿', text: '推荐一些适合我解压的音乐与方法' },
-      { icon: '💬', text: '今天有点累，陪我聊一下' }
-    ]
-  } finally {
-    quickStartersLoading.value = false
-  }
-}
-
-function useQuickStarter(text: string) {
-  draft.value = text
-  send()
-}
-const recentDiariesLoading = ref(false)
-const recentDiariesError = ref<string | null>(null)
-const lastReplyError = ref<string | null>(null)
-const lastReplyRequest = ref<{ convId: number; content: string; refContents: string[] } | null>(null)
-const router = useRouter()
-const streamingRefs = ref<RagRef[]>([])
-const showStreamingRefs = ref(false)
-function goToDiary(diaryId: string | number | undefined) {
-  if (!diaryId || String(diaryId) === '-1') return
-  router.push(`/diary/${diaryId}`)
-}
-const viewportBaseHeight = ref(0)
-const creatingConversation = ref(false)
-const syncCooldownUntil = ref(0)
-let syncTimer: number | null = null
-// AI 状态速览相关
-let convListSyncTick = 0
-let msgIdCounter = 0
-let streamAbortCtrl: AbortController | null = null
-
-onMounted(async () => {
-  if (authStore.isAuthenticated && !authStore.userId) {
-    authStore.fetchProfile()
-  }
-  const state = history.state as any
-  let shouldAutoSend = false
-  if (state?.references?.length) {
-    references.value = state.references.slice(0, 2).map((r: string) => ({
-      label: 'MoodCopilot 引用',
-      content: String(r).length > 30 ? String(r).slice(0, 30) + '...' : String(r),
-      fullContent: String(r)
-    }))
-    shouldAutoSend = !!state.autoSend
-    if (shouldAutoSend) {
-      draft.value = '来看看我最近的报告吧，我们继续聊聊'
-    }
-    history.replaceState({ ...history.state, references: undefined, autoSend: undefined }, '')
-  }
-
-  await loadConversations()
-  await loadRecentDiaryOptions()
-  await loadWelcomeTopics()
-
-  const isNewSession = !sessionStorage.getItem('chatSessionInitialized')
-  const storedConvId = sessionStorage.getItem('currentChatId')
-
-  if (isNewSession) {
-    sessionStorage.setItem('chatSessionInitialized', 'true')
-    sessionStorage.removeItem('currentChatId')
-    await createConversation()
-  } else if (storedConvId) {
-    const id = Number(storedConvId)
-    if (conversations.value.some(c => c.id === id)) {
-      await selectConversation(id)
-    } else {
-      await createConversation()
-    }
-  } else {
-    // Session is initialized, but no conversation was started yet in this session.
-    await createConversation()
-  }
-
-  if (shouldAutoSend) {
-    await nextTick()
-    send()
-  }
-
-  if (window.visualViewport) {
-    viewportBaseHeight.value = Math.max(window.visualViewport.height, window.innerHeight)
-    updateMobileKeyboardState()
-    window.visualViewport.addEventListener('resize', handleViewportResize)
-  }
-
-  document.addEventListener('visibilitychange', handleVisibilityChange)
-  window.addEventListener('focus', handleWindowFocus)
-  startAutoSync()
-})
-
-onBeforeUnmount(() => {
-  if (streamRafId !== null) {
-    cancelAnimationFrame(streamRafId)
-    streamRafId = null
-  }
-  if (streamAbortCtrl) {
-    streamAbortCtrl.abort()
-    streamAbortCtrl = null
-  }
-  if (window.visualViewport) {
-    window.visualViewport.removeEventListener('resize', handleViewportResize)
-  }
-  stopAutoSync()
-  document.removeEventListener('visibilitychange', handleVisibilityChange)
-  window.removeEventListener('focus', handleWindowFocus)
-  document.body.classList.remove('chat-keyboard-open')
-})
-
-async function loadConversations() {
-  try {
-    const res = await chatApi.listConversations()
-    conversations.value = (res.data.data || []) as Conversation[]
-    const currentId = activeConvId.value
-    if (currentId && !conversations.value.some(conv => conv.id === currentId)) {
-      if (conversations.value.length > 0) {
-        await selectConversation(conversations.value[0].id)
-      } else {
-        activeConvId.value = null
-        messages.value = []
-      }
-    }
-  } catch (e) { logWarn('chat', '加载会话列表失败', e); conversations.value = [] }
-}
-
-async function selectConversation(id: number) {
-  if (id === activeConvId.value) return
-  // 中止当前流
-  if (streamAbortCtrl) {
-    streamAbortCtrl.abort()
-    streamAbortCtrl = null
-  }
-  // 保存当前会话
-  if (activeConvId.value && messages.value.length > 0) {
-    await saveToBackend(activeConvId.value).catch(() => {})
-  }
-  activeConvId.value = id
-  sessionStorage.setItem('currentChatId', String(id))
-  messages.value = await loadFromBackend(id)
-  await nextTick()
-  scrollBottom()
-}
-
-function startAutoSync() {
-  stopAutoSync()
-  syncTimer = window.setInterval(() => {
-    syncFromServer(false)
-  }, 3500)
-}
-
-function stopAutoSync() {
-  if (syncTimer != null) {
-    window.clearInterval(syncTimer)
-    syncTimer = null
-  }
-}
-
-function handleVisibilityChange() {
-  if (document.visibilityState === 'visible') {
-    startAutoSync()
-    syncFromServer(true)
-    return
-  }
-  stopAutoSync()
-}
-
-function handleWindowFocus() {
-  syncFromServer(true)
-}
-
-async function syncFromServer(forceScroll: boolean) {
-  const convId = activeConvId.value
-  if (!convId || streaming.value || creatingConversation.value || document.visibilityState !== 'visible') return
-  if (Date.now() < syncCooldownUntil.value) return
-
-  try {
-    const latest = await loadFromBackend(convId)
-    const current = messages.value
-    // 远端无数据或本地消息更多（本地有未持久化的新消息）时，不覆盖本地
-    if (latest.length === 0) return
-    if (current.length > latest.length) return
-    const changed = !isSameMessageList(current, latest)
-    const keepStickBottom = isNearBottom(msgBox.value)
-    if (changed) {
-      messages.value = latest
-      await nextTick()
-      if (forceScroll || keepStickBottom) {
-        scrollBottom()
-      }
-    }
-
-    convListSyncTick += 1
-    if (convListSyncTick % 3 === 0) {
-      await loadConversations()
-    }
-  } catch (e) {
-    logWarn('chat', '同步消息失败', e)
-  }
-}
-
-function isSameMessageList(a: Message[], b: Message[]) {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i += 1) {
-    if (a[i].id !== b[i].id) return false
-  }
-  return true
-}
-
-function isNearBottom(el: HTMLElement | null) {
-  if (!el) return true
-  const distance = el.scrollHeight - el.scrollTop - el.clientHeight
-  return distance < 64
-}
-
-async function createConversation() {
-  if (creatingConversation.value) return
-  try {
-    // 避免用户在会话创建尚未完成时把第一条消息发到旧会话里。
-    if (activeConvId.value && messages.value.length > 0) {
-      await saveToBackend(activeConvId.value).catch(() => {})
-    }
-    activeConvId.value = null
-    sessionStorage.removeItem('currentChatId')
-    messages.value = []
-  } catch (e) { logWarn('chat', '创建会话失败', e) }
-}
-
-async function doCreateConversationOnServer() {
-  const res = await chatApi.createConversation()
-  const conv = res.data.data as Conversation
-  conversations.value.unshift(conv)
-  activeConvId.value = conv.id
-  sessionStorage.setItem('currentChatId', String(conv.id))
-}
-
-async function deleteConversation(id: number) {
-  try {
-    await chatApi.deleteConversation(id)
-  } catch (e) { logWarn('chat', '删除会话失败', id, e) }
-  conversations.value = conversations.value.filter(c => c.id !== id)
-  if (id === activeConvId.value) {
-    activeConvId.value = null
-    messages.value = []
-    // 自动选第一个
-    if (conversations.value.length > 0) {
-      await selectConversation(conversations.value[0].id)
-    } else {
-      await createConversation()
-    }
-  }
-}
-
-function saveToBackend(convId: number) {
-  return chatApi.saveHistory(convId, messages.value).catch((error) => {
-    console.warn('[chat] 保存历史失败', { convId, error })
-    throw error
-  })
-}
-
-async function loadFromBackend(convId: number): Promise<Message[]> {
-  try {
-    const res = await chatApi.getHistory(convId)
-    return normalizeHistoryMessages(res.data.data)
-  } catch (error) {
-    console.warn('[chat] 读取历史失败', { convId, error })
-    return []
-  }
-}
-
-function normalizeHistoryMessages(raw: any): Message[] {
-  if (!Array.isArray(raw)) return []
-
-  return raw
-    .map((item: any): Message | null => {
-      if (!item) return null
-      if (typeof item === 'string') {
-        return { id: nextMsgId(), role: 'ai', content: item }
-      }
-
-      const content = String(item.content ?? item.message ?? item.text ?? '').trim()
-      if (!content) return null
-
-      const refsRaw = Array.isArray(item.references)
-        ? item.references
-        : Array.isArray(item.refs)
-          ? item.refs
-          : []
-
-      const references = refsRaw
-        .map((v: any) => String(v ?? '').trim())
-        .filter(Boolean)
-        .slice(0, 2)
-
-      return {
-        id: item.id || nextMsgId(),
-        role: normalizeMessageRole(item.role),
-        content,
-        references: references.length ? references : undefined,
-        ragReferences: Array.isArray(item.ragReferences) ? item.ragReferences : undefined,
-      }
-    })
-    .filter((msg): msg is Message => msg != null)
-}
-
-function normalizeMessageRole(rawRole: any): 'user' | 'ai' {
-  const normalized = String(rawRole ?? '').trim().toLowerCase()
-  if (normalized === 'user' || normalized === 'human') return 'user'
-  if (normalized === 'assistant' || normalized === 'ai' || normalized === 'bot' || normalized === 'system') return 'ai'
-  return 'ai'
-}
-
-async function send() {
-  const content = draft.value.trim()
-  if (!content || streaming.value || creatingConversation.value) return
-
-  if (!activeConvId.value) {
-    creatingConversation.value = true
-    try {
-      await doCreateConversationOnServer()
-    } catch (e) {
-      logWarn('chat', '创建会话请求失败', e)
-      creatingConversation.value = false
-      return
-    }
-    creatingConversation.value = false
-  }
-
-  const convId = activeConvId.value
-  if (!convId) return
-
-  lastReplyError.value = null
-  lastReplyRequest.value = null
-  lastReplyRequest.value = null
-
-  const refContents = references.value.slice(0, 2).map(r => r.fullContent || r.content)
-  messages.value.push({ id: nextMsgId(), role: 'user', content, references: refContents.length ? refContents : undefined })
-  saveToBackend(convId).catch(() => {})
-  references.value = []
-  draft.value = ''
-  tryExpToast('chat', '聊天 +5 EXP')
-  streaming.value = true
-  streamingText.value = ''
-  isThinking.value = true
-  scrollBottom()
-  const token = localStorage.getItem('token')
-  if (!token) {
-    isThinking.value = false
-    messages.value.push({ id: nextMsgId(), role: 'ai', content: '请先登录' })
-    streaming.value = false
-    return
-  }
-
-  await sendReply(convId, content, refContents, false)
-}
-
-async function retryLastReply() {
-  if (!lastReplyRequest.value || streaming.value) return
-  const { convId, content, refContents } = lastReplyRequest.value
-  if (activeConvId.value !== convId) {
-    lastReplyError.value = '会话已切换，请在当前会话重新发送。'
-    return
-  }
-  streaming.value = true
-  streamingText.value = ''
-  isThinking.value = true
-  await sendReply(convId, content, refContents, true)
-}
-
-async function sendReply(convId: number, content: string, refContents: string[], isRetry: boolean) {
-  // 中止上一次未完成的流
-  if (streamAbortCtrl) {
-    streamAbortCtrl.abort()
-    streamAbortCtrl = null
-  }
-  const ctrl = new AbortController()
-  streamAbortCtrl = ctrl
-
-  streamingRefs.value = []
-  showStreamingRefs.value = false
-  let fullReply = ''
-  let currentRefs: RagRef[] = []
-
-  try {
-    await chatApi.replyStream(convId, content, refContents, (chunk) => {
-      fullReply += chunk
-      pendingStreamText = fullReply
-      if (isThinking.value) {
-        isThinking.value = false
-      }
-      if (streamRafId === null) {
-        streamRafId = requestAnimationFrame(() => {
-          const keepScroll = isNearBottom(msgBox.value)
-          streamingText.value = pendingStreamText
-          streamRafId = null
-          if (keepScroll) {
-            scrollBottom()
-          }
-        })
-      }
-    }, ctrl, (items: any) => {
-      currentRefs = items
-      streamingRefs.value = items
-    }, (toolItems: any) => {
-      currentRefs = [...currentRefs, ...toolItems]
-      streamingRefs.value = currentRefs
-    })
-
-    // 流正常结束
-    if (activeConvId.value !== convId) return
-    lastReplyError.value = null
-    lastReplyRequest.value = null
-    messages.value.push({
-      id: nextMsgId(),
-      role: 'ai',
-      content: fullReply || '我刚才没有组织好语言，你可以再说一遍吗？',
-      ragReferences: currentRefs.length ? currentRefs : undefined,
-    })
-  } catch (e: any) {
-    isThinking.value = false
-    const bizMessage = e?.response?.data?.message || e?.message
-    const errorText = chatErrorMessage(e?.status, bizMessage)
-    if (activeConvId.value === convId) {
-      lastReplyError.value = errorText
-      lastReplyRequest.value = { convId, content, refContents }
-      if (!isRetry) {
-        messages.value.push({ id: nextMsgId(), role: 'ai', content: errorText })
-      }
-    }
-  } finally {
-    streamAbortCtrl = null
-    finishSend(convId)
-  }
-}
-
-async function finishSend(convId: number) {
-  if (streamRafId !== null) {
-    cancelAnimationFrame(streamRafId)
-    streamRafId = null
-  }
-  streaming.value = false
-  streamingText.value = ''
-  streamingRefs.value = []
-  isThinking.value = false
-  references.value = []
-  scrollBottom()
-  try {
-    await saveToBackend(convId)
-  } catch (e) {
-    logWarn('chat', '发送后保存历史失败', e)
-    syncCooldownUntil.value = Date.now() + 5000
-  }
-  loadConversations()
-}
-
-function scrollBottom() {
-  if (msgBox.value) {
-    msgBox.value.scrollTop = msgBox.value.scrollHeight
-  }
-}
-
-function ensureInputVisible(behavior: ScrollBehavior = 'smooth') {
-  window.requestAnimationFrame(() => {
-    chatInputArea.value?.scrollIntoView({ behavior, block: 'end' })
-    scrollBottom()
-  })
-}
-
-function handleDraftFocus() {
-  ensureInputVisible('auto')
-}
-
-function handleViewportResize() {
-  updateMobileKeyboardState()
-  if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
-    ensureInputVisible('auto')
-  }
-}
-
-function handleMobileConversationChange(event: Event) {
-  const target = event.target as HTMLSelectElement
-  const nextId = Number(target.value)
-  if (Number.isFinite(nextId) && nextId > 0) {
-    selectConversation(nextId)
-  }
-}
-
-function deleteActiveConversation() {
-  const convId = activeConvId.value
-  if (!convId) return
-  const ok = window.confirm('确认删除当前对话吗？删除后不可恢复。')
-  if (!ok) return
-  deleteConversation(convId)
-}
-
-function updateMobileKeyboardState() {
-  const vv = window.visualViewport
-  if (!vv) return
-  const baseHeight = viewportBaseHeight.value || window.innerHeight
-  const keyboardLikelyOpen = baseHeight - vv.height > 120
-  document.body.classList.toggle('chat-keyboard-open', keyboardLikelyOpen)
-}
-
-function handleDraftEnter(event: KeyboardEvent) {
-  if ((event as any).isComposing) return
-  send()
-}
-
-function removeRef(index: number) {
-  references.value.splice(index, 1)
-}
-
-async function addDiaryRef(diaryId: string) {
-  const d = recentDiaryOptions.value.find(o => String(o.id) === diaryId)
-  if (!d || references.value.some(r => r.diaryId === d.id)) return
-  // 列表接口 content 截断为 150 字，需要获取完整内容传给 AI
-  let fullContent = d.fullContent
-  try {
-    const res = await diaryApi.get(d.id)
-    fullContent = res.data.data?.content ?? fullContent
-  } catch (e) {
-    logWarn('chat', '获取完整日记内容失败，使用截断版本', d.id, e)
-  }
-  references.value.push({ label: '日记 · ' + d.date, content: d.snippet, fullContent, diaryId: d.id })
-}
-
-async function loadRecentDiaryOptions() {
-  recentDiariesLoading.value = true
-  recentDiariesError.value = null
-  try {
-    const options: { id: number; date: string; snippet: string; fullContent: string }[] = []
-
-    // 加载最近的日记
-    try {
-      const res = await diaryApi.mine(1, 20)
-      const data = res.data.data || []
-      const diaries = (Array.isArray(data) ? data : data.items ?? []) as any[]
-      diaries.slice(0, 20).forEach((d: any) => {
-        options.push({
-          id: d.id,
-          date: d.createdAt?.split('T')[0] ?? '',
-          snippet: d.content?.length > 30 ? d.content.slice(0, 30) + '...' : d.content ?? '',
-          fullContent: d.content ?? ''
-        })
-      })
-    } catch (e) {
-      recentDiariesError.value = '加载最近日记失败'
-      console.warn('[chat] 加载引用日记失败', e)
-    }
-
-    recentDiaryOptions.value = options
-  } catch (e) {
-    recentDiaryOptions.value = []
-    recentDiariesError.value = '加载最近日记失败'
-    logWarn('chat', '加载最近日记选项失败', e)
-  } finally {
-    recentDiariesLoading.value = false
-  }
-}
-
-function chatErrorMessage(status?: number, bizMessage?: string) {
-  if (bizMessage && bizMessage !== 'Request failed with status code 429') return bizMessage
-  if (status === 401 || status === 403) return '登录状态过期了，请重新登录后再试。'
-  return '抱歉，我暂时无法回复，请稍后再试。'
-}
+import { useChat } from '../composables/useChat'
+
+const {
+  authStore, userInitial,
+  conversations, activeConvId, creatingConversation,
+  createConversation, selectConversation, deleteConversation,
+  handleMobileConversationChange, deleteActiveConversation,
+  messages,
+  draft, streaming, streamingText, isThinking, streamingRefs,
+  lastReplyError, lastReplyRequest, references,
+  send, retryLastReply, removeRef,
+  recentDiaryOptions, recentDiariesLoading, recentDiariesError,
+  addDiaryRef, loadRecentDiaryOptions,
+  quickStarters, quickStartersLoading, useQuickStarter,
+  msgBox, chatInputArea,
+  handleDraftFocus, handleDraftEnter, goToDiary,
+} = useChat()
 </script>
-
 <style scoped>
 @keyframes bounce-subtle {
   0%, 100% { transform: translateY(0); }
@@ -810,7 +185,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   text-align: left;
 }
 
-.chat-reply-error-bar {
+:deep(.chat-reply-error-bar) {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -889,8 +264,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   50% { opacity: 0; }
 }
 
-/* ── RAG 引用折叠面板 ── */
-.rag-refs-panel {
+/* ── RAG 引用折叠面板 ── */:deep(.rag-refs-panel) {
   margin: 6px 0;
   border: none;
   border-radius: var(--radius-md);
@@ -899,8 +273,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   animation: refsIn 0.2s var(--ease-out);
 }
 
-/* 引用面板放在气泡上方 */
-.rag-refs-above {
+/* 引用面板放在气泡上方 */:deep(.rag-refs-above) {
   margin: 0 0 8px 0;
   max-width: 85%;
   display: flex;
@@ -908,8 +281,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   gap: 4px;
 }
 
-/* 固定引用面板：脱离正文流式溢出，始终保持置顶 */
-.rag-references-fixed {
+/* 固定引用面板：脱离正文流式溢出，始终保持置顶 */:deep(.rag-references-fixed) {
   margin-bottom: 8px;
   padding: 8px 10px;
   background: var(--color-surface-soft, color-mix(in oklab, var(--color-primary) 3%, transparent));
@@ -919,26 +291,18 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   max-width: 100%;
 }
 
-/* 引用面板内的子项增加呼吸感 */
-.rag-refs-list {
+/* 引用面板内的子项增加呼吸感 */:deep(.rag-refs-list) {
   gap: 2px;
-}
-
-.rag-ref-item {
+}:deep(.rag-ref-item) {
   padding: 6px 12px;
-}
-
-.rag-ref-snippet {
+}:deep(.rag-ref-snippet) {
   margin-right: 8px;
   max-width: 260px;
 }
 
-/* 展开面板中的画像项用 chip 风格横向排列 */
-.rag-refs-list .rag-ref-item {
+/* 展开面板中的画像项用 chip 风格横向排列 */:deep(.rag-refs-list .rag-ref-item) {
   max-width: 100%;
-}
-
-.rag-refs-list .rag-ref-snippet {
+}:deep(.rag-refs-list .rag-ref-snippet) {
   max-width: 260px;
 }
 
@@ -952,9 +316,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 @keyframes refsIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-.rag-refs-toggle {
+}:deep(.rag-refs-toggle) {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -967,31 +329,21 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s;
-}
-
-.rag-refs-toggle:hover {
+}:deep(.rag-refs-toggle:hover) {
   background: var(--color-surface-hover);
-}
-
-.rag-refs-icon {
+}:deep(.rag-refs-icon) {
   font-size: 13px;
-}
-
-.rag-refs-arrow {
+}:deep(.rag-refs-arrow) {
   margin-left: auto;
   font-size: 11px;
   color: var(--color-text-muted);
-}
-
-.rag-refs-list {
+}:deep(.rag-refs-list) {
   display: flex;
   flex-direction: column;
   gap: 0;
   border-top: 1px solid color-mix(in oklab, var(--color-border) 30%, transparent 70%);
   padding: 2px 0;
-}
-
-.rag-refs-section-label {
+}:deep(.rag-refs-section-label) {
   padding: 2px 10px 0;
   font-size: 9px;
   font-weight: 600;
@@ -999,30 +351,22 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   letter-spacing: 0.03em;
 }
 
-/* 日记引用行：日期标签 | 摘要 | 跳转箭头 */
-.rag-ref-item {
+/* 日记引用行：日期标签 | 摘要 | 跳转箭头 */:deep(.rag-ref-item) {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 5px 10px;
   font-size: 11px;
-}
-
-.rag-ref-item:not(:last-child) {
+}:deep(.rag-ref-item:not(:last-child)) {
   border-bottom: 1px solid color-mix(in oklab, var(--color-border) 25%, transparent 75%);
-}
-
-.rag-ref-clickable {
+}:deep(.rag-ref-clickable) {
   cursor: pointer;
   transition: background 0.12s;
-}
-
-.rag-ref-clickable:hover {
+}:deep(.rag-ref-clickable:hover) {
   background: var(--color-surface-hover);
 }
 
-/* 画像条目：简单横排，无额外列 */
-.rag-ref-item-profile {
+/* 画像条目：简单横排，无额外列 */:deep(.rag-ref-item-profile) {
   display: flex;
   align-items: center;
   padding: 5px 10px;
@@ -1030,33 +374,23 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   cursor: pointer;
   transition: background 0.12s;
   position: relative;
-}
-
-.rag-ref-item-profile:not(:last-child) {
+}:deep(.rag-ref-item-profile:not(:last-child)) {
   border-bottom: 1px solid color-mix(in oklab, var(--color-border) 25%, transparent 75%);
-}
-
-.rag-ref-item-profile:hover {
+}:deep(.rag-ref-item-profile:hover) {
   background: var(--color-surface-hover);
-}
-
-.rag-ref-meta {
+}:deep(.rag-ref-meta) {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
   min-width: 56px;
-}
-
-.rag-ref-date {
+}:deep(.rag-ref-date) {
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   font-size: 10px;
-}
-
-.rag-ref-tool-badge {
+}:deep(.rag-ref-tool-badge) {
   background: color-mix(in oklab, var(--color-primary) 10%, transparent);
   color: var(--color-primary);
   border-radius: 3px;
@@ -1105,23 +439,17 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   color: color-mix(in oklab, var(--color-text-secondary) 80%, transparent);
   margin-bottom: 0.5em;
   line-height: 1.6;
-}
-
-.rag-ref-snippet {
+}:deep(.rag-ref-snippet) {
   color: var(--color-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
   transition: all 0.2s ease;
-}
-
-.rag-ref-key {
+}:deep(.rag-ref-key) {
   font-weight: 600;
   margin-right: 2px;
-}
-
-.rag-ref-snippet.expanded {
+}:deep(.rag-ref-snippet.expanded) {
   white-space: normal;
   display: block;
   max-width: 360px;
@@ -1135,41 +463,40 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 }
 
 /* ── 消息对齐：AI 靠左，用户靠右 ── */
-.msg-item {
+:deep(.msg-item) {
   display: flex;
   width: 100%;
   margin-bottom: 20px !important;
   gap: 12px;
 }
 
-.msg-item.ai {
+:deep(.msg-item.ai) {
   justify-content: flex-start !important;
 }
 
-.msg-item.user {
+:deep(.msg-item.user) {
   justify-content: flex-end !important;
 }
 
-.msg-wrapper {
+:deep(.msg-wrapper) {
   display: flex;
   flex-direction: column;
   max-width: 85% !important;
 }
 
-.msg-item.ai .msg-wrapper {
+:deep(.msg-item.ai .msg-wrapper) {
   max-width: 92% !important;
 }
 
-.msg-item.ai .msg-wrapper {
+:deep(.msg-item.ai .msg-wrapper) {
   align-items: flex-start !important;
 }
 
-.msg-item.user .msg-wrapper {
+:deep(.msg-item.user .msg-wrapper) {
   align-items: flex-end !important;
 }
 
-/* ── 引用卡片悬浮展开 (chip 风格) ── */
-.rag-ref-chip {
+/* ── 引用卡片悬浮展开 (chip 风格) ── */:deep(.rag-ref-chip) {
   cursor: pointer;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -1182,25 +509,19 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.rag-ref-chip.expanded {
+}:deep(.rag-ref-chip.expanded) {
   max-width: 400px;
   white-space: normal;
   background: var(--color-surface);
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   z-index: 10;
   position: relative;
-}
-
-.rag-ref-go {
+}:deep(.rag-ref-go) {
   color: var(--color-primary);
   font-size: 12px;
   font-weight: 700;
   flex-shrink: 0;
-}
-
-.thinking-status {
+}:deep(.thinking-status) {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1212,8 +533,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   margin-bottom: 8px;
 }
 
-/* 深度思考动效中的行内跳点容器 */
-.thinking-dots-inline {
+/* 深度思考动效中的行内跳点容器 */:deep(.thinking-dots-inline) {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -1238,33 +558,27 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   100% { opacity: 0.4; }
 }
 
-/* 沉思加载动画样式 */
-.thinking-bubble {
+/* 沉思加载动画样式 */:deep(.thinking-bubble) {
   display: flex;
   flex-direction: column;
   gap: 8px;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-}
-
-.thinking-header {
+  border: none !important;
+  box-shadow: 0 4px 12px color-mix(in oklab, var(--color-primary) 8%, transparent) !important;
+}:deep(.thinking-header) {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 13.5px;
   color: var(--color-primary);
   font-weight: 500;
-}
-
-.thinking-dots-loader {
+}:deep(.thinking-dots-loader) {
   display: flex;
   align-items: center;
   gap: 4px;
   height: 8px;
   padding-left: 2px;
-}
-
-.thinking-dots-loader .dot {
+}:deep(.thinking-dots-loader .dot) {
   width: 6px;
   height: 6px;
   background-color: var(--color-primary);
@@ -1402,10 +716,9 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 /* --- Premium Custom Styles --- */
 
 .chat-messages {
-  gap: 20px !important;
   padding: 24px !important;
   background: var(--color-bg) !important;
-  border: 1px solid rgba(180, 150, 120, 0.15) !important;
+  border: none !important;
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.01);
 }
 
@@ -1417,13 +730,11 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 }
 
 .chat-input-area {
-  background: rgba(255, 255, 255, 0.6) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  border: 1px solid rgba(180, 150, 120, 0.15) !important;
+  background: var(--color-surface) !important;
+  border: none !important;
   border-radius: 16px !important;
   padding: 12px 16px !important;
-  box-shadow: 0 8px 30px var(--color-primary-light) !important;
+  box-shadow: 0 8px 30px color-mix(in oklab, var(--color-primary) 8%, transparent) !important;
   transition: all 0.3s ease;
 }
 
@@ -1432,20 +743,20 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   box-shadow: 0 8px 30px var(--color-primary-light), 0 0 0 2px var(--color-primary-light) !important;
 }
 
-.chat-input-row {
+:deep(.chat-input-row) {
   gap: 12px !important;
 }
 
-.chat-input-row :deep(.n-input) {
+:deep(.chat-input-row .n-input) {
   --n-border-radius: 12px !important;
-  --n-border: 1px solid rgba(180, 150, 120, 0.2) !important;
-  --n-border-hover: 1px solid var(--color-primary) !important;
-  --n-border-focus: 1px solid var(--color-primary) !important;
+  --n-border: none !important;
+  --n-border-hover: none !important;
+  --n-border-focus: none !important;
   --n-box-shadow-focus: 0 0 0 2px var(--color-primary-light) !important;
-  background: var(--color-surface) !important;
+  background: var(--color-bg) !important;
 }
 
-.chat-input-row :deep(.n-button) {
+:deep(.chat-input-row .n-button) {
   --n-border-radius: 12px !important;
   height: 40px !important;
   padding: 0 20px !important;
@@ -1453,12 +764,10 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   transition: all 0.2s ease !important;
 }
 
-.chat-input-row :deep(.n-button:not([disabled]):hover) {
+:deep(.chat-input-row .n-button:not([disabled]):hover) {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px var(--color-primary-light);
-}
-
-.rag-references-fixed {
+}:deep(.rag-references-fixed) {
   background: rgba(244, 247, 245, 0.8) !important;
   backdrop-filter: blur(4px);
   border: 1px solid var(--color-primary-light) !important;
@@ -1466,7 +775,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   padding: 6px 10px !important;
 }
 
-.msg-avatar {
+:deep(.msg-avatar) {
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -1479,7 +788,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   box-sizing: border-box;
 }
 
-.msg-avatar.user-avatar {
+:deep(.msg-avatar.user-avatar) {
   background: linear-gradient(135deg, #8ba897, #5f836f);
   color: var(--color-on-primary);
   font-weight: 600;
@@ -1489,13 +798,13 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   overflow: hidden;
 }
 
-.msg-avatar.user-avatar img {
+:deep(.msg-avatar.user-avatar img) {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.msg-avatar.ai-avatar {
+:deep(.msg-avatar.ai-avatar) {
   background: var(--color-surface);
   border: 1.5px solid var(--color-primary-light);
   box-shadow: 0 4px 10px var(--color-primary-light);
@@ -1503,14 +812,14 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   overflow: hidden;
 }
 
-.msg-avatar.ai-avatar .ai-avatar-icon {
+:deep(.msg-avatar.ai-avatar .ai-avatar-icon) {
   width: 100%;
   height: 100%;
   object-fit: contain;
   display: block;
 }
 
-.chat-bubble {
+:deep(.chat-bubble) {
   max-width: 100% !important;
   padding: 12px 18px !important;
   font-size: 14.5px !important;
@@ -1519,28 +828,28 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   box-sizing: border-box;
 }
 
-.chat-bubble.chat-user {
-  background: linear-gradient(135deg, var(--color-primary), #3a6851) !important;
+:deep(.chat-bubble.chat-user) {
+  background: var(--color-primary) !important;
   color: var(--color-on-primary) !important;
   border: none !important;
   border-radius: 18px 18px 4px 18px !important;
   box-shadow: 0 4px 14px var(--color-primary-light) !important;
 }
 
-.chat-bubble.chat-user p {
+:deep(.chat-bubble.chat-user p) {
   margin: 0;
   color: var(--color-on-primary) !important;
 }
 
-.chat-bubble.chat-ai {
+:deep(.chat-bubble.chat-ai) {
   background: var(--color-surface) !important;
   color: var(--color-text) !important;
-  border: 1px solid var(--color-primary-light) !important;
+  border: none !important;
   border-radius: 18px 18px 18px 4px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+  box-shadow: 0 4px 12px color-mix(in oklab, var(--color-primary) 8%, transparent) !important;
 }
 
-.chat-user-refs {
+:deep(.chat-user-refs) {
   margin: 8px 0 0;
   padding-left: 12px;
   font-size: 11.5px;
@@ -1550,7 +859,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   list-style-type: none;
 }
 
-.chat-user-refs li {
+:deep(.chat-user-refs li) {
   margin-bottom: 2px;
 }
 

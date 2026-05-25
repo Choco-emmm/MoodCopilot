@@ -73,7 +73,7 @@
                 <!-- Card Header: Avatar & Name & Status -->
                 <div class="uc-header">
                   <div class="uc-avatar" :style="user.avatar ? {} : getAvatarStyle(user.displayName || '')">
-                    <img v-if="user.avatar" :src="user.avatar" class="avatar-img" />
+                    <img v-if="user.avatar" :src="user.avatar" class="avatar-img" loading="lazy" decoding="async" />
                     <template v-else>
                       {{ (user.displayName || '')?.charAt(0).toUpperCase() }}
                     </template>
@@ -100,7 +100,7 @@
                       </svg>
                       最后活跃
                     </span>
-                    <span class="uc-meta-value">{{ formatTime(user.lastActiveTime) }}</span>
+                    <span class="uc-meta-value">{{ formatRelativeTime(user.lastActiveTime) }}</span>
                   </div>
                   <div class="uc-meta-row">
                     <span class="uc-meta-label">
@@ -241,7 +241,7 @@ const columns = [
     key: 'lastActiveTime',
     width: 160,
     render(row: UserInfo) {
-      return formatTime(row.lastActiveTime)
+      return formatRelativeTime(row.lastActiveTime)
     }
   },
   {
@@ -351,6 +351,25 @@ function formatTime(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value))
+}
+
+function formatRelativeTime(value?: string | null) {
+  if (!value) return '-'
+  const date = new Date(value)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffSec = Math.floor(diffMs / 1000)
+  const diffMin = Math.floor(diffSec / 60)
+  const diffHour = Math.floor(diffMin / 60)
+  const diffDay = Math.floor(diffHour / 24)
+
+  if (diffMin < 1) return '刚刚'
+  if (diffMin < 60) return `${diffMin}分钟前`
+  if (diffHour < 24) return `${diffHour}小时前`
+  if (diffDay === 1) return '昨天'
+  if (diffDay < 30) return `${diffDay}天前`
+  if (diffDay < 365) return `${Math.floor(diffDay / 30)}个月前`
+  return `${Math.floor(diffDay / 365)}年前`
 }
 
 function getAvatarStyle(name: string) {

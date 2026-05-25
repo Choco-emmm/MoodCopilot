@@ -75,16 +75,24 @@
 
       <SettingSection title="主题外观" tag="Theme">
         <div class="theme-grid">
-          <div 
-            v-for="t in themeOptions" 
-            :key="t.value" 
-            class="theme-item" 
-            :class="{ active: auth.theme === t.value }"
-            :style="{ '--t-primary': t.primary, '--t-bg': t.bg }"
+          <div
+            v-for="t in visibleThemeOptions"
+            :key="t.value"
+            class="theme-item"
+            :class="{ active: auth.theme === t.value || (isDark && t.value === 'black-rice') }"
+            :style="{ '--t-primary': t.primary, '--t-accent': t.accent, '--t-bg': t.bg, '--t-surface': t.surface }"
             @click="selectTheme(t.value)"
           >
-            <div class="theme-color-box"></div>
+            <div class="theme-preview">
+              <div class="theme-preview-bg">
+                <div class="theme-preview-swatch" style="left: 6px; top: 6px; width: 18px; height: 18px; border-radius: 50%; background: var(--t-primary);"></div>
+                <div class="theme-preview-swatch" style="right: 6px; top: 8px; width: 10px; height: 10px; border-radius: 3px; background: var(--t-accent); opacity: 0.8;"></div>
+                <div class="theme-preview-bar" style="left: 6px; bottom: 8px; width: 24px; height: 3px; border-radius: 2px; background: var(--t-primary); opacity: 0.3;"></div>
+                <div class="theme-preview-bar" style="left: 6px; bottom: 14px; width: 16px; height: 2px; border-radius: 1px; background: var(--t-primary); opacity: 0.15;"></div>
+              </div>
+            </div>
             <span class="theme-label">{{ t.label }}</span>
+            <span v-if="auth.theme === t.value || (isDark && t.value === 'black-rice')" class="theme-check">✓</span>
           </div>
         </div>
       </SettingSection>
@@ -240,23 +248,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, watch, nextTick, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { NModal, NButton, NInput, NSwitch } from 'naive-ui'
+import { NModal, NButton, NInput, NSwitch, useOsTheme } from 'naive-ui'
 import SettingSection from '../SettingSection.vue'
 import { authApi, suggestionApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
 import { logWarn } from '../../utils/logger'
-
-const themeOptions = [
-  { value: 'green', label: '绿意轻盈', primary: '#4a7c62', bg: '#f8f6f1' },
-  { value: 'salt-lemon', label: '海盐柠泡', primary: '#67bac6', bg: '#f2fcfe' },
-  { value: 'morning-dew', label: '露露晨屿', primary: '#ffb6b9', bg: '#fff5f6' },
-  { value: 'lemon-grape', label: '柠香青提', primary: '#9eb368', bg: '#fafff0' },
-  { value: 'matcha-mist', label: '抹茶微岚', primary: '#89a3b2', bg: '#f8fbf5' },
-  { value: 'clear-summer', label: '晴川浅夏', primary: '#a5ca8b', bg: '#f8fae4' },
-  { value: 'black-rice', label: '黑米潮糕', primary: '#ffb400', bg: '#2b2b29' }
-]
+import { themeOptions } from '../../constants/theme'
 
 const props = defineProps<{
   show: boolean
@@ -271,6 +270,16 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const auth = useAuthStore()
+const osTheme = useOsTheme()
+const isDark = computed(() => osTheme.value === 'dark')
+
+const visibleThemeOptions = computed(() => {
+  if (isDark.value) {
+    return themeOptions.filter(t => t.value === 'black-rice')
+  } else {
+    return themeOptions.filter(t => t.value !== 'black-rice')
+  }
+})
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const editingName = ref('')
@@ -826,7 +835,7 @@ onBeforeUnmount(() => {
 .theme-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 10px;
   margin-top: 10px;
 }
 .theme-item {
@@ -835,33 +844,78 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  padding: 8px;
-  border-radius: 12px;
+  padding: 10px 6px 8px;
+  border-radius: 14px;
   border: 2px solid transparent;
-  transition: all 0.2s ease;
+  transition: all 0.25s var(--ease-out, ease);
+  position: relative;
 }
 .theme-item:hover {
   background: var(--color-surface-hover);
+  transform: translateY(-1px);
 }
 .theme-item.active {
   border-color: var(--color-primary);
-  background: color-mix(in oklab, var(--color-primary) 10%, transparent);
+  background: var(--color-primary-light);
 }
-.theme-color-box {
-  width: 48px;
-  height: 48px;
+.theme-preview {
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--t-primary) 50%, var(--t-bg) 50%);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding: 3px;
+  background: var(--t-bg);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.07), inset 0 0 0 1px rgba(0,0,0,0.04);
+  transition: box-shadow 0.25s var(--ease-out, ease), transform 0.25s var(--ease-out, ease);
+}
+.theme-item:hover .theme-preview {
+  box-shadow: 0 4px 14px rgba(0,0,0,0.1), inset 0 0 0 1px rgba(0,0,0,0.06);
+  transform: scale(1.05);
+}
+.theme-item.active .theme-preview {
+  box-shadow: 0 2px 12px color-mix(in oklab, var(--t-primary) 30%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--t-primary) 20%, transparent);
+}
+.theme-preview-bg {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--t-bg);
+  position: relative;
+  overflow: hidden;
+}
+.theme-preview-swatch,
+.theme-preview-bar {
+  position: absolute;
 }
 .theme-label {
   font-size: 12px;
   color: var(--color-text);
   text-align: center;
+  font-weight: 500;
+}
+.theme-check {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 11px;
+  color: var(--color-primary);
+  font-weight: 700;
 }
 @media (min-width: 500px) {
   .theme-grid {
     grid-template-columns: repeat(4, 1fr);
   }
+}
+</style>
+
+<style>
+/* Override naive-ui modal default white background */
+.settings-modal.n-card {
+  background: var(--color-bg) !important;
+  border: none !important;
+  box-shadow: 0 12px 32px color-mix(in oklab, var(--color-primary) 20%, transparent) !important;
+}
+.settings-modal.n-card > .n-card-header {
+  background: transparent !important;
+  border-bottom: none !important;
 }
 </style>

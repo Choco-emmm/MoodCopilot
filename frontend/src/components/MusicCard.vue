@@ -156,8 +156,8 @@ function toggleLine(index: number) {
 .music-card {
   margin: 12px 0;
   border-radius: var(--radius-md, 10px);
-  background: linear-gradient(135deg, #fdf6f0 0%, #faf3e8 100%);
-  border: 1px solid rgba(180, 150, 120, 0.12);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   overflow: hidden;
 }
 
@@ -184,7 +184,7 @@ function toggleLine(index: number) {
 }
 
 .music-play-btn:hover {
-  background: #3d6b52;
+  background: var(--color-primary-hover);
 }
 
 .music-cover {
@@ -193,8 +193,8 @@ function toggleLine(index: number) {
   border-radius: 6px;
   object-fit: cover;
   flex-shrink: 0;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: #f0ebe3;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-soft);
 }
 
 .music-cover-fallback {
@@ -202,7 +202,7 @@ function toggleLine(index: number) {
   height: 52px;
   border-radius: 6px;
   flex-shrink: 0;
-  background: linear-gradient(135deg, #e8e0d5, #f0ebe3);
+  background: linear-gradient(135deg, var(--color-surface-hover), var(--color-surface-soft));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -221,7 +221,7 @@ function toggleLine(index: number) {
 .music-title {
   font-size: 14px;
   font-weight: 600;
-  color: #3d3d3d;
+  color: var(--color-text);
 }
 
 .music-title-zh {
@@ -239,7 +239,7 @@ function toggleLine(index: number) {
 .music-user-lyric {
   margin: 0 12px 10px;
   font-size: 12px;
-  color: #b0a090;
+  color: var(--color-text-secondary);
   font-style: italic;
   line-height: 1.6;
   white-space: pre-line;
@@ -273,7 +273,7 @@ function toggleLine(index: number) {
 
 .user-lyric-label {
   font-style: normal;
-  color: #d0c8b8;
+  color: var(--color-text-light);
 }
 
 @media (max-width: 600px) {
@@ -284,11 +284,11 @@ function toggleLine(index: number) {
 
 .music-artist-zh {
   font-size: 11px;
-  color: #b0a090;
+  color: var(--color-text-secondary);
   margin-left: 4px;
 }
 
-.music-lyric-section { border-top: 1px dashed rgba(180, 150, 120, 0.1); }
+.music-lyric-section { border-top: 1px dashed var(--color-border); }
 
 .music-lyric-selected { padding: 8px 12px 0; }
 
@@ -299,7 +299,7 @@ function toggleLine(index: number) {
   margin: 0 0 4px;
   padding: 4px 10px;
   border-radius: 8px;
-  background: #f0f7f2;
+  background: var(--color-primary-light);
   border-left: 3px solid var(--color-primary);
 }
 
@@ -352,13 +352,13 @@ function toggleLine(index: number) {
 .lyrics-error {
   margin: 0 12px 6px;
   font-size: 11px;
-  color: #b0a090;
+  color: var(--color-error);
 }
 
 .lyrics-hint {
   margin: 0 12px 4px;
   font-size: 11px;
-  color: #b0a090;
+  color: var(--color-text-light);
 }
 
 .lyrics-chips {
@@ -372,10 +372,10 @@ function toggleLine(index: number) {
 
 .lyric-chip {
   padding: 4px 10px;
-  border: 1px solid rgba(180, 150, 120, 0.25);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   background: var(--color-bg);
-  color: #5a4a3a;
+  color: var(--color-text-secondary);
   font-size: 12px;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
@@ -390,7 +390,7 @@ function toggleLine(index: number) {
 
 .lyric-chip.selected {
   border-color: var(--color-primary);
-  background: #f0f7f2;
+  background: var(--color-primary-light);
   color: var(--color-primary);
 }
 </style>

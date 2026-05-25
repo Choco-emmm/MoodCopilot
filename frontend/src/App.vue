@@ -1,5 +1,5 @@
 <template>
-  <n-config-provider :theme-overrides="themeOverrides" :locale="zhCN" :date-locale="dateZhCN">
+  <n-config-provider :theme="naiveTheme" :theme-overrides="dynamicThemeOverrides" :locale="zhCN" :date-locale="dateZhCN">
     <n-notification-provider>
       <n-message-provider>
         <MessageEnvironment />
@@ -45,19 +45,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, watch, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { defineComponent } from 'vue'
-import { useMessage, useNotification, zhCN, dateZhCN } from 'naive-ui'
+import { useMessage, useNotification, zhCN, dateZhCN, useOsTheme, darkTheme } from 'naive-ui'
 import { useDiaryStore } from './stores/diary'
 import { useAuthStore } from './stores/auth'
 import { useNotificationStore } from './stores/notification'
 import type { GlobalThemeOverrides } from 'naive-ui'
+import { themeOptions } from './constants/theme'
 
 const router = useRouter()
 const store = useDiaryStore()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
+const osTheme = useOsTheme()
 
 const MessageEnvironment = defineComponent({
   setup() {
@@ -101,47 +103,45 @@ watch(() => authStore.token, (newToken, oldToken) => {
   }
 })
 
-const themeOverrides: GlobalThemeOverrides = {
-  common: {
-    primaryColor: 'var(--color-primary)',
-    primaryColorHover: '#3d6a52',
-    primaryColorPressed: '#345b46',
-    primaryColorSuppl: 'var(--color-primary)',
-    infoColor: '#b5343a',
-    infoColorHover: '#9e2d33',
-    infoColorPressed: '#87262c',
-    infoColorSuppl: '#b5343a',
-    errorColor: '#b5343a',
-    errorColorHover: '#9e2d33',
-    errorColorPressed: '#87262c',
-    successColor: 'var(--color-primary)',
-    successColorHover: '#3d6a52',
-    successColorPressed: '#345b46',
-    warningColor: '#c8843c',
-    warningColorHover: '#b87635',
-    warningColorPressed: '#a0682d',
-  },
-  Button: {
-    colorPrimary: 'var(--color-primary)',
-    colorPrimaryHover: '#3d6a52',
-    colorPrimaryPressed: '#345b46',
-    textColorPrimary: '#fdfbf7',
-    borderRadiusSmall: '4px',
-    borderRadiusMedium: '6px',
-    borderRadiusLarge: '10px',
-  },
-  Input: {
-    borderFocus: 'var(--color-primary)',
-    borderHover: '#d4cdbc',
-    borderRadius: '6px',
-  },
-  Tag: {
-    borderRadius: '4px',
-  },
-  Badge: {
-    color: '#b5343a',
-  },
-}
+const isDark = computed(() => osTheme.value === 'dark')
+
+const activeThemeName = computed(() => {
+  if (isDark.value) return 'black-rice'
+  if (authStore.theme === 'black-rice') return 'green'
+  return authStore.theme || 'green'
+})
+
+watchEffect(() => {
+  document.documentElement.setAttribute('data-theme', activeThemeName.value)
+})
+
+const naiveTheme = computed(() => isDark.value ? darkTheme : null)
+
+const dynamicThemeOverrides = computed<GlobalThemeOverrides>(() => {
+  const current = themeOptions.find(t => t.value === activeThemeName.value) || themeOptions[0]
+  const isBlackRice = activeThemeName.value === 'black-rice'
+  return {
+    common: {
+      primaryColor: current.primary,
+      infoColor: current.accent,
+      successColor: current.primary,
+      errorColor: isBlackRice ? '#e06060' : '#b23a3a',
+      warningColor: isBlackRice ? '#ffb400' : '#d49200',
+    },
+    Button: {
+      textColorPrimary: isBlackRice ? '#2b2b29' : '#ffffff',
+      borderRadiusSmall: '4px',
+      borderRadiusMedium: '6px',
+      borderRadiusLarge: '10px',
+    },
+    Input: {
+      borderRadius: '6px',
+    },
+    Tag: {
+      borderRadius: '4px',
+    },
+  }
+})
 </script>
 
 <style scoped>
@@ -202,14 +202,14 @@ const themeOverrides: GlobalThemeOverrides = {
 .modal-summary {
   margin: 0 0 8px;
   font-size: 14px;
-  color: #555;
+  color: var(--color-text-secondary);
   line-height: 1.6;
 }
 
 .modal-feedback {
   margin: 0 0 20px;
   font-size: 13px;
-  color: #777;
+  color: var(--color-text-muted);
   line-height: 1.6;
   padding: 10px 12px;
   background: var(--color-surface-hover);
