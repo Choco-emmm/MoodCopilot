@@ -255,12 +255,7 @@ const themeOptions = [
   { value: 'lemon-grape', label: '柠香青提', primary: '#9eb368', bg: '#fafff0' },
   { value: 'matcha-mist', label: '抹茶微岚', primary: '#89a3b2', bg: '#f8fbf5' },
   { value: 'clear-summer', label: '晴川浅夏', primary: '#a5ca8b', bg: '#f8fae4' },
-  { value: 'black-rice', label: '黑米潮糕', primary: '#ffb400', bg: '#2b2b29' },
-  { value: 'cherry-blossom', label: '樱落桃酥', primary: '#ff78ae', bg: '#fff0f7' },
-  { value: 'cloud-sky', label: '云屿蓝天', primary: '#4dd0e1', bg: '#f4fdff' },
-  { value: 'mint-star', label: '薄荷星梦', primary: '#d8c2f9', bg: '#faf7ff' },
-  { value: 'forest-dream', label: '森梦蝶屿', primary: '#346357', bg: '#f4fcf9' },
-  { value: 'night-apple', label: '晚风苹果', primary: '#5a7d9a', bg: '#f4f8fb' }
+  { value: 'black-rice', label: '黑米潮糕', primary: '#ffb400', bg: '#2b2b29' }
 ]
 
 const props = defineProps<{
@@ -850,7 +845,7 @@ onBeforeUnmount(() => {
 }
 .theme-item.active {
   border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  background: color-mix(in oklab, var(--color-primary) 10%, transparent);
 }
 .theme-color-box {
   width: 48px;

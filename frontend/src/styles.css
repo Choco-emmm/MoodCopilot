@@ -7,8 +7,8 @@
   /* ── Color ── */
   --color-bg: #f8f6f1;
   --color-surface: #fffdf8;
-  --color-surface-hover: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface));
-  --color-surface-soft: color-mix(in srgb, var(--color-primary) 3%, var(--color-surface));
+  --color-surface-hover: color-mix(in oklab, var(--color-primary) 6%, var(--color-surface));
+  --color-surface-soft: color-mix(in oklab, var(--color-primary) 3%, var(--color-surface));
 
   --color-text: #20201d;
   --color-text-secondary: #67645d;
@@ -23,15 +23,15 @@
   --color-warning: #ffb400;
 
   --color-primary: #4a7c62;
-  --color-primary-light: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+  --color-primary-light: color-mix(in oklab, var(--color-primary) 12%, var(--color-surface));
   --color-primary-hover: #326a54;
 
   /* 旧 Jade 别名，保持兼容 */
   --color-jade: var(--color-primary);
   --color-jade-hover: var(--color-primary-hover);
 
-  --color-border: color-mix(in srgb, var(--color-primary) 15%, transparent);
-  --color-border-strong: color-mix(in srgb, var(--color-primary) 30%, transparent);
+  --color-border: color-mix(in oklab, var(--color-primary) 15%, transparent);
+  --color-border-strong: color-mix(in oklab, var(--color-primary) 30%, transparent);
 
   /* ── Typography ── */
   --font-display: "Noto Serif SC", "STSong", "Songti SC", "KaiTi", "SimSun", serif;
@@ -136,7 +136,7 @@ button,
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--color-primary) 18%, transparent 82%);
+  background: color-mix(in oklab, var(--color-primary) 18%, transparent 82%);
   color: var(--color-text);
 }
 
@@ -326,7 +326,7 @@ button,
 }
 
 .masthead-user-link:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-jade) 45%, transparent 55%);
+  outline: 2px solid color-mix(in oklab, var(--color-jade) 45%, transparent 55%);
   outline-offset: 3px;
   border-radius: 12px;
 }
@@ -1023,7 +1023,7 @@ h3 {
 
 .like-btn.liked {
   border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary-light) 60%, white 40%);
+  background: color-mix(in oklab, var(--color-primary-light) 60%, white 40%);
   color: var(--color-primary);
 }
 
@@ -1052,7 +1052,7 @@ h3 {
 .feed-admin-row {
   margin-top: 2px;
   padding-top: 8px;
-  border-top: 1px dashed color-mix(in srgb, var(--color-border) 86%, white 14%);
+  border-top: 1px dashed color-mix(in oklab, var(--color-border) 86%, white 14%);
 }
 
 .feed-admin-delete {
@@ -1077,12 +1077,12 @@ h3 {
 
 .vis-tag-public {
   color: #18a058;
-  background: color-mix(in srgb, #18a058 12%, transparent 88%);
+  background: color-mix(in oklab, #18a058 12%, transparent 88%);
 }
 
 .vis-tag-private {
   color: var(--color-text-muted);
-  background: color-mix(in srgb, var(--color-text-muted) 10%, transparent 90%);
+  background: color-mix(in oklab, var(--color-text-muted) 10%, transparent 90%);
 }
 
 .feed-head-left {
@@ -1136,7 +1136,7 @@ h3 {
   font-size: 10px;
   font-weight: 700;
   color: var(--color-jade);
-  background: color-mix(in srgb, var(--color-jade) 12%, transparent);
+  background: color-mix(in oklab, var(--color-jade) 12%, transparent);
   padding: 1px 6px;
   border-radius: 8px;
   margin-left: 6px;
@@ -1147,7 +1147,7 @@ h3 {
   font-size: 10px;
   font-weight: 700;
   color: #b23a3a;
-  background: color-mix(in srgb, #b23a3a 12%, transparent);
+  background: color-mix(in oklab, #b23a3a 12%, transparent);
   padding: 1px 6px;
   border-radius: 8px;
   margin-left: 6px;
@@ -1458,7 +1458,7 @@ h3 {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 18%, var(--color-border) 82%);
+  border: 1px solid color-mix(in oklab, var(--color-accent) 18%, var(--color-border) 82%);
   border-radius: var(--radius-md);
   background: var(--color-accent-bg);
   color: var(--color-text-secondary);
@@ -2124,7 +2124,7 @@ h3 {
 .chat-sidebar {
   display: grid;
   gap: 0;
-  border: 1px solid color-mix(in srgb, var(--color-border) 80%, white 20%);
+  border: 1px solid color-mix(in oklab, var(--color-border) 80%, white 20%);
   border-radius: var(--radius-md);
   background: var(--color-surface);
   overflow: hidden;
@@ -2166,7 +2166,7 @@ h3 {
 }
 
 .conv-item.active {
-  background: color-mix(in srgb, var(--color-primary-light) 68%, white 32%);
+  background: color-mix(in oklab, var(--color-primary-light) 68%, white 32%);
   box-shadow: inset 2px 0 0 var(--color-primary);
 }
 
@@ -2982,8 +2982,8 @@ h3 {
     max-width: 148px;
     padding: 4px 8px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--color-surface) 86%, white 14%);
-    border: 1px solid color-mix(in srgb, var(--color-border) 80%, white 20%);
+    background: color-mix(in oklab, var(--color-surface) 86%, white 14%);
+    border: 1px solid color-mix(in oklab, var(--color-border) 80%, white 20%);
     box-shadow: 0 4px 12px rgba(32, 32, 29, 0.06);
   }
 
@@ -3105,10 +3105,10 @@ h3 {
     width: 100%;
     max-width: 100%;
     padding: 12px;
-    border: 1px solid color-mix(in srgb, var(--color-border) 92%, white 8%);
+    border: 1px solid color-mix(in oklab, var(--color-border) 92%, white 8%);
     border-radius: var(--radius-lg);
     box-shadow: 0 2px 8px rgba(28, 24, 20, 0.03);
-    background: color-mix(in srgb, var(--color-surface) 92%, white 8%);
+    background: color-mix(in oklab, var(--color-surface) 92%, white 8%);
   }
 
   .feed-item:hover {
@@ -3117,8 +3117,8 @@ h3 {
   }
 
   .feed-item:active {
-    border-color: color-mix(in srgb, var(--color-jade) 20%, var(--color-border) 80%);
-    background: color-mix(in srgb, var(--color-surface) 88%, var(--color-primary-light) 12%);
+    border-color: color-mix(in oklab, var(--color-jade) 20%, var(--color-border) 80%);
+    background: color-mix(in oklab, var(--color-surface) 88%, var(--color-primary-light) 12%);
   }
 
   .feed-item .feed-head {
@@ -3674,33 +3674,4 @@ h3 {
   --color-text-secondary: #dcdcdc;
   --color-border: #666663;
 }
-[data-theme="cherry-blossom"] {
-  --color-primary: #ff78ae;
-  --color-primary-hover: #e05b92;
-  --color-bg: #fff0f7;
-  --color-surface: #ffffff;
-}
-[data-theme="cloud-sky"] {
-  --color-primary: #4dd0e1;
-  --color-primary-hover: #26c6da;
-  --color-bg: #f4fdff;
-  --color-surface: #ffffff;
-}
-[data-theme="mint-star"] {
-  --color-primary: #d8c2f9;
-  --color-primary-hover: #bda2eb;
-  --color-bg: #faf7ff;
-  --color-surface: #ffffff;
-}
-[data-theme="forest-dream"] {
-  --color-primary: #346357;
-  --color-primary-hover: #22473e;
-  --color-bg: #f4fcf9;
-  --color-surface: #ffffff;
-}
-[data-theme="night-apple"] {
-  --color-primary: #5a7d9a;
-  --color-primary-hover: #42617a;
-  --color-bg: #f4f8fb;
-  --color-surface: #ffffff;
-}
+

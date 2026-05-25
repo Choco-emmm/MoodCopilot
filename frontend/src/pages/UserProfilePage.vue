@@ -387,7 +387,7 @@ function handleProfileUpdated() {
   font-weight: 700;
   color: var(--color-surface);
   background: var(--color-primary);
-  border: 1px solid color-mix(in srgb, var(--color-primary) 35%, transparent 65%);
+  border: 1px solid color-mix(in oklab, var(--color-primary) 35%, transparent 65%);
 }
 
 .profile-avatar-img {
@@ -509,7 +509,7 @@ function handleProfileUpdated() {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 24%, transparent 76%);
+  border: 1px solid color-mix(in oklab, var(--color-primary) 24%, transparent 76%);
 }
 
 .settings-avatar-preview {
@@ -604,8 +604,8 @@ function handleProfileUpdated() {
   gap: 10px;
   padding: 10px;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--color-surface-soft) 50%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
+  background: color-mix(in oklab, var(--color-surface-soft) 50%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent);
 }
 
 .memory-content {
@@ -671,7 +671,7 @@ function handleProfileUpdated() {
 }
 
 .danger-zone {
-  border-color: color-mix(in srgb, var(--color-accent) 20%, transparent 80%);
+  border-color: color-mix(in oklab, var(--color-accent) 20%, transparent 80%);
 }
 
 .crop-area {
@@ -679,7 +679,7 @@ function handleProfileUpdated() {
   justify-content: center;
   align-items: center;
   background: var(--color-surface-soft);
-  border: 1px solid color-mix(in srgb, var(--color-border-strong) 22%, transparent 78%);
+  border: 1px solid color-mix(in oklab, var(--color-border-strong) 22%, transparent 78%);
   border-radius: 12px;
   overflow: hidden;
   cursor: grab;
@@ -730,12 +730,12 @@ function handleProfileUpdated() {
   text-decoration: none;
   padding: 8px 12px;
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  background: color-mix(in oklab, var(--color-primary) 10%, transparent);
   transition: background 0.15s, color 0.15s;
 }
 
 .task-center-link:hover {
-  background: color-mix(in srgb, var(--color-primary) 18%, transparent 82%);
+  background: color-mix(in oklab, var(--color-primary) 18%, transparent 82%);
   color: var(--color-primary-hover);
 }
 
@@ -747,7 +747,7 @@ function handleProfileUpdated() {
   margin-bottom: 20px;
   padding: 16px;
   background: var(--color-surface-soft);
-  border: 1px solid color-mix(in srgb, var(--color-border-strong) 15%, transparent 85%);
+  border: 1px solid color-mix(in oklab, var(--color-border-strong) 15%, transparent 85%);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
 }
@@ -775,7 +775,7 @@ function handleProfileUpdated() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-top: 1px dashed color-mix(in srgb, var(--color-border-strong) 25%, transparent 75%);
+  border-top: 1px dashed color-mix(in oklab, var(--color-border-strong) 25%, transparent 75%);
   padding-top: 12px;
 }
 

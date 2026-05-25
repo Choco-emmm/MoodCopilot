@@ -22,8 +22,8 @@ defineProps<{
   padding: 16px;
   border-radius: 16px;
   background: var(--color-surface);
-  border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
-  box-shadow: 0 2px 10px color-mix(in srgb, var(--color-text) 3%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent);
+  box-shadow: 0 2px 10px color-mix(in oklab, var(--color-text) 3%, transparent);
 }
 
 .section-head {
@@ -46,8 +46,8 @@ defineProps<{
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent 82%);
+  background: color-mix(in oklab, var(--color-primary) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-primary) 18%, transparent 82%);
   border-radius: 999px;
   padding: 2px 9px;
 }

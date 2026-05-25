@@ -80,14 +80,14 @@ onMounted(async () => {
   border-radius: 50%;
   background: var(--color-primary);
   color: var(--color-on-primary);
-  box-shadow: 0 4px 20px color-mix(in srgb, var(--color-primary) 36%, transparent 64%);
+  box-shadow: 0 4px 20px color-mix(in oklab, var(--color-primary) 36%, transparent 64%);
   text-decoration: none;
   transition: transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);
 }
 
 .task-fab:hover {
   transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 6px 28px color-mix(in srgb, var(--color-primary) 44%, transparent 56%);
+  box-shadow: 0 6px 28px color-mix(in oklab, var(--color-primary) 44%, transparent 56%);
 }
 
 .task-fab:active {

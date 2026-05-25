@@ -293,7 +293,7 @@ function navigateToTask(field: string) {
 .level-bar-wrap {
   height: 8px;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--color-primary) 12%, transparent 88%);
+  background: color-mix(in oklab, var(--color-primary) 12%, transparent 88%);
   overflow: hidden;
   margin-bottom: 8px;
 }
@@ -346,12 +346,12 @@ function navigateToTask(field: string) {
 
 .week-day-done {
   background: var(--color-primary-light);
-  border-color: color-mix(in srgb, var(--color-primary) 24%, transparent 76%);
+  border-color: color-mix(in oklab, var(--color-primary) 24%, transparent 76%);
 }
 
 .week-day-today {
   border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary-light) 80%, white 20%);
+  background: color-mix(in oklab, var(--color-primary-light) 80%, white 20%);
 }
 
 .week-day-dot {
@@ -364,7 +364,7 @@ function navigateToTask(field: string) {
   font-size: 13px;
   font-weight: 700;
   color: var(--color-text-muted);
-  background: color-mix(in srgb, var(--color-border) 40%, white 60%);
+  background: color-mix(in oklab, var(--color-border) 40%, white 60%);
   transition: background var(--duration-fast) var(--ease-out),
               color var(--duration-fast) var(--ease-out);
 }
@@ -377,7 +377,7 @@ function navigateToTask(field: string) {
 .week-day-today .week-day-dot {
   background: var(--color-primary);
   color: var(--color-on-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent 80%);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 20%, transparent 80%);
 }
 
 .week-day-label {
@@ -440,13 +440,13 @@ function navigateToTask(field: string) {
   transition: background var(--duration-normal) var(--ease-out),
               transform var(--duration-fast) var(--ease-out),
               box-shadow var(--duration-normal) var(--ease-out);
-  box-shadow: 0 4px 18px color-mix(in srgb, var(--color-primary) 28%, transparent 72%);
+  box-shadow: 0 4px 18px color-mix(in oklab, var(--color-primary) 28%, transparent 72%);
 }
 
 .checkin-btn-main:hover:not(:disabled) {
   background: linear-gradient(135deg, var(--color-primary-hover), #4a8460);
   transform: translateY(-1px);
-  box-shadow: 0 6px 24px color-mix(in srgb, var(--color-primary) 36%, transparent 64%);
+  box-shadow: 0 6px 24px color-mix(in oklab, var(--color-primary) 36%, transparent 64%);
 }
 
 .checkin-btn-main:active:not(:disabled) {
@@ -502,7 +502,7 @@ function navigateToTask(field: string) {
   letter-spacing: 0.04em;
   color: var(--color-primary);
   background: var(--color-primary-light);
-  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent 82%);
+  border: 1px solid color-mix(in oklab, var(--color-primary) 18%, transparent 82%);
   border-radius: 999px;
   padding: 2px 9px;
 }
@@ -549,13 +549,13 @@ function navigateToTask(field: string) {
   padding: 14px 16px;
   border-radius: var(--radius-md);
   background: var(--color-surface-soft);
-  border: 1px solid color-mix(in srgb, var(--color-border-strong) 14%, transparent 86%);
+  border: 1px solid color-mix(in oklab, var(--color-border-strong) 14%, transparent 86%);
   transition: border-color var(--duration-fast) var(--ease-out),
               box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .task-card:hover {
-  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--color-border) 70%);
+  border-color: color-mix(in oklab, var(--color-primary) 30%, var(--color-border) 70%);
 }
 
 .task-card-done {
@@ -592,19 +592,19 @@ function navigateToTask(field: string) {
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-text-muted) 10%, transparent 90%);
+  background: color-mix(in oklab, var(--color-text-muted) 10%, transparent 90%);
   color: var(--color-text-muted);
 }
 
 .task-counter-full {
-  background: color-mix(in srgb, var(--color-primary) 14%, transparent 86%);
+  background: color-mix(in oklab, var(--color-primary) 14%, transparent 86%);
   color: var(--color-primary);
 }
 
 .task-bar-wrap {
   height: 5px;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent 90%);
+  background: color-mix(in oklab, var(--color-primary) 10%, transparent 90%);
   overflow: hidden;
 }
 
@@ -617,7 +617,7 @@ function navigateToTask(field: string) {
 }
 
 .task-bar-full {
-  background: color-mix(in srgb, var(--color-primary) 50%, #e8a840 50%);
+  background: color-mix(in oklab, var(--color-primary) 50%, #e8a840 50%);
 }
 
 .task-card-foot {
@@ -665,7 +665,7 @@ function navigateToTask(field: string) {
 .btn-go {
   background: var(--color-primary);
   color: var(--color-on-primary);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 20%, transparent 80%);
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--color-primary) 20%, transparent 80%);
 }
 
 .btn-go:hover {
@@ -687,13 +687,13 @@ function navigateToTask(field: string) {
 .claim-toast-ok {
   background: var(--color-primary-light);
   color: var(--color-primary);
-  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent 80%);
+  border: 1px solid color-mix(in oklab, var(--color-primary) 20%, transparent 80%);
 }
 
 .claim-toast-err {
   background: var(--color-accent-bg);
   color: var(--color-accent);
-  border: 1px solid color-mix(in srgb, var(--color-accent) 20%, transparent 80%);
+  border: 1px solid color-mix(in oklab, var(--color-accent) 20%, transparent 80%);
 }
 
 @keyframes toastIn {
@@ -716,11 +716,11 @@ function navigateToTask(field: string) {
   margin-top: 14px;
   padding: 14px 16px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--color-primary-light), color-mix(in srgb, var(--color-primary-light) 70%, var(--color-surface) 30%));
+  background: linear-gradient(135deg, var(--color-primary-light), color-mix(in oklab, var(--color-primary-light) 70%, var(--color-surface) 30%));
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--color-primary);
-  border: 1px dashed color-mix(in srgb, var(--color-primary) 24%, transparent 76%);
+  border: 1px dashed color-mix(in oklab, var(--color-primary) 24%, transparent 76%);
 }
 
 .all-done-icon {

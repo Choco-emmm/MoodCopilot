@@ -331,7 +331,7 @@ function toggleLine(index: number) {
 
 .selected-line-x:hover {
   opacity: 1;
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  background: color-mix(in oklab, var(--color-primary) 10%, transparent);
 }
 
 .lyrics-fetch-btn {

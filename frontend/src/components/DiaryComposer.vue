@@ -408,7 +408,7 @@ async function handleSave() {
 
 .composer-editor:focus-within :deep(.vditor) {
   border-color: var(--color-primary) !important;
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 8%, transparent), 0 0 0 3px color-mix(in srgb, var(--color-primary) 10%, transparent) !important;
+  box-shadow: 0 4px 12px color-mix(in oklab, var(--color-primary) 8%, transparent), 0 0 0 3px color-mix(in oklab, var(--color-primary) 10%, transparent) !important;
 }
 
 .composer-editor :deep(.vditor-content) {
@@ -725,7 +725,7 @@ async function handleSave() {
   position: relative;
   overflow: hidden;
   border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 2%, transparent);
+  background: color-mix(in oklab, var(--color-primary) 2%, transparent);
 }
 
 .upload-shimmer {
@@ -734,7 +734,7 @@ async function handleSave() {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-primary) 8%, transparent), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-primary) 8%, transparent), transparent);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
   pointer-events: none;

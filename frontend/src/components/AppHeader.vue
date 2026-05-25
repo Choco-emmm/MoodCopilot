@@ -416,7 +416,7 @@ function formatQuota(val: number | undefined, max?: number): string {
   font-size: 10px;
   font-weight: 700;
   color: var(--color-jade);
-  background: color-mix(in srgb, var(--color-jade) 12%, transparent);
+  background: color-mix(in oklab, var(--color-jade) 12%, transparent);
   padding: 1px 6px;
   border-radius: 8px;
   flex-shrink: 0;
@@ -513,7 +513,7 @@ function formatQuota(val: number | undefined, max?: number): string {
 }
 
 .quota-row-active {
-  background: color-mix(in srgb, var(--color-jade) 8%, transparent);
+  background: color-mix(in oklab, var(--color-jade) 8%, transparent);
 }
 
 .quota-row-active td:first-child {

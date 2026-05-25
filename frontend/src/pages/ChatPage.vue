@@ -894,7 +894,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   margin: 6px 0;
   border: none;
   border-radius: var(--radius-md);
-  background: var(--color-surface-soft, color-mix(in srgb, var(--color-primary) 3%, transparent));
+  background: var(--color-surface-soft, color-mix(in oklab, var(--color-primary) 3%, transparent));
   overflow: hidden;
   animation: refsIn 0.2s var(--ease-out);
 }
@@ -912,7 +912,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 .rag-references-fixed {
   margin-bottom: 8px;
   padding: 8px 10px;
-  background: var(--color-surface-soft, color-mix(in srgb, var(--color-primary) 3%, transparent));
+  background: var(--color-surface-soft, color-mix(in oklab, var(--color-primary) 3%, transparent));
   border-radius: 8px;
   border: none;
   width: fit-content;
@@ -987,7 +987,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   display: flex;
   flex-direction: column;
   gap: 0;
-  border-top: 1px solid color-mix(in srgb, var(--color-border) 30%, transparent 70%);
+  border-top: 1px solid color-mix(in oklab, var(--color-border) 30%, transparent 70%);
   padding: 2px 0;
 }
 
@@ -1009,7 +1009,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 }
 
 .rag-ref-item:not(:last-child) {
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 25%, transparent 75%);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 25%, transparent 75%);
 }
 
 .rag-ref-clickable {
@@ -1033,7 +1033,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 }
 
 .rag-ref-item-profile:not(:last-child) {
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 25%, transparent 75%);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 25%, transparent 75%);
 }
 
 .rag-ref-item-profile:hover {
@@ -1057,7 +1057,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 }
 
 .rag-ref-tool-badge {
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  background: color-mix(in oklab, var(--color-primary) 10%, transparent);
   color: var(--color-primary);
   border-radius: 3px;
   padding: 0 3px;
@@ -1071,16 +1071,16 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   padding: 8px 10px;
   background-color: transparent;
   border-radius: 6px;
-  border-left: 2px solid color-mix(in srgb, var(--color-text-muted) 30%, transparent);
+  border-left: 2px solid color-mix(in oklab, var(--color-text-muted) 30%, transparent);
   font-size: var(--text-xs);
-  color: color-mix(in srgb, var(--color-text-secondary) 80%, transparent);
+  color: color-mix(in oklab, var(--color-text-secondary) 80%, transparent);
 }
 
 :deep(.think-block summary) {
   cursor: pointer;
   font-weight: 500;
   font-size: var(--text-xs);
-  color: color-mix(in srgb, var(--color-text-muted) 80%, transparent);
+  color: color-mix(in oklab, var(--color-text-muted) 80%, transparent);
   user-select: none;
   outline: none;
 }
@@ -1096,13 +1096,13 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
 :deep(.think-content) {
   margin-top: 6px;
   padding-left: 2px;
-  border-top: 1px dashed color-mix(in srgb, var(--color-border) 40%, transparent);
+  border-top: 1px dashed color-mix(in oklab, var(--color-border) 40%, transparent);
   padding-top: 6px;
 }
 
 :deep(.think-content p) {
   font-size: var(--text-xs);
-  color: color-mix(in srgb, var(--color-text-secondary) 80%, transparent);
+  color: color-mix(in oklab, var(--color-text-secondary) 80%, transparent);
   margin-bottom: 0.5em;
   line-height: 1.6;
 }
@@ -1204,7 +1204,7 @@ function chatErrorMessage(status?: number, bizMessage?: string) {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: color-mix(in srgb, var(--color-text-secondary) 80%, transparent);
+  color: color-mix(in oklab, var(--color-text-secondary) 80%, transparent);
   font-size: var(--text-sm);
   padding: 8px 12px;
   background-color: transparent;
