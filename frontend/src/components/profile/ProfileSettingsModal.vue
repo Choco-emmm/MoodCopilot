@@ -87,8 +87,13 @@
           </button>
         </div>
 
-        <!-- 日间主题 -->
-        <p class="theme-section-label">☀️ 日间主题</p>
+        <button type="button" class="theme-toggle-btn" @click="themeExpanded = !themeExpanded">
+          主题配色 {{ themeExpanded ? '▾' : '▸' }}
+        </button>
+
+        <template v-if="themeExpanded">
+          <!-- 日间主题 -->
+          <p class="theme-section-label">☀️ 日间主题</p>
         <div class="theme-grid">
           <div
             v-for="t in lightThemeOptions"
@@ -134,6 +139,7 @@
             <span v-if="auth.darkTheme === t.value || (!auth.darkTheme && t.value === 'minimal-dark')" class="theme-check">✓</span>
           </div>
         </div>
+        </template>
       </SettingSection>
 
       <SettingSection title="邮箱账号" tag="Account">
@@ -342,6 +348,7 @@ const changingPassword = ref(false)
 const passwordCodeCountdown = ref(0)
 const passwordMsg = ref('')
 const showPasswordChange = ref(false)
+const themeExpanded = ref(false)
 let passwordCodeTimer: number | null = null
 
 const suggestionContent = ref('')
@@ -922,6 +929,22 @@ onBeforeUnmount(() => {
   background: var(--color-primary-light);
   color: var(--color-primary);
   font-weight: 600;
+}
+.theme-toggle-btn {
+  display: block;
+  width: 100%;
+  padding: 6px 0;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: color 0.15s;
+}
+.theme-toggle-btn:hover {
+  color: var(--color-text-secondary);
 }
 .theme-section-label {
   margin: 16px 0 6px;
