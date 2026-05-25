@@ -19,8 +19,8 @@ export const authApi = {
     fd.append('file', file)
     return api.post('/auth/avatar', fd)
   },
-  updateSettings: (dailyNotifyEnabled: boolean, profileNotifyEnabled?: boolean, theme?: string) =>
-    api.put('/auth/settings', { dailyNotifyEnabled, profileNotifyEnabled, theme }),
+  updateSettings: (dailyNotifyEnabled: boolean, profileNotifyEnabled?: boolean, theme?: string, themeMode?: string, lightTheme?: string, darkTheme?: string) =>
+    api.put('/auth/settings', { dailyNotifyEnabled, profileNotifyEnabled, theme, themeMode, lightTheme, darkTheme }),
   getQuota: () => api.get('/user/quota'),
 }
 

@@ -13,6 +13,9 @@ export const useAuthStore = defineStore('auth', () => {
   const avatar = ref<string | null>(null)
   const signature = ref<string | null>(null)
   const theme = ref<string>('green')
+  const lightTheme = ref<string>('green')
+  const darkTheme = ref<string>('minimal-dark')
+  const themeMode = ref<string>('auto')
   const dailyNotifyEnabled = ref<boolean>(true)
   const profileNotifyEnabled = ref<boolean>(true)
   const role = ref<string>(localStorage.getItem('role') || 'USER')
@@ -55,6 +58,9 @@ export const useAuthStore = defineStore('auth', () => {
       avatar.value = normalizeResourceUrl(data.avatar)
       signature.value = data.signature ?? null
       theme.value = data.theme ?? 'green'
+      lightTheme.value = data.lightTheme ?? 'green'
+      darkTheme.value = data.darkTheme ?? 'minimal-dark'
+      themeMode.value = data.themeMode ?? 'auto'
       document.documentElement.setAttribute('data-theme', theme.value)
       dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
       profileNotifyEnabled.value = data.profileNotifyEnabled !== false
@@ -83,14 +89,17 @@ export const useAuthStore = defineStore('auth', () => {
     avatar.value = normalizeResourceUrl(res.data.data.avatar)
   }
 
-  async function updateSettings(daily: boolean, profile?: boolean, newTheme?: string) {
-    await authApi.updateSettings(daily, profile, newTheme)
+  async function updateSettings(
+    daily: boolean, profile?: boolean,
+    newTheme?: string, newThemeMode?: string, newLightTheme?: string, newDarkTheme?: string
+  ) {
+    await authApi.updateSettings(daily, profile, newTheme, newThemeMode, newLightTheme, newDarkTheme)
     dailyNotifyEnabled.value = daily
     if (profile !== undefined) profileNotifyEnabled.value = profile
-    if (newTheme !== undefined) {
-      theme.value = newTheme
-      document.documentElement.setAttribute('data-theme', newTheme)
-    }
+    if (newTheme !== undefined) theme.value = newTheme
+    if (newThemeMode !== undefined) themeMode.value = newThemeMode
+    if (newLightTheme !== undefined) lightTheme.value = newLightTheme
+    if (newDarkTheme !== undefined) darkTheme.value = newDarkTheme
   }
 
   function applyAuthData(data: any) {
@@ -102,6 +111,9 @@ export const useAuthStore = defineStore('auth', () => {
     signature.value = data.signature ?? null
     dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
     profileNotifyEnabled.value = data.profileNotifyEnabled !== false
+    lightTheme.value = data.lightTheme ?? 'green'
+    darkTheme.value = data.darkTheme ?? 'minimal-dark'
+    themeMode.value = data.themeMode ?? 'auto'
     exp.value = data.exp ?? 0
     level.value = data.level ?? 1
     proExpireTime.value = data.proExpireTime ?? null
@@ -157,7 +169,7 @@ export const useAuthStore = defineStore('auth', () => {
     token, userId, displayName,    email,
     avatar,
     signature,
-    theme,
+    theme, lightTheme, darkTheme, themeMode,
     dailyNotifyEnabled, profileNotifyEnabled, role, exp, level, proExpireTime, nameChangeCount, nameChangeWeek, maxWeeklyNameChanges, remainingNameChanges, isPro, isAuthenticated, isAdmin,
     fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout, sendCode, sendPasswordChangeCode, changePassword
   }

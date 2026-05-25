@@ -124,6 +124,8 @@ html {
   text-size-adjust: 100%;
   transition: background-color 0.35s ease, color 0.35s ease;
   overflow-y: scroll !important;
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
 html,
@@ -754,7 +756,7 @@ h3 {
 }
 
 .feed-head .avatar {
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 .similar-item strong,
@@ -870,8 +872,8 @@ h3 {
   display: grid;
   gap: 12px;
   padding: 14px 18px 18px 64px;
-  border-top: 1px solid rgba(74, 124, 98, 0.16);
-  background: rgba(255, 255, 255, 0.72);
+  border-top: 1px solid color-mix(in oklab, var(--color-primary) 16%, transparent);
+  background: color-mix(in oklab, var(--color-surface) 72%, transparent);
 }
 
 .my-diary-expanded .section-title.compact {
@@ -896,7 +898,7 @@ h3 {
   border: 1.5px solid var(--color-jade);
   border-radius: 14px;
   background: var(--color-jade);
-  color: #fff;
+  color: var(--color-on-primary);
   font-size: var(--text-xs);
   font-weight: 600;
   cursor: pointer;
@@ -1418,7 +1420,7 @@ h3 {
   right: 0;
   bottom: 0;
   height: 1.6em;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.92));
+  background: linear-gradient(180deg, transparent, var(--color-surface));
 }
 
 .notif-msg :is(p, ul, ol, blockquote, pre, code) {
@@ -1551,8 +1553,8 @@ h3 {
   width: 100%;
   max-width: 420px;
   padding: 2.3rem 2.2rem;
-  background: rgba(255, 253, 248, 0.85);
-  border: 1px solid rgba(227, 222, 211, 0.6);
+  background: color-mix(in oklab, var(--color-surface) 85%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-border) 60%, transparent);
   border-radius: 20px;
   box-shadow: 0 10px 30px rgba(32, 32, 29, 0.05), 0 1px 3px rgba(32, 32, 29, 0.02);
   backdrop-filter: blur(20px);
@@ -1663,7 +1665,7 @@ h3 {
 
 .mode-tab.active {
   background: var(--color-jade);
-  color: #fff;
+  color: var(--color-on-primary);
   font-weight: 600;
 }
 
@@ -1699,7 +1701,7 @@ h3 {
 
 .main-tab.active {
   background: var(--color-jade);
-  color: #fff;
+  color: var(--color-on-primary);
   font-weight: 600;
 }
 
@@ -2385,7 +2387,7 @@ h3 {
 .chat-user {
   justify-self: end;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
   border-bottom-right-radius: 6px;
 }
 
@@ -3491,7 +3493,7 @@ h3 {
   .mode-tab.active,
   .main-tab.active {
     background: var(--color-jade);
-    color: #fff;
+    color: var(--color-on-primary);
   }
 
   .mode-tab:first-child,
@@ -3862,6 +3864,48 @@ h3 {
     --color-primary-light: color-mix(in oklab, var(--color-primary) 15%, var(--color-bg));
     --color-border: color-mix(in oklab, var(--color-primary) 10%, #555);
     --color-border-strong: color-mix(in oklab, var(--color-primary) 20%, #666);
+  }
+}
+
+/* ── minimal-dark · 极简暗夜 ── */
+[data-theme="minimal-dark"] {
+  color-scheme: dark;
+  --color-primary: #8a8e96;
+  --color-primary-hover: #a0a4ac;
+  --color-primary-light: #1e1e22;
+  --color-accent: #6b8aa8;
+  --color-accent-light: #4a6278;
+  --color-accent-bg: #1a1e24;
+  --color-bg: #0e0e0e;
+  --color-surface: #1a1a1a;
+  --color-surface-hover: #222222;
+  --color-surface-soft: #1e1e1e;
+  --color-on-primary: #0e0e0e;
+  --color-text: #e6e6e6;
+  --color-text-secondary: #a8a8a8;
+  --color-text-muted: #787878;
+  --color-text-light: #585858;
+  --color-border: #282828;
+  --color-border-strong: #383838;
+  --color-disabled: #383838;
+  --color-error: #e06060;
+  --color-warning: #c8983e;
+  --color-success: #6aaa6a;
+  --color-info: #6b8aa8;
+  --color-overlay: rgba(0, 0, 0, 0.6);
+  --color-backdrop: rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="minimal-dark"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 8%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 4%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 10%, var(--color-bg));
+    --color-border: color-mix(in oklab, var(--color-primary) 10%, #2a2a2a);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 18%, #333);
   }
 }
 

@@ -20,6 +20,9 @@ public class UserEntity {
     private String avatar;
     private String signature;
     private String theme;
+    private String lightTheme;
+    private String darkTheme;
+    private String themeMode;
     private Boolean dailyNotifyEnabled;
     private Boolean profileNotifyEnabled;
     private String inviteCode;
@@ -112,6 +115,30 @@ public class UserEntity {
 
     public void setTheme(String theme) {
         this.theme = theme;
+    }
+
+    public String getLightTheme() {
+        return lightTheme;
+    }
+
+    public void setLightTheme(String lightTheme) {
+        this.lightTheme = lightTheme;
+    }
+
+    public String getDarkTheme() {
+        return darkTheme;
+    }
+
+    public void setDarkTheme(String darkTheme) {
+        this.darkTheme = darkTheme;
+    }
+
+    public String getThemeMode() {
+        return themeMode;
+    }
+
+    public void setThemeMode(String themeMode) {
+        this.themeMode = themeMode;
     }
 
     public Boolean getDailyNotifyEnabled() {

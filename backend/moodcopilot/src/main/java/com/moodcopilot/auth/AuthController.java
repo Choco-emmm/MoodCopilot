@@ -106,7 +106,11 @@ public class AuthController {
         Boolean dailyNotifyEnabled = (Boolean) body.get("dailyNotifyEnabled");
         Boolean profileNotifyEnabled = (Boolean) body.get("profileNotifyEnabled");
         String theme = (String) body.get("theme");
-        authService.updateSettings(requireUser(user).getId(), dailyNotifyEnabled, profileNotifyEnabled, theme);
+        String themeMode = (String) body.get("themeMode");
+        String lightTheme = (String) body.get("lightTheme");
+        String darkTheme = (String) body.get("darkTheme");
+        authService.updateSettings(requireUser(user).getId(), dailyNotifyEnabled, profileNotifyEnabled,
+                theme, themeMode, lightTheme, darkTheme);
         return ApiResponse.ok(null);
     }
 

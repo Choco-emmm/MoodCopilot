@@ -25,5 +25,6 @@ export const themeOptions: ThemeOption[] = [
   { value: 'lemon-grape',    label: '柠香青提', primary: '#688a1e', accent: '#f0d83a', bg: '#fcfdf4', surface: '#ffffff' },
   { value: 'matcha-mist',    label: '抹茶微岚', primary: '#587585', accent: '#b5a86e', bg: '#f8fbf5', surface: '#ffffff' },
   { value: 'clear-summer',   label: '晴川浅夏', primary: '#2a865b', accent: '#f29c38', bg: '#f0faf5', surface: '#ffffff' },
+  { value: 'minimal-dark',   label: '极简暗夜', primary: '#8a8e96', accent: '#6b8aa8', bg: '#0e0e0e', surface: '#1a1a1a' },
   { value: 'black-rice',     label: '黑米潮糕', primary: '#ffb400', accent: '#29c4e0', bg: '#2b2b29', surface: '#474744' },
 ];

@@ -106,9 +106,13 @@ watch(() => authStore.token, (newToken, oldToken) => {
 const isDark = computed(() => osTheme.value === 'dark')
 
 const activeThemeName = computed(() => {
-  if (isDark.value) return 'black-rice'
-  if (authStore.theme === 'black-rice') return 'green'
-  return authStore.theme || 'green'
+  // themeMode: 'auto' 跟随系统, 'light' 强制白天, 'dark' 强制夜间
+  if (authStore.themeMode === 'light') return authStore.lightTheme || 'green'
+  if (authStore.themeMode === 'dark') return authStore.darkTheme || 'minimal-dark'
+  // auto: 跟随系统
+  return isDark.value
+    ? (authStore.darkTheme || 'minimal-dark')
+    : (authStore.lightTheme || 'green')
 })
 
 watchEffect(() => {
@@ -120,21 +124,40 @@ watchEffect(() => {
   }
 })
 
-const naiveTheme = computed(() => isDark.value ? darkTheme : null)
+const naiveTheme = computed(() => {
+  if (authStore.themeMode === 'dark') return darkTheme
+  if (authStore.themeMode === 'light') return null
+  return isDark.value ? darkTheme : null
+})
 
 const dynamicThemeOverrides = computed<GlobalThemeOverrides>(() => {
   const current = themeOptions.find(t => t.value === activeThemeName.value) || themeOptions[0]
   const isBlackRice = activeThemeName.value === 'black-rice'
+  const isMinimalDark = activeThemeName.value === 'minimal-dark'
+  const isDarkTheme = isBlackRice || isMinimalDark
   return {
     common: {
       primaryColor: current.primary,
       infoColor: current.accent,
       successColor: current.primary,
-      errorColor: isBlackRice ? '#e06060' : '#b23a3a',
-      warningColor: isBlackRice ? '#ffb400' : '#d49200',
+      errorColor: isDarkTheme ? '#e06060' : '#b23a3a',
+      warningColor: isDarkTheme ? '#c8983e' : '#d49200',
+      ...(isDarkTheme ? {
+        bodyColor: isMinimalDark ? '#0e0e0e' : '#2b2b29',
+        cardColor: isMinimalDark ? '#1a1a1a' : '#3a3a37',
+        modalColor: isMinimalDark ? '#1a1a1a' : '#3a3a37',
+        popoverColor: isMinimalDark ? '#1a1a1a' : '#3a3a37',
+        tableColor: isMinimalDark ? '#1a1a1a' : '#3a3a37',
+        inputColor: isMinimalDark ? '#1a1a1a' : '#3a3a37',
+        actionColor: isMinimalDark ? '#1e1e1e' : '#474744',
+        borderColor: isMinimalDark ? '#282828' : '#666663',
+        dividerColor: isMinimalDark ? '#222222' : '#555552',
+        hoverColor: isMinimalDark ? 'rgba(138, 142, 150, 0.08)' : 'rgba(255, 180, 0, 0.08)',
+        pressedColor: isMinimalDark ? 'rgba(138, 142, 150, 0.12)' : 'rgba(255, 180, 0, 0.12)',
+      } : {}),
     },
     Button: {
-      textColorPrimary: isBlackRice ? '#2b2b29' : '#ffffff',
+      textColorPrimary: isDarkTheme ? '#e6e6e6' : '#ffffff',
       borderRadiusSmall: '4px',
       borderRadiusMedium: '6px',
       borderRadiusLarge: '10px',

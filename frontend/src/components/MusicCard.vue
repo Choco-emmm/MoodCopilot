@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import type { MusicMeta } from '../stores/diary'
 import { musicApi } from '../api'
+import { decodeHtmlEntities } from '../utils/markdown'
 
 const props = withDefaults(defineProps<{
   musicMeta: MusicMeta
@@ -86,8 +87,8 @@ function toggleLine(index: number) {
         <span class="music-icon">🎵</span>
       </div>
       <div class="music-info">
-        <span class="music-title">{{ musicMeta.title }}</span>
-        <span class="music-artist">{{ musicMeta.artist }}</span>
+        <span class="music-title">{{ decodeHtmlEntities(musicMeta.title) }}</span>
+        <span class="music-artist">{{ decodeHtmlEntities(musicMeta.artist) }}</span>
       </div>
       <a
         v-if="musicMeta.songUrl"

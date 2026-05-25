@@ -58,3 +58,13 @@ export function renderSafeMarkdown(
         ALLOWED_ATTR: options?.allowedAttr ?? DEFAULT_ALLOWED_ATTR,
     })
 }
+
+/**
+ * 解码 HTML 实体（如 &amp; → &），用于处理后端返回的可能已被转义的文本。
+ */
+export function decodeHtmlEntities(text: string): string {
+    if (!text) return ''
+    const textarea = document.createElement('textarea')
+    textarea.innerHTML = text
+    return textarea.value
+}

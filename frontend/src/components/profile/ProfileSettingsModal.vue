@@ -74,14 +74,29 @@
       </SettingSection>
 
       <SettingSection title="主题外观" tag="Theme">
+        <!-- 模式切换 -->
+        <div class="theme-mode-row">
+          <button
+            v-for="mode in themeModeOptions"
+            :key="mode.value"
+            type="button"
+            :class="['theme-mode-btn', { active: auth.themeMode === mode.value }]"
+            @click="selectThemeMode(mode.value)"
+          >
+            {{ mode.label }}
+          </button>
+        </div>
+
+        <!-- 日间主题 -->
+        <p class="theme-section-label">☀️ 日间主题</p>
         <div class="theme-grid">
           <div
-            v-for="t in visibleThemeOptions"
+            v-for="t in lightThemeOptions"
             :key="t.value"
             class="theme-item"
-            :class="{ active: auth.theme === t.value || (isDark && t.value === 'black-rice') }"
+            :class="{ active: auth.lightTheme === t.value || (!auth.lightTheme && t.value === 'green') }"
             :style="{ '--t-primary': t.primary, '--t-accent': t.accent, '--t-bg': t.bg, '--t-surface': t.surface }"
-            @click="selectTheme(t.value)"
+            @click="selectLightTheme(t.value)"
           >
             <div class="theme-preview">
               <div class="theme-preview-bg">
@@ -92,7 +107,31 @@
               </div>
             </div>
             <span class="theme-label">{{ t.label }}</span>
-            <span v-if="auth.theme === t.value || (isDark && t.value === 'black-rice')" class="theme-check">✓</span>
+            <span v-if="auth.lightTheme === t.value || (!auth.lightTheme && t.value === 'green')" class="theme-check">✓</span>
+          </div>
+        </div>
+
+        <!-- 夜间主题 -->
+        <p class="theme-section-label">🌙 夜间主题</p>
+        <div class="theme-grid">
+          <div
+            v-for="t in darkThemeOptions"
+            :key="t.value"
+            class="theme-item"
+            :class="{ active: auth.darkTheme === t.value || (!auth.darkTheme && t.value === 'minimal-dark') }"
+            :style="{ '--t-primary': t.primary, '--t-accent': t.accent, '--t-bg': t.bg, '--t-surface': t.surface }"
+            @click="selectDarkTheme(t.value)"
+          >
+            <div class="theme-preview">
+              <div class="theme-preview-bg">
+                <div class="theme-preview-swatch" style="left: 6px; top: 6px; width: 18px; height: 18px; border-radius: 50%; background: var(--t-primary);"></div>
+                <div class="theme-preview-swatch" style="right: 6px; top: 8px; width: 10px; height: 10px; border-radius: 3px; background: var(--t-accent); opacity: 0.8;"></div>
+                <div class="theme-preview-bar" style="left: 6px; bottom: 8px; width: 24px; height: 3px; border-radius: 2px; background: var(--t-primary); opacity: 0.3;"></div>
+                <div class="theme-preview-bar" style="left: 6px; bottom: 14px; width: 16px; height: 2px; border-radius: 1px; background: var(--t-primary); opacity: 0.15;"></div>
+              </div>
+            </div>
+            <span class="theme-label">{{ t.label }}</span>
+            <span v-if="auth.darkTheme === t.value || (!auth.darkTheme && t.value === 'minimal-dark')" class="theme-check">✓</span>
           </div>
         </div>
       </SettingSection>
@@ -250,7 +289,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { NModal, NButton, NInput, NSwitch, useOsTheme } from 'naive-ui'
+import { NModal, NButton, NInput, NSwitch } from 'naive-ui'
 import SettingSection from '../SettingSection.vue'
 import { authApi, suggestionApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
@@ -270,16 +309,19 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const auth = useAuthStore()
-const osTheme = useOsTheme()
-const isDark = computed(() => osTheme.value === 'dark')
+const themeModeOptions = [
+  { value: 'auto', label: '跟随系统' },
+  { value: 'light', label: '保持白天' },
+  { value: 'dark', label: '保持夜间' },
+]
 
-const visibleThemeOptions = computed(() => {
-  if (isDark.value) {
-    return themeOptions.filter(t => t.value === 'black-rice')
-  } else {
-    return themeOptions.filter(t => t.value !== 'black-rice')
-  }
-})
+const lightThemeOptions = computed(() =>
+  themeOptions.filter(t => t.value !== 'black-rice' && t.value !== 'minimal-dark')
+)
+
+const darkThemeOptions = computed(() =>
+  themeOptions.filter(t => t.value === 'black-rice' || t.value === 'minimal-dark')
+)
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const editingName = ref('')
@@ -333,8 +375,8 @@ watch(showCropModal, (val) => {
 })
 
 async function hydrateSettingsData() {
-  await auth.fetchProfile()
   editingName.value = auth.displayName ?? ''
+  editingSignature.value = auth.signature ?? ''
   suggestionContent.value = ''
 }
 
@@ -628,12 +670,33 @@ async function toggleProfileNotify(val: boolean) {
   }
 }
 
-async function selectTheme(themeValue: string) {
-  if (auth.theme === themeValue) return
+async function selectThemeMode(mode: string) {
+  if (auth.themeMode === mode) return
   try {
-    await auth.updateSettings(auth.dailyNotifyEnabled, auth.profileNotifyEnabled, themeValue)
+    await auth.updateSettings(auth.dailyNotifyEnabled, auth.profileNotifyEnabled,
+      undefined, mode, undefined, undefined)
   } catch (e) {
-    logWarn('profile', '更新主题设置失败', e)
+    logWarn('profile', '更新主题模式失败', e)
+  }
+}
+
+async function selectLightTheme(themeValue: string) {
+  if (auth.lightTheme === themeValue) return
+  try {
+    await auth.updateSettings(auth.dailyNotifyEnabled, auth.profileNotifyEnabled,
+      undefined, undefined, themeValue, undefined)
+  } catch (e) {
+    logWarn('profile', '更新日间主题失败', e)
+  }
+}
+
+async function selectDarkTheme(themeValue: string) {
+  if (auth.darkTheme === themeValue) return
+  try {
+    await auth.updateSettings(auth.dailyNotifyEnabled, auth.profileNotifyEnabled,
+      undefined, undefined, undefined, themeValue)
+  } catch (e) {
+    logWarn('profile', '更新夜间主题失败', e)
   }
 }
 
@@ -830,6 +893,41 @@ onBeforeUnmount(() => {
 .support-donate-section :deep(.n-card) {
   border-color: var(--color-primary-light);
   background: var(--color-surface);
+}
+
+.theme-mode-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.theme-mode-btn {
+  flex: 1;
+  padding: 7px 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.theme-mode-btn:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+}
+.theme-mode-btn.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.theme-section-label {
+  margin: 16px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
 }
 
 .theme-grid {

@@ -455,7 +455,7 @@ public class AuthService {
             throw new ResponseStatusException(NOT_FOUND, "用户不存在");
         }
         return new UserProfileResponse(user.getId(), user.getDisplayName(), normalizeAvatar(user.getAvatar()),
-                user.getSignature());
+                user.getSignature(), user.getTheme(), user.getLightTheme(), user.getDarkTheme(), user.getThemeMode());
     }
 
     private void evictPublicDiaryCaches() {
@@ -470,7 +470,8 @@ public class AuthService {
         }
     }
 
-    public void updateSettings(Long userId, Boolean dailyNotifyEnabled, Boolean profileNotifyEnabled, String theme) {
+    public void updateSettings(Long userId, Boolean dailyNotifyEnabled, Boolean profileNotifyEnabled,
+            String theme, String themeMode, String lightTheme, String darkTheme) {
         UserEntity user = userMapper.selectById(userId);
         if (dailyNotifyEnabled != null) {
             user.setDailyNotifyEnabled(dailyNotifyEnabled);
@@ -480,6 +481,15 @@ public class AuthService {
         }
         if (theme != null) {
             user.setTheme(theme);
+        }
+        if (themeMode != null) {
+            user.setThemeMode(themeMode);
+        }
+        if (lightTheme != null) {
+            user.setLightTheme(lightTheme);
+        }
+        if (darkTheme != null) {
+            user.setDarkTheme(darkTheme);
         }
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
@@ -600,6 +610,7 @@ public class AuthService {
         String role = user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole();
         return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getEmail(),
                 normalizeAvatar(user.getAvatar()), user.getSignature(), user.getTheme(),
+                user.getLightTheme(), user.getDarkTheme(), user.getThemeMode(),
                 user.getDailyNotifyEnabled(), user.getProfileNotifyEnabled(), role, user.getInviteCode(), user.getInviteQuota(),
                 user.getExp(), user.getLevel(), user.getProExpireTime(),
                 user.getNameChangeCount(), user.getNameChangeWeek());

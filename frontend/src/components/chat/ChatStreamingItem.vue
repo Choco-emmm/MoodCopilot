@@ -1,7 +1,11 @@
 <template>
   <div v-if="streaming && (streamingText || streamingRefs.length)" class="msg-item ai">
     <div class="msg-avatar ai-avatar">
-      <img class="ai-avatar-icon" src="/logo.svg" alt="MoodCopilot" />
+      <svg class="ai-avatar-icon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+        <rect x="14" y="11" width="36" height="42" rx="8" stroke="currentColor" stroke-width="4"/>
+        <path d="M24 11V53" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+        <path d="M32 38C26.6 33.8 24 31.1 24 27.5C24 24.95 26 23 28.6 23C30.1 23 31.55 23.68 32.5 24.76C33.45 23.68 34.9 23 36.4 23C39 23 41 24.95 41 27.5C41 31.1 38.4 33.8 33 38L32.5 38.4L32 38Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </div>
     <div class="msg-wrapper">
       <div v-if="streaming && streamingRefs.length" class="rag-refs-panel rag-refs-above rag-references-fixed">
