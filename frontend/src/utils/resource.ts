@@ -32,3 +32,10 @@ export function normalizeResourceUrl(value?: string | null): string | null {
         return normalizedPath.replace(/\/\/{2,}/g, '/')
     }
 }
+
+/** 将 http:// URL 升级为 https://，避免 Mixed Content 警告 */
+export function ensureHttps(url?: string | null): string | null {
+    if (!url) return null
+    if (url.startsWith('http://')) return url.replace('http://', 'https://')
+    return url
+}

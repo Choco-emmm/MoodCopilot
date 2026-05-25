@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import type { MusicMeta } from '../stores/diary'
 import { musicApi } from '../api'
 import { decodeHtmlEntities } from '../utils/markdown'
+import { ensureHttps } from '../utils/resource'
 
 const props = withDefaults(defineProps<{
   musicMeta: MusicMeta
@@ -75,7 +76,7 @@ function toggleLine(index: number) {
     <div class="music-card-body">
       <img
         v-if="musicMeta.coverUrl"
-        :src="musicMeta.coverUrl"
+        :src="ensureHttps(musicMeta.coverUrl)"
         :alt="musicMeta.title"
         class="music-cover"
         referrerpolicy="no-referrer"
