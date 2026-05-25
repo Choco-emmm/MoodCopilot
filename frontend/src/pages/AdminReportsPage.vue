@@ -273,8 +273,8 @@ function formatTime(value?: string) {
 
 .admin-report-note {
   font-size: 13px;
-  color: #dd6b20;
-  background: #fffaf0;
+  color: var(--color-accent);
+  background: var(--color-accent-bg);
   padding: 8px;
   border-radius: 6px;
   margin-top: 4px;

@@ -73,7 +73,7 @@
         <h2>今日次数已用完</h2>
       </div>
     </div>
-    <p class="feedback" style="color: #b0a090;">
+    <p class="feedback" style="color: var(--color-text-muted);">
       今天的 AI 分析次数已用完，日记已保存。明天再来看看吧~
     </p>
   </template>
@@ -301,9 +301,9 @@ onUnmounted(() => {
   margin-bottom: 0.25em;
 }
 .md-content :deep(blockquote) {
-  border-left: 3px solid #cbd5e1;
+  border-left: 3px solid var(--color-border);
   padding-left: 0.75em;
-  color: #64748b;
+  color: var(--color-text-secondary);
   margin: 0.5em 0;
 }
 .md-content :deep(code) {

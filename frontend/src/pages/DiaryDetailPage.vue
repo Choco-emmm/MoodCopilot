@@ -483,9 +483,9 @@ function ensureCommentInputVisible() {
   margin: 8px 0 10px;
   padding: 7px 10px;
   border-radius: 8px;
-  border: 1px solid #f1c7c7;
-  background: #fff5f5;
-  color: #b23a3a;
+  border: 1px solid var(--color-border);
+  background: var(--color-accent-bg);
+  color: var(--color-error);
   font-size: 12px;
 }
 

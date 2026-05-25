@@ -532,7 +532,7 @@ async function handleSave() {
 .composer-hint {
   margin: 0;
   padding: 10px 12px;
-  border-left: 3px solid #7aa68f;
+  border-left: 3px solid var(--color-primary);
   border-radius: 8px;
   background: var(--color-bg);
   color: var(--color-text-muted);
@@ -555,7 +555,7 @@ async function handleSave() {
   align-items: center;
   gap: 4px;
   padding: 6px 12px;
-  border: 1px dashed #b0a090;
+  border: 1px dashed var(--color-border);
   border-radius: var(--radius-sm, 6px);
   background: transparent;
   color: var(--color-text-secondary);
@@ -780,27 +780,4 @@ async function handleSave() {
 .composer-lightbox img {
   max-width: 90vw;
   max-height: 90vh;
-  object-fit: contain;
-  border-radius: 8px;
-  cursor: default;
-}
-
-.composer-lightbox-close {
-  position: absolute;
-  top: 16px;
-  right: 24px;
-  background: none;
-  border: none;
-  color: var(--color-surface);
-  font-size: 36px;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.15s;
-  line-height: 1;
-}
-
-.composer-lightbox-close:hover {
-  opacity: 1;
-}
-</style>
-
+  o

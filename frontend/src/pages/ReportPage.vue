@@ -453,7 +453,7 @@ function formatGeneratedAt(value?: string | Date | null) {
 }
 .md-content :deep(strong), .md-content :deep(b) {
   font-weight: 600;
-  color: #111827;
+  color: var(--color-text);
 }
 .md-content :deep(ul) {
   list-style-type: disc;
@@ -470,9 +470,9 @@ function formatGeneratedAt(value?: string | Date | null) {
   line-height: 1.6;
 }
 .md-content :deep(blockquote) {
-  border-left: 4px solid #e2e8f0;
+  border-left: 4px solid var(--color-border);
   padding-left: 1em;
-  color: #64748b;
+  color: var(--color-text-secondary);
   font-style: italic;
   margin: 0.8em 0;
 }
@@ -500,8 +500,8 @@ function formatGeneratedAt(value?: string | Date | null) {
 
 /* 重新生成提示条 */
 .regenerate-banner {
-  background-color: #fef3c7;
-  border: 1px solid #fde68a;
+  background-color: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 12px 16px;
   margin-bottom: 16px;
@@ -513,7 +513,7 @@ function formatGeneratedAt(value?: string | Date | null) {
 .regenerate-banner p {
   margin: 0;
   font-size: 13px;
-  color: #92400e;
+  color: var(--color-text-secondary);
   line-height: 1.5;
 }
 
@@ -527,16 +527,16 @@ function formatGeneratedAt(value?: string | Date | null) {
 
 .report-meta-text {
   font-size: 13px;
-  color: #475569;
+  color: var(--color-text-secondary);
 }
 
 .report-meta-warning {
   display: inline-flex;
   align-items: center;
   font-size: 12px;
-  color: #b45309;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
+  color: var(--color-accent);
+  background: var(--color-accent-bg);
+  border: 1px solid var(--color-border);
   border-radius: 999px;
   padding: 2px 10px;
 }
@@ -544,7 +544,7 @@ function formatGeneratedAt(value?: string | Date | null) {
 .focus-title {
   margin: 4px 0 10px;
   font-size: 14px;
-  color: #334155;
+  color: var(--color-text-secondary);
 }
 
 .insight-strip {
@@ -555,32 +555,32 @@ function formatGeneratedAt(value?: string | Date | null) {
 }
 
 .insight-card {
-  background: #f6f8f7;
-  border: 1px solid #e3e8e5;
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 10px 12px;
 }
 
 .insight-card-dominant {
-  border-color: #9db8aa;
-  background: linear-gradient(180deg, #f2f7f4 0%, #eef5f1 100%);
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
 }
 
 .insight-label {
   margin: 0;
   font-size: 12px;
-  color: #64748b;
+  color: var(--color-text-secondary);
 }
 
 .insight-value {
   margin: 6px 0 0;
   font-size: 17px;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--color-text);
 }
 
 .insight-card-dominant .insight-value {
-  color: #1f4b3d;
+  color: var(--color-primary);
 }
 
 .quadrant-list {
@@ -593,12 +593,12 @@ function formatGeneratedAt(value?: string | Date | null) {
 .quadrant-chip {
   display: inline-flex;
   align-items: center;
-  border: 1px solid #dbe4df;
+  border: 1px solid var(--color-border);
   border-radius: 999px;
   padding: 4px 10px;
   font-size: 12px;
-  color: #4b5563;
-  background: #fbfdfc;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-soft);
 }
 
 .list-switch-row {
@@ -608,15 +608,15 @@ function formatGeneratedAt(value?: string | Date | null) {
 }
 
 .legend-more {
-  color: #6b7280;
+  color: var(--color-text-muted);
 }
 
 .report-switch-row {
   display: flex;
-  border: 1px solid var(--color-border, #d9e1dc);
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   overflow: hidden;
-  background: #f8fbf9;
+  background: var(--color-surface-soft);
 }
 
 .report-switch-tab {
@@ -627,15 +627,15 @@ function formatGeneratedAt(value?: string | Date | null) {
   padding: 4px 10px;
   font-size: 13px;
   font-weight: 600;
-  color: #5b6670;
+  color: var(--color-text-muted);
 }
 
 .report-switch-tab + .report-switch-tab {
-  border-left: 1px solid var(--color-border, #d9e1dc);
+  border-left: 1px solid var(--color-border);
 }
 
 .report-switch-tab.active {
-  background: var(--color-jade, #3f7a63);
+  background: var(--color-primary);
   color: var(--color-on-primary);
 }
 

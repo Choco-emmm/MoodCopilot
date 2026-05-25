@@ -57,11 +57,10 @@ export const useAuthStore = defineStore('auth', () => {
       email.value = data.email ?? null
       avatar.value = normalizeResourceUrl(data.avatar)
       signature.value = data.signature ?? null
-      theme.value = data.theme ?? 'green'
-      lightTheme.value = data.lightTheme ?? 'green'
-      darkTheme.value = data.darkTheme ?? 'minimal-dark'
-      themeMode.value = data.themeMode ?? 'auto'
-      document.documentElement.setAttribute('data-theme', theme.value)
+      // 主题字段仅在 API 明确返回时才覆盖，避免 fetchProfile 把用户设置冲掉
+      if (data.lightTheme != null) lightTheme.value = data.lightTheme
+      if (data.darkTheme != null) darkTheme.value = data.darkTheme
+      if (data.themeMode != null) themeMode.value = data.themeMode
       dailyNotifyEnabled.value = data.dailyNotifyEnabled !== false
       profileNotifyEnabled.value = data.profileNotifyEnabled !== false
       exp.value = data.exp ?? 0

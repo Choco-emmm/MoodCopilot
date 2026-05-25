@@ -197,9 +197,9 @@ const {
   padding: 8px 10px;
   margin-bottom: 8px;
   border-radius: 10px;
-  background: #fff4f4;
-  border: 1px solid #ffd7d7;
-  color: #9a3030;
+  background: var(--color-accent-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-error);
   font-size: 13px;
 }
 
@@ -237,9 +237,9 @@ const {
   margin-bottom: 0.25em;
 }
 .md-content :deep(blockquote) {
-  border-left: 3px solid #cbd5e1;
+  border-left: 3px solid var(--color-border);
   padding-left: 0.75em;
-  color: #64748b;
+  color: var(--color-text-secondary);
   margin: 0.5em 0;
 }
 .md-content :deep(code) {
@@ -660,7 +660,7 @@ const {
 
 .starter-text {
   font-size: 13.5px;
-  color: #4a5a4e;
+  color: var(--color-text-secondary);
   line-height: 1.4;
   font-weight: 500;
 }
@@ -793,7 +793,7 @@ const {
 }
 
 :deep(.msg-avatar.user-avatar) {
-  background: linear-gradient(135deg, #8ba897, #5f836f);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
   color: var(--color-on-primary);
   font-weight: 600;
   font-size: 13px;

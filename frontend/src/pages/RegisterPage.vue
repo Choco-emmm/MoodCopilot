@@ -244,11 +244,11 @@ async function doRegister(captchaToken: string) {
   margin-top: 8px;
   margin-bottom: 16px;
   padding: 12px;
-  background: rgba(74, 124, 98, 0.05);
+  background: var(--color-primary-light);
   border-radius: 8px;
-  border: 1px solid rgba(74, 124, 98, 0.15);
+  border: 1px solid var(--color-border);
   font-size: 12px;
-  color: #4a5a4e;
+  color: var(--color-text-secondary);
   line-height: 1.5;
 }
 .privacy-icon {
