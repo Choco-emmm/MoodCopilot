@@ -397,7 +397,7 @@ async function handleSave() {
   position: relative !important;
   border: 1px solid rgba(180, 150, 120, 0.25) !important;
   border-radius: var(--radius-md, 8px);
-  /* overflow: hidden; 移除，防止遮挡 toolbar 的 tooltip */
+  background: var(--color-surface) !important;
   --vditor-toolbar-background-color: var(--color-bg);
   --vditor-toolbar-border-color: rgba(180, 150, 120, 0.15);
   width: 100% !important;
@@ -422,6 +422,11 @@ async function handleSave() {
   max-width: none !important;
   padding: 0 !important;
   margin: 0 !important;
+  color: var(--color-text) !important;
+}
+
+.composer-editor :deep(.vditor-ir pre.vditor-reset) {
+  color: var(--color-text-muted) !important;
 }
 
 .composer-editor :deep(.vditor-toolbar) {
@@ -431,6 +436,9 @@ async function handleSave() {
 
 .composer-editor :deep(.vditor-ir) {
   padding: 16px 20px 36px 20px !important;
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+  min-height: 260px;
 }
 
 .composer-editor :deep(.vditor-toolbar__item > button) {
@@ -451,7 +459,7 @@ async function handleSave() {
   bottom: 12px !important;
   top: auto !important;
   background: transparent !important;
-  color: #a09080 !important;
+  color: var(--color-text-muted) !important;
   font-size: 13px;
   pointer-events: none;
   z-index: 10;
@@ -509,7 +517,7 @@ async function handleSave() {
   align-items: center;
   gap: 5px;
   font-size: 13px;
-  color: #6a5a4a;
+  color: var(--color-text-secondary);
   cursor: pointer;
   user-select: none;
 }
@@ -527,7 +535,7 @@ async function handleSave() {
   border-left: 3px solid #7aa68f;
   border-radius: 8px;
   background: var(--color-bg);
-  color: #4d5f54;
+  color: var(--color-text-muted);
   font-size: 12px;
   line-height: 1.7;
 }
@@ -580,12 +588,12 @@ async function handleSave() {
   font-size: 13px;
   outline: none;
   background: var(--color-bg);
-  color: #5a4a3a;
+  color: var(--color-text);
   font-family: inherit;
 }
 
 .music-url-input::placeholder {
-  color: #b0a090;
+  color: var(--color-text-muted);
   font-size: 12px;
 }
 
@@ -597,7 +605,7 @@ async function handleSave() {
   margin: 8px 0;
   padding: 10px 12px;
   border-radius: var(--radius-md, 10px);
-  background: #fdf6f0;
+  background: var(--color-surface-hover);
   border: 1px solid rgba(180, 150, 120, 0.12);
   font-size: 13px;
   color: var(--color-text-secondary);
@@ -612,14 +620,14 @@ async function handleSave() {
   margin-top: 6px;
   background: none;
   border: none;
-  color: #b0a090;
+  color: var(--color-text-muted);
   font-size: 12px;
   cursor: pointer;
   padding: 2px 0;
 }
 
 .music-remove-btn:hover {
-  color: #a94b45;
+  color: var(--color-accent);
 }
 
 /* ── 图片上传 ── */
@@ -641,7 +649,7 @@ async function handleSave() {
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  background: #f5f0e8;
+  background: var(--color-surface-hover);
 }
 
 .composer-image-preview img {
@@ -678,7 +686,7 @@ async function handleSave() {
   border: 1.5px dashed rgba(180, 150, 120, 0.35);
   background: transparent;
   cursor: pointer;
-  color: #b0a090;
+  color: var(--color-text-muted);
   font-size: 11px;
   transition: border-color 0.15s, color 0.15s;
   gap: 2px;
