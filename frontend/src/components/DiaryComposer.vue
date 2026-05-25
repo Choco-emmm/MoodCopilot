@@ -780,4 +780,27 @@ async function handleSave() {
 .composer-lightbox img {
   max-width: 90vw;
   max-height: 90vh;
-  o
+  object-fit: contain;
+  border-radius: 8px;
+  cursor: default;
+}
+
+.composer-lightbox-close {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  background: none;
+  border: none;
+  color: var(--color-surface);
+  font-size: 36px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.composer-lightbox-close:hover {
+  opacity: 1;
+}
+</style>
+
