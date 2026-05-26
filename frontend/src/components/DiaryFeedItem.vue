@@ -168,7 +168,7 @@ import { useDiaryStore } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
 import { useAuthStore } from '../stores/auth'
 import { reportApi } from '../api'
-import { renderSafeMarkdown, stripMarkdown } from '../utils/markdown'
+import { formatLegacyContent, stripMarkdown } from '../utils/markdown'
 import MusicCard from './MusicCard.vue'
 import ImageGallery from './ImageGallery.vue'
 
@@ -236,7 +236,7 @@ const totalCommentCount = computed(() => {
   return count
 })
 
-function renderMd(text: string) { return renderSafeMarkdown(text) }
+function renderMd(text: string) { return formatLegacyContent(text) }
 
 const isLongContent = computed(() => (props.diary.content ?? '').length > props.previewLimit)
 const visibleContent = computed(() => {

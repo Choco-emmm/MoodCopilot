@@ -191,7 +191,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { NButton, NInput, NTag, NEmpty, useMessage } from 'naive-ui'
 import { diaryApi, reportApi } from '../api'
 import { tryExpToast } from '../utils/toast'
-import { renderSafeMarkdown } from '../utils/markdown'
+import { formatLegacyContent } from '../utils/markdown'
 import { useAuthStore } from '../stores/auth'
 import AppHeader from '../components/AppHeader.vue'
 import AiAnalysisCard from '../components/AiAnalysisCard.vue'
@@ -208,7 +208,7 @@ const followStore = useFollowStore()
 const auth = useAuthStore()
 const message = useMessage()
 function renderMd(text: string) {
-  return renderSafeMarkdown(text)
+  return formatLegacyContent(text)
 }
 
 const diary = computed({

@@ -24,11 +24,11 @@
 </template>
 
 <script setup lang="ts">
-import { renderSafeMarkdown } from '../utils/markdown'
+import { formatLegacyContent } from '../utils/markdown'
 import type { Diary } from '../stores/diary'
 
 function renderMd(text: string) {
-  return renderSafeMarkdown(text)
+  return formatLegacyContent(text)
 }
 
 defineProps<{ diaries: Diary[] }>()
