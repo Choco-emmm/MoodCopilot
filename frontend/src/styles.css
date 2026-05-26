@@ -3046,8 +3046,8 @@ h3 {
   }
 
   .nav-link {
-    flex: 0 0 auto;
-    flex-shrink: 0;
+    flex: 1 1 0;
+    min-width: 56px;
   }
 
   .nav-link.nav-link-write {
