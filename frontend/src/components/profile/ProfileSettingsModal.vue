@@ -100,29 +100,33 @@
         <template v-if="themeExpanded">
           <!-- 日间主题 -->
           <p class="theme-section-label">☀️ 日间主题</p>
-        <div class="theme-grid">
-          <div
-            v-for="t in lightThemeOptions"
-            :key="t.value"
-            class="theme-item"
-            :class="{ active: auth.lightTheme === t.value || (!auth.lightTheme && t.value === 'green') }"
-            :style="{ '--t-primary': t.primary, '--t-accent': t.accent, '--t-bg': t.bg, '--t-surface': t.surface }"
-            @click="selectLightTheme(t.value)"
-          >
-            <div class="theme-preview">
-              <div class="theme-preview-bg">
-                <div class="theme-preview-swatch" style="left: 6px; top: 6px; width: 18px; height: 18px; border-radius: 50%; background: var(--t-primary);"></div>
-                <div class="theme-preview-swatch" style="right: 6px; top: 8px; width: 10px; height: 10px; border-radius: 3px; background: var(--t-accent); opacity: 0.8;"></div>
-                <div class="theme-preview-bar" style="left: 6px; bottom: 8px; width: 24px; height: 3px; border-radius: 2px; background: var(--t-primary); opacity: 0.3;"></div>
-                <div class="theme-preview-bar" style="left: 6px; bottom: 14px; width: 16px; height: 2px; border-radius: 1px; background: var(--t-primary); opacity: 0.15;"></div>
+          
+          <template v-for="group in lightThemeGroups" :key="group.name">
+            <div class="theme-category-title">{{ group.name }}</div>
+            <div class="theme-grid">
+              <div
+                v-for="t in group.themes"
+                :key="t.value"
+                class="theme-item"
+                :class="{ active: auth.lightTheme === t.value || (!auth.lightTheme && t.value === 'green') }"
+                :style="{ '--t-primary': t.primary, '--t-accent': t.accent, '--t-bg': t.bg, '--t-surface': t.surface }"
+                @click="selectLightTheme(t.value)"
+              >
+                <div class="theme-preview">
+                  <div class="theme-preview-bg">
+                    <div class="theme-preview-swatch" style="left: 6px; top: 6px; width: 18px; height: 18px; border-radius: 50%; background: var(--t-primary);"></div>
+                    <div class="theme-preview-swatch" style="right: 6px; top: 8px; width: 10px; height: 10px; border-radius: 3px; background: var(--t-accent); opacity: 0.8;"></div>
+                    <div class="theme-preview-bar" style="left: 6px; bottom: 8px; width: 24px; height: 3px; border-radius: 2px; background: var(--t-primary); opacity: 0.3;"></div>
+                    <div class="theme-preview-bar" style="left: 6px; bottom: 14px; width: 16px; height: 2px; border-radius: 1px; background: var(--t-primary); opacity: 0.15;"></div>
+                  </div>
+                </div>
+                <span class="theme-label">{{ t.label }}</span>
+                <span v-if="auth.lightTheme === t.value || (!auth.lightTheme && t.value === 'green')" class="theme-check">✓</span>
               </div>
             </div>
-            <span class="theme-label">{{ t.label }}</span>
-            <span v-if="auth.lightTheme === t.value || (!auth.lightTheme && t.value === 'green')" class="theme-check">✓</span>
-          </div>
-        </div>
+          </template>
 
-        <!-- 夜间主题 -->
+          <!-- 夜间主题 -->
         <p class="theme-section-label">🌙 夜间主题</p>
         <div class="theme-grid">
           <div
@@ -328,11 +332,27 @@ const themeModeOptions = [
 ]
 
 const lightThemeOptions = computed(() =>
-  themeOptions.filter(t => t.value !== 'black-rice' && t.value !== 'minimal-dark')
+  themeOptions.filter(t => !t.dark)
 )
 
+const lightThemeGroups = computed(() => {
+  const groups: { name: string, themes: typeof themeOptions }[] = []
+  const map = new Map<string, typeof themeOptions>()
+  
+  lightThemeOptions.value.forEach(t => {
+    const cat = t.category || '其它主题'
+    if (!map.has(cat)) {
+      const arr: typeof themeOptions = []
+      map.set(cat, arr)
+      groups.push({ name: cat, themes: arr })
+    }
+    map.get(cat)!.push(t)
+  })
+  return groups
+})
+
 const darkThemeOptions = computed(() =>
-  themeOptions.filter(t => t.value === 'black-rice' || t.value === 'minimal-dark')
+  themeOptions.filter(t => !!t.dark)
 )
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -999,7 +1019,18 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin-top: 10px;
+  margin-top: 6px;
+}
+.theme-category-title {
+  font-size: 12.5px;
+  color: var(--color-text-light);
+  margin-top: 20px;
+  margin-bottom: 2px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.theme-category-title:first-of-type {
+  margin-top: 8px;
 }
 .theme-item {
   display: flex;

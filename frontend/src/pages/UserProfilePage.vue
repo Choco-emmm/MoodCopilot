@@ -83,19 +83,38 @@
       />
 
       <div v-if="diaries.length" class="feed">
-        <DiaryFeedItem
-          v-for="diary in diaries"
-          :key="diary.id"
-          :diary="diary"
-          :enable-comments="false"
-          :compact="true"
-          :preview-limit="120"
-          :show-expand-toggle="false"
-          :hide-follow-btn="!isOwner"
-          :show-visibility-badge="isOwner"
-          @resonate="(d: Diary) => store.resonate(d.id, d)"
-          @open-detail="(d: Diary) => router.push(`/diary/${d.id}`)"
-        />
+        <DynamicScroller
+          :items="diaries"
+          :min-item-size="200"
+          key-field="id"
+          page-mode
+        >
+          <template #default="{ item, index, active }">
+            <DynamicScrollerItem
+              :item="item"
+              :active="active"
+              :size-dependencies="[
+                item.content,
+                item.images?.length,
+                item.comments?.length,
+                item.musicMeta?.songUrl
+              ]"
+              :data-index="index"
+            >
+              <DiaryFeedItem
+                :diary="item"
+                :enable-comments="false"
+                :compact="true"
+                :preview-limit="120"
+                :show-expand-toggle="false"
+                :hide-follow-btn="!isOwner"
+                :show-visibility-badge="isOwner"
+                @resonate="(d: Diary) => store.resonate(d.id, d)"
+                @open-detail="(d: Diary) => router.push(`/diary/${d.id}`)"
+              />
+            </DynamicScrollerItem>
+          </template>
+        </DynamicScroller>
 
         <div v-if="hasMore" ref="sentinel" class="profile-load-more">
           <n-spin v-if="loadingMore" size="small" />

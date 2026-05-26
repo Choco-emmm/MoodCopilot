@@ -1,9 +1,6 @@
 <template>
   <article
     class="feed-item"
-    v-motion
-    :initial="{ opacity: 0, y: 24 }"
-    :enter="{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 170, damping: 26 } }"
     :class="{ 'feed-item-compact': compact }"
     @click="handleCardClick"
   >
@@ -347,9 +344,13 @@ function getAvatarStyle(name: string) {
   border: none;
   background: transparent;
   border-bottom: 1px solid color-mix(in oklab, var(--color-primary) 8%, transparent);
-  content-visibility: auto;
-  contain-intrinsic-size: 320px;
   transition: opacity 0.25s;
+  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .feed-item:last-child {

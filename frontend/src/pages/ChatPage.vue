@@ -17,9 +17,13 @@
         <!-- Magazine Style Features Index -->
         <div class="chat-features-index">
           <span class="index-label">INDEX //</span>
-          <router-link to="/report" class="index-link">情绪报告 <span class="en-sub">Report</span></router-link>
+          <router-link to="/report" class="index-link">
+            情绪报告 <span class="en-sub">Report</span> <span class="link-arrow">↗</span>
+          </router-link>
           <span class="index-separator">·</span>
-          <router-link to="/ai-memory" class="index-link">记忆中心 <span class="en-sub">Memory</span></router-link>
+          <router-link to="/ai-memory" class="index-link">
+            记忆中心 <span class="en-sub">Memory</span> <span class="link-arrow">↗</span>
+          </router-link>
         </div>
 
         <div class="chat-mobile-conv">
@@ -977,19 +981,41 @@ const {
 .chat-features-index .index-link {
   color: var(--color-text-secondary);
   text-decoration: none;
-  transition: color 0.2s ease;
+  transition: all 0.25s var(--ease-out, ease);
   font-weight: 500;
   text-transform: uppercase;
   font-size: 11px;
   letter-spacing: 0.1em;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
 }
 
 .chat-features-index .index-link:hover {
   color: var(--color-primary);
 }
 
+.chat-features-index .link-arrow {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  opacity: 0.4;
+  transition: all 0.25s var(--ease-out, ease);
+}
+
+.chat-features-index .index-link:hover .link-arrow {
+  opacity: 1;
+  transform: translate(2px, -2px);
+}
+
 .chat-features-index .index-separator {
   opacity: 0.4;
+}
+
+.chat-features-index .en-sub {
+  font-size: 9.5px;
+  opacity: 0.6;
+  font-weight: 600;
+  font-family: var(--font-sans);
 }
 
 @media (max-width: 600px) {

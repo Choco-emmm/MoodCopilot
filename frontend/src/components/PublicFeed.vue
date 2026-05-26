@@ -16,21 +16,40 @@
     </div>
 
     <div v-if="diaries.length" class="feed-list">
-      <template v-for="(diary, index) in diaries" :key="diary.id">
-        <DiaryFeedItem
-          :diary="diary"
-          :enable-comments="false"
-          :compact="true"
-          :preview-limit="120"
-          :show-expand-toggle="false"
-          @resonate="$emit('resonate', $event)"
-          @open-detail="$emit('open-detail', $event)"
-        />
-        <!-- Interleaved slot -->
-        <div v-if="index === 1" class="in-feed-slot">
-          <slot name="in-feed" />
-        </div>
-      </template>
+      <DynamicScroller
+        :items="diaries"
+        :min-item-size="200"
+        key-field="id"
+        page-mode
+      >
+        <template #default="{ item, index, active }">
+          <DynamicScrollerItem
+            :item="item"
+            :active="active"
+            :size-dependencies="[
+              item.content,
+              item.images?.length,
+              item.comments?.length,
+              item.musicMeta?.songUrl
+            ]"
+            :data-index="index"
+          >
+            <DiaryFeedItem
+              :diary="item"
+              :enable-comments="false"
+              :compact="true"
+              :preview-limit="120"
+              :show-expand-toggle="false"
+              @resonate="$emit('resonate', $event)"
+              @open-detail="$emit('open-detail', $event)"
+            />
+            <!-- Interleaved slot -->
+            <div v-if="index === 1" class="in-feed-slot">
+              <slot name="in-feed" />
+            </div>
+          </DynamicScrollerItem>
+        </template>
+      </DynamicScroller>
       <div v-if="hasMore" ref="sentinel" class="scroll-sentinel" />
       <div v-if="loading && diaries.length" class="feed-list-loading">
         <span class="feed-list-loading-dot"></span>

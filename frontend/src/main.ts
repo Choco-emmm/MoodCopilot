@@ -23,8 +23,10 @@ window.addEventListener('unhandledrejection', (e) => {
 })
 
 import { MotionPlugin } from '@vueuse/motion'
+import VueVirtualScroller from 'vue-virtual-scroller'
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 
-app.use(pinia).use(router).use(MotionPlugin)
+app.use(pinia).use(router).use(MotionPlugin).use(VueVirtualScroller)
 
 const auth = useAuthStore(pinia)
 if (auth.isAuthenticated) {

@@ -960,10 +960,7 @@ h3 {
   border-color: var(--color-accent);
 }
 
-/* ── Feed item (uses scoped styles in DiaryFeedItem.vue) ── */
-.feed-item {
-  content-visibility: auto;
-}
+
 
 .feed-head,
 .feed-actions,
@@ -3896,6 +3893,138 @@ h3 {
   }
 }
 
+/* ── apricot-breeze · 杏雨微风 (温暖橘霞 + 柔和杏白) ── */
+[data-theme="apricot-breeze"] {
+  --color-primary: #d96a47;
+  --color-primary-hover: #c45635;
+  --color-primary-light: #fbece7;
+  --color-accent: #e3a052;
+  --color-accent-light: #f2ca99;
+  --color-accent-bg: #fdf5ec;
+  --color-bg: #fcf6f2;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f9ebe4;
+  --color-surface-soft: #fcf1eb;
+  --color-text: #33201a;
+  --color-text-secondary: #66453b;
+  --color-text-muted: #8c6559;
+  --color-text-light: #b3897c;
+  --color-border: #e6cec5;
+  --color-border-strong: #ccae9f;
+  --color-error: #d94747;
+  --color-warning: #e3a052;
+  --color-success: #59986b;
+  --color-info: #478cd9;
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="apricot-breeze"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 6%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 3%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 12%, var(--color-surface));
+    --color-border: color-mix(in oklab, var(--color-primary) 15%, transparent);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  }
+}
+
+/* ── willow-breeze · 柳岸春风 (清透柳绿 + 柔和嫩黄) ── */
+[data-theme="willow-breeze"] {
+  --color-primary: #699859;
+  --color-primary-hover: #558046;
+  --color-primary-light: #eef5ea;
+  --color-accent: #c2a048;
+  --color-accent-light: #dcc27e;
+  --color-accent-bg: #f9f5eb;
+  --color-bg: #f4f9f2;
+  --color-surface: #ffffff;
+  --color-surface-hover: #e8f0e5;
+  --color-surface-soft: #f0f5ee;
+  --color-text: #1f2b1b;
+  --color-text-secondary: #45593e;
+  --color-text-muted: #677d5d;
+  --color-text-light: #90a684;
+  --color-border: #cddbc6;
+  --color-border-strong: #abc29f;
+  --color-error: #cc5454;
+  --color-warning: #c2a048;
+  --color-success: #699859;
+  --color-info: #598698;
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="willow-breeze"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 6%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 3%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 12%, var(--color-surface));
+    --color-border: color-mix(in oklab, var(--color-primary) 15%, transparent);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  }
+}
+
+/* ── lavender-dawn · 晨雾紫藤 (静谧浅紫 + 灰蓝晨露) ── */
+[data-theme="lavender-dawn"] {
+  --color-primary: #7e68a8;
+  --color-primary-hover: #675091;
+  --color-primary-light: #f0ecf7;
+  --color-accent: #6896a8;
+  --color-accent-light: #9fc0cf;
+  --color-accent-bg: #f0f6f8;
+  --color-bg: #f6f5fc;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eceaf5;
+  --color-surface-soft: #f3f1f7;
+  --color-text: #231f2d;
+  --color-text-secondary: #4e4663;
+  --color-text-muted: #746b8a;
+  --color-text-light: #9c94af;
+  --color-border: #d7d1e6;
+  --color-border-strong: #b5adc9;
+  --color-error: #c2596e;
+  --color-warning: #b89254;
+  --color-success: #5a947a;
+  --color-info: #7e68a8;
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="lavender-dawn"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 6%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 3%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 12%, var(--color-surface));
+    --color-border: color-mix(in oklab, var(--color-primary) 15%, transparent);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  }
+}
+
+/* ── oat-milk · 燕麦奶盖 (奶油原木色 + 抹茶点缀) ── */
+[data-theme="oat-milk"] {
+  --color-primary: #a88863;
+  --color-primary-hover: #8f714e;
+  --color-primary-light: #f7f3ec;
+  --color-accent: #8da674;
+  --color-accent-light: #b9ccaa;
+  --color-accent-bg: #f4f7f0;
+  --color-bg: #faf8f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f3efe8;
+  --color-surface-soft: #f7f4f0;
+  --color-text: #2b251e;
+  --color-text-secondary: #5e5246;
+  --color-text-muted: #857868;
+  --color-text-light: #b0a496;
+  --color-border: #e6ddce;
+  --color-border-strong: #ccbeaa;
+  --color-error: #b85f54;
+  --color-warning: #cca154;
+  --color-success: #8da674;
+  --color-info: #6a8b9e;
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="oat-milk"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 6%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 3%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 12%, var(--color-surface));
+    --color-border: color-mix(in oklab, var(--color-primary) 15%, transparent);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  }
+}
+
 /* ── black-rice · 黑米暗夜 ── */
 [data-theme="black-rice"] {
   color-scheme: dark;
@@ -3977,6 +4106,166 @@ h3 {
     --color-primary-light: color-mix(in oklab, var(--color-primary) 10%, var(--color-bg));
     --color-border: color-mix(in oklab, var(--color-primary) 10%, #2a2a2a);
     --color-border-strong: color-mix(in oklab, var(--color-primary) 18%, #333);
+  }
+}
+
+/* ── abyss-blue · 深渊海蓝 (深蓝灰 + 灰蓝主色 + 暗金点缀) ── */
+[data-theme="abyss-blue"] {
+  color-scheme: dark;
+  --color-primary: #4a8b9e;
+  --color-primary-hover: #5ba3b8;
+  --color-primary-light: #162d36;
+  --color-accent: #c49a3e;
+  --color-accent-light: #e0b86a;
+  --color-accent-bg: #2a2416;
+  --color-bg: #0f172a;
+  --color-surface: #1e293b;
+  --color-surface-hover: #2a374a;
+  --color-surface-soft: #243145;
+  --color-on-primary: #0f172a;
+  --color-text: #e2e8f0;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-text-light: #475569;
+  --color-border: #334155;
+  --color-border-strong: #475569;
+  --color-disabled: #334155;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+  --color-success: #10b981;
+  --color-info: #3b82f6;
+  --color-overlay: rgba(15, 23, 42, 0.75);
+  --color-backdrop: rgba(15, 23, 42, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="abyss-blue"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 8%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 4%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 15%, var(--color-bg));
+    --color-border: color-mix(in oklab, var(--color-primary) 15%, #2a374a);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 25%, #334155);
+  }
+}
+
+/* ── midnight-pine · 暮夜松林 (极暗绿 + 松绿主色 + 砖红点缀) ── */
+[data-theme="midnight-pine"] {
+  color-scheme: dark;
+  --color-primary: #5b8a72;
+  --color-primary-hover: #6ea88a;
+  --color-primary-light: #1a2e24;
+  --color-accent: #c27c6b;
+  --color-accent-light: #e09886;
+  --color-accent-bg: #2c1a16;
+  --color-bg: #121a16;
+  --color-surface: #1e2b24;
+  --color-surface-hover: #293b32;
+  --color-surface-soft: #23332b;
+  --color-on-primary: #121a16;
+  --color-text: #e2e8e4;
+  --color-text-secondary: #95a89d;
+  --color-text-muted: #667a6f;
+  --color-text-light: #475c50;
+  --color-border: #304539;
+  --color-border-strong: #405a4b;
+  --color-disabled: #304539;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+  --color-success: #10b981;
+  --color-info: #3b82f6;
+  --color-overlay: rgba(18, 26, 22, 0.75);
+  --color-backdrop: rgba(18, 26, 22, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="midnight-pine"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 8%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 4%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 15%, var(--color-bg));
+    --color-border: color-mix(in oklab, var(--color-primary) 15%, #2a3a30);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 25%, #3a4a40);
+  }
+}
+
+/* ── mocha-night · 浓醇摩卡 (暗咖啡 + 焦糖主色 + 铁锈红点缀) ── */
+[data-theme="mocha-night"] {
+  color-scheme: dark;
+  --color-primary: #d4a373;
+  --color-primary-hover: #e8bd92;
+  --color-primary-light: #3d2b1f;
+  --color-accent: #b86054;
+  --color-accent-light: #d67b6e;
+  --color-accent-bg: #3d1f1c;
+  --color-bg: #1a1614;
+  --color-surface: #29231f;
+  --color-surface-hover: #362e2a;
+  --color-surface-soft: #302824;
+  --color-on-primary: #1a1614;
+  --color-text: #f0e6dd;
+  --color-text-secondary: #a89a8f;
+  --color-text-muted: #7a6e65;
+  --color-text-light: #574d46;
+  --color-border: #423832;
+  --color-border-strong: #5c4e46;
+  --color-disabled: #423832;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+  --color-success: #10b981;
+  --color-info: #3b82f6;
+  --color-overlay: rgba(26, 22, 20, 0.75);
+  --color-backdrop: rgba(26, 22, 20, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="mocha-night"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 8%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 4%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 15%, var(--color-bg));
+    --color-border: color-mix(in oklab, var(--color-primary) 12%, #3a322e);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 22%, #4a403a);
+  }
+}
+
+/* ── cyber-purple · 紫曜星河 (暗夜紫 + 星光紫主色 + 霓虹粉点缀) ── */
+[data-theme="cyber-purple"] {
+  color-scheme: dark;
+  --color-primary: #a385e0;
+  --color-primary-hover: #bc9cff;
+  --color-primary-light: #2c2040;
+  --color-accent: #e0608c;
+  --color-accent-light: #ff85b3;
+  --color-accent-bg: #361824;
+  --color-bg: #15121c;
+  --color-surface: #231f2d;
+  --color-surface-hover: #302a3d;
+  --color-surface-soft: #2a2436;
+  --color-on-primary: #15121c;
+  --color-text: #eae6f2;
+  --color-text-secondary: #a39cb3;
+  --color-text-muted: #756e85;
+  --color-text-light: #524b61;
+  --color-border: #3d364d;
+  --color-border-strong: #544b69;
+  --color-disabled: #3d364d;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+  --color-success: #10b981;
+  --color-info: #3b82f6;
+  --color-overlay: rgba(21, 18, 28, 0.75);
+  --color-backdrop: rgba(21, 18, 28, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="cyber-purple"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 10%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 5%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 20%, var(--color-bg));
+    --color-border: color-mix(in oklab, var(--color-primary) 15%, #332d40);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 25%, #443c55);
   }
 }
 
@@ -4406,6 +4695,21 @@ h3 {
   --n-text-color-focus: var(--color-primary) !important;
 }
 
+/* 彻底去除 text 按钮悬浮和点击时的背景色块，改用透明度变化 */
+.n-button--text-type {
+  --n-color-hover: transparent !important;
+  --n-color-pressed: transparent !important;
+  --n-color-focus: transparent !important;
+  --n-ripple-color: transparent !important;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+.n-button--text-type:hover {
+  opacity: 0.7;
+}
+.n-button--text-type:active {
+  opacity: 0.5;
+}
+
 .n-button--primary-type.n-button--ghost-type {
   --n-border: 1px solid var(--color-primary) !important;
   --n-border-hover: 1px solid var(--color-primary-hover) !important;
@@ -4539,4 +4843,180 @@ h3 {
 }
 .md-content a:hover {
   border-bottom-style: solid;
+}
+
+/* ═══════════════════════════════════════════
+   新增分类追加主题 (Nature, Cozy, Poetry, Dreamy, Night)
+   ═══════════════════════════════════════════ */
+
+/* ── bamboo-whisper · 竹影清风 (🌱 自然风物) ── */
+[data-theme="bamboo-whisper"] {
+  --color-primary: #4a7c59;
+  --color-primary-hover: #3d664a;
+  --color-primary-light: #edf2ee;
+  --color-accent: #d4a373;
+  --color-accent-light: #e6c8a6;
+  --color-accent-bg: #f9f5f0;
+  --color-bg: #f4f7f4;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eaf0eb;
+  --color-surface-soft: #f0f4f1;
+  --color-text: #202c23;
+  --color-text-secondary: #445d4a;
+  --color-text-muted: #688e71;
+  --color-text-light: #8db096;
+  --color-border: #c5d6c9;
+  --color-border-strong: #a4beaa;
+  --color-error: #c25959;
+  --color-warning: #d4a373;
+  --color-success: #4a7c59;
+  --color-info: #546a76;
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="bamboo-whisper"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 6%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 3%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 12%, var(--color-surface));
+    --color-border: color-mix(in oklab, var(--color-primary) 15%, transparent);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  }
+}
+
+/* ── chestnut-cocoa · 栗香可可 (☕️ 治愈午后) ── */
+[data-theme="chestnut-cocoa"] {
+  --color-primary: #8b5a44;
+  --color-primary-hover: #734a38;
+  --color-primary-light: #f5ece8;
+  --color-accent: #c47c5d;
+  --color-accent-light: #dcb3a1;
+  --color-accent-bg: #f9f2ef;
+  --color-bg: #fcf8f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f5ebe6;
+  --color-surface-soft: #f8f1ec;
+  --color-text: #2b1d16;
+  --color-text-secondary: #593c2d;
+  --color-text-muted: #855b45;
+  --color-text-light: #ab7c63;
+  --color-border: #e6d5cb;
+  --color-border-strong: #ccb2a3;
+  --color-error: #b34d4d;
+  --color-warning: #c47c5d;
+  --color-success: #668266;
+  --color-info: #738c99;
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="chestnut-cocoa"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 6%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 3%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 12%, var(--color-surface));
+    --color-border: color-mix(in oklab, var(--color-primary) 15%, transparent);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  }
+}
+
+/* ── ink-wash-mist · 水墨微岚 (🌧️ 清冷诗意) ── */
+[data-theme="ink-wash-mist"] {
+  --color-primary: #546a76;
+  --color-primary-hover: #445660;
+  --color-primary-light: #edf0f2;
+  --color-accent: #88a0a8;
+  --color-accent-light: #b8c7cc;
+  --color-accent-bg: #f2f5f6;
+  --color-bg: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-surface-hover: #e9ecee;
+  --color-surface-soft: #eff1f3;
+  --color-text: #1a2226;
+  --color-text-secondary: #3f525c;
+  --color-text-muted: #648191;
+  --color-text-light: #8ba9b8;
+  --color-border: #c5d1d9;
+  --color-border-strong: #a1b4c0;
+  --color-error: #b35965;
+  --color-warning: #b39b66;
+  --color-success: #5c7a6e;
+  --color-info: #546a76;
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="ink-wash-mist"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 6%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 3%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 12%, var(--color-surface));
+    --color-border: color-mix(in oklab, var(--color-primary) 15%, transparent);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  }
+}
+
+/* ── starlight-coral · 星芒珊瑚 (✨ 梦境童话) ── */
+[data-theme="starlight-coral"] {
+  --color-primary: #d97381;
+  --color-primary-hover: #c45b69;
+  --color-primary-light: #fbebed;
+  --color-accent: #e8b277;
+  --color-accent-light: #f2d4b3;
+  --color-accent-bg: #fcf6f0;
+  --color-bg: #fdf6f7;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f9e6e8;
+  --color-surface-soft: #fbeff1;
+  --color-text: #331b1e;
+  --color-text-secondary: #66363c;
+  --color-text-muted: #99525a;
+  --color-text-light: #cc727d;
+  --color-border: #f2cbd0;
+  --color-border-strong: #e6a8b1;
+  --color-error: #cc4747;
+  --color-warning: #e8b277;
+  --color-success: #6bb38a;
+  --color-info: #85a1d9;
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="starlight-coral"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 6%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 3%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 12%, var(--color-surface));
+    --color-border: color-mix(in oklab, var(--color-primary) 15%, transparent);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  }
+}
+
+/* ── firefly-forest · 萤火之森 (🌙 夜间主题) ── */
+[data-theme="firefly-forest"] {
+  color-scheme: dark;
+  --color-primary: #6bb38a;
+  --color-primary-hover: #83c49e;
+  --color-primary-light: #182e21;
+  --color-accent: #dce87d;
+  --color-accent-light: #e6f0a3;
+  --color-accent-bg: #2b3012;
+  --color-bg: #0d1411;
+  --color-surface: #16241d;
+  --color-surface-hover: #1f3328;
+  --color-surface-soft: #1a2b22;
+  --color-on-primary: #0d1411;
+  --color-text: #e3f0e8;
+  --color-text-secondary: #9ebdab;
+  --color-text-muted: #6d8c79;
+  --color-text-light: #4b6655;
+  --color-border: #263b2f;
+  --color-border-strong: #375443;
+  --color-disabled: #263b2f;
+  --color-error: #ef4444;
+  --color-warning: #dce87d;
+  --color-success: #10b981;
+  --color-info: #3b82f6;
+  --color-overlay: rgba(13, 20, 17, 0.75);
+  --color-backdrop: rgba(13, 20, 17, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+@supports (color: color-mix(in oklab, red, blue)) {
+  [data-theme="firefly-forest"] {
+    --color-surface-hover: color-mix(in oklab, var(--color-primary) 8%, var(--color-surface));
+    --color-surface-soft: color-mix(in oklab, var(--color-primary) 4%, var(--color-surface));
+    --color-primary-light: color-mix(in oklab, var(--color-primary) 15%, var(--color-bg));
+    --color-border: color-mix(in oklab, var(--color-primary) 12%, #203328);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 24%, #2d4536);
+  }
 }
