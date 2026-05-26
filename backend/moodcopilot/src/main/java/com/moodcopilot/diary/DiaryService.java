@@ -362,6 +362,7 @@ public class DiaryService {
                                 entity.setHeadEntity(triple.head());
                                 entity.setRelation(triple.relation());
                                 entity.setTailEntity(triple.tail());
+                                entity.setTailPolarity(triple.tailPolarity() != null ? triple.tailPolarity() : 0);
                                 entity.setCreatedAt(java.time.LocalDateTime.now());
                                 diaryKnowledgeGraphMapper.insert(entity);
                                 newEntities.add(entity);

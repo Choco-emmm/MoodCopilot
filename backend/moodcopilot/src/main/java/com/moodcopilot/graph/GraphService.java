@@ -40,7 +40,7 @@ public class GraphService {
             nodeDegree.put(head, nodeDegree.getOrDefault(head, 0) + 1);
             nodeDegree.put(tail, nodeDegree.getOrDefault(tail, 0) + 1);
 
-            edges.add(new GraphEdge(head, tail, relation, t.getDiaryId()));
+            edges.add(new GraphEdge(head, tail, relation, t.getDiaryId(), t.getTailPolarity()));
         }
 
         List<GraphNode> nodes = new ArrayList<>();
@@ -67,6 +67,7 @@ public class GraphService {
         entity.setHeadEntity(data.getHeadEntity());
         entity.setRelation(data.getRelation());
         entity.setTailEntity(data.getTailEntity());
+        entity.setTailPolarity(data.getTailPolarity());
         mapper.updateById(entity);
     }
 
@@ -96,8 +97,9 @@ public class GraphService {
         public String target;
         public String label;
         public Long diaryId;
-        public GraphEdge(String source, String target, String label, Long diaryId) {
-            this.source = source; this.target = target; this.label = label; this.diaryId = diaryId;
+        public Integer tailPolarity;
+        public GraphEdge(String source, String target, String label, Long diaryId, Integer tailPolarity) {
+            this.source = source; this.target = target; this.label = label; this.diaryId = diaryId; this.tailPolarity = tailPolarity;
         }
     }
 }

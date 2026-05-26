@@ -21,6 +21,8 @@ public class DiaryKnowledgeGraphEntity {
 
     private String tailEntity;
 
+    private Integer tailPolarity;
+
     private LocalDateTime createdAt;
 
     public Long getId() {
@@ -69,6 +71,14 @@ public class DiaryKnowledgeGraphEntity {
 
     public void setTailEntity(String tailEntity) {
         this.tailEntity = tailEntity;
+    }
+
+    public Integer getTailPolarity() {
+        return tailPolarity;
+    }
+
+    public void setTailPolarity(Integer tailPolarity) {
+        this.tailPolarity = tailPolarity;
     }
 
     public LocalDateTime getCreatedAt() {

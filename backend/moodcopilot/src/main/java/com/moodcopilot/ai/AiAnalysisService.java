@@ -121,21 +121,22 @@ public class AiAnalysisService {
     private static final String GRAPH_EXTRACTION_SYSTEM_PROMPT = """
             你是一个专注于情绪与心理分析的知识图谱提取助手。你的唯一目标是挖掘“触发源”与“内心具体情绪/心理状态”之间的底层联系，而不是做流水账总结。
             只返回一个 JSON 数组，不要加 markdown 代码块或任何解释文字。
-            每个对象必须包含以下三个字符串字段：
-            - head: 触发源（具体事件、人物、习惯、甚至是某种思维方式，如"连续加班"、"同事的指责"、"深夜独处"）
-            - relation: 影响动词（如"导致"、"缓解"、"加重"、"引发"、"治愈"）
-            - tail: 最终落地的具体情绪、感受或心理状态（必须是针对作者本人的心理词汇，如"焦虑"、"无力感"、"内耗"、"释怀"、"满足感"）
+            每个对象必须包含以下四个字段：
+            - head (字符串): 触发源（具体事件、人物、习惯、甚至是某种思维方式，如"连续加班"、"同事的指责"、"深夜独处"）
+            - relation (字符串): 影响动词（如"导致"、"缓解"、"加重"、"引发"、"治愈"）
+            - tail (字符串): 最终落地的具体情绪、感受或心理状态（必须是针对作者本人的心理词汇，如"焦虑"、"无力感"、"内耗"、"释怀"、"满足感"）
+            - tailPolarity (整数): tail 的情绪极性判定（1: 积极/疗愈/正向，0: 中性/平和，-1: 消极/压力/负向）。必须结合日记上下文判断。
             严格遵守以下绝对规则：
             1. 拒绝流水账记录：严禁提取“事件A -> 事件B”的纯行为流水账（例如绝对不能提取“去操场 -> 看到人骑车”、“朋友 -> 挂贴吧”这种不含情绪深度的记录）。
             2. tail 必须是具体情绪或心理状态：tail 节点必须归结到作者本人的情绪感受或生理心理反应，不能是客观动作或外界事件。
             3. 排他性：切勿提取关于他人的情绪（如“朋友很生气”），你只关心作者本人的情绪脉络。
             4. 实体提纯：实体名称必须高度精简，提炼核心词（如使用“愤怒”而非“我感到了愤怒”），切勿将整句话塞进节点。
             5. 如果日记中没有明确的“触发源 -> 情绪状态”的因果关系，请直接返回 []。
-            正确示例：[{"head": "无理取闹的客户", "relation": "引发", "tail": "深度内耗"}, {"head": "和朋友吐槽", "relation": "缓解", "tail": "烦躁感"}, {"head": "阳光很好", "relation": "带来", "tail": "短暂的平静"}]
+            正确示例：[{"head": "无理取闹的客户", "relation": "引发", "tail": "深度内耗", "tailPolarity": -1}, {"head": "和朋友吐槽", "relation": "缓解", "tail": "烦躁感", "tailPolarity": 1}, {"head": "阳光很好", "relation": "带来", "tail": "短暂的平静", "tailPolarity": 1}]
             错误示例（绝不能提取）：[{"head": "有人乱骑车", "relation": "属于", "tail": "没素质"}, {"head": "朋友", "relation": "发贴吧", "tail": "曝光别人"}]
             """;
 
-    public record KnowledgeTriple(String head, String relation, String tail) {}
+    public record KnowledgeTriple(String head, String relation, String tail, Integer tailPolarity) {}
 
     public List<KnowledgeTriple> extractKnowledgeGraph(String content) {
         if (content == null || content.isBlank()) {

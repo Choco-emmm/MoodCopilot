@@ -49,10 +49,17 @@
           >
             <div class="memory-content" style="flex-direction: row; align-items: center; flex-wrap: wrap;">
               <template v-if="editingTripleId === t.id">
-                <div style="display: flex; gap: 8px; flex: 1;">
-                  <n-input v-model:value="editingTriple.headEntity" size="small" placeholder="起点" />
-                  <n-input v-model:value="editingTriple.relation" size="small" placeholder="关系" />
-                  <n-input v-model:value="editingTriple.tailEntity" size="small" placeholder="终点" />
+                <div style="display: flex; flex-direction: column; gap: 8px; flex: 1; width: 100%;">
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <n-input v-model:value="editingTriple.headEntity" size="small" placeholder="起点" style="flex: 1; min-width: 90px;" />
+                    <n-input v-model:value="editingTriple.relation" size="small" placeholder="关系" style="flex: 1; min-width: 60px;" />
+                    <n-input v-model:value="editingTriple.tailEntity" size="small" placeholder="终点" style="flex: 1; min-width: 90px;" />
+                  </div>
+                  <n-radio-group v-model:value="editingTriple.tailPolarity" size="small" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
+                    <n-radio :value="1">😃 积极</n-radio>
+                    <n-radio :value="0">😐 中性</n-radio>
+                    <n-radio :value="-1">😔 消极</n-radio>
+                  </n-radio-group>
                 </div>
               </template>
               <template v-else>
@@ -111,7 +118,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { NButton, NSpin, NInput, NModal, NTag } from 'naive-ui'
+import { NButton, NSpin, NInput, NModal, NTag, NRadioGroup, NRadio } from 'naive-ui'
 import { graphApi } from '../../api'
 import { logWarn } from '../../utils/logger'
 
@@ -142,13 +149,14 @@ interface TripleItem {
   headEntity: string
   relation: string
   tailEntity: string
+  tailPolarity: number
   diaryId: number
 }
 const triples = ref<TripleItem[]>([])
 const triplesLoading = ref(false)
 const deletingTripleId = ref<number | null>(null)
 const editingTripleId = ref<number | null>(null)
-const editingTriple = ref({ headEntity: '', relation: '', tailEntity: '' })
+const editingTriple = ref({ headEntity: '', relation: '', tailEntity: '', tailPolarity: 0 })
 const savingTripleId = ref<number | null>(null)
 
 const showGraphPreviewModal = ref(false)
@@ -236,13 +244,13 @@ async function loadGraph() {
             { name: '负向与压力', itemStyle: { color: '#d03050' } }
           ],
           data: data.nodes.map((n: any) => {
-            // 根据提取规则，作为 target (终点) 的节点通常是情绪/感受
-            const isEmotion = data.edges.some((e: any) => e.target === n.name);
+            const edgeAsTarget = data.edges.find((e: any) => e.target === n.name);
             let categoryIndex = 0;
-            if (isEmotion) {
-              const positiveKeywords = ['喜悦', '期待', '兴奋', '自豪', '轻松', '平静', '感恩', '满足', '开心', '快乐', '释怀', '治愈', '安心', '充实'];
-              const isPositive = positiveKeywords.some(kw => n.name.includes(kw));
-              categoryIndex = isPositive ? 1 : 2;
+            if (edgeAsTarget) {
+              const p = edgeAsTarget.tailPolarity;
+              if (p === 1) categoryIndex = 1;
+              else if (p === -1) categoryIndex = 2;
+              else categoryIndex = 0;
             }
             return {
               name: n.name,
@@ -293,12 +301,12 @@ function isRecentlyUpdated(t: any) {
 
 function startEditTriple(t: TripleItem) {
   editingTripleId.value = t.id
-  editingTriple.value = { headEntity: t.headEntity, relation: t.relation, tailEntity: t.tailEntity }
+  editingTriple.value = { headEntity: t.headEntity, relation: t.relation, tailEntity: t.tailEntity, tailPolarity: t.tailPolarity ?? 0 }
 }
 
 function cancelEditTriple() {
   editingTripleId.value = null
-  editingTriple.value = { headEntity: '', relation: '', tailEntity: '' }
+  editingTriple.value = { headEntity: '', relation: '', tailEntity: '', tailPolarity: 0 }
 }
 
 async function saveTriple(id: number) {

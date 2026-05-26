@@ -37,8 +37,8 @@ public class GraphConsolidationService {
             JSON 格式必须是：
             {
               "triples": [
-                {"headEntity": "...", "relation": "...", "tailEntity": "..."},
-                {"headEntity": "...", "relation": "...", "tailEntity": "..."}
+                {"headEntity": "...", "relation": "...", "tailEntity": "...", "tailPolarity": 1},
+                {"headEntity": "...", "relation": "...", "tailEntity": "...", "tailPolarity": -1}
               ]
             }
             """;
@@ -70,7 +70,8 @@ public class GraphConsolidationService {
     public record ConsolidatedGraphResponse(@JsonProperty("triples") List<ConsolidatedTriple> triples) {}
     public record ConsolidatedTriple(@JsonProperty("headEntity") String headEntity,
                                      @JsonProperty("relation") String relation,
-                                     @JsonProperty("tailEntity") String tailEntity) {}
+                                     @JsonProperty("tailEntity") String tailEntity,
+                                     @JsonProperty("tailPolarity") Integer tailPolarity) {}
 
     public List<ConsolidatedTriple> previewConsolidation(Long userId) {
         // Rate limit logic
@@ -127,6 +128,7 @@ public class GraphConsolidationService {
                 entity.setHeadEntity(trimTo(t.headEntity(), 64));
                 entity.setRelation(trimTo(t.relation(), 64));
                 entity.setTailEntity(trimTo(t.tailEntity(), 64));
+                entity.setTailPolarity(t.tailPolarity() != null ? t.tailPolarity() : 0);
                 entity.setCreatedAt(now);
                 graphMapper.insert(entity);
             }
@@ -143,7 +145,7 @@ public class GraphConsolidationService {
 
     private String buildPrompt(List<DiaryKnowledgeGraphEntity> existing) {
         return "现有图谱三元组：\n" + existing.stream()
-                .map(t -> t.getHeadEntity() + " --(" + t.getRelation() + ")--> " + t.getTailEntity())
+                .map(t -> t.getHeadEntity() + " --(" + t.getRelation() + ")--> " + t.getTailEntity() + " [极性:" + (t.getTailPolarity() == null ? 0 : t.getTailPolarity()) + "]")
                 .collect(Collectors.joining("\n"));
     }
 
