@@ -53,7 +53,7 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             'vue-vendor': ['vue', 'vue-router', 'pinia'],
             'ui-vendor': ['naive-ui'],
-            'editor-vendor': ['vditor', 'marked', 'dompurify'],
+            'editor-vendor': ['@wangeditor/editor', 'marked', 'dompurify'],
             'utils-vendor': ['axios', 'cropperjs', '@vicons/ionicons5']
           }
         }
