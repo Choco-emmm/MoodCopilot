@@ -455,13 +455,13 @@ function formatGeneratedAt(value?: string | Date | null) {
 }
 
 .page-title {
+  display: block;
+  width: 100%;
   font-family: var(--font-display);
   font-size: 2rem;
   font-weight: 700;
   text-align: center;
   margin: 0 0 16px;
-  letter-spacing: 0.05em;
-  text-indent: 0.05em;
 }
 
 /* ── Segmented Control (Tabs) ── */
@@ -703,4 +703,5 @@ function formatGeneratedAt(value?: string | Date | null) {
 }
 .md-content :deep(ol) {
   list-style-type: decimal;
-  padding-left:
+  padding-left: 1.5em;
+  margin

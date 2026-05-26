@@ -2,7 +2,9 @@
   <main class="app-shell">
     <AppHeader />
 
-    <section class="panel profile-head">
+    <section class="fusion-panel">
+      <div class="fusion-bg"></div>
+      <div class="fusion-content profile-head">
       <n-button
         v-if="isOwner"
         quaternary
@@ -14,12 +16,12 @@
         ⚙️
       </n-button>
       <div class="profile-hero">
-        <div class="profile-avatar-wrap">
-          <div v-if="profileLoading" class="profile-avatar">
+        <div class="avatar-wrap">
+          <div v-if="profileLoading" class="avatar-img" style="background: var(--color-primary); color: white; display: flex; align-items: center; justify-content: center;">
             <n-spin size="small" />
           </div>
-          <img v-else-if="profileAvatar" :src="profileAvatar" class="profile-avatar profile-avatar-img" decoding="async" />
-          <span v-else class="profile-avatar">{{ profileInitial }}</span>
+          <img v-else-if="profileAvatar" :src="profileAvatar" class="avatar-img" decoding="async" />
+          <span v-else class="avatar-img" style="background: var(--color-primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 28px; font-family: var(--font-display);">{{ profileInitial }}</span>
         </div>
         <div class="profile-main">
           <div class="profile-title-row">
@@ -37,17 +39,15 @@
           </div>
           <p class="profile-signature">{{ profileSignature || (isOwner ? '还没有写签名，去个人中心补一句吧。' : '这个人很低调，还没留下签名。') }}</p>
         </div>
+        </div>
       </div>
     </section>
 
-    <section v-if="isOwner" class="panel tasks-panel">
-      <router-link to="/task-center" class="task-center-link">
-        <span>📋 任务中心</span>
-        <span class="task-center-arrow">→</span>
-      </router-link>
-    </section>
 
-    <section class="panel profile-list-panel">
+
+    <section class="fusion-panel">
+      <div class="fusion-bg" style="transform: rotate(-0.3deg) translateY(2px);"></div>
+      <div class="fusion-content profile-list-panel">
       <div class="profile-list-head">
         <h3>{{ isSearching ? '搜索结果' : '日记列表' }}</h3>
         <div class="profile-list-actions" style="display: flex; align-items: center; gap: 8px;">
@@ -108,6 +108,7 @@
         <p class="profile-empty-tip">{{ isSearching ? '尝试缩短或修改搜索关键词、扩大时间范围' : (isOwner ? '从一条简单记录开始，持续比完美更重要。' : '晚点再来看看，或先去广场看看大家的分享。') }}</p>
       </div>
       <n-spin v-else size="small" />
+      </div>
     </section>
 
     <ProfileSettingsModal
@@ -338,10 +339,36 @@ function handleProfileUpdated() {
 </script>
 
 <style scoped>
-.profile-head {
+.fusion-panel {
   position: relative;
-  margin-bottom: 12px;
-  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.fusion-bg {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklab, var(--color-surface) 90%, #e8dcc5);
+  border-radius: 8px;
+  transform: rotate(0.4deg) translateY(2px);
+  box-shadow: 2px 6px 16px rgba(0,0,0,0.03);
+  z-index: 0;
+  border: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent);
+}
+
+.fusion-content {
+  position: relative;
+  background: var(--color-surface);
+  border-radius: 8px;
+  padding: 30px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+  z-index: 1;
+  border: 1px solid var(--color-border);
+  background-image: linear-gradient(135deg, transparent 80%, color-mix(in oklab, var(--color-primary) 1.5%, transparent));
+}
+
+.profile-head {
+  display: flex;
+  flex-direction: column;
 }
 
 .profile-settings-trigger {
@@ -349,37 +376,38 @@ function handleProfileUpdated() {
   right: 16px;
   top: 16px;
   font-size: 20px;
+  z-index: 10;
 }
 
 .profile-hero {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
-}
-
-.profile-avatar-wrap {
-  flex-shrink: 0;
-}
-
-.profile-avatar {
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--color-surface);
-  background: var(--color-primary);
-  border: 1px solid color-mix(in oklab, var(--color-primary) 35%, transparent 65%);
+  gap: 24px;
+  position: relative;
 }
 
-.profile-avatar-img {
+.avatar-wrap {
+  width: 80px;
+  height: 80px;
+  border-radius: 4px;
+  background: #fff;
+  padding: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transform: rotate(-1.5deg);
+  flex-shrink: 0;
+  border: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent);
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
+  border-radius: 2px;
+  background: var(--color-primary-light);
 }
 
 .profile-main {
+  flex: 1;
   min-width: 0;
 }
 
@@ -391,12 +419,12 @@ function handleProfileUpdated() {
 }
 
 .profile-title {
-  margin: 0;
-  font-family: var(--font-body);
+  margin: 0 0 8px 0;
+  font-family: var(--font-display);
   color: var(--color-text);
-  font-size: clamp(24px, 4.8vw, 38px);
-  line-height: 1.14;
-  letter-spacing: -0.01em;
+  font-size: clamp(24px, 4vw, 32px);
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .profile-follow-btn {
@@ -422,15 +450,17 @@ function handleProfileUpdated() {
 }
 
 .profile-signature {
-  margin: 10px 0 0;
+  font-size: 14.5px;
   color: var(--color-text-secondary);
-  font-size: 14px;
-  line-height: 1.55;
+  font-style: italic;
+  margin: 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--color-primary);
+  line-height: 1.6;
 }
 
 .profile-list-panel {
   min-height: 180px;
-  padding: 16px;
 }
 
 .profile-list-head {
@@ -444,7 +474,9 @@ function handleProfileUpdated() {
 .profile-list-head h3 {
   margin: 0;
   color: var(--color-text);
-  font-size: 18px;
+  font-size: 1.4rem;
+  font-family: var(--font-display);
+  font-weight: 600;
   line-height: 1.2;
 }
 
@@ -700,33 +732,7 @@ function handleProfileUpdated() {
   gap: 8px;
 }
 
-.tasks-panel {
-  margin-bottom: 12px;
-  padding: 12px 16px;
-}
 
-.task-center-link {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--color-primary);
-  text-decoration: none;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  background: color-mix(in oklab, var(--color-primary) 10%, transparent);
-  transition: background 0.15s, color 0.15s;
-}
-
-.task-center-link:hover {
-  background: color-mix(in oklab, var(--color-primary) 18%, transparent 82%);
-  color: var(--color-primary-hover);
-}
-
-.task-center-arrow {
-  font-size: 16px;
-}
 
 .search-panel-card {
   margin-bottom: 20px;
@@ -778,6 +784,36 @@ function handleProfileUpdated() {
   gap: 8px;
 }
 
+@media (max-width: 640px) {
+  .fusion-content {
+    padding: 20px;
+  }
+  
+  .profile-hero {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+  }
+  
+  .avatar-wrap {
+    transform: rotate(0deg);
+  }
+  
+  .profile-signature {
+    border-left: none;
+    padding-left: 0;
+  }
+  
+  .profile-list-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .profile-list-head h3 {
+    font-size: 1.2rem;
+  }
+}
+
 @media (max-width: 780px) {
   .profile-head,
   .profile-list-panel {
@@ -804,67 +840,4 @@ function handleProfileUpdated() {
   }
 
   .password-row-inline {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .password-code-row {
-    flex-direction: row;
-    align-items: center;
-  }
-
-  .password-code-row :deep(.n-input) {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .password-code-row .n-button {
-    width: auto;
-    flex: 0 0 auto;
-  }
-
-  .save-btn {
-    width: 100%;
-  }
-
-  .memory-item {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-
-  .memory-content {
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .memory-key {
-    align-self: flex-start;
-  }
-
-  .memory-edit-input {
-    width: 100%;
-  }
-
-  .memory-actions {
-    justify-content: flex-end;
-  }
-
-  .search-grid {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-}
-
-
-.fade-slide-enter-active,
-.fade-slide-leave-active {
-  transition: all 0.25s var(--ease-out);
-}
-
-.fade-slide-enter-from,
-.fade-slide-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-</style>
+    flex-direction

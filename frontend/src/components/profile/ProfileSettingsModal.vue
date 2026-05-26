@@ -11,11 +11,14 @@
     </template>
     <div class="settings-modal-scroll">
       <div class="settings-avatar-wrap">
-        <div class="settings-avatar-preview-wrap">
-          <img v-if="auth.avatar" :src="auth.avatar" class="settings-avatar-preview" decoding="async" />
-          <span v-else class="settings-avatar-placeholder">{{ auth.displayName?.charAt(0) || '我' }}</span>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <div class="settings-avatar-preview-wrap">
+            <img v-if="auth.avatar" :src="auth.avatar" class="settings-avatar-preview" decoding="async" />
+            <span v-else class="settings-avatar-placeholder">{{ auth.displayName?.charAt(0) || '我' }}</span>
+          </div>
+          <div style="font-size: 14px; color: var(--color-text); font-weight: 500;">{{ auth.displayName }}</div>
         </div>
-        <n-button size="small" type="primary" secondary @click="triggerUpload">更换头像</n-button>
+        <button class="upload-btn" @click="triggerUpload">更换头像</button>
         <input type="file" ref="fileInput" accept="image/jpeg,image/png,image/webp" style="display: none" @change="onFileChange" />
       </div>
 
@@ -34,6 +37,7 @@
             <n-button
               size="small"
               type="primary"
+              secondary
               :loading="savingName"
               :disabled="!editingName.trim() || editingName === auth.displayName || savingName || auth.remainingNameChanges <= 0"
               @click="saveName"
@@ -61,6 +65,7 @@
             <n-button
               size="small"
               type="primary"
+              secondary
               :loading="savingSignature"
               :disabled="(editingSignature ?? '').trim() === (auth.signature ?? '')"
               @click="saveSignature"
@@ -168,9 +173,9 @@
 
       <SettingSection title="安全设置" tag="Security">
         <div class="settings-row" style="flex-direction: column; align-items: flex-start; gap: 8px;">
-          <n-button size="small" @click="showPasswordChange = !showPasswordChange">
+          <button class="upload-btn" @click="showPasswordChange = !showPasswordChange" style="margin-top: 8px;">
             {{ showPasswordChange ? '取消修改密码' : '修改登录密码' }}
-          </n-button>
+          </button>
           
           <div v-if="showPasswordChange" style="width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 8px; padding: 12px; background: var(--color-surface-hover); border-radius: 8px;">
             <p class="settings-desc">修改密码前会向当前账号邮箱发送验证码，验证通过后才会生效。</p>
@@ -254,8 +259,8 @@
         </div>
       </SettingSection>
 
-      <div style="margin-top: 32px; margin-bottom: 24px;">
-        <n-button type="error" block @click="handleLogout">退出登录</n-button>
+      <div style="margin-top: 40px; margin-bottom: 24px;">
+        <button class="danger-btn" @click="handleLogout">退出登录</button>
       </div>
     </div>
   </n-modal>
@@ -817,21 +822,40 @@ onBeforeUnmount(() => {
 
 .settings-avatar-wrap {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 16px 0;
+  justify-content: space-between;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px dashed color-mix(in oklab, var(--color-border) 40%, transparent);
 }
 .settings-avatar-preview-wrap {
-  width: 80px;
-  height: 80px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   overflow: hidden;
-  background: var(--color-surface-hover);
+  background: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid color-mix(in oklab, var(--color-primary) 20%, transparent);
+}
+
+.upload-btn {
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 20px;
   border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font-body);
+}
+
+.upload-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: color-mix(in oklab, var(--color-primary) 4%, transparent);
 }
 .settings-avatar-preview {
   width: 100%;
@@ -839,8 +863,9 @@ onBeforeUnmount(() => {
   object-fit: cover;
 }
 .settings-avatar-placeholder {
-  font-size: 32px;
-  color: var(--color-text-light);
+  font-size: 20px;
+  font-family: var(--font-display);
+  color: #fff;
 }
 
 .settings-row {
@@ -866,6 +891,22 @@ onBeforeUnmount(() => {
   background: var(--color-surface-hover);
   padding: 8px 12px;
   border-radius: 8px;
+}
+.danger-btn {
+  width: 100%;
+  background: transparent;
+  color: var(--color-accent);
+  border: 1px solid color-mix(in oklab, var(--color-accent) 30%, transparent);
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14.5px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.danger-btn:hover {
+  background: color-mix(in oklab, var(--color-accent) 5%, transparent);
+  border-color: var(--color-accent);
 }
 
 .crop-area-container {
@@ -989,54 +1030,3 @@ onBeforeUnmount(() => {
   transition: box-shadow 0.25s var(--ease-out, ease), transform 0.25s var(--ease-out, ease);
 }
 .theme-item:hover .theme-preview {
-  box-shadow: 0 4px 14px rgba(0,0,0,0.1), inset 0 0 0 1px rgba(0,0,0,0.06);
-  transform: scale(1.05);
-}
-.theme-item.active .theme-preview {
-  box-shadow: 0 2px 12px color-mix(in oklab, var(--t-primary) 30%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--t-primary) 20%, transparent);
-}
-.theme-preview-bg {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: var(--t-bg);
-  position: relative;
-  overflow: hidden;
-}
-.theme-preview-swatch,
-.theme-preview-bar {
-  position: absolute;
-}
-.theme-label {
-  font-size: 12px;
-  color: var(--color-text);
-  text-align: center;
-  font-weight: 500;
-}
-.theme-check {
-  position: absolute;
-  top: 4px;
-  right: 8px;
-  font-size: 11px;
-  color: var(--color-primary);
-  font-weight: 700;
-}
-@media (min-width: 500px) {
-  .theme-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-</style>
-
-<style>
-/* Override naive-ui modal default white background */
-.settings-modal.n-card {
-  background: var(--color-bg) !important;
-  border: none !important;
-  box-shadow: 0 12px 32px color-mix(in oklab, var(--color-primary) 20%, transparent) !important;
-}
-.settings-modal.n-card > .n-card-header {
-  background: transparent !important;
-  border-bottom: none !important;
-}
-</style>

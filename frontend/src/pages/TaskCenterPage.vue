@@ -8,16 +8,19 @@
         <div class="level-badge">Lv.{{ taskStore.userLevel }}</div>
         <div class="level-exp-text">{{ taskStore.userExp }} / {{ taskStore.expToNextLevel > 0 ? taskStore.expToNextLevel : '—' }} EXP</div>
       </div>
-      <div class="level-bar-wrap">
+      <div class="level-bar-track">
         <div
           class="level-bar-fill"
           :style="{ width: taskStore.levelProgress + '%' }"
         />
       </div>
-      <p class="level-card-hint" v-if="taskStore.expToNextLevel > 0">
-        距 Lv.{{ taskStore.userLevel + 1 }} 还需 {{ Math.max(0, taskStore.expToNextLevel - taskStore.userExp) }} EXP
-      </p>
-      <p class="level-card-hint level-card-max" v-else>已达满级</p>
+      <div class="level-card-foot">
+        <p class="level-card-hint" v-if="taskStore.expToNextLevel > 0">
+          距 Lv.{{ taskStore.userLevel + 1 }} 还需 {{ Math.max(0, taskStore.expToNextLevel - taskStore.userExp) }} EXP
+        </p>
+        <p class="level-card-hint level-card-max" v-else>已达满级</p>
+        <button class="quota-link-btn" @click="showQuotaTable = true">查看配额表 →</button>
+      </div>
     </section>
 
     <!-- ── 签到区域 ── -->
@@ -33,8 +36,8 @@
             'week-day-today': day.isToday,
           }"
         >
-          <div class="week-day-dot">{{ day.done ? '✓' : day.dayOfMonth }}</div>
-          <span class="week-day-label">{{ day.label }}</span>
+          <span class="day-number">{{ day.dayOfMonth }}</span>
+          <span class="day-label">{{ day.label }}</span>
         </div>
       </div>
 
@@ -67,9 +70,9 @@
 
     <!-- ── 每日任务 ── -->
     <section class="panel tasks-section">
-      <div class="section-head">
-        <h3>每日任务</h3>
-        <span class="section-tag">每日刷新</span>
+      <div class="panel-header">
+        <h3 class="panel-title">每日任务</h3>
+        <span class="panel-tag">每日刷新</span>
       </div>
 
       <div v-if="taskStore.tasksLoading" class="tasks-loading">
@@ -102,13 +105,6 @@
               >
                 {{ task.current }}/{{ task.max }}
               </span>
-            </div>
-            <div class="task-bar-wrap">
-              <div
-                class="task-bar-fill"
-                :class="{ 'task-bar-full': task.current >= task.max }"
-                :style="{ width: (task.max > 0 ? Math.min(task.current / task.max, 1) * 100 : 0) + '%' }"
-              />
             </div>
             <div class="task-card-foot">
               <span class="task-exp-badge">+{{ task.expPerAction }} EXP/次</span>
@@ -145,18 +141,23 @@
       </div>
     </section>
   </main>
+
+  <QuotaTableModal :show="showQuotaTable" :level="taskStore.userLevel" @close="showQuotaTable = false" />
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { NSpin } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
+import QuotaTableModal from '../components/QuotaTableModal.vue'
 import { useTaskStore } from '../stores/task'
 import type { DailyTaskItem } from '../api'
 
 const router = useRouter()
 const taskStore = useTaskStore()
+
+const showQuotaTable = ref(false)
 
 const claimResult = reactive({ show: false, ok: false, msg: '', timer: 0 as number })
 
@@ -264,15 +265,24 @@ function navigateToTask(field: string) {
 </script>
 
 <style scoped>
-/* ── 等级进度卡片 ── */
+.panel {
+  position: relative;
+  background: var(--color-surface);
+  border-radius: 8px;
+  padding: 30px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+  border: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent);
+  background-image: linear-gradient(135deg, transparent 80%, color-mix(in oklab, var(--color-primary) 1.5%, transparent));
+  margin-bottom: 24px;
+}
+
 .level-card {
-  padding: 18px 22px;
-  margin-bottom: 14px;
+  padding: 30px;
 }
 
 .level-card-top {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   margin-bottom: 12px;
 }
@@ -290,20 +300,19 @@ function navigateToTask(field: string) {
   color: var(--color-text-muted);
 }
 
-.level-bar-wrap {
-  height: 8px;
-  border-radius: 4px;
-  background: color-mix(in oklab, var(--color-primary) 12%, transparent 88%);
+.level-bar-track {
+  height: 4px;
+  background: color-mix(in oklab, var(--color-border) 60%, transparent);
+  border-radius: 2px;
   overflow: hidden;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .level-bar-fill {
   height: 100%;
-  border-radius: 4px;
-  background: linear-gradient(90deg, var(--color-primary), #5a9470);
+  border-radius: 2px;
+  background: var(--color-primary);
   transition: width 0.6s var(--ease-out);
-  min-width: 4px;
 }
 
 .level-card-hint {
@@ -317,93 +326,95 @@ function navigateToTask(field: string) {
   font-weight: 700;
 }
 
+.level-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.quota-link-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  text-underline-offset: 4px;
+  padding: 0;
+}
+
+.quota-link-btn:hover {
+  text-decoration-color: var(--color-primary);
+}
+
 /* ── 签到区域 ── */
 .checkin-section {
-  padding: 20px 22px;
-  margin-bottom: 14px;
-  display: grid;
-  gap: 18px;
+  padding: 30px;
 }
 
 /* 周签可视化 */
 .week-strip {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
+  gap: 8px;
+  margin-bottom: 24px;
 }
 
 .week-day {
-  display: grid;
-  gap: 8px;
-  justify-items: center;
-  padding: 8px 4px 10px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-soft);
-  border: 1px solid transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0;
+  border: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent);
+  border-radius: 6px;
+  background: var(--theme-surface);
   transition: border-color var(--duration-fast) var(--ease-out),
               background var(--duration-fast) var(--ease-out);
 }
 
 .week-day-done {
-  background: var(--color-primary-light);
-  border-color: color-mix(in oklab, var(--color-primary) 24%, transparent 76%);
+  background: color-mix(in oklab, var(--color-primary) 6%, transparent);
+  border-color: color-mix(in oklab, var(--color-primary) 20%, transparent);
 }
 
 .week-day-today {
   border-color: var(--color-primary);
-  background: color-mix(in oklab, var(--color-primary-light) 80%, white 20%);
+  border-width: 1.5px;
 }
 
-.week-day-dot {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--color-text-muted);
-  background: color-mix(in oklab, var(--color-border) 40%, white 60%);
-  transition: background var(--duration-fast) var(--ease-out),
-              color var(--duration-fast) var(--ease-out);
-}
-
-.week-day-done .week-day-dot {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-}
-
-.week-day-today .week-day-dot {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 20%, transparent 80%);
-}
-
-.week-day-label {
-  font-size: 11px;
+.day-number {
+  font-family: var(--font-display);
+  font-size: 16px;
   font-weight: 600;
-  color: var(--color-text-muted);
+  color: var(--color-text);
 }
 
-.week-day-done .week-day-label,
-.week-day-today .week-day-label {
+.week-day-done .day-number,
+.week-day-today .day-number {
   color: var(--color-primary);
+}
+
+.day-label {
+  font-size: 11px;
+  color: var(--color-text-muted);
 }
 
 /* 签到统计行 */
 .checkin-stats-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  display: flex;
+  justify-content: space-around;
+  padding: 20px 0;
+  border-top: 1px dashed color-mix(in oklab, var(--color-border) 60%, transparent);
+  border-bottom: 1px dashed color-mix(in oklab, var(--color-border) 60%, transparent);
+  margin-bottom: 24px;
 }
 
 .checkin-stat {
-  display: grid;
-  gap: 2px;
-  padding: 10px 8px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-soft);
   text-align: center;
 }
 
@@ -423,30 +434,27 @@ function navigateToTask(field: string) {
 
 /* 签到按钮 */
 .checkin-btn-main {
+  width: 100%;
+  padding: 14px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  box-shadow: 0 4px 12px color-mix(in oklab, var(--color-primary) 20%, transparent);
+  transition: transform 0.2s, box-shadow 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  width: 100%;
-  padding: 14px 24px;
-  border: none;
-  border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, var(--color-primary), #5a9470);
-  color: var(--color-on-primary);
-  font-family: var(--font-body);
-  font-size: var(--text-base);
-  font-weight: 700;
-  cursor: pointer;
-  transition: background var(--duration-normal) var(--ease-out),
-              transform var(--duration-fast) var(--ease-out),
-              box-shadow var(--duration-normal) var(--ease-out);
-  box-shadow: 0 4px 18px color-mix(in oklab, var(--color-primary) 28%, transparent 72%);
 }
 
 .checkin-btn-main:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--color-primary-hover), #4a8460);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 24px color-mix(in oklab, var(--color-primary) 36%, transparent 64%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px color-mix(in oklab, var(--color-primary) 30%, transparent);
 }
 
 .checkin-btn-main:active:not(:disabled) {
@@ -458,7 +466,7 @@ function navigateToTask(field: string) {
 }
 
 .checkin-btn-done {
-  background: var(--color-surface-soft);
+  background: color-mix(in oklab, var(--color-border) 80%, transparent);
   color: var(--color-text-muted);
   box-shadow: none;
 }
@@ -480,31 +488,36 @@ function navigateToTask(field: string) {
 
 /* ── 每日任务 ── */
 .tasks-section {
-  padding: 20px 22px;
-  margin-bottom: 14px;
-  position: relative;
+  padding: 30px;
 }
 
-.tasks-section .section-head {
+.panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed color-mix(in oklab, var(--color-border) 60%, transparent);
 }
 
-.tasks-section h3 {
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
   margin: 0;
+  color: var(--color-text);
+  font-weight: 600;
 }
 
-.section-tag {
+.panel-tag {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-family: var(--font-body);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--color-primary);
-  background: var(--color-primary-light);
-  border: 1px solid color-mix(in oklab, var(--color-primary) 18%, transparent 82%);
-  border-radius: 999px;
-  padding: 2px 9px;
+  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  padding: 4px 10px;
+  border-radius: 4px;
 }
 
 .tasks-loading {
@@ -537,36 +550,31 @@ function navigateToTask(field: string) {
 }
 
 .tasks-list-full {
-  display: grid;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .task-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-soft);
-  border: 1px solid color-mix(in oklab, var(--color-border-strong) 14%, transparent 86%);
+  justify-content: space-between;
+  padding: 16px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--color-surface) 50%, transparent);
+  border: 1px solid var(--color-border);
   transition: border-color var(--duration-fast) var(--ease-out),
-              box-shadow var(--duration-fast) var(--ease-out);
-}
-
-.task-card:hover {
-  border-color: color-mix(in oklab, var(--color-primary) 30%, var(--color-border) 70%);
+              background var(--duration-fast) var(--ease-out);
 }
 
 .task-card-done {
-  opacity: 0.55;
-  border-color: transparent;
+  opacity: 0.7;
 }
 
 .task-card-info {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .task-card-header {
@@ -581,58 +589,33 @@ function navigateToTask(field: string) {
 }
 
 .task-card-label {
-  font-size: var(--text-sm);
-  font-weight: 700;
+  font-size: 14.5px;
+  font-weight: 600;
   color: var(--color-text);
-  flex: 1;
 }
 
 .task-card-counter {
   font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--color-text-muted) 10%, transparent 90%);
   color: var(--color-text-muted);
+  background: color-mix(in oklab, var(--color-border) 50%, transparent);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .task-counter-full {
-  background: color-mix(in oklab, var(--color-primary) 14%, transparent 86%);
+  background: color-mix(in oklab, var(--color-primary) 15%, transparent);
   color: var(--color-primary);
-}
-
-.task-bar-wrap {
-  height: 5px;
-  border-radius: 3px;
-  background: color-mix(in oklab, var(--color-primary) 10%, transparent 90%);
-  overflow: hidden;
-}
-
-.task-bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  background: var(--color-primary);
-  transition: width 0.4s var(--ease-out);
-  min-width: 0;
-}
-
-.task-bar-full {
-  background: color-mix(in oklab, var(--color-primary) 50%, #e8a840 50%);
 }
 
 .task-card-foot {
   display: flex;
   align-items: center;
-  gap: 8px;
 }
 
 .task-exp-badge {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
   color: var(--color-primary);
-  background: var(--color-primary-light);
-  border-radius: 6px;
-  padding: 2px 8px;
+  font-family: var(--font-body);
 }
 
 
@@ -643,16 +626,14 @@ function navigateToTask(field: string) {
 /* 操作按钮 */
 .btn-done,
 .btn-go {
-  padding: 6px 18px;
-  border-radius: 999px;
+  padding: 6px 16px;
+  border-radius: 20px;
   border: none;
   font-family: var(--font-body);
-  font-size: var(--text-sm);
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out),
-              color var(--duration-fast) var(--ease-out),
-              transform var(--duration-fast) var(--ease-out);
+  transition: background 0.2s;
   white-space: nowrap;
 }
 
@@ -663,14 +644,12 @@ function navigateToTask(field: string) {
 }
 
 .btn-go {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  box-shadow: 0 2px 8px color-mix(in oklab, var(--color-primary) 20%, transparent 80%);
+  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  color: var(--color-primary);
 }
 
 .btn-go:hover {
-  background: var(--color-primary-hover);
-  transform: translateY(-1px);
+  background: color-mix(in oklab, var(--color-primary) 15%, transparent);
 }
 
 /* ── Toast 反馈 ── */
@@ -728,52 +707,10 @@ function navigateToTask(field: string) {
 }
 
 /* ── 响应式 ── */
-@media (max-width: 780px) {
-  .level-card {
-    padding: 16px;
-  }
-
-  .checkin-section {
-    padding: 16px;
-  }
-
-  .week-day-dot {
-    width: 24px;
-    height: 24px;
-    font-size: 11px;
-  }
-
-  .checkin-stats-row {
-    gap: 8px;
-  }
-
-  .checkin-stat {
-    padding: 8px 6px;
-  }
-
-  .checkin-stat-num {
-    font-size: var(--text-lg);
-  }
-
-  .tasks-section {
-    padding: 16px;
-  }
-
-  .task-card {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .task-card-action {
-    justify-self: stretch;
-  }
-
-  .btn-claim,
-  .btn-done,
-  .btn-go {
-    width: 100%;
-    padding: 10px 18px;
-    text-align: center;
+@media (max-width: 640px) {
+  .panel {
+    padding: 20px;
   }
 }
 </style>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    

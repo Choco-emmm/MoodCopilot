@@ -34,7 +34,14 @@
 
       <!-- List View -->
       <div v-else class="memory-list">
-         <div v-for="t in triples" :key="t.id" class="memory-item">
+         <div
+            v-for="(t, index) in triples"
+            :key="t.id"
+            class="memory-item"
+            v-motion
+            :initial="{ opacity: 0, y: 30 }"
+            :enter="{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 250, damping: 25, delay: index * 50 } }"
+          >
             <div class="memory-content" style="flex-direction: row; align-items: center; flex-wrap: wrap;">
               <template v-if="editingTripleId === t.id">
                 <div style="display: flex; gap: 8px; flex: 1;">
@@ -344,44 +351,54 @@ async function applyGraphConsolidation() {
   line-height: 1.5;
 }
 .memory-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+  padding: 10px 0;
 }
 .memory-item {
   display: flex;
+  flex-direction: column;
   justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 12px;
-  background: var(--color-surface-soft);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  transition: box-shadow 0.2s, border-color 0.2s;
+  gap: 16px;
+  padding: 24px;
+  background: var(--color-surface);
+  border: none;
+  border-radius: var(--radius-xl);
+  box-shadow: 0 10px 30px -10px rgba(0,0,0,0.03);
+  transition: all var(--duration-normal) var(--ease-out);
 }
 .memory-item:hover {
-  border-color: var(--color-jade-light);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -10px rgba(0,0,0,0.06);
+}
+@media (prefers-color-scheme: dark) {
+  .memory-item:hover {
+    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.2);
+  }
 }
 .memory-content {
-  flex: 1 1 200px;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .memory-actions {
   display: flex;
   gap: 8px;
   align-items: center;
   flex-shrink: 0;
+  justify-content: flex-end;
+  border-top: 1px dashed color-mix(in oklab, var(--color-border) 40%, transparent);
+  padding-top: 12px;
 }
 .memory-action-btn {
   font-size: 12px !important;
   padding: 0 12px !important;
-  background: var(--color-surface-hover) !important;
+  background: transparent !important;
   border: none !important;
   transition: all 0.2s ease !important;
+  border-radius: var(--radius-full) !important;
 }
 .memory-action-btn.edit-btn,
 .memory-action-btn.save-btn {
@@ -389,19 +406,19 @@ async function applyGraphConsolidation() {
 }
 .memory-action-btn.edit-btn:hover,
 .memory-action-btn.save-btn:hover {
-  background: color-mix(in oklab, var(--color-primary) 12%, transparent) !important;
+  color: var(--color-primary-hover) !important;
 }
 .memory-action-btn.delete-btn {
   color: var(--color-error) !important;
 }
 .memory-action-btn.delete-btn:hover {
-  background: color-mix(in oklab, var(--color-error) 12%, transparent) !important;
+  color: #ff6666 !important;
 }
 .memory-action-btn.cancel-btn {
   color: var(--color-text-secondary) !important;
 }
 .memory-action-btn.cancel-btn:hover {
-  background: color-mix(in oklab, var(--color-text-secondary) 12%, transparent) !important;
+  color: var(--color-text) !important;
 }
 .chart {
   width: 100%;

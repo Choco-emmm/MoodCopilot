@@ -10,6 +10,21 @@
           <component :is="Component" v-if="!route.meta.keepAlive" :key="route.fullPath" />
         </router-view>
 
+        <!-- 全局任务中心 FAB -->
+        <router-link
+          v-if="showTaskFab"
+          to="/task-center"
+          class="global-task-fab"
+          :class="{ 'has-dot': !taskStore.checkInState.todaySigned }"
+          title="任务中心"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <line x1="3" y1="9" x2="21" y2="9"/>
+            <line x1="9" y1="21" x2="9" y2="9"/>
+          </svg>
+        </router-link>
+
         <n-modal :show="store.showGlobalAnalysisModal" :mask-closable="false" @update:show="onGlobalModalUpdate">
           <div class="analysis-modal">
             <div class="modal-header">
@@ -45,20 +60,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, watchEffect } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, watch, watchEffect, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { defineComponent } from 'vue'
 import { useMessage, useNotification, zhCN, dateZhCN, useOsTheme, darkTheme } from 'naive-ui'
 import { useDiaryStore } from './stores/diary'
 import { useAuthStore } from './stores/auth'
 import { useNotificationStore } from './stores/notification'
+import { useTaskStore } from './stores/task'
 import type { GlobalThemeOverrides } from 'naive-ui'
 import { themeOptions } from './constants/theme'
 
 const router = useRouter()
+const route = useRoute()
 const store = useDiaryStore()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
+const taskStore = useTaskStore()
 const osTheme = useOsTheme()
 
 const MessageEnvironment = defineComponent({
@@ -103,7 +121,19 @@ watch(() => authStore.token, (newToken, oldToken) => {
   }
 })
 
+onMounted(() => {
+  if (authStore.isAuthenticated) {
+    taskStore.fetchCheckInStatus()
+  }
+})
+
 const isDark = computed(() => osTheme.value === 'dark')
+
+/** 全局任务 FAB：在任务中心页自身不显示 */
+const showTaskFab = computed(() => {
+  const p = route.path
+  return p !== '/task-center' && p !== '/login' && p !== '/register'
+})
 
 const activeThemeName = computed(() => {
   // themeMode: 'auto' 跟随系统, 'light' 强制白天, 'dark' 强制夜间
@@ -194,69 +224,4 @@ const dynamicThemeOverrides = computed<GlobalThemeOverrides>(() => {
 .modal-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  color: var(--color-text);
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 22px;
-  color: var(--color-text-light);
-  cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
-}
-
-.modal-close:hover {
-  color: var(--color-text);
-}
-
-.modal-mood {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.mood-intensity {
-  font-size: 13px;
-  color: var(--color-text-secondary);
-}
-
-.modal-secondary {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-
-.modal-summary {
-  margin: 0 0 8px;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-  line-height: 1.6;
-}
-
-.modal-feedback {
-  margin: 0 0 20px;
-  font-size: 13px;
-  color: var(--color-text-muted);
-  line-height: 1.6;
-  padding: 10px 12px;
-  background: var(--color-surface-hover);
-  border-radius: 8px;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-</style>
+  alig

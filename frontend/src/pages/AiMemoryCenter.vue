@@ -4,11 +4,11 @@
 
     <section class="panel memory-center-panel">
       <div class="panel-header">
-        <h2>🏛️ MoodCopilot 记忆中心</h2>
-        <p class="panel-desc">查看和管理 MoodCopilot 为你整理的长期记忆与事件图谱。</p>
+        <h2>我的记忆中心</h2>
+        <p class="panel-desc">这是 MoodCopilot 从你的日常记录中提取的长期画像。不再是冰冷的表格，而是由点滴细节拼凑出的、一个更懂你的数字记忆库。</p>
       </div>
 
-      <n-tabs type="segment" justify-content="space-evenly" style="margin-top: 20px;">
+      <n-tabs type="line" justify-content="center" size="large" style="margin-top: 20px;">
         <n-tab-pane name="profile" tab="长期画像">
           <MemoryProfileView />
         </n-tab-pane>
@@ -31,16 +31,26 @@ import MemoryGraphView from '../components/memory/MemoryGraphView.vue'
 <style scoped>
 .memory-center-panel {
   max-width: 900px;
-  margin: 20px auto;
-  padding: 24px;
+  margin: 40px auto;
+  padding: 0 20px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+.panel-header {
+  margin-bottom: 40px;
+  text-align: center;
 }
 .panel-header h2 {
-  margin: 0 0 8px;
-  color: var(--color-text);
+  margin: 0 0 12px;
+  color: var(--color-primary);
+  font-family: var(--font-serif);
+  font-size: 2.5rem;
+  font-weight: 600;
 }
 .panel-desc {
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: 1.1rem;
   margin: 0;
 }
 </style>

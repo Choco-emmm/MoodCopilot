@@ -2,7 +2,7 @@
   <aside class="chat-sidebar">
     <div class="sidebar-head">
       <span class="sidebar-title">对话</span>
-      <n-button size="tiny" text type="primary" :disabled="creatingConversation" @click="$emit('create')">+ 新建</n-button>
+      <button class="sidebar-new" :disabled="creatingConversation" @click="$emit('create')">+ 新建</button>
     </div>
     <div class="conv-list">
       <div
@@ -12,12 +12,10 @@
         @click="$emit('select', conv.id)"
       >
         <span class="conv-title">{{ conv.title }}</span>
-        <n-button
-          size="tiny"
-          text
+        <button
           class="conv-delete"
           @click.stop="$emit('delete', conv.id)"
-        >&times;</n-button>
+        >&times;</button>
       </div>
       <div v-if="conversations.length === 0" class="conv-empty">暂无对话</div>
     </div>
@@ -25,8 +23,6 @@
 </template>
 
 <script setup lang="ts">
-import { NButton } from 'naive-ui'
-
 export interface Conversation {
   id: number
   title: string
@@ -44,3 +40,9 @@ defineEmits<{
   (e: 'delete', id: number): void
 }>()
 </script>
+
+<style scoped>
+.chat-sidebar {
+  border: none;
+  border-radius: 14px;
+  background: color-mi

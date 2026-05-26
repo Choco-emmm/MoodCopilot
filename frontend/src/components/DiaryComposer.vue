@@ -1,56 +1,59 @@
 <template>
-  <section class="composer panel">
-    <div class="section-title">
-      <div>
-        <p class="eyebrow">{{ isEditMode ? '编辑日记' : '今日日记' }}</p>
-        <h2>{{ isEditMode ? '修改这篇日记' : '此刻发生了什么' }}</h2>
-      </div>
-      <div class="composer-toggles">
-        <label class="analyze-toggle">
-          <input type="checkbox" v-model="analyze" />
-          <span>AI 分析</span>
-        </label>
-        <n-radio-group v-model:value="visibility" size="small">
-          <n-radio-button v-for="opt in visibilityOptions" :key="opt.value" :value="opt.value" :label="opt.label" />
-        </n-radio-group>
+  <section class="composer">
+    <!-- ★ 杂志风标题区 -->
+    <div class="composer-header">
+      <span class="composer-eyebrow">{{ isEditMode ? '编辑日记' : '今日日记' }}</span>
+      <h1 class="composer-title">{{ isEditMode ? '修改这篇日记' : '此刻发生了什么' }}</h1>
+      <p class="composer-subtitle">不需要完美的文字，把此刻的感受放在这里就好。</p>
+    </div>
+
+    <!-- 控制栏：AI分析 + 可见性 -->
+    <div class="composer-controls">
+      <label class="composer-ai-toggle">
+        <input type="checkbox" v-model="analyze" />
+        <span>AI 分析我的情绪</span>
+      </label>
+      <div class="composer-visibility">
+        <button
+          v-for="opt in visibilityOptions"
+          :key="opt.value"
+          :class="['composer-vis-opt', { active: visibility === opt.value }]"
+          @click="visibility = opt.value as 'PRIVATE' | 'PUBLIC'"
+        >{{ opt.label }}</button>
       </div>
     </div>
 
-
-
+    <!-- ★ 编辑器：纸质感 -->
     <div class="composer-editor">
       <div ref="vditorContainer"></div>
     </div>
 
-    <div class="composer-toolbar">
-      <div class="composer-music-row">
-        <button
-          v-if="!musicMeta && !musicParsing && !showMusicInput"
-          class="music-attach-btn"
-          type="button"
-          @click="showMusicInput = true"
-        >
-          <span class="music-attach-icon">🎵</span> 分享音乐
-        </button>
+    <!-- 音乐附件 -->
+    <div class="composer-music">
+      <button
+        v-if="!musicMeta && !musicParsing && !showMusicInput"
+        class="composer-music-attach"
+        type="button"
+        @click="showMusicInput = true"
+      >
+        <span class="composer-music-attach-icon">🎵</span> 分享一首今天的歌...
+      </button>
 
-        <div v-if="showMusicInput && !musicMeta" class="music-input-row">
-          <input
-            ref="musicUrlInput"
-            v-model="musicUrlDraft"
-            class="music-url-input"
-            type="url"
-            placeholder="粘贴网易云音乐链接..."
-            @paste="handleMusicInputPaste"
-            @keyup.enter="handleMusicUrlSubmit"
-          />
-        </div>
+      <div v-if="showMusicInput && !musicMeta" class="composer-music-input">
+        <input
+          ref="musicUrlInput"
+          v-model="musicUrlDraft"
+          class="composer-music-url"
+          type="url"
+          placeholder="粘贴网易云音乐链接..."
+          @paste="handleMusicInputPaste"
+          @keyup.enter="handleMusicUrlSubmit"
+        />
       </div>
     </div>
 
-    <div v-if="musicParsing" class="music-parsing">
-      正在解析音乐链接...
-    </div>
-    <div v-else-if="musicMeta" class="music-preview-wrap">
+    <div v-if="musicParsing" class="composer-music-parsing">正在解析音乐链接...</div>
+    <div v-else-if="musicMeta" class="composer-music-preview-wrap">
       <MusicCard
         :music-meta="musicMeta"
         :lyric="userLyric"
@@ -58,14 +61,14 @@
         :song-url="musicSongUrl"
         @update:lyric="userLyric = $event"
       />
-      <button class="music-remove-btn" @click="removeMusic">✕ 移除音乐</button>
+      <button class="composer-music-remove" @click="removeMusic">✕ 移除音乐</button>
     </div>
 
     <!-- 图片上传 -->
-    <div class="composer-images-section">
+    <div class="composer-images">
       <div class="composer-images-grid">
-        <div v-for="(img, i) in imageList" :key="i" class="composer-image-preview">
-          <img :src="img" alt="" loading="lazy" decoding="async" @click="previewSrc = img" style="cursor: zoom-in;" />
+        <div v-for="(img, i) in imageList" :key="i" class="composer-image-thumb">
+          <img :src="img" alt="" loading="lazy" decoding="async" @click="previewSrc = img" />
           <button class="composer-image-remove" @click="removeImage(i)">✕</button>
         </div>
         <label class="composer-image-add" :class="{ uploading: uploadingImage }">
@@ -77,51 +80,50 @@
             @change="handleImageSelect"
           />
           <template v-if="uploadingImage">
-            <span class="shimmer-text">上传中...</span>
-            <div class="upload-shimmer"></div>
+            <span class="composer-upload-text">上传中...</span>
           </template>
-          <span v-else>+ 添加图片</span>
+          <template v-else>
+            <span class="composer-image-add-plus">+</span>
+            <span>添加图片</span>
+          </template>
         </label>
       </div>
     </div>
 
+    <!-- 提示文字 -->
     <p class="composer-hint">
       写得越具体，MoodCopilot 越能理解你在意的人和事。持续记录比一次写满更重要。
     </p>
 
-    <div class="composer-actions">
-      <div class="composer-side-copy">
-        <span class="privacy-copy">{{ visibilityCopy }}</span>
-        <span v-if="draftNotice" class="draft-notice">
-          <span class="draft-dot" />
+    <!-- 底部操作栏 -->
+    <div class="composer-footer">
+      <div class="composer-footer-left">
+        <p class="composer-privacy-note">{{ visibilityCopy }}</p>
+        <span v-if="draftNotice" class="composer-draft-note">
+          <span class="composer-draft-dot" />
           {{ draftNotice }}<template v-if="draftSavedAt"> · {{ draftSavedAt }}</template>
         </span>
       </div>
-      <div class="composer-submit-row">
-        <n-button
-          type="primary"
-          size="large"
-          :loading="store.saving"
-          :disabled="!draft.trim() || isOverLimit"
-          @click="handleSave"
-        >
-          {{ isEditMode ? '保存修改' : (analyze ? '保存并分析' : '保存') }}
-        </n-button>
-      </div>
+      <button
+        class="composer-submit"
+        :disabled="!draft.trim() || isOverLimit"
+        @click="handleSave"
+      >
+        {{ isEditMode ? '保存修改' : (analyze ? '保存并分析' : '保存') }}
+      </button>
     </div>
 
+    <!-- 分析状态 -->
     <div v-if="store.analysisStatus !== 'idle'" class="composer-status">
       <template v-if="store.analysisStatus === 'analyzing'">已保存，MoodCopilot 正在分析中...</template>
       <template v-else-if="store.analysisStatus === 'complete'">分析完成</template>
       <template v-else-if="store.analysisStatus === 'failed'">
         分析结果暂时没有更新。
-        <button v-if="store.activeDiary" class="inline-link" @click="store.refreshAnalysis(store.activeDiary.id)">重新获取分析结果</button>
+        <button v-if="store.activeDiary" class="composer-inline-link" @click="store.refreshAnalysis(store.activeDiary.id)">重新获取分析结果</button>
       </template>
     </div>
 
-    <n-alert v-if="store.errorMessage" type="error" :show-icon="false">
-      {{ store.errorMessage }}
-    </n-alert>
+    <div v-if="store.errorMessage" class="composer-error">{{ store.errorMessage }}</div>
 
   </section>
 
@@ -385,40 +387,186 @@ async function handleSave() {
 </script>
 
 <style scoped>
-.composer-editor {
-  margin-bottom: 4px;
-  width: 100%;
-  min-width: 0;
-  position: relative;
+/* ═══════════════════════════════════════════
+   写日记 · 杂志编辑风
+   纸质感编辑器 · 温柔引导 · 去框架
+   ═══════════════════════════════════════════ */
+
+.composer {
+  display: grid;
+  gap: 0;
 }
 
-@media (max-width: 780px) {
-  /* No height override needed anymore, Vditor will auto-expand */
+/* ── 标题区 ── */
+.composer-header {
+  margin-bottom: 28px;
+  margin-top: -16px;
+}
+
+.composer-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.composer-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.composer-subtitle {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ── 控制栏 ── */
+.composer-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid color-mix(in oklab, var(--color-primary) 12%, transparent);
+}
+
+.composer-ai-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.composer-ai-toggle input[type="checkbox"] {
+  accent-color: var(--color-primary);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.composer-visibility {
+  display: flex;
+  gap: 0;
+  border: 1.5px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.composer-vis-opt {
+  padding: 7px 18px;
+  border: none;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.composer-vis-opt:first-child {
+  border-right: 1px solid var(--color-border);
+}
+
+.composer-vis-opt:hover {
+  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  color: var(--color-primary);
+}
+
+.composer-vis-opt.active {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+/* ── 编辑器：纸质感 ── */
+.composer-editor {
+  margin-bottom: 20px;
+  width: 100%;
+  min-width: 0;
 }
 
 .composer-editor :deep(.vditor) {
   position: relative !important;
-  border: 1px solid rgba(180, 150, 120, 0.25) !important;
-  border-radius: var(--radius-md, 8px);
+  border: none !important;
+  border-radius: 14px !important;
   background: var(--color-surface) !important;
-  --vditor-toolbar-background-color: var(--color-bg);
-  --vditor-toolbar-border-color: rgba(180, 150, 120, 0.15);
+  background-image:
+    linear-gradient(135deg, var(--color-surface) 0%, color-mix(in oklab, var(--color-primary) 1.5%, var(--color-surface)) 100%) !important;
+  box-shadow:
+    0 1px 2px rgba(32,32,29,0.03),
+    0 6px 20px color-mix(in oklab, var(--color-primary) 6%, transparent) !important;
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
-  transition: all 0.3s ease;
+  transition: box-shadow 0.3s var(--ease-out) !important;
+  overflow: hidden !important;
+  --vditor-toolbar-background-color: transparent;
+  --vditor-toolbar-border-color: transparent;
 }
 
 .composer-editor:focus-within :deep(.vditor) {
-  border-color: var(--color-primary) !important;
-  box-shadow: 0 4px 12px color-mix(in oklab, var(--color-primary) 8%, transparent), 0 0 0 3px color-mix(in oklab, var(--color-primary) 10%, transparent) !important;
+  box-shadow:
+    0 1px 2px rgba(32,32,29,0.04),
+    0 10px 32px color-mix(in oklab, var(--color-primary) 12%, transparent),
+    0 0 0 3px color-mix(in oklab, var(--color-primary) 10%, transparent) !important;
+}
+
+.composer-editor :deep(.vditor::before) {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background:
+    radial-gradient(ellipse at 20% 80%, color-mix(in oklab, var(--color-primary) 2%, transparent) 0%, transparent 40%),
+    radial-gradient(ellipse at 85% 15%, color-mix(in oklab, var(--color-accent) 1.5%, transparent) 0%, transparent 30%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.composer-editor :deep(.vditor-toolbar) {
+  padding: 10px 20px !important;
+  border-bottom: 1px solid color-mix(in oklab, var(--color-primary) 8%, transparent) !important;
+  background: transparent !important;
+}
+
+.composer-editor :deep(.vditor-toolbar__item > button) {
+  color: var(--color-text-muted);
+  border-radius: 8px;
+  transition: all 0.15s;
+}
+
+.composer-editor :deep(.vditor-toolbar__item > button:hover) {
+  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  color: var(--color-primary);
 }
 
 .composer-editor :deep(.vditor-content) {
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
-  background: var(--color-surface);
+  background: transparent !important;
+}
+
+.composer-editor :deep(.vditor-ir) {
+  padding: 20px 24px 40px 24px !important;
+  background: transparent !important;
+  color: var(--color-text) !important;
+  min-height: 260px;
+  position: relative;
+  z-index: 1;
 }
 
 .composer-editor :deep(.vditor-reset) {
@@ -432,266 +580,163 @@ async function handleSave() {
   color: var(--color-text-muted) !important;
 }
 
-.composer-editor :deep(.vditor-toolbar) {
-  padding: 8px 16px !important;
-  border-bottom: 1px solid rgba(180, 150, 120, 0.15) !important;
-}
-
-.composer-editor :deep(.vditor-ir) {
-  padding: 16px 20px 36px 20px !important;
-  background: var(--color-surface) !important;
-  color: var(--color-text) !important;
-  min-height: 260px;
-}
-
-.composer-editor :deep(.vditor-toolbar__item > button) {
-  color: var(--color-text-secondary);
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-
-.composer-editor :deep(.vditor-toolbar__item > button:hover) {
-  background-color: rgba(180, 150, 120, 0.1);
-  color: var(--color-primary);
-}
-
 .composer-editor :deep(.vditor-counter) {
   position: absolute !important;
-  left: 16px !important;
+  left: 24px !important;
   right: auto !important;
-  bottom: 12px !important;
+  bottom: 14px !important;
   top: auto !important;
   background: transparent !important;
-  color: var(--color-text-muted) !important;
-  font-size: 13px;
+  color: var(--color-text-light) !important;
+  font-size: 12px;
   pointer-events: none;
   z-index: 10;
 }
 
-@media (max-width: 780px) {
-  .composer-editor :deep(.vditor-toolbar) {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 4px 2px !important;
-    overflow: visible !important;
-    white-space: normal !important;
-  }
-  .composer-editor :deep(.vditor-toolbar::-webkit-scrollbar) {
-    display: none !important;
-  }
-  .composer-editor :deep(.vditor-toolbar__item) {
-    display: inline-flex !important;
-  }
-  /* 移除内嵌边框，让编辑区直接和面板融为一体 */
-  .composer-editor :deep(.vditor) {
-    border: none !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-  }
-  .composer-editor:focus-within :deep(.vditor) {
-    box-shadow: none !important;
-  }
-  .composer-editor :deep(.vditor-toolbar) {
-    padding: 4px 0 !important;
-    border-bottom: 1px solid rgba(180, 150, 120, 0.1) !important;
-    background: transparent !important;
-  }
-  .composer-editor :deep(.vditor-content) {
-    background: transparent !important;
-  }
-  .composer-editor :deep(.vditor-ir) {
-    padding: 12px 0 32px 0 !important;
-    background: transparent !important;
-  }
-  .composer-editor :deep(.vditor-counter) {
-    left: 0 !important;
-    bottom: 8px !important;
-  }
+/* ── 音乐附件 ── */
+.composer-music {
+  margin-bottom: 4px;
 }
 
-.composer-toggles {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.analyze-toggle {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  user-select: none;
-}
-
-.analyze-toggle input[type="checkbox"] {
-  accent-color: var(--color-primary, #4a7c62);
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
-}
-
-.composer-hint {
-  margin: 0;
-  padding: 10px 12px;
-  border-left: 3px solid var(--color-primary);
-  border-radius: 8px;
-  background: var(--color-bg);
-  color: var(--color-text-muted);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-@media (max-width: 780px) {
-  .composer-hint {
-    display: none;
-  }
-}
-
-.composer-toolbar {
-  margin: 8px 0;
-}
-
-.music-attach-btn {
+.composer-music-attach {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-sm, 6px);
+  gap: 6px;
+  padding: 9px 18px;
+  border: 1.5px dashed color-mix(in oklab, var(--color-primary) 25%, transparent);
+  border-radius: 12px;
   background: transparent;
-  color: var(--color-text-secondary);
-  font-size: 13px;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
   cursor: pointer;
-  transition: border-color 0.2s, color 0.2s;
+  transition: all 0.2s;
   font-family: inherit;
 }
 
-.music-attach-btn:hover {
+.composer-music-attach:hover {
   border-color: var(--color-primary);
   color: var(--color-primary);
+  background: color-mix(in oklab, var(--color-primary) 3%, transparent);
 }
 
-.music-attach-icon {
-  font-size: 15px;
-}
+.composer-music-attach-icon { font-size: 15px; }
 
-.music-input-row {
+.composer-music-input {
   display: flex;
   gap: 6px;
   align-items: center;
 }
 
-.music-url-input {
+.composer-music-url {
   flex: 1;
-  padding: 6px 10px;
-  border: 1px solid rgba(180, 150, 120, 0.2);
-  border-radius: var(--radius-sm, 6px);
-  font-size: 13px;
+  padding: 9px 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 12px;
+  font-size: 0.85rem;
   outline: none;
-  background: var(--color-bg);
+  background: var(--color-surface);
   color: var(--color-text);
   font-family: inherit;
+  transition: border-color 0.2s;
 }
 
-.music-url-input::placeholder {
-  color: var(--color-text-muted);
-  font-size: 12px;
-}
+.composer-music-url::placeholder { color: var(--color-text-light); }
+.composer-music-url:focus { border-color: var(--color-primary); }
 
-.music-url-input:focus {
-  border-color: var(--color-primary);
-}
-
-.music-parsing {
+.composer-music-parsing {
   margin: 8px 0;
-  padding: 10px 12px;
-  border-radius: var(--radius-md, 10px);
-  background: var(--color-surface-hover);
-  border: 1px solid rgba(180, 150, 120, 0.12);
-  font-size: 13px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--color-primary) 4%, var(--color-surface));
+  border: 1px solid color-mix(in oklab, var(--color-primary) 10%, transparent);
+  font-size: 0.82rem;
   color: var(--color-text-secondary);
   text-align: center;
 }
 
-.music-preview-wrap {
+.composer-music-preview-wrap {
   position: relative;
+  margin-top: 8px;
 }
 
-.music-remove-btn {
+.composer-music-remove {
   margin-top: 6px;
   background: none;
   border: none;
-  color: var(--color-text-muted);
-  font-size: 12px;
+  color: var(--color-text-light);
+  font-size: 0.78rem;
   cursor: pointer;
   padding: 2px 0;
+  font-family: inherit;
 }
 
-.music-remove-btn:hover {
-  color: var(--color-accent);
-}
+.composer-music-remove:hover { color: var(--color-accent); }
 
 /* ── 图片上传 ── */
-.composer-images-section {
-  margin-top: 10px;
+.composer-images {
+  margin-top: 16px;
 }
 
 .composer-images-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: flex-start;
 }
 
-.composer-image-preview {
+.composer-image-thumb {
   position: relative;
-  width: 72px;
-  height: 72px;
-  border-radius: 8px;
+  width: 76px;
+  height: 76px;
+  border-radius: 10px;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid color-mix(in oklab, var(--color-primary) 10%, transparent);
   background: var(--color-surface-hover);
+  animation: composer-slide-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-.composer-image-preview img {
+.composer-image-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  cursor: zoom-in;
 }
 
 .composer-image-remove {
   position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 18px;
-  height: 18px;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.45);
-  color: var(--color-surface);
-  font-size: 10px;
-  line-height: 18px;
+  background: rgba(0,0,0,0.5);
+  color: #fff;
+  font-size: 11px;
+  line-height: 20px;
   cursor: pointer;
   text-align: center;
+  opacity: 0;
+  transition: opacity 0.15s;
 }
+
+.composer-image-thumb:hover .composer-image-remove { opacity: 1; }
 
 .composer-image-add {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 72px;
-  height: 72px;
-  border-radius: 8px;
-  border: 1.5px dashed rgba(180, 150, 120, 0.35);
+  width: 76px;
+  height: 76px;
+  border-radius: 10px;
+  border: 1.5px dashed color-mix(in oklab, var(--color-primary) 20%, transparent);
   background: transparent;
   cursor: pointer;
   color: var(--color-text-muted);
-  font-size: 11px;
-  transition: border-color 0.15s, color 0.15s;
+  font-size: 0.7rem;
+  transition: all 0.2s;
   gap: 2px;
 }
 
@@ -699,111 +744,3 @@ async function handleSave() {
   border-color: var(--color-primary);
   color: var(--color-primary);
 }
-
-.composer-image-add.uploading {
-  cursor: wait;
-  opacity: 0.6;
-}
-
-
-
-/* Shimmer animation & entry transition */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-@keyframes card-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.composer-image-preview {
-  animation: card-slide-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-.composer-image-add.uploading {
-  position: relative;
-  overflow: hidden;
-  border-color: var(--color-primary);
-  background: color-mix(in oklab, var(--color-primary) 2%, transparent);
-}
-
-.upload-shimmer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-primary) 8%, transparent), transparent);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite linear;
-  pointer-events: none;
-}
-
-.shimmer-text {
-  color: var(--color-primary);
-  font-weight: 500;
-  z-index: 1;
-  font-size: 11px;
-}
-
-
-
-/* 缩小编辑器内的段落间距 */
-:deep(.vditor-ir p),
-:deep(.vditor-wysiwyg p) {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* Lightbox */
-.composer-lightbox {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
-  cursor: zoom-out;
-}
-
-.composer-lightbox img {
-  max-width: 90vw;
-  max-height: 90vh;
-  object-fit: contain;
-  border-radius: 8px;
-  cursor: default;
-}
-
-.composer-lightbox-close {
-  position: absolute;
-  top: 16px;
-  right: 24px;
-  background: none;
-  border: none;
-  color: var(--color-surface);
-  font-size: 36px;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.15s;
-  line-height: 1;
-}
-
-.composer-lightbox-close:hover {
-  opacity: 1;
-}
-</style>
-

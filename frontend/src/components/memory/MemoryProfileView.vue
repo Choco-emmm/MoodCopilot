@@ -19,7 +19,14 @@
       MoodCopilot 正在默默观察你，多写点日记或和 MoodCopilot 聊天吧。
     </div>
     <div v-else class="memory-list">
-      <div v-for="m in memories" :key="m.id" class="memory-item">
+      <div
+        v-for="(m, index) in memories"
+        :key="m.id"
+        class="memory-item"
+        v-motion
+        :initial="{ opacity: 0, y: 30 }"
+        :enter="{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 250, damping: 25, delay: index * 50 } }"
+      >
         <div class="memory-content">
           <span class="memory-key">{{ m.attributeKey }}</span>
           <n-tag v-if="isRecentlyUpdated(m)" size="small" type="success" style="margin-left: 8px; vertical-align: text-bottom;">✨ 近期变动</n-tag>
@@ -261,54 +268,65 @@ async function applyMemoryConsolidation() {
   line-height: 1.5;
 }
 .memory-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+  padding: 10px 0;
 }
 .memory-item {
   display: flex;
+  flex-direction: column;
   justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 12px;
-  background: var(--color-surface-soft);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  transition: box-shadow 0.2s, border-color 0.2s;
+  gap: 16px;
+  padding: 24px;
+  background: var(--color-surface);
+  border: none;
+  border-radius: var(--radius-xl);
+  box-shadow: 0 10px 30px -10px rgba(0,0,0,0.03);
+  transition: all var(--duration-normal) var(--ease-out);
 }
 .memory-item:hover {
-  border-color: var(--color-jade-light);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -10px rgba(0,0,0,0.06);
+}
+@media (prefers-color-scheme: dark) {
+  .memory-item:hover {
+    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.2);
+  }
 }
 .memory-content {
-  flex: 1 1 200px;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .memory-key {
-  font-size: 13px;
+  font-family: var(--font-serif);
+  font-size: 1.2rem;
   font-weight: 600;
-  color: var(--color-text-secondary);
+  color: var(--color-primary);
 }
 .memory-value {
-  font-size: 14px;
-  color: var(--color-text-main);
-  line-height: 1.5;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  line-height: 1.6;
   white-space: pre-wrap;
 }
 .memory-edit-input {
-  margin-top: 4px;
+  margin-top: 8px;
 }
 .memory-actions {
   display: flex;
   gap: 8px;
   align-items: center;
   flex-shrink: 0;
+  justify-content: flex-end;
+  border-top: 1px dashed color-mix(in oklab, var(--color-border) 40%, transparent);
+  padding-top: 12px;
 }
 .memory-actions .n-button {
   font-size: 12px;
-  padding: 0 10px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
 }
 </style>

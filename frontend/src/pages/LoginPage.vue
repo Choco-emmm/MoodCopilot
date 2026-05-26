@@ -1,39 +1,53 @@
 <template>
-  <div class="auth-page">
-    <div class="auth-card">
-      <h1 class="auth-title">MoodCopilot</h1>
-      <p class="auth-sub">登录你的情绪日记</p>
-      <n-alert v-if="errorMsg" type="error" :title="errorMsg" style="margin-bottom: 16px" />
-      <n-form ref="formRef" :model="form" :rules="rules" size="large">
-        <n-form-item path="email" label="邮箱">
-          <n-input v-model:value="form.email" placeholder="输入邮箱" />
-        </n-form-item>
-        <n-form-item path="password" label="密码">
-          <n-input v-model:value="form.password" type="password" placeholder="输入密码" />
-        </n-form-item>
-        <div class="privacy-disclaimer">
-          <div class="privacy-icon">🔒</div>
-          <div class="privacy-content">
-            <strong>数据隐私保护声明：</strong>
-            <ul class="privacy-list">
-              <li>默认情况下，您的私密数据仅在您与AI间严格流转，开发者绝不窥探或利用。</li>
-              <li>仅当您主动将单篇日记设为「分享到社区」时，该文本才会在社区流通。</li>
-              <li>仅当您主动开启共鸣匹配功能时，系统才会提取您的特征（绝不含私密明文）用于寻找共鸣之人。</li>
-            </ul>
-          </div>
+  <div class="auth-page fusion-auth-page">
+    <div class="auth-container">
+      <div class="auth-bg-card"></div>
+      <div class="auth-card">
+        <div class="auth-header">
+          <h1 class="auth-title">MoodCopilot</h1>
+          <p class="auth-subtitle">写下今天，慢慢理解自己。</p>
+          <p class="auth-subtitle-small">先帮你看见情绪，再把你温和地连接给相似心情的人</p>
         </div>
-        <n-form-item path="agreed">
-          <n-checkbox v-model:checked="form.agreed">
-            我已阅读并同意上述隐私声明；且知晓 AI 分析仅供参考，不构成医疗诊断。
-          </n-checkbox>
-        </n-form-item>
-        <div id="captcha-box"></div>
-        <n-button type="primary" block :loading="loading" @click="handleLoginClick">登录</n-button>
-      </n-form>
-      <p class="auth-switch">
-        还没有账号？
-        <router-link to="/register">注册</router-link>
-      </p>
+
+        <n-alert v-if="errorMsg" type="error" :title="errorMsg" style="margin-bottom: 24px" />
+
+        <n-form ref="formRef" :model="form" :rules="rules" size="large" class="auth-form">
+          <n-form-item path="email" label="邮箱" class="fusion-form-item">
+            <n-input v-model:value="form.email" placeholder="输入邮箱..." autocomplete="username" class="fusion-input" />
+          </n-form-item>
+          
+          <n-form-item path="password" label="密码" class="fusion-form-item">
+            <n-input v-model:value="form.password" type="password" placeholder="······" autocomplete="current-password" show-password-on="click" class="fusion-input" />
+          </n-form-item>
+          
+          <div class="privacy-disclaimer">
+            <div class="privacy-icon">🔒</div>
+            <div class="privacy-content">
+              <strong>数据隐私保护声明：</strong>
+              <ul class="privacy-list">
+                <li>私密数据仅在您与AI间严格流转。</li>
+                <li>仅主动分享时才会在社区流通。</li>
+                <li>匹配功能仅提取无明文特征。</li>
+              </ul>
+            </div>
+          </div>
+          
+          <n-form-item path="agreed" class="agreed-item">
+            <n-checkbox v-model:checked="form.agreed">
+              阅读并同意隐私声明，知晓 AI 仅供参考。
+            </n-checkbox>
+          </n-form-item>
+          
+          <div id="captcha-box"></div>
+          
+          <n-button type="primary" block :loading="loading" @click="handleLoginClick" class="auth-btn">登录</n-button>
+        </n-form>
+
+        <div class="auth-footer">
+          还没有账号？
+          <router-link to="/register" class="auth-link">点此注册</router-link>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -146,25 +160,4 @@ async function doLogin(captchaToken: string) {
   margin-top: 8px;
   margin-bottom: 16px;
   padding: 12px;
-  background: var(--color-primary-light);
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  line-height: 1.5;
-}
-.privacy-icon {
-  font-size: 16px;
-  margin-top: 2px;
-}
-.privacy-content {
-  flex: 1;
-}
-.privacy-list {
-  margin: 4px 0 0 0;
-  padding-left: 18px;
-}
-.privacy-list li {
-  margin-bottom: 2px;
-}
-</style>
+  background: var(--color-primary-light)

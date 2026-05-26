@@ -41,15 +41,18 @@ export function renderSafeMarkdown(
 ) {
     if (!text) return ''
 
-    // 预处理：修复 AI 常见笔误与 CommonMark 兼容性问题
-    const processedText = text
+    // ── 第一道：转义复杂 Markdown，防止 DOMPurify 事后撕碎 ──
+    const escaped = preprocessComplexMarkdown(text)
+
+    // ── 第二道：修复 AI 常见笔误与 CommonMark 兼容性问题 ──
+    const processedText = escaped
         .replace(/\\\*/g, '*')                   // \*\* → **
         .replace(/^ {0,3}-(?=[^\s])/gm, '$& ')   // -X → - X
         .replace(/([。！？])(不过|但是|其实|所以|然而|总之)/g, '$1\n$2') // 句子+连词 → 换行
-        .replace(/([^\s\dA-Za-z])(-)(\*\*)/gu, '$1\n- $3') // ** 粗体列表：😄-** → 😄\n- **
-        .replace(/([^\s\dA-Za-z])(-)([^\s\d])/gu, '$1\n- $3') // 普通列表：水-🍫 → 水\n- 🍫
-        .replace(/\*\*([""“])/g, '**​$1')   // **" → 零宽空格绕过左边界定界符限制
-        .replace(/([""”])\*\*/g, '$1​**')   // "** → 零宽空格绕过右边界定界符限制
+        .replace(/([^\s\dA-Za-z])(-)(\*\*)/gu, '$1\n- $3') // ** 粗体列表
+        .replace(/([^\s\dA-Za-z])(-)([^\s\d])/gu, '$1\n- $3') // 普通列表
+        .replace(/\*\*(["""“])/g, '**​$1')   // **" → 零宽空格
+        .replace(/([""”])\*\*/g, '$1​**')   // "** → 零宽空格
 
     const html = marked.parse(processedText, { async: false }) as string
     return DOMPurify.sanitize(html, {
@@ -60,11 +63,8 @@ export function renderSafeMarkdown(
 }
 
 /**
- * 解码 HTML 实体（如 &amp; → &），用于处理后端返回的可能已被转义的文本。
- */
-export function decodeHtmlEntities(text: string): string {
-    if (!text) return ''
-    const textarea = document.createElement('textarea')
-    textarea.innerHTML = text
-    return textarea.value
-}
+ * 在 marked 解析之前，将不被白名单支持的 Markdown 语法转义为纯文本，
+ * 避免 DOMPurify 事后删除标签后残留乱码。
+ *
+ * 处理：表格（pipe table）、图片、原始 HTML 标签。
+ * 保留：粗体、斜体、列表�

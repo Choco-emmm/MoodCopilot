@@ -2,8 +2,16 @@
   <main class="app-shell">
     <AppHeader />
 
+    <!-- Editorial Navigation -->
+    <header class="editorial-header">
+      <div class="editorial-nav">
+        <router-link to="/" class="editorial-link">广场 <span class="en-sub">Square</span></router-link>
+        <span class="editorial-separator">/</span>
+        <router-link to="/following" class="editorial-link active">关注 <span class="en-sub">Following</span></router-link>
+      </div>
+    </header>
+
     <div class="following-page">
-      <h2>关注</h2>
 
       <div v-if="errorMessage" class="empty-state">
         <p>{{ errorMessage }}</p>
@@ -98,17 +106,4 @@ async function loadMore() {
     const res = await diaryApi.following(page.value, 20)
     const data = res.data?.data
     const items: Diary[] = Array.isArray(data?.items)
-      ? data.items.map(store.normalize)
-      : Array.isArray(data)
-        ? data.map(store.normalize)
-        : []
-    diaries.value.push(...items)
-    hasMore.value = items.length >= 20
-  } catch (e: any) {
-    page.value = Math.max(1, page.value - 1)
-    errorMessage.value = e?.response?.data?.message || '加载更多失败，请稍后重试。'
-  } finally {
-    loading.value = false
-  }
-}
-</script>
+      ? data

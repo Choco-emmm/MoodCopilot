@@ -4,9 +4,16 @@
     :class="{ 'nav-checkin-btn--done': checkedInToday }"
     :disabled="checkingIn"
     @click="handleClick"
+    :title="checkedInToday ? '已签到' : '点击签到，获取额外额度'"
   >
-    <span class="checkin-text-full">{{ checkingIn ? '...' : checkedInToday ? '✓ 已签' : '签到 +' + exp }}</span>
-    <span class="checkin-text-short">{{ checkingIn ? '...' : checkedInToday ? '✓' : '+' + exp }}</span>
+    <svg v-if="!checkedInToday" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="checkin-icon">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+    </svg>
+    <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="checkin-icon">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+    <span class="checkin-text-full">{{ checkingIn ? '...' : checkedInToday ? '已签到' : '签到 +' + exp }}</span>
+    <span class="checkin-text-short">{{ checkingIn ? '...' : checkedInToday ? '已签' : '+' + exp }}</span>
   </button>
 </template>
 
@@ -41,29 +48,32 @@ function handleClick() {
 
 <style scoped>
 .nav-checkin-btn {
-  margin-right: 8px;
-  padding: 2px 10px;
-  border: 1px solid var(--color-primary);
-  border-radius: 12px;
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--color-primary) 12%, transparent);
   color: var(--color-primary);
-  font-size: 12px;
+  border: none;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
+  transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
 .nav-checkin-btn:hover:not(:disabled) {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+  background: color-mix(in oklab, var(--color-primary) 20%, transparent);
 }
 
 .nav-checkin-btn--done {
-  border-color: var(--color-border-strong);
+  background: transparent;
+  border: 1px solid color-mix(in oklab, var(--color-border-strong) 40%, transparent);
   color: var(--color-text-muted);
-  cursor: pointer;
 }
 
 .nav-checkin-btn--done:hover {
@@ -76,11 +86,15 @@ function handleClick() {
   opacity: 0.6;
 }
 
+.checkin-icon {
+  flex-shrink: 0;
+}
+
 .checkin-text-short { display: none; }
 
 @media (max-width: 600px) {
   .checkin-text-full { display: none; }
-  .checkin-text-short { display: inline; }
-  .nav-checkin-btn { margin-right: 5px; padding: 2px 7px; font-size: 11px; }
+  .checkin-text-short { display: inline-block; white-space: nowrap; }
+  .nav-checkin-btn { padding: 0 10px; font-size: 12px; height: 30px; gap: 4px; width: auto; min-width: max-content; }
 }
 </style>
