@@ -2932,6 +2932,8 @@ h3 {
     width: 100%;
     justify-content: space-around;
     align-items: center;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     background: var(--color-surface);
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     box-shadow: 0 -4px 20px rgba(0,0,0,0.03);
@@ -3036,13 +3038,16 @@ h3 {
 
   .nav-links {
     pointer-events: auto;
-    /* 调整 justify-content 以适配 5 个 tab，并确保它们平分空间 */
+    /* 横向滚动适配管理员多出的导航项 */
     justify-content: space-around;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 0 10px;
   }
 
   .nav-link {
-    flex: 1;
+    flex: 0 0 auto;
+    flex-shrink: 0;
   }
 
   .nav-link.nav-link-write {
@@ -4266,62 +4271,3 @@ h3 {
   --color-primary-light: #f7ebea;
   --color-accent: #d2ad7e;
   --color-accent-light: #ebceaa;
-  --color-accent-bg: #fbf5ee;
-  --color-bg: #fdfbf6;
-  --color-surface: #ffffff;
-  --color-surface-hover: #f5eee8;
-  --color-surface-soft: #f8f4f0;
-  --color-text: #2a1c1a;
-  --color-text-secondary: #5c423e;
-  --color-text-muted: #826662;
-  --color-text-light: #a88e8a;
-  --color-border: #e0d0cc;
-  --color-border-strong: #c2aaa4;
-  --color-error: #944a42;
-  --color-warning: #d2ad7e;
-  --color-success: #5a8a62;
-  --color-info: #944a42;
-}
-@supports (color: color-mix(in oklab, red, blue)) {
-  [data-theme="jujube-roll"] {
-    --color-surface-hover: color-mix(in oklab, var(--color-primary) 5%, #fff);
-    --color-surface-soft: color-mix(in oklab, var(--color-primary) 2.5%, #fff);
-    --color-primary-light: color-mix(in oklab, var(--color-primary) 10%, #fff);
-    --color-border: color-mix(in oklab, var(--color-primary) 15%, transparent);
-    --color-border-strong: color-mix(in oklab, var(--color-primary) 28%, transparent);
-  }
-}
-
-/* ── forest-matcha · 森屿抹茶 ── #c8e6c9 #81c784 #66bb6a #43a047
-   四阶绿，从嫩芽到常青。主色取最深处微调 */
-[data-theme="forest-matcha"] {
-  --color-primary: #58802d;
-  --color-primary-hover: #5c8430;
-  --color-primary-light: #f2f7ec;
-  --color-accent: #a45a52;
-  --color-accent-light: #c88880;
-  --color-accent-bg: #f8f0ef;
-  --color-bg: #f6f9f4;
-  --color-surface: #ffffff;
-  --color-surface-hover: #eef4e8;
-  --color-surface-soft: #f2f7ec;
-  --color-text: #242a20;
-  --color-text-secondary: #485642;
-  --color-text-muted: #6e8264;
-  --color-text-light: #96aa8c;
-  --color-border: #d4e2c8;
-  --color-border-strong: #b4c8a4;
-  --color-error: #a45a52;
-  --color-warning: #c2a266;
-  --color-success: #58802d;
-  --color-info: #58802d;
-}
-@supports (color: color-mix(in oklab, red, blue)) {
-  [data-theme="forest-matcha"] {
-    --color-surface-hover: color-mix(in oklab, var(--color-primary) 5%, #fff);
-    --color-surface-soft: color-mix(in oklab, var(--color-primary) 2.5%, #fff);
-    --color-primary-light: color-mix(in oklab, var(--color-primary) 10%, #fff);
-    --color-border: color-mix(in oklab, var(--color-primary) 15%, transparent);
-    --color-border-strong: color-mix(in oklab, var(--color-primary) 28%, transparent);
-  }
-}
