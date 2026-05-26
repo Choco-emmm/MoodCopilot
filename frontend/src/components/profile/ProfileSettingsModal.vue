@@ -1030,4 +1030,63 @@ onBeforeUnmount(() => {
   box-shadow: 0 2px 10px rgba(0,0,0,0.07), inset 0 0 0 1px rgba(0,0,0,0.04);
   transition: box-shadow 0.25s var(--ease-out, ease), transform 0.25s var(--ease-out, ease);
 }
-.theme-item
+.theme-item:hover .theme-preview {
+  box-shadow: 0 4px 14px rgba(0,0,0,0.1), inset 0 0 0 1px rgba(0,0,0,0.06);
+  transform: scale(1.05);
+}
+.theme-item.active .theme-preview {
+  box-shadow: 0 2px 12px color-mix(in oklab, var(--t-primary) 30%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--t-primary) 20%, transparent);
+}
+.theme-preview-bg {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--t-bg);
+  position: relative;
+  overflow: hidden;
+}
+.theme-preview-swatch,
+.theme-preview-bar {
+  position: absolute;
+}
+.theme-label {
+  font-size: 12px;
+  color: var(--color-text);
+  text-align: center;
+  font-weight: 500;
+}
+.theme-check {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 11px;
+  color: var(--color-primary);
+  font-weight: 700;
+}
+@media (min-width: 500px) {
+  .theme-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+</style>
+
+<style>
+/* Override naive-ui modal default white background */
+.settings-modal.n-card {
+  background: var(--color-surface) !important;
+  border: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.08) !important;
+}
+.settings-modal.n-card > .n-card-header {
+  background: transparent !important;
+  padding: 24px 32px 16px !important;
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 30%, transparent) !important;
+}
+.settings-modal.n-card > .n-card-header .n-card-header__main {
+  font-family: var(--font-display);
+  font-size: 1.3rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em;
+}
+</style>

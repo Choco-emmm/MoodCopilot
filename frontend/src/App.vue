@@ -214,4 +214,25 @@ const dynamicThemeOverrides = computed<GlobalThemeOverrides>(() => {
     },
     Switch: {
       railColorActive: 'var(--color-primary)',
-      buttonColor: 'var(--color-surface)'
+      buttonColor: 'var(--color-surface)',
+    },
+    Tag: {
+      borderRadius: '4px',
+    },
+  }
+})
+</script>
+
+<style scoped>
+.analysis-modal {
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  alig
