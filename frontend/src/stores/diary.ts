@@ -435,5 +435,4 @@ function hasNextPage(data: any, page: number, size: number) {
 function removeCommentIn(list: Ref<Diary[]>, diaryId: number, commentId: number, commentStore: ReturnType<typeof useCommentStore>) {
   const target = list.value.find((d) => d.id === diaryId)
   if (!target) return
-  target.comments = commentStore.removeCommentFromTree(target.comments || [], commentId)
-}
+  target.comments = commentStore.removeCommentFromTree(target.comme
