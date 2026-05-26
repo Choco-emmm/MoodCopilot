@@ -23,3 +23,5 @@ declare module '@wangeditor/editor-for-vue' {
     defaultConfig?: Partial<IToolbarConfig>
   }, {}, any>
 }
+
+declare module 'vue-virtual-scroller';
