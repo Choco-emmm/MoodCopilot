@@ -92,6 +92,7 @@
           :preview-limit="120"
           :show-expand-toggle="false"
           :hide-follow-btn="!isOwner"
+          :show-visibility-badge="isOwner"
           @resonate="(d: Diary) => store.resonate(d.id, d)"
           @open-detail="(d: Diary) => router.push(`/diary/${d.id}`)"
         />

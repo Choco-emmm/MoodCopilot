@@ -2990,13 +2990,7 @@ h3 {
     background: transparent !important;
   }
 
-  .nav-link-home {
-    display: flex;
-  }
 
-  .nav-link-home {
-    display: flex;
-  }
 
   .mobile-only {
     display: flex !important;
@@ -3154,7 +3148,6 @@ h3 {
 
   .masthead-user-name {
     display: none;
-  }
   }
 
   .user-link-arrow {
@@ -3567,7 +3560,7 @@ h3 {
   .mood-snippet {
     padding-left: 48px;
   }
-
+}
 
 @media (max-width: 420px) {
   .masthead-user-link {
@@ -4390,15 +4383,62 @@ h3 {
   --n-text-color-hover: var(--color-primary) !important;
 }
 
-/* Vditor Dark Mode Text Color Override (Fix for white bg/black text in dark mode) */
-[data-theme="black-rice"] .vditor-reset *,
-[data-theme="minimal-dark"] .vditor-reset * {
+/* ═══════════════════════════════════════════
+   Vditor 暗夜模式强制适配 (彻底解决白底黑字)
+   ═══════════════════════════════════════════ */
+
+/* 1. 强制清除 CDN 动态注入的白底色，使其透出外部的深色面板 */
+[data-theme="black-rice"] .vditor,
+[data-theme="minimal-dark"] .vditor,
+[data-theme="black-rice"] .vditor-reset,
+[data-theme="minimal-dark"] .vditor-reset {
+  background-color: transparent !important;
   color: var(--color-text) !important;
 }
 
-[data-theme="black-rice"] .vditor,
-[data-theme="minimal-dark"] .vditor {
+/* 2. 修正各级标题和段落的文字颜色 (避开 span 和 code 以保留语法高亮) */
+[data-theme="black-rice"] .vditor-reset :not(code):not(span),
+[data-theme="minimal-dark"] .vditor-reset :not(code):not(span) {
+  color: var(--color-text) !important;
+}
+
+/* 3. 恢复超链接颜色 */
+[data-theme="black-rice"] .vditor-reset a,
+[data-theme="minimal-dark"] .vditor-reset a {
+  color: var(--color-jade) !important;
+}
+
+/* 4. 代码块、引用块的深色背景适配 */
+[data-theme="black-rice"] .vditor-reset pre,
+[data-theme="minimal-dark"] .vditor-reset pre,
+[data-theme="black-rice"] .vditor-reset code,
+[data-theme="minimal-dark"] .vditor-reset code,
+[data-theme="black-rice"] .vditor-reset blockquote,
+[data-theme="minimal-dark"] .vditor-reset blockquote {
+  background-color: var(--color-surface-hover) !important;
+  color: var(--color-text) !important;
+  border-color: color-mix(in oklab, var(--color-primary) 30%, transparent) !important;
+}
+
+/* 5. 输入 / 或 @ 时弹出的自动补全菜单适配 */
+[data-theme="black-rice"] .vditor-hint,
+[data-theme="minimal-dark"] .vditor-hint {
   background-color: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+[data-theme="black-rice"] .vditor-hint button,
+[data-theme="minimal-dark"] .vditor-hint button {
+  color: var(--color-text) !important;
+}
+
+[data-theme="black-rice"] .vditor-hint button:hover,
+[data-theme="black-rice"] .vditor-hint button.vditor-hint--current,
+[data-theme="minimal-dark"] .vditor-hint button:hover,
+[data-theme="minimal-dark"] .vditor-hint button.vditor-hint--current {
+  background-color: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
 }
 
 

@@ -38,6 +38,12 @@
         </button>
         <span v-if="diary.authorRole === 'ADMIN'" class="feed-badge feed-badge-admin">管理员</span>
         <span v-if="diary.authorLevel" class="feed-badge feed-badge-level">Lv.{{ diary.authorLevel }}</span>
+        <span
+          v-if="showVisibilityBadge && diary.visibility"
+          :class="['feed-badge', diary.visibility === 'PUBLIC' ? 'feed-badge-public' : 'feed-badge-private']"
+        >
+          {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
+        </span>
         <button
           v-if="diary.authorUserId !== auth.userId && !hideFollowBtn"
           :class="['feed-follow', { following: followStore.isFollowing(diary.authorUserId) }]"
@@ -177,12 +183,14 @@ const props = withDefaults(defineProps<{
   previewLimit?: number
   showExpandToggle?: boolean
   hideFollowBtn?: boolean
+  showVisibilityBadge?: boolean
 }>(), {
   enableComments: true,
   compact: false,
   previewLimit: 180,
   showExpandToggle: true,
   hideFollowBtn: false,
+  showVisibilityBadge: false,
 })
 const emit = defineEmits<{
   resonate: [diary: Diary]
@@ -440,6 +448,8 @@ function getAvatarStyle(name: string) {
 
 .feed-badge-admin { color: var(--color-error); background: color-mix(in oklab, var(--color-error) 12%, transparent); }
 .feed-badge-level { color: var(--color-primary); background: color-mix(in oklab, var(--color-primary) 12%, transparent); }
+.feed-badge-public { color: var(--color-success); background: color-mix(in oklab, var(--color-success) 12%, transparent); }
+.feed-badge-private { color: var(--color-text-muted); background: color-mix(in oklab, var(--color-text-muted) 12%, transparent); }
 
 /* 关注按钮 */
 .feed-follow {
