@@ -4,6 +4,10 @@ import { logWarn } from '../utils/logger'
 import { useScrollManager } from './useScrollManager'
 import { type Message } from './useChatConversation'
 
+const BASE_SYNC_INTERVAL = 3500
+const MAX_BACKOFF = 60000
+const BACKOFF_MULTIPLIER = 2
+
 export function useChatSync(
   messages: Ref<Message[]>,
   activeConvId: Ref<number | null>,
@@ -15,17 +19,24 @@ export function useChatSync(
 ) {
   let syncTimer: number | null = null
   let convListSyncTick = 0
+  let currentBackoff = BASE_SYNC_INTERVAL
+
+  function scheduleNextSync() {
+    stopAutoSync()
+    syncTimer = window.setTimeout(() => {
+      syncFromServer(false)
+    }, currentBackoff)
+  }
 
   function startAutoSync() {
     stopAutoSync()
-    syncTimer = window.setInterval(() => {
-      syncFromServer(false)
-    }, 3500)
+    currentBackoff = BASE_SYNC_INTERVAL
+    scheduleNextSync()
   }
 
   function stopAutoSync() {
     if (syncTimer != null) {
-      window.clearInterval(syncTimer)
+      window.clearTimeout(syncTimer)
       syncTimer = null
     }
   }
@@ -45,13 +56,25 @@ export function useChatSync(
 
   async function syncFromServer(forceScroll: boolean) {
     const convId = activeConvId.value
-    if (!convId || streaming.value || creatingConversation.value || document.visibilityState !== 'visible') return
+    if (!convId || streaming.value || creatingConversation.value || document.visibilityState !== 'visible') {
+      scheduleNextSync()
+      return
+    }
 
     try {
       const latest = await loadFromBackend(convId)
+      // 成功则重置回退
+      currentBackoff = BASE_SYNC_INTERVAL
+
       const current = messages.value
-      if (latest.length === 0) return
-      if (current.length > latest.length) return
+      if (latest.length === 0) {
+        scheduleNextSync()
+        return
+      }
+      if (current.length > latest.length) {
+        scheduleNextSync()
+        return
+      }
 
       const changed = !isSameMessageList(current, latest)
       const keepStickBottom = scrollManager.isNearBottom()
@@ -67,28 +90,7 @@ export function useChatSync(
       if (convListSyncTick % 3 === 0) {
         await loadConversations()
       }
-    } catch (e) {
-      logWarn('chat', '同步消息失败', e)
-    }
-  }
-
-  function isSameMessageList(a: Message[], b: Message[]): boolean {
-    if (a.length !== b.length) return false
-    for (let i = 0; i < a.length; i += 1) {
-      if (a[i].id !== b[i].id) return false
-    }
-    return true
-  }
-
-  function cleanup() {
-    stopAutoSync()
-    document.removeEventListener('visibilitychange', handleVisibilityChange)
-    window.removeEventListener('focus', handleWindowFocus)
-  }
-
-  return {
-    startAutoSync, stopAutoSync,
-    handleVisibilityChange, handleWindowFocus,
-    syncFromServer, cleanup,
-  }
-}
+    } catch (e: any) {
+      // 429 或被限流时指数回退
+      const status = e?.response?.status ?? e?.status
+      if (status === 429 || status

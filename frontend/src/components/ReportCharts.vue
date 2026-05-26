@@ -1,20 +1,29 @@
 <template>
   <div class="report-charts-container">
-    <div class="chart-header">
-      <h4>情绪波浪线</h4>
-      <p v-if="isMobile" class="chart-hint">双指缩放可放大查看</p>
+    <div class="chart-section">
+      <div class="chart-header">
+        <h4 class="chart-title">情绪波动 <span class="chart-title-en">Mood Fluctuation</span></h4>
+        <p class="chart-subtitle">随着时间推移的情绪波段起伏</p>
+        <p v-if="isMobile" class="chart-hint">双指缩放可放大查看</p>
+      </div>
+      <div class="chart-box-wrapper">
+        <v-chart class="chart-box" :option="lineOption" autoresize @click="handleChartClick" />
+      </div>
     </div>
-    <v-chart class="chart-box" :option="lineOption" autoresize @click="handleChartClick" />
 
-    <div class="chart-header mt-4">
-      <h4>情绪象限密度图</h4>
-      <p class="chart-subtitle">横轴：效价（负向至正向） &nbsp;|&nbsp; 纵轴：唤醒度（低能至高能）</p>
+    <div class="chart-section mt-4">
+      <div class="chart-header">
+        <h4 class="chart-title">情绪象限 <span class="chart-title-en">Emotion Quadrant</span></h4>
+        <p class="chart-subtitle">情绪在效价与唤醒度上的散点分布</p>
+      </div>
+      <div class="chart-box-wrapper">
+        <v-chart class="chart-box quadrant-box" :option="scatterOption" autoresize @click="handleChartClick" />
+      </div>
     </div>
-    <v-chart class="chart-box quadrant-box" :option="scatterOption" autoresize @click="handleChartClick" />
 
     <n-modal v-model:show="showModal">
       <n-card
-        style="width: 90%; max-width: 400px; border-radius: 12px"
+        style="width: 90%; max-width: 400px; border-radius: var(--radius-xl); background: var(--color-surface); border: none;"
         :title="selectedMood?.date"
         :bordered="false"
         size="medium"
@@ -22,9 +31,9 @@
         aria-modal="true"
       >
         <template #header-extra>
-          <n-tag :color="{ color: moodColor(selectedMood?.moodLabel || ''), textColor: 'var(--color-on-primary)' }" round>
+          <span :style="{ color: moodColor(selectedMood?.moodLabel || '') }" style="font-weight: 600; font-family: var(--font-serif)">
             {{ selectedMood?.moodLabel }}
-          </n-tag>
+          </span>
         </template>
         
         <p v-if="selectedMood?.contentSnippet" class="snippet-text">
@@ -35,8 +44,10 @@
         </p>
 
         <template #footer>
-          <div class="modal-footer">
-            <n-button type="primary" block @click="goToDiary" :disabled="!selectedMood?.diaryIds?.length">查看日记详情</n-button>
+          <div class="modal-footer" style="display: flex; justify-content: flex-end; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 16px;">
+            <button class="action-btn" @click="goToDiary" :disabled="!selectedMood?.diaryIds?.length" style="background: transparent; border: none; color: var(--color-primary); cursor: pointer; font-size: 0.95rem;">
+              翻开日记 →
+            </button>
           </div>
         </template>
       </n-card>
@@ -105,147 +116,225 @@ function jitter(val: number, range: number) {
 }
 
 const lineOption = computed(() => {
-  const data = props.moods.map(m => {
-    return {
-      name: m.date,
-      value: m.valence ?? 0,
-      moodLabel: m.moodLabel,
-      snippet: m.contentSnippet || '',
-      arousal: m.arousal ?? 0,
-      intensity: m.moodIntensity
-    }
-  })
+  const data = props.moods.map(m => ({
+    name: m.date,
+    value: m.valence ?? 0,
+    moodLabel: m.moodLabel,
+    snippet: m.contentSnippet || '',
+    arousal: m.arousal ?? 0,
+    intensity: m.moodIntensity
+  }))
+
+  // Build piecewise color stops using native mood colors
+  const pieces = data.map((d, i) => ({
+    gte: i,
+    lte: i + 1,
+    color: moodColor(d.moodLabel)
+  }))
 
   return {
     tooltip: {
       show: !isMobile.value,
       trigger: 'axis',
       confine: true,
+      backgroundColor: '#fffdf8',
+      borderColor: '#e8e6e1',
+      borderWidth: 1,
+      padding: [12, 16],
+      textStyle: { color: '#20201d', fontSize: 13, fontFamily: '"Noto Serif SC", serif' },
       formatter: (params: any) => {
         const d = params[0].data
-        return `${d.name}<br/>${d.moodLabel} (效价 ${d.value}, 唤醒度 ${d.arousal})<br/>${d.snippet}`
+        const dot = `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${moodColor(d.moodLabel)};margin-right:8px;vertical-align:middle;"></span>`
+        return `<div style="font-family:'Noto Serif SC',serif;"><div style="margin-bottom:6px;">${dot}<b style="color:${moodColor(d.moodLabel)};font-size:14px;">${d.moodLabel || '--'}</b> &nbsp;<span style="font-size:11px;color:#a3a3a3;font-family:sans-serif;">${d.name}</span></div>${d.snippet ? `<div style="font-size:12px;color:#67645d;line-height:1.6;border-left:2px solid #eaeaea;padding-left:8px;">${d.snippet}</div>` : ''}</div>`
       }
     },
-    grid: { left: 15, right: 15, top: 15, bottom: isMobile.value ? 20 : 40 },
+    grid: { left: 45, right: 20, top: 20, bottom: isMobile.value ? 24 : 40 },
     dataZoom: [
-      { 
-        type: 'inside', 
-        start: 0, 
-        end: 100,
-        moveOnTouch: true,
-        zoomOnTouch: true
-      },
-      { 
-        type: 'slider', 
-        show: !isMobile.value, 
-        start: 0, 
-        end: 100, 
-        height: 24, 
-        bottom: 4 
+      { type: 'inside', start: 0, end: 100, moveOnTouch: true, zoomOnTouch: true },
+      {
+        type: 'slider', show: !isMobile.value,
+        start: 0, end: 100, height: 12, bottom: 8,
+        borderColor: 'transparent', backgroundColor: 'transparent',
+        fillerColor: 'rgba(74, 124, 98, 0.1)',
+        handleStyle: { color: '#4a7c62', borderColor: 'transparent' },
+        textStyle: { color: 'transparent' }
       }
     ],
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: data.map(d => d.name)
+      data: data.map(d => d.name),
+      axisLine: { lineStyle: { color: '#e0dfdb', width: 1 } },
+      axisTick: { show: false },
+      axisLabel: {
+        color: '#999',
+        fontSize: 10,
+        fontFamily: 'sans-serif',
+        margin: 12,
+        rotate: data.length > 10 ? 30 : 0,
+        interval: 'auto',
+        formatter: (val: string) => val.slice(5).replace('-', '/') // strip "2026-" and use slash
+      }
     },
     yAxis: {
       type: 'value',
-      min: -100,
-      max: 100,
-      splitLine: { show: true, lineStyle: { type: 'dashed' } }
+      min: -100, max: 100,
+      interval: 100,
+      splitLine: { show: true, lineStyle: { type: 'dashed', color: '#f0efe9' } },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        show: true,
+        color: '#999',
+        fontSize: 10,
+        fontFamily: '"Noto Serif SC", serif',
+        margin: 16,
+        formatter: (val: number) => {
+          if (val === 100) return '正向'
+          if (val === 0) return '平衡'
+          if (val === -100) return '负向'
+          return ''
+        }
+      }
     },
     visualMap: {
       show: false,
-      type: 'continuous',
-      min: -100,
-      max: 100,
-      color: ['#4a7c62', '#e9b44c', '#d36135']
+      type: 'piecewise',
+      dimension: 0,
+      pieces,
+      seriesIndex: 0
     },
     series: [
       {
         type: 'line',
-        data: data,
-        smooth: true,
+        data,
+        smooth: 0.4,
+        symbol: 'emptyCircle',
         symbolSize: (val: number, params: any) => {
           const arousal = data[params.dataIndex]?.arousal ?? 0
-          return 4 + ((arousal + 100) / 200) * 8
+          return 4 + ((arousal + 100) / 200) * 8 // smaller dots
         },
         itemStyle: {
-          color: (params: any) => moodColor(data[params.dataIndex]?.moodLabel)
+          color: '#fff', // white center
+          borderColor: (params: any) => moodColor(data[params.dataIndex]?.moodLabel),
+          borderWidth: 1.5,
+        },
+        lineStyle: { 
+          color: '#d6d4ce', // neutral line color linking the dots
+          width: 1.5, 
+          type: 'solid'
+        },
+        areaStyle: {
+          opacity: 0.15,
+          color: {
+            type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: '#e8e6e1' },
+              { offset: 1, color: 'rgba(255,255,255,0)' }
+            ]
+          }
         },
         markLine: {
           silent: true,
-          data: [{ yAxis: 0, lineStyle: { color: '#ccc' } }]
+          symbol: 'none',
+          label: { show: false },
+          data: [{ yAxis: 0, lineStyle: { color: '#e0dfdb', type: 'dashed', width: 1 } }]
         }
       },
+      // invisible wide hit area for easier tap on mobile
       {
-        type: 'line',
-        data: data,
-        smooth: true,
-        symbolSize: 24,
-        itemStyle: { opacity: 0 },
-        lineStyle: { opacity: 0 },
-        tooltip: { show: false }
+        type: 'line', data, smooth: true,
+        symbolSize: 28, itemStyle: { opacity: 0 },
+        lineStyle: { opacity: 0 }, tooltip: { show: false }
       }
     ]
   }
 })
 
 const scatterOption = computed(() => {
-  const data = props.moods.map(m => {
-    return {
-      value: [jitter(m.valence ?? 0, 8), jitter(m.arousal ?? 0, 8)],
-      moodLabel: m.moodLabel,
-      date: m.date,
-      snippet: m.contentSnippet || '',
-      intensity: m.moodIntensity
-    }
-  })
+  const data = props.moods.map(m => ({
+    value: [jitter(m.valence ?? 0, 8), jitter(m.arousal ?? 0, 8)],
+    moodLabel: m.moodLabel,
+    date: m.date,
+    snippet: m.contentSnippet || '',
+    intensity: m.moodIntensity
+  }))
 
   return {
     tooltip: {
       show: !isMobile.value,
       trigger: 'item',
       confine: true,
+      backgroundColor: '#fffdf8',
+      borderColor: '#e8e6e1',
+      borderWidth: 1,
+      padding: [12, 16],
+      textStyle: { color: '#20201d', fontSize: 13, fontFamily: '"Noto Serif SC", serif' },
       formatter: (params: any) => {
         const d = params.data
-        return `${d.date} - ${d.moodLabel}<br/>${d.snippet}`
+        const dot = `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${moodColor(d.moodLabel)};margin-right:8px;vertical-align:middle;"></span>`
+        return `<div style="font-family:'Noto Serif SC',serif;"><div style="margin-bottom:6px;">${dot}<b style="color:${moodColor(d.moodLabel)};font-size:14px;">${d.moodLabel || '--'}</b> &nbsp;<span style="font-size:11px;color:#a3a3a3;font-family:sans-serif;">${d.date}</span></div>${d.snippet ? `<div style="font-size:12px;color:#67645d;line-height:1.6;border-left:2px solid #eaeaea;padding-left:8px;">${d.snippet}</div>` : ''}</div>`
       }
     },
-    grid: { left: 15, right: 15, top: 20, bottom: 20 },
+    grid: { left: 55, right: 55, top: 40, bottom: 40 },
     xAxis: {
-      type: 'value',
-      min: -110,
-      max: 110,
-      splitLine: { show: false }
+      type: 'value', min: -100, max: 100,
+      interval: 100,
+      name: '效价 Valence',
+      nameLocation: 'middle',
+      nameGap: 28,
+      nameTextStyle: { color: '#aaa', fontSize: 11, fontFamily: '"Noto Serif SC", serif' },
+      splitLine: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        show: true,
+        color: '#999',
+        fontSize: 10,
+        fontFamily: '"Noto Serif SC", serif',
+        formatter: (val: number) => {
+          if (val === -100) return '← 消极'
+          if (val === 100) return '积极 →'
+          return ''
+        }
+      }
     },
     yAxis: {
-      type: 'value',
-      min: -110,
-      max: 110,
-      splitLine: { show: false }
+      type: 'value', min: -100, max: 100,
+      interval: 100,
+      name: '唤醒度 Arousal',
+      nameLocation: 'middle',
+      nameGap: 32,
+      nameTextStyle: { color: '#aaa', fontSize: 11, fontFamily: '"Noto Serif SC", serif' },
+      splitLine: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        show: true,
+        color: '#999',
+        fontSize: 10,
+        fontFamily: '"Noto Serif SC", serif',
+        formatter: (val: number) => {
+          if (val === 100) return '高能量 ↑'
+          if (val === -100) return '↓ 低能量'
+          return ''
+        }
+      }
     },
     series: [
       {
         type: 'scatter',
-        symbolSize: (val: any, params: any) => {
-          return 6 + (params.data.intensity * 2)
-        },
+        symbolSize: (val: any, params: any) => 4 + (params.data.intensity ?? 1) * 3,
         itemStyle: {
           color: (params: any) => moodColor(params.data.moodLabel),
-          opacity: 0.7
+          opacity: 0.7,
         },
-        data: data,
+        data,
         markLine: {
-          silent: true,
-          animation: false,
-          symbol: 'none',
-          lineStyle: { color: '#ccc', type: 'dashed' },
-          data: [
-            { xAxis: 0 },
-            { yAxis: 0 }
-          ]
+          silent: true, animation: false, symbol: 'none',
+          lineStyle: { color: '#e0dfdb', type: 'dashed', width: 1 },
+          label: { show: false },
+          data: [{ xAxis: 0 }, { yAxis: 0 }]
         }
       }
     ]
@@ -254,46 +343,29 @@ const scatterOption = computed(() => {
 </script>
 
 <style scoped>
-.snippet-text {
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--color-text);
-  margin: 10px 0;
-  word-break: break-all;
-}
-.text-muted {
-  color: var(--color-text-secondary);
-}
-.modal-footer {
-  margin-top: 10px;
-}
 .report-charts-container {
-  margin: 1.5rem 0;
+  margin: 60px 0;
+}
+.chart-section {
+  margin-bottom: 60px;
 }
 .chart-header {
-  margin-bottom: 0.5rem;
+  margin-bottom: 24px;
+  text-align: center;
 }
-.chart-subtitle {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  margin: 2px 0 8px;
+.chart-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.15em;
+  color: var(--color-text);
+  margin: 0 0 6px 0;
+  font-weight: 600;
 }
-.chart-hint {
-  font-size: 12px;
-  color: var(--color-text-light);
-  margin: 2px 0 0;
-}
-.chart-box {
-  width: 100%;
-  height: 250px;
-  background: var(--bg-card);
-  border-radius: 8px;
-  border: 1px solid var(--border-light);
-}
-.quadrant-box {
-  height: 300px;
-}
-.mt-4 {
-  margin-top: 1.5rem;
-}
-</style>
+.chart-title-en {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  

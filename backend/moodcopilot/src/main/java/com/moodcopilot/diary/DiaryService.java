@@ -1520,15 +1520,16 @@ public class DiaryService {
         Set<Long> authorIds = diaries.stream().map(DiaryEntity::getAuthorUserId).collect(Collectors.toSet());
         Map<Long, UserEntity> authorInfoMap = batchLoadAuthorInfo(authorIds);
         Set<Long> likedDiaryIds = batchLoadLikedDiaryIds(ids);
+        Map<Long, Integer> commentCountMap = batchLoadCommentCounts(ids);
         return diaries.stream()
                 .map(diary -> buildFeedView(diary, isPublic, analysisMap, authorInfoMap,
-                        likedDiaryIds.contains(diary.getId())))
+                        likedDiaryIds.contains(diary.getId()), commentCountMap))
                 .toList();
     }
 
     private DiaryView buildFeedView(DiaryEntity diary, boolean isPublic,
             Map<Long, DiaryAnalysisEntity> analysisMap, Map<Long, UserEntity> authorInfoMap,
-            boolean likedByMe) {
+            boolean likedByMe, Map<Long, Integer> commentCountMap) {
         DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
         UserEntity author = authorInfoMap.get(diary.getAuthorUserId());
         String authorName = author != null ? author.getDisplayName() : diary.getAuthorName();
@@ -1539,9 +1540,10 @@ public class DiaryService {
         String feedContent = diary.getContent() != null && diary.getContent().length() > 150
                 ? diary.getContent().substring(0, 150) + "..."
                 : diary.getContent();
+        int commentCount = commentCountMap.getOrDefault(diary.getId(), 0);
         return isPublic
-                ? DiaryView.fromPublicFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole, likedByMe, feedContent)
-                : DiaryView.fromFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole, likedByMe, feedContent);
+                ? DiaryView.fromPublicFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole, likedByMe, feedContent, commentCount)
+                : DiaryView.fromFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole, likedByMe, feedContent, commentCount);
     }
 
     private DiaryView buildDiaryView(DiaryEntity diary, boolean isPublic) {
@@ -1626,6 +1628,21 @@ public class DiaryService {
                         .in(DiaryCommentEntity::getDiaryId, diaryIds)
                         .orderByAsc(DiaryCommentEntity::getCreatedAt));
         return comments.stream().collect(Collectors.groupingBy(DiaryCommentEntity::getDiaryId));
+    }
+
+    private Map<Long, Integer> batchLoadCommentCounts(List<Long> diaryIds) {
+        if (diaryIds.isEmpty()) return Map.of();
+        List<DiaryCommentEntity> all = diaryCommentMapper.selectList(
+                new LambdaQueryWrapper<DiaryCommentEntity>()
+                        .in(DiaryCommentEntity::getDiaryId, diaryIds));
+        Map<Long, Integer> result = new java.util.HashMap<>();
+        for (Long id : diaryIds) {
+            result.put(id, 0);
+        }
+        for (DiaryCommentEntity c : all) {
+            result.merge(c.getDiaryId(), 1, Integer::sum);
+        }
+        return result;
     }
 
     private Map<Long, UserEntity> batchLoadAuthorInfo(java.util.Set<Long> authorIds) {

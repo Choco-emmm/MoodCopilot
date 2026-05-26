@@ -93,7 +93,7 @@
 
       <!-- 评论区域 -->
       <section class="panel analysis-panel">
-        <h3 class="comment-section-title">评论 ({{ diary.comments?.length ?? 0 }})</h3>
+        <h3 class="comment-section-title">评论 ({{ totalCommentCount }})</h3>
 
         <!-- 写评论 -->
         <div v-if="!replyThreadId" class="comment-box">
@@ -233,6 +233,21 @@ const hideSimilarOnMobileInput = ref(false)
 let inputBlurTimer: ReturnType<typeof setTimeout> | null = null
 
 const isOwner = computed(() => auth.userId != null && diary.value != null && auth.userId === diary.value.authorUserId)
+
+/** 递归统计所有评论（含嵌套回复），优先使用后端预计算的 commentCount */
+const totalCommentCount = computed(() => {
+  if (typeof diary.value?.commentCount === 'number') return diary.value.commentCount
+  const list = diary.value?.comments ?? []
+  let count = 0
+  function walk(items: any[]) {
+    for (const c of items) {
+      count++
+      if (c.replies?.length) walk(c.replies)
+    }
+  }
+  walk(list)
+  return count
+})
 
 async function loadDiaryByRoute() {
   const id = Number(route.params.id)
@@ -505,24 +520,4 @@ function ensureCommentInputVisible() {
 
 .analyzing-footer-hint {
   text-align: center;
-  padding: 16px;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: var(--color-bg);
-  border-radius: 12px;
-  margin-top: 16px;
-  border: 1px dashed var(--color-border);
-}
-.analyzing-footer-hint .sparkle-icon {
-  animation: pulse 2s infinite;
-}
-@keyframes pulse {
-  0% { opacity: 0.5; }
-  50% { opacity: 1; }
-  100% { opacity: 0.5; }
-}
-</style>
+  padd
