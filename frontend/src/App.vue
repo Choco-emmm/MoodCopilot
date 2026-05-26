@@ -178,24 +178,28 @@ const dynamicThemeOverrides = computed<GlobalThemeOverrides>(() => {
       primaryColor: current.primary,
       infoColor: current.accent,
       successColor: current.primary,
-      errorColor: isDarkTheme ? '#e06060' : '#b23a3a',
-      warningColor: isDarkTheme ? '#c8983e' : '#d49200',
+      errorColor: 'var(--color-error)',
+      warningColor: 'var(--color-warning)',
       ...(isDarkTheme ? {
-        bodyColor: isMinimalDark ? '#0e0e0e' : '#2b2b29',
-        cardColor: isMinimalDark ? '#1a1a1a' : '#3a3a37',
-        modalColor: isMinimalDark ? '#1a1a1a' : '#3a3a37',
-        popoverColor: isMinimalDark ? '#1a1a1a' : '#3a3a37',
-        tableColor: isMinimalDark ? '#1a1a1a' : '#3a3a37',
-        inputColor: isMinimalDark ? '#1a1a1a' : '#3a3a37',
-        actionColor: isMinimalDark ? '#1e1e1e' : '#474744',
-        borderColor: isMinimalDark ? '#282828' : '#666663',
-        dividerColor: isMinimalDark ? '#222222' : '#555552',
-        hoverColor: isMinimalDark ? 'rgba(138, 142, 150, 0.08)' : 'rgba(255, 180, 0, 0.08)',
-        pressedColor: isMinimalDark ? 'rgba(138, 142, 150, 0.12)' : 'rgba(255, 180, 0, 0.12)',
+        bodyColor: 'var(--color-bg)',
+        cardColor: 'var(--color-surface)',
+        modalColor: 'var(--color-surface)',
+        popoverColor: 'var(--color-surface)',
+        tableColor: 'var(--color-surface)',
+        inputColor: 'var(--color-surface-hover)',
+        actionColor: 'var(--color-surface-hover)',
+        borderColor: 'var(--color-border)',
+        dividerColor: 'var(--color-border)',
+        hoverColor: 'var(--color-surface-hover)',
+        pressedColor: 'var(--color-surface-soft)',
       } : {}),
     },
     Button: {
-      textColorPrimary: isDarkTheme ? '#e6e6e6' : '#ffffff',
+      textColor: 'var(--color-text)',
+      textColorPrimary: 'var(--color-on-primary)',
+      textColorHover: 'var(--color-primary)',
+      border: '1px solid var(--color-border)',
+      borderHover: '1px solid var(--color-primary)',
       borderRadiusSmall: '4px',
       borderRadiusMedium: '6px',
       borderRadiusLarge: '10px',
@@ -204,152 +208,10 @@ const dynamicThemeOverrides = computed<GlobalThemeOverrides>(() => {
       borderRadius: '6px',
       color: 'var(--color-surface-hover)',
       colorFocus: 'var(--color-surface)',
+      border: '1px solid var(--color-border)',
+      borderFocus: '1px solid var(--color-primary)',
+      borderHover: '1px solid var(--color-primary-hover)',
     },
-    Tag: {
-      borderRadius: '4px',
-    },
-  }
-})
-</script>
-
-<style scoped>
-.analysis-modal {
-  background: var(--color-surface);
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 420px;
-  margin: 0 auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  color: var(--color-text);
-}
-
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 22px;
-  color: var(--color-text-light);
-  cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
-}
-
-.modal-close:hover {
-  color: var(--color-text);
-}
-
-.modal-mood {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.mood-intensity {
-  font-size: 13px;
-  color: var(--color-text-secondary);
-}
-
-.modal-secondary {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-
-.modal-summary {
-  margin: 0 0 8px;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-  line-height: 1.6;
-}
-
-.modal-feedback {
-  margin: 0 0 20px;
-  font-size: 13px;
-  color: var(--color-text-muted);
-  line-height: 1.6;
-  padding: 10px 12px;
-  background: var(--color-surface-hover);
-  border-radius: 8px;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-/* ── 全局任务中心 FAB ── */
-.global-task-fab {
-  position: fixed;
-  right: max(20px, calc((100vw - 1080px) / 2 + 20px));
-  bottom: 32px;
-  z-index: 8000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  box-shadow: 0 4px 20px color-mix(in oklab, var(--color-primary) 36%, transparent);
-  text-decoration: none;
-  transition: transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);
-}
-
-.global-task-fab::after {
-  content: '';
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--color-accent);
-  border: 2px solid var(--color-on-primary);
-  opacity: 0;
-  transform: scale(0);
-  transition: opacity 0.2s, transform 0.2s var(--ease-out);
-}
-
-.global-task-fab.has-dot::after {
-  opacity: 1;
-  transform: scale(1);
-  animation: fab-dot-pulse 2s ease-in-out infinite;
-}
-
-@keyframes fab-dot-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-accent) 40%, transparent); }
-  50% { box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-accent) 0%, transparent); }
-}
-
-.global-task-fab:hover {
-  transform: translateY(-2px) scale(1.06);
-  box-shadow: 0 6px 28px color-mix(in oklab, var(--color-primary) 45%, transparent);
-}
-
-.global-task-fab:active {
-  transform: scale(0.95);
-}
-
-@media (max-width: 780px) {
-  .global-task-fab {
-    right: 16px;
-    bottom: calc(76px + env(safe-area-inset-bottom));
-    width: 44px;
-    height: 44px;
-  }
-}
-</style>
+    Switch: {
+      railColorActive: 'var(--color-primary)',
+      buttonColor: 'var(--color-surface)'

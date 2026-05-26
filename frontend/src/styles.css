@@ -42,6 +42,7 @@
   /* ── Typography ── */
   --font-display: "Noto Serif SC", "STSong", "Songti SC", "KaiTi", "SimSun", serif;
   --font-body: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-serif: "Noto Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif;
 
   /* Type scale — 1.25 major third */
   --text-xs: 0.7rem;
@@ -3954,6 +3955,23 @@ h3 {
   }
 }
 
+
+/* Vditor dark mode — force dark editor surfaces */
+[data-theme="black-rice"] .vditor-content,
+[data-theme="minimal-dark"] .vditor-content {
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+}
+[data-theme="black-rice"] .vditor-ir,
+[data-theme="minimal-dark"] .vditor-ir {
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+}
+[data-theme="black-rice"] .vditor-reset,
+[data-theme="minimal-dark"] .vditor-reset {
+  color: var(--color-text) !important;
+  caret-color: var(--color-primary) !important;
+}
 /* ═══════════════════════════════════════════
    Custom themes (4-color & 2-color palettes)
    ═══════════════════════════════════════════ */
@@ -4263,6 +4281,4 @@ h3 {
 [data-theme="jujube-roll"] {
   --color-primary: #944a42;
   --color-primary-hover: #7a3a34;
-  --color-primary-light: #f7ebea;
-  --color-accent: #d2ad7e;
-  --color-accent-light: #ebceaa;
+  
