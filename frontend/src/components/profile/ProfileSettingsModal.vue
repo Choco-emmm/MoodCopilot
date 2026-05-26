@@ -1089,4 +1089,17 @@ onBeforeUnmount(() => {
   font-weight: 600 !important;
   letter-spacing: 0.02em;
 }
+
+/* Fix Naive UI inputs inside settings modal to follow theme colors */
+.settings-modal .n-input {
+  --n-color: var(--color-surface-hover) !important;
+  --n-color-focus: var(--color-surface) !important;
+  --n-border: 1px solid var(--color-border) !important;
+  --n-border-hover: 1px solid var(--color-primary) !important;
+  --n-border-focus: 1px solid var(--color-primary) !important;
+  --n-caret-color: var(--color-primary) !important;
+  --n-text-color: var(--color-text) !important;
+  --n-placeholder-color: var(--color-text-muted) !important;
+}
 </style>
+

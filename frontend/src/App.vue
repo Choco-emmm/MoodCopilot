@@ -173,13 +173,19 @@ const dynamicThemeOverrides = computed<GlobalThemeOverrides>(() => {
   const isBlackRice = activeThemeName.value === 'black-rice'
   const isMinimalDark = activeThemeName.value === 'minimal-dark'
   const isDarkTheme = isBlackRice || isMinimalDark
+
+  // Naive UI 的 seemly 库无法解析 CSS 变量，必须传入真实 hex 颜色
+  // errorColor/warningColor 使用与主题 accent 颜色协调的固定值
+  const errorColor = current.accent   // accent 通常是暖色，适合 error/warning
+  const warningColor = isDarkTheme ? '#e6a817' : '#d97706'
+
   return {
     common: {
       primaryColor: current.primary,
       infoColor: current.accent,
       successColor: current.primary,
-      errorColor: 'var(--color-error)',
-      warningColor: 'var(--color-warning)',
+      errorColor,
+      warningColor,
       ...(isDarkTheme ? {
         bodyColor: 'var(--color-bg)',
         cardColor: 'var(--color-surface)',
@@ -195,11 +201,6 @@ const dynamicThemeOverrides = computed<GlobalThemeOverrides>(() => {
       } : {}),
     },
     Button: {
-      textColor: 'var(--color-text)',
-      textColorPrimary: 'var(--color-on-primary)',
-      textColorHover: 'var(--color-primary)',
-      border: '1px solid var(--color-border)',
-      borderHover: '1px solid var(--color-primary)',
       borderRadiusSmall: '4px',
       borderRadiusMedium: '6px',
       borderRadiusLarge: '10px',

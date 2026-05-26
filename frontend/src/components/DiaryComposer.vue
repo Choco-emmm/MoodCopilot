@@ -240,6 +240,11 @@ onMounted(async () => {
     cache: { enable: false },
     counter: { enable: true, max: 3000, type: 'text' },
     outline: { enable: false, position: 'right' },
+    preview: {
+      render: {
+        paragraphBeginningSpace: false,
+      },
+    },
     toolbar: window.innerWidth <= 780
       ? ['bold', 'italic', 'strike', 'line', 'list', 'ordered-list', 'undo', 'redo']
       : ['headings', 'bold', 'italic', 'strike', 'line', 'quote', 'list', 'ordered-list', 'check', 'outdent', 'indent', 'code', 'inline-code', 'undo', 'redo'],
@@ -253,6 +258,7 @@ onMounted(async () => {
       draft.value = val
     }
   })
+
 })
 
 onBeforeUnmount(() => {
@@ -574,7 +580,21 @@ async function handleSave() {
   padding: 0 !important;
   margin: 0 !important;
   color: var(--color-text) !important;
+  line-height: 1.55 !important;
 }
+
+/* 压缩 vditor 段落间距 */
+.composer-editor :deep(.vditor-reset p) {
+  margin: 0.1em 0 !important;
+}
+
+.composer-editor :deep(.vditor-reset h1),
+.composer-editor :deep(.vditor-reset h2),
+.composer-editor :deep(.vditor-reset h3),
+.composer-editor :deep(.vditor-reset h4) {
+  margin: 0.5em 0 0.15em !important;
+}
+
 
 .composer-editor :deep(.vditor-ir pre.vditor-reset) {
   color: var(--color-text-muted) !important;

@@ -46,7 +46,6 @@
 
 
     <section class="fusion-panel">
-      <div class="fusion-bg" style="transform: rotate(-0.3deg) translateY(2px);"></div>
       <div class="fusion-content profile-list-panel">
       <div class="profile-list-head">
         <h3>{{ isSearching ? '搜索结果' : '日记列表' }}</h3>
