@@ -5020,3 +5020,15 @@ h3 {
     --color-border-strong: color-mix(in oklab, var(--color-primary) 24%, #2d4536);
   }
 }
+
+/* 引用操作栏 */
+.msg-wrapper { position: relative; }
+.msg-actions { display: flex; justify-content: flex-start; margin-top: 6px; opacity: 0; transition: opacity 0.2s ease; }
+.msg-item:hover .msg-actions { opacity: 1; }
+.msg-action-btn { background: transparent; border: none; color: var(--color-text-muted); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; transition: all 0.2s ease; }
+.msg-action-btn:hover { background: var(--color-surface-hover); color: var(--color-primary); }
+@media (max-width: 768px) { .msg-actions { opacity: 1; margin-top: 4px; } }
+
+/* 用户气泡内的 Markdown 引用样式 */
+.chat-user .md-content blockquote { border-left-color: rgba(255, 255, 255, 0.4); color: rgba(255, 255, 255, 0.85); background: rgba(0, 0, 0, 0.1); padding: 6px 12px; margin: 4px 0 8px 0; border-radius: 0 4px 4px 0; }
+

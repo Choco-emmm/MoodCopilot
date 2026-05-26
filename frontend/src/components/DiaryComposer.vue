@@ -168,14 +168,29 @@ const props = withDefaults(defineProps<{
 
 const store = useDiaryStore()
 const router = useRouter()
-const draft = ref('')
-const htmlContent = ref('')
-const draftNotice = ref('')
-const draftSavedAt = ref('')
 const isEditMode = computed(() => props.editId != null && props.editId > 0)
-const visibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
-const analyze = ref(true)
+
 const DRAFT_KEY = 'moodcopilot:draft'
+
+let initialHtml = ''
+let initialDraftNotice = ''
+if (isEditMode.value) {
+  initialHtml = formatLegacyContent(props.initialContent || '')
+  initialDraftNotice = '正在编辑日记'
+} else {
+  const savedDraft = localStorage.getItem(DRAFT_KEY)
+  if (savedDraft) {
+    initialHtml = savedDraft
+    initialDraftNotice = '已恢复本机草稿'
+  }
+}
+
+const htmlContent = ref(initialHtml)
+const draft = ref(initialHtml)
+const draftNotice = ref(initialDraftNotice)
+const draftSavedAt = ref('')
+const visibility = ref<'PRIVATE' | 'PUBLIC'>(props.initialVisibility || 'PRIVATE')
+const analyze = ref(true)
 
 const editorRef = shallowRef<IDomEditor | null>(null)
 
@@ -202,15 +217,15 @@ const editorConfig: Partial<IEditorConfig> = {
   scroll: false,
 }
 
-const musicMeta = ref<MusicMeta | null>(null)
-const musicSongUrl = ref('')
-const userLyric = ref('')
+const musicMeta = ref<MusicMeta | null>(props.initialMusicMeta || null)
+const musicSongUrl = ref(props.initialSongUrl || props.initialMusicMeta?.songUrl || '')
+const userLyric = ref(props.initialLyric || props.initialMusicMeta?.userLyric || '')
 const musicParsing = ref(false)
 const showMusicInput = ref(false)
 const musicUrlDraft = ref('')
 const musicUrlInput = ref<HTMLInputElement | null>(null)
 
-const imageList = ref<string[]>([])
+const imageList = ref<string[]>(props.initialImages ? [...props.initialImages] : [])
 const uploadingImage = ref(false)
 const previewSrc = ref('')
 
@@ -239,32 +254,10 @@ function handleEditorCreated(editor: IDomEditor) {
   editorRef.value = editor
 }
 
-onMounted(async () => {
-  let initialValue = ''
-  if (isEditMode.value) {
-    initialValue = formatLegacyContent(props.initialContent || '')
-    visibility.value = props.initialVisibility || 'PRIVATE'
-    if (props.initialMusicMeta) {
-      musicMeta.value = props.initialMusicMeta
-      userLyric.value = props.initialLyric || props.initialMusicMeta.userLyric || ''
-      musicSongUrl.value = props.initialSongUrl || props.initialMusicMeta.songUrl || ''
-    }
-    if (props.initialImages?.length) {
-      imageList.value = [...props.initialImages]
-    }
-    draftNotice.value = '正在编辑日记'
+onMounted(() => {
+  if (draftNotice.value) {
     updateDraftSavedAt()
-  } else {
-    const savedDraft = localStorage.getItem(DRAFT_KEY)
-    if (savedDraft) {
-      draftNotice.value = '已恢复本机草稿'
-      initialValue = savedDraft
-      updateDraftSavedAt()
-    }
   }
-
-  htmlContent.value = initialValue
-  draft.value = initialValue
 })
 
 onBeforeUnmount(() => {

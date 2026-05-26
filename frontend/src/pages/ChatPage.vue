@@ -82,6 +82,7 @@
             :user-avatar="authStore.avatar"
             :user-initial="userInitial"
             @go-diary="goToDiary"
+            @quote="handleQuote"
           />
 
           <div v-if="isThinking" class="msg-item ai animate-fade-in">
@@ -164,6 +165,17 @@ const {
   msgBox, chatInputArea,
   handleDraftFocus, handleDraftEnter, goToDiary,
 } = useChat()
+
+function handleQuote(text: string) {
+  references.value = references.value.filter((r: any) => r.type !== 'quote')
+  references.value.push({
+    label: '引用 AI',
+    content: text,
+    fullContent: text,
+    type: 'quote'
+  } as any)
+  handleDraftFocus()
+}
 </script>
 <style scoped>
 @keyframes bounce-subtle {

@@ -25,7 +25,7 @@ import { diaryApi } from '../api'
 import type { MusicMeta } from '../stores/diary'
 
 const route = useRoute()
-const loadingEdit = ref(false)
+const loadingEdit = ref(!!route.query.edit)
 const editId = ref<number | undefined>(undefined)
 const editContent = ref('')
 const editVisibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')

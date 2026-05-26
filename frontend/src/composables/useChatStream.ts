@@ -11,6 +11,7 @@ export interface ChatReference {
   content: string
   fullContent: string
   diaryId?: number
+  type?: 'quote'
 }
 
 export function useChatStream(
@@ -51,9 +52,15 @@ export function useChatStream(
     lastReplyError.value = null
     lastReplyRequest.value = null
 
-    const refContents = references.value.slice(0, 2).map(r => r.fullContent || r.content)
+    let finalContent = content
+    const quoteRef = references.value.find(r => r.type === 'quote')
+    if (quoteRef) {
+      finalContent = '> [引用] AI: ' + quoteRef.content + '\n\n' + finalContent
+    }
+
+    const refContents = references.value.filter(r => r.type !== 'quote').slice(0, 2).map(r => r.fullContent || r.content)
     messages.value.push({
-      id: nextMsgId(), role: 'user', content,
+      id: nextMsgId(), role: 'user', content: finalContent,
       references: refContents.length ? refContents : undefined,
     })
     saveToBackend(convId).catch(() => {})
@@ -73,7 +80,7 @@ export function useChatStream(
       return
     }
 
-    await sendReply(convId, content, refContents, false)
+    await sendReply(convId, finalContent, refContents, false)
   }
 
   // ── Retry ──
