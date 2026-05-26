@@ -1,41 +1,59 @@
 <template>
-  <article class="feed-item" :class="{ 'feed-item-compact': compact }" @click="handleCardClick">
-    <div class="feed-head">
-      <div class="feed-head-left">
-        <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-img" loading="lazy" decoding="async" />
-        <span v-else class="avatar" :style="getAvatarStyle(diary.authorName)">{{ diary.authorName?.charAt(0).toUpperCase() }}</span>
-        <div>
-          <div class="author-row">
-            <button type="button" class="author-name-link" @click.stop="openAuthorProfile(diary.authorUserId)">
-              {{ diary.authorName }}
-            </button>
-            <span v-if="diary.authorRole === 'ADMIN'" class="diary-author-admin">管理员</span>
-            <span v-if="diary.authorLevel" class="diary-author-level">Lv.{{ diary.authorLevel }}</span>
-          </div>
-          <span class="feed-time">
-            {{ formatTime(diary.createdAt) }}
-            <span :class="['vis-tag', diary.visibility === 'PUBLIC' ? 'vis-tag-public' : 'vis-tag-private']">
-              {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
+  <article class="feed-item" v-motion :initial="{ opacity: 0, y: 40 }" :enter="{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 200, damping: 25 } }" :class="{ 'feed-item-compact': compact }" @click="handleCardClick">
+    <!-- 左侧不对称信息列 (Left Sidebar) -->
+    <aside class="feed-aside desktop-only-flex">
+      <div class="feed-meta-date">
+        <span class="meta-month">{{ formatMonth(diary.createdAt) }}</span>
+        <span class="meta-day">{{ formatDay(diary.createdAt) }}</span>
+      </div>
+      <div class="feed-meta-time">{{ formatTimeOnly(diary.createdAt) }}</div>
+      <div class="feed-meta-tags">
+        <span class="meta-mood" v-if="diary.mood">{{ diary.mood }}</span>
+        <span :class="['vis-tag', diary.visibility === 'PUBLIC' ? 'vis-tag-public' : 'vis-tag-private']">
+          {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
+        </span>
+      </div>
+    </aside>
+
+    <!-- 右侧主干内容 (Right Content) -->
+    <div class="feed-main">
+      <div class="feed-head">
+        <div class="feed-head-left">
+          <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-img" loading="lazy" decoding="async" />
+          <span v-else class="avatar" :style="getAvatarStyle(diary.authorName)">{{ diary.authorName?.charAt(0).toUpperCase() }}</span>
+          <div>
+            <div class="author-row">
+              <button type="button" class="author-name-link" @click.stop="openAuthorProfile(diary.authorUserId)">
+                {{ diary.authorName }}
+              </button>
+              <span v-if="diary.authorRole === 'ADMIN'" class="diary-author-admin">管理员</span>
+              <span v-if="diary.authorLevel" class="diary-author-level">Lv.{{ diary.authorLevel }}</span>
+            </div>
+            <!-- 移动端才显示的日期（因为桌面端在左侧边栏了） -->
+            <span class="feed-time mobile-only-inline">
+              {{ formatTime(diary.createdAt) }}
+              <span :class="['vis-tag', diary.visibility === 'PUBLIC' ? 'vis-tag-public' : 'vis-tag-private']">
+                {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
+              </span>
             </span>
             <n-tag v-if="diary.isPinned" type="warning" size="small" round style="margin-left: 6px;">
               📌 置顶公告
             </n-tag>
-          </span>
+          </div>
+        </div>
+        <div class="feed-head-right">
+          <button
+            v-if="diary.authorUserId !== auth.userId && !hideFollowBtn"
+            :class="['follow-btn', 'feed-follow-btn', { following: followStore.isFollowing(diary.authorUserId) }]"
+            :disabled="followStore.isPending(diary.authorUserId)"
+            @mouseenter="hoveringId = diary.authorUserId"
+            @mouseleave="hoveringId = null"
+            @click.stop="toggleFollow(diary.authorUserId)"
+          >
+            {{ followBtnLabel(diary.authorUserId) }}
+          </button>
         </div>
       </div>
-      <div class="feed-head-right">
-        <button
-          v-if="diary.authorUserId !== auth.userId && !hideFollowBtn"
-          :class="['follow-btn', 'feed-follow-btn', { following: followStore.isFollowing(diary.authorUserId) }]"
-          :disabled="followStore.isPending(diary.authorUserId)"
-          @mouseenter="hoveringId = diary.authorUserId"
-          @mouseleave="hoveringId = null"
-          @click.stop="toggleFollow(diary.authorUserId)"
-        >
-          {{ followBtnLabel(diary.authorUserId) }}
-        </button>
-      </div>
-    </div>
 
     <div
       class="feed-content feed-content-clickable md-content"
@@ -124,6 +142,7 @@
       <n-button size="small" type="primary" :disabled="!draft.trim()" @click="submit">
         留言
       </n-button>
+    </div>
     </div>
   </article>
 </template>
@@ -285,6 +304,19 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
   }).format(new Date(value))
+}
+
+function formatDay(value: string) {
+  return new Date(value).getDate().toString().padStart(2, '0')
+}
+
+function formatMonth(value: string) {
+  const m = new Date(value).getMonth() + 1
+  return m + '月'
+}
+
+function formatTimeOnly(value: string) {
+  return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 }
 
 function handleCardClick(e: MouseEvent) {

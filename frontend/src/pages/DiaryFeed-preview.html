@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MoodCopilot - 原生多主题 + 极简大留白预览</title>
+  <style>
+    :root {
+      /* 排版体系保持不变：无衬线正文 + 衬线标题 */
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-serif: "Songti SC", "STSong", "SimSun", Georgia, Cambria, "Times New Roman", Times, serif;
+      
+      /* 这里的变量将直接映射你现有的 19 套主题色！ */
+      /* 默认展示：樱落桃酥 (sakura-blush) */
+      --color-primary: #c42878;
+      --color-accent: #e8a04e;
+      --color-bg: #fff6fb;
+      --color-surface: #ffffff;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      /* 背景色直接使用你原来精心调配的 bg */
+      background-color: var(--color-bg);
+      color: #333333;
+      font-family: var(--font-sans);
+      line-height: 1.8;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.5s ease;
+    }
+
+    h1, h2, h3, .serif-text {
+      font-family: var(--font-serif);
+      font-weight: 500;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 60px 40px;
+    }
+
+    /* 你的19套主题切换器 */
+    .theme-switcher {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      width: 250px;
+      gap: 10px;
+      background: var(--color-surface);
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+      z-index: 100;
+      transition: all 0.5s ease;
+    }
+    .theme-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: transform 0.2s;
+      border: 2px solid var(--color-surface);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .theme-dot:hover { transform: scale(1.2); }
+    .switcher-title { width: 100%; font-size: 0.8rem; margin: 0 0 5px 0; color: #666; font-weight: bold; }
+
+    /* 页面头部 */
+    .page-header {
+      margin-bottom: 80px;
+    }
+    
+    .page-title {
+      font-size: 3.5rem;
+      margin: 0 0 10px 0;
+      /* 使用你的 primary 颜色作为大标题 */
+      color: var(--color-primary);
+      transition: color 0.5s ease;
+    }
+
+    .page-subtitle {
+      font-size: 1rem;
+      /* 使用你的 accent 颜色作为副标题点缀 */
+      color: var(--color-accent);
+      margin: 0;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      transition: color 0.5s ease;
+    }
+
+    /* 日记流：非对称，无死板实线边框 */
+    .feed-container {
+      display: flex;
+      flex-direction: column;
+      gap: 100px;
+    }
+
+    .feed-item {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 50px;
+      position: relative;
+      /* 使用你的 surface 作为悬浮背景，彻底融入你的色彩体系 */
+      background: transparent;
+      padding: 30px;
+      border-radius: 16px;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .feed-item:hover {
+      background: var(--color-surface);
+      box-shadow: 0 20px 40px -10px rgba(0,0,0,0.05);
+      transform: translateY(-2px);
+    }
+
+    /* 左侧元数据 */
+    .feed-meta { text-align: right; }
+
+    .meta-date {
+      font-family: var(--font-serif);
+      font-size: 1.6rem;
+      color: var(--color-primary);
+      display: block;
+      margin-bottom: 4px;
+      line-height: 1.2;
+      transition: color 0.5s ease;
+    }
+
+    .meta-time { color: #888; font-size: 0.9rem; }
+
+    .meta-mood {
+      display: inline-block;
+      padding: 6px 16px;
+      border-radius: 100px;
+      /* 背景使用 surface，文字使用 accent，充分利用你的配色 */
+      background: var(--color-surface);
+      color: var(--color-accent);
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-top: 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+      transition: all 0.5s ease;
+    }
+
+    /* 右侧正文 */
+    .feed-content {
+      font-size: 1.15rem;
+      color: #333333;
+      padding-top: 5px;
+    }
+
+    .feed-content p {
+      margin-top: 0;
+      margin-bottom: 1.5em;
+    }
+
+    /* 优雅的引文：不再是死板的左边框 */
+    blockquote {
+      margin: 40px 0;
+      padding: 20px 0 20px 40px;
+      position: relative;
+      font-family: var(--font-serif);
+      font-size: 1.4rem;
+      line-height: 1.6;
+      color: #444;
+    }
+    
+    blockquote::before {
+      content: '“';
+      position: absolute;
+      left: 0;
+      top: -10px;
+      font-size: 4rem;
+      font-family: var(--font-serif);
+      /* 引号使用你的 Primary 颜色 */
+      color: var(--color-primary);
+      opacity: 0.4;
+      line-height: 1;
+      transition: color 0.5s ease;
+    }
+
+    /* 动效 */
+    @keyframes spring-up {
+      0% { opacity: 0; transform: translateY(40px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    .stagger-enter {
+      opacity: 0;
+      animation: spring-up 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .delay-1 { animation-delay: 0.1s; }
+    .delay-2 { animation-delay: 0.2s; }
+    .delay-3 { animation-delay: 0.35s; }
+
+  </style>
+</head>
+<body>
+
+  <!-- 将你的 19 套配色完全搬到了这里 -->
+  <div class="theme-switcher">
+    <p class="switcher-title">点击还原你的真实主题色：</p>
+    <div class="theme-dot" style="background: #3b6b52;" onclick="setTheme('#3b6b52', '#a94b45', '#f8f6f1', '#fffdf8')" title="绿意轻盈"></div>
+    <div class="theme-dot" style="background: #c42878;" onclick="setTheme('#c42878', '#e8a04e', '#fff6fb', '#ffffff')" title="樱落桃酥"></div>
+    <div class="theme-dot" style="background: #5a80d8;" onclick="setTheme('#5a80d8', '#c25e98', '#f6f8fd', '#ffffff')" title="梦境彩虹"></div>
+    <div class="theme-dot" style="background: #007a85;" onclick="setTheme('#007a85', '#c0804e', '#f0fafe', '#ffffff')" title="云屿蓝天"></div>
+    <div class="theme-dot" style="background: #944a42;" onclick="setTheme('#944a42', '#d2ad7e', '#fdfbf6', '#ffffff')" title="枣泥豆卷"></div>
+    <div class="theme-dot" style="background: #426682;" onclick="setTheme('#426682', '#7c8a9e', '#f2f6f9', '#ffffff')" title="薄霜暮蓝"></div>
+    <div class="theme-dot" style="background: #388b98;" onclick="setTheme('#388b98', '#eab308', '#e2f4f6', '#ffffff')" title="海盐柠泡"></div>
+    <div class="theme-dot" style="background: #b8585e;" onclick="setTheme('#b8585e', '#6db5be', '#fff5f6', '#ffffff')" title="露露晨屿"></div>
+    <div class="theme-dot" style="background: #8a8e96;" onclick="setTheme('#8a8e96', '#6b8aa8', '#0e0e0e', '#1a1a1a')" title="极简暗夜"></div>
+  </div>
+
+  <div class="container">
+    <header class="page-header stagger-enter delay-1">
+      <h1 class="page-title">日志</h1>
+      <p class="page-subtitle">宁静的数字避难所</p>
+    </header>
+
+    <div class="feed-container">
+      <article class="feed-item stagger-enter delay-2">
+        <aside class="feed-meta">
+          <span class="meta-date">五月 26</span>
+          <span class="meta-time">13:45</span>
+          <br>
+          <span class="meta-mood">平静</span>
+        </aside>
+        <div class="feed-content">
+          <p>早晨醒来，推开窗，看到了久违的阳光。今天决定重新梳理一下自己的情绪和思路。</p>
+          <blockquote>
+            在嘈杂的世界里，找到一处属于自己的静谧角落，是极其奢侈的。
+          </blockquote>
+          <p>“极简”指的是去除生硬的边框（Border）、去除死板的卡片包裹感（Box）。但**绝对不是去除你精心调配的颜色**！</p>
+        </div>
+      </article>
+
+      <article class="feed-item stagger-enter delay-3">
+        <aside class="feed-meta">
+          <span class="meta-date">五月 24</span>
+          <span class="meta-time">22:10</span>
+          <br>
+          <span class="meta-mood">思考</span>
+        </aside>
+        <div class="feed-content">
+          <p>你看：</p>
+          <p>在这个全新的排版下，整个网页的背景色使用的是你主题里的 <code>bg</code>，当你鼠标悬浮到文字上时，浮现出的卡片底色使用的是 <code>surface</code>。</p>
+          <p>大标题、日期和那个硕大的双引号，使用的是你的 <code>primary</code> 主色调。而页面顶部的副标题和情绪标签里的文字，使用的是你调配的 <code>accent</code> 辅助色！</p>
+          <p>这 19 套绝美的主题不仅没有浪费，反而因为去除了杂乱的边框线条，变得**更加纯粹、更加抢眼**了！</p>
+        </div>
+      </article>
+    </div>
+  </div>
+
+  <script>
+    function setTheme(primary, accent, bg, surface) {
+      document.documentElement.style.setProperty('--color-primary', primary);
+      document.documentElement.style.setProperty('--color-accent', accent);
+      document.documentElement.style.setProperty('--color-bg', bg);
+      document.documentElement.style.setProperty('--color-surface', surface);
+      
+      // 暗色模式文字适配
+      if(bg === '#0e0e0e') {
+        document.body.style.color = '#e6e6e6';
+        document.querySelectorAll('blockquote').forEach(el => el.style.color = '#ccc');
+        document.querySelectorAll('.feed-content').forEach(el => el.style.color = '#e6e6e6');
+      } else {
+        document.body.style.color = '#333333';
+        document.querySelectorAll('blockquote').forEach(el => el.style.color = '#444');
+        document.querySelectorAll('.feed-content').forEach(el => el.style.color = '#333333');
+      }
+    }
+  </script>
+</body>
+</html>

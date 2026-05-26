@@ -19,7 +19,6 @@
               :class="['nav-link', item.cls, { active: route.path === item.path }]"
             >{{ item.label }}</router-link>
           </div>
-          <div class="nav-sep desktop-only" />
           <n-button
             v-if="deferredPrompt"
             size="small"

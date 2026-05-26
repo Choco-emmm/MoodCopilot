@@ -22,7 +22,9 @@ window.addEventListener('unhandledrejection', (e) => {
   logError('promise', '未处理的 Promise rejection', e.reason)
 })
 
-app.use(pinia).use(router)
+import { MotionPlugin } from '@vueuse/motion'
+
+app.use(pinia).use(router).use(MotionPlugin)
 
 const auth = useAuthStore(pinia)
 if (auth.isAuthenticated) {

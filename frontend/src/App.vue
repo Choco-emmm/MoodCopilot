@@ -118,6 +118,14 @@ const activeThemeName = computed(() => {
 watchEffect(() => {
   document.documentElement.setAttribute('data-theme', activeThemeName.value)
   const currentTheme = themeOptions.find(t => t.value === activeThemeName.value) || themeOptions[0]
+  
+  // 注入我们 19 套主题的色彩变量，以驱动无边框排版
+  const root = document.documentElement
+  root.style.setProperty('--theme-primary', currentTheme.primary)
+  root.style.setProperty('--theme-accent', currentTheme.accent)
+  root.style.setProperty('--theme-bg', currentTheme.bg)
+  root.style.setProperty('--theme-surface', currentTheme.surface)
+
   const metaThemeColor = document.querySelector('meta[name="theme-color"]')
   if (metaThemeColor) {
     metaThemeColor.setAttribute('content', currentTheme.bg)

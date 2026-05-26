@@ -4,12 +4,12 @@
   ═══════════════════════════════════════════ */
 
 :root {
-  /* ── Color ── */
-  --color-bg: #f8f6f1;
-  --color-surface: #fffdf8;
+  /* ── Color (Dynamically linked to App.vue injection) ── */
+  --color-bg: var(--theme-bg, #f8f6f1);
+  --color-surface: var(--theme-surface, #fffdf8);
   /* Static fallbacks for browsers without color-mix() support (Safari <16.2) */
-  --color-surface-hover: #f0ede6;
-  --color-surface-soft: #ece9e2;
+  --color-surface-hover: var(--theme-surface, #f0ede6);
+  --color-surface-soft: var(--theme-surface, #ece9e2);
 
   --color-text: #20201d;
   --color-text-secondary: #67645d;
@@ -17,7 +17,7 @@
   --color-text-light: #a09c94;
   --color-on-primary: #ffffff;
 
-  --color-accent: #a94b45;
+  --color-accent: var(--theme-accent, #a94b45);
   --color-accent-light: #d9827a;
   --color-accent-bg: #fff1ef;
   --color-error: #b23a3a;
@@ -28,9 +28,9 @@
   --color-overlay: rgba(32, 32, 29, 0.35);
   --color-backdrop: rgba(32, 32, 29, 0.12);
 
-  --color-primary: #4a7c62;
+  --color-primary: var(--theme-primary, #4a7c62);
   --color-primary-light: #eef4f0;
-  --color-primary-hover: #326a54;
+  --color-primary-hover: var(--theme-accent, #326a54);
 
   /* 旧 Jade 别名，保持兼容 */
   --color-jade: var(--color-primary);
@@ -189,8 +189,16 @@ button,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--color-border);
+  padding: 12px 24px;
+  position: sticky;
+  top: 20px;
+  z-index: 100;
+  background: color-mix(in oklab, var(--color-surface) 60%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: var(--radius-full);
+  margin-bottom: 20px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.02);
 }
 
 .masthead-nav {
@@ -925,31 +933,100 @@ h3 {
   border-color: var(--color-accent);
 }
 
-/* ── Feed item ── */
+/* ── Feed item (Refined Minimalism) ── */
 .feed-item {
   display: grid;
-  gap: var(--space-3);
-  padding: 16px 18px;
+  grid-template-columns: 140px 1fr;
+  gap: var(--space-6);
+  padding: 40px 20px;
   border: none;
-  border-radius: var(--radius-lg);
-  background: color-mix(in oklab, var(--color-surface) 85%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 4px 16px color-mix(in oklab, var(--color-primary) 8%, transparent);
-  transition: box-shadow var(--duration-normal) var(--ease-out),
-              transform var(--duration-normal) var(--ease-out);
+  border-radius: var(--radius-xl);
+  background: transparent;
+  transition: all var(--duration-normal) var(--ease-out);
   content-visibility: auto;
   contain-intrinsic-size: 320px;
 }
 
+@media (max-width: 768px) {
+  .feed-item {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    padding: 20px;
+  }
+}
+
+.feed-aside {
+  text-align: right;
+  padding-top: 8px;
+}
+.feed-meta-date {
+  display: flex;
+  flex-direction: column;
+  color: var(--color-primary);
+  font-family: var(--font-serif);
+  line-height: 1;
+}
+.feed-meta-date .meta-day {
+  font-size: 2.2rem;
+  font-weight: 500;
+  margin-top: 4px;
+}
+.feed-meta-date .meta-month {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+.feed-meta-time {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-top: 8px;
+}
+.feed-meta-tags {
+  margin-top: 12px;
+}
+.meta-mood {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 100px;
+  background: color-mix(in oklab, var(--color-accent) 15%, transparent);
+  color: var(--color-accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.feed-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.desktop-only-flex {
+  display: flex;
+  flex-direction: column;
+}
+.mobile-only-inline {
+  display: none;
+}
+@media (max-width: 768px) {
+  .desktop-only-flex { display: none; }
+  .mobile-only-inline { display: inline-block; }
+}
+
 .feed-item:hover {
-  box-shadow: 0 8px 24px color-mix(in oklab, var(--color-primary) 15%, transparent);
-  transform: translateY(-1px);
+  background: var(--color-surface);
+  box-shadow: 0 20px 40px -10px rgba(0,0,0,0.03);
+  transform: translateY(-2px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .feed-item:hover {
+    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.2);
+  }
 }
 
 .feed-item.feed-item-compact {
-  gap: var(--space-2);
-  padding: 12px 14px;
+  gap: var(--space-3);
+  padding: 20px;
   contain-intrinsic-size: 220px;
 }
 
