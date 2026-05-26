@@ -3949,25 +3949,9 @@ h3 {
 }
 
 
-/* Vditor dark mode �?force dark editor surfaces */
-[data-theme="black-rice"] .vditor-content,
-[data-theme="minimal-dark"] .vditor-content {
-  background: var(--color-surface) !important;
-  color: var(--color-text) !important;
-}
-[data-theme="black-rice"] .vditor-ir,
-[data-theme="minimal-dark"] .vditor-ir {
-  background: var(--color-surface) !important;
-  color: var(--color-text) !important;
-}
-[data-theme="black-rice"] .vditor-reset,
-[data-theme="minimal-dark"] .vditor-reset {
-  color: var(--color-text) !important;
-  caret-color: var(--color-primary) !important;
-}
-/* ══════════════════════════════════════════�?
+/* ═══════════════════════════════════════════
    Custom themes (4-color & 2-color palettes)
-   ══════════════════════════════════════════�?*/
+   ═══════════════════════════════════════════ */
 
 /* ── sakura-blush · 樱落桃酥 ── #ffdbf2 #ffa0d2 #ff78ae #f54291 */
 [data-theme="sakura-blush"] {
@@ -4339,7 +4323,7 @@ h3 {
 
 
 
-/* ══════════════════════════════════════════�?   Naive UI & Vditor UI Overrides
+/* ══════════════════════════════════════════�?   Naive UI Overrides
    ══════════════════════════════════════════�?*/
 
 /* Naive UI global overrides to match theme colors and fix usability */
@@ -4406,66 +4390,6 @@ h3 {
 }
 
 /* ═══════════════════════════════════════════
-   Vditor 暗夜模式强制适配 (彻底解决白底黑字)
-   ═══════════════════════════════════════════ */
-
-/* 1. 强制清除 CDN 动态注入的白底色，使其透出外部的深色面板 */
-[data-theme="black-rice"] .vditor,
-[data-theme="minimal-dark"] .vditor,
-[data-theme="black-rice"] .vditor-reset,
-[data-theme="minimal-dark"] .vditor-reset {
-  background-color: transparent !important;
-  color: var(--color-text) !important;
-}
-
-/* 2. 修正各级标题和段落的文字颜色 (避开 span 和 code 以保留语法高亮) */
-[data-theme="black-rice"] .vditor-reset :not(code):not(span),
-[data-theme="minimal-dark"] .vditor-reset :not(code):not(span) {
-  color: var(--color-text) !important;
-}
-
-/* 3. 恢复超链接颜色 */
-[data-theme="black-rice"] .vditor-reset a,
-[data-theme="minimal-dark"] .vditor-reset a {
-  color: var(--color-jade) !important;
-}
-
-/* 4. 代码块、引用块的深色背景适配 */
-[data-theme="black-rice"] .vditor-reset pre,
-[data-theme="minimal-dark"] .vditor-reset pre,
-[data-theme="black-rice"] .vditor-reset code,
-[data-theme="minimal-dark"] .vditor-reset code,
-[data-theme="black-rice"] .vditor-reset blockquote,
-[data-theme="minimal-dark"] .vditor-reset blockquote {
-  background-color: var(--color-surface-hover) !important;
-  color: var(--color-text) !important;
-  border-color: color-mix(in oklab, var(--color-primary) 30%, transparent) !important;
-}
-
-/* 5. 输入 / 或 @ 时弹出的自动补全菜单适配 */
-[data-theme="black-rice"] .vditor-hint,
-[data-theme="minimal-dark"] .vditor-hint {
-  background-color: var(--color-surface) !important;
-  border: 1px solid var(--color-border) !important;
-  box-shadow: var(--shadow-lg) !important;
-}
-
-[data-theme="black-rice"] .vditor-hint button,
-[data-theme="minimal-dark"] .vditor-hint button {
-  color: var(--color-text) !important;
-}
-
-[data-theme="black-rice"] .vditor-hint button:hover,
-[data-theme="black-rice"] .vditor-hint button.vditor-hint--current,
-[data-theme="minimal-dark"] .vditor-hint button:hover,
-[data-theme="minimal-dark"] .vditor-hint button.vditor-hint--current {
-  background-color: var(--color-primary) !important;
-  color: var(--color-on-primary) !important;
-}
-
-
-
-/* ═══════════════════════════════════════════
    Naive UI n-input theme color overrides
    (Only inputs, not buttons)
    ═══════════════════════════════════════════ */
@@ -4482,4 +4406,105 @@ h3 {
   --n-caret-color: var(--color-primary) !important;
   --n-text-color: var(--color-text) !important;
   --n-placeholder-color: var(--color-text-muted) !important;
+}
+
+/* ==========================================
+   AI 聊天 Markdown 渲染样式 (.md-content)
+   ========================================== */
+.md-content {
+  line-height: 1.6;
+  word-wrap: break-word;
+  color: var(--color-text);
+}
+
+/* 段落间距 */
+.md-content p {
+  margin-bottom: 0.8em;
+}
+.md-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* 列表样式恢复 */
+.md-content ul, 
+.md-content ol {
+  padding-left: 1.5em;
+  margin-bottom: 0.8em;
+}
+.md-content ul {
+  list-style-type: disc;
+}
+.md-content ul ul {
+  list-style-type: circle;
+}
+.md-content ol {
+  list-style-type: decimal;
+}
+.md-content li {
+  margin-bottom: 0.3em;
+}
+
+/* 加粗与斜体 */
+.md-content strong, 
+.md-content b {
+  font-weight: 700;
+  color: var(--color-text);
+}
+.md-content em, 
+.md-content i {
+  font-style: italic;
+}
+
+/* 引用块 */
+.md-content blockquote {
+  margin: 0.8em 0;
+  padding: 0.5em 1em;
+  border-left: 4px solid color-mix(in oklab, var(--color-primary) 50%, transparent);
+  background: color-mix(in oklab, var(--color-primary) 5%, transparent);
+  color: var(--color-text-secondary);
+  border-radius: 4px;
+}
+
+/* 标题样式 */
+.md-content h1, .md-content h2, .md-content h3, 
+.md-content h4, .md-content h5, .md-content h6 {
+  margin-top: 1.2em;
+  margin-bottom: 0.6em;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.md-content h3 { font-size: 1.15em; }
+.md-content h4 { font-size: 1.05em; }
+
+/* 行内代码与代码块 */
+.md-content code {
+  background-color: color-mix(in oklab, var(--color-text) 8%, transparent);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: monospace;
+  color: var(--color-primary);
+}
+.md-content pre {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: 1em;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin-bottom: 0.8em;
+}
+.md-content pre code {
+  background-color: transparent;
+  padding: 0;
+  color: var(--color-text);
+}
+
+/* 链接样式 */
+.md-content a {
+  color: var(--color-primary);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--color-primary);
+}
+.md-content a:hover {
+  border-bottom-style: solid;
 }

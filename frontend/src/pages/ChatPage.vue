@@ -219,61 +219,7 @@ const {
   opacity: 0.9;
 }
 
-/* Markdown 动态内容样式穿透 */
-.md-content :deep(p) {
-  margin: 0 0 0.5em 0;
-  line-height: 1.6;
-}
-.md-content :deep(p:last-child) {
-  margin-bottom: 0;
-}
-.md-content :deep(strong), .md-content :deep(b) {
-  font-weight: 600;
-  color: inherit;
-}
-.md-content :deep(ul) {
-  list-style-type: disc;
-  padding-left: 1.5em;
-  margin: 0.5em 0;
-}
-.md-content :deep(ol) {
-  list-style-type: decimal;
-  padding-left: 1.5em;
-  margin: 0.5em 0;
-}
-.md-content :deep(li) {
-  margin-bottom: 0.25em;
-}
-.md-content :deep(blockquote) {
-  margin: 10px 0;
-  padding: 10px 14px;
-  background: color-mix(in oklab, var(--color-text) 4%, transparent);
-  border-left: 3px solid var(--color-primary);
-  border-radius: 0 6px 6px 0;
-  font-style: italic;
-  color: var(--color-text-secondary);
-  font-size: 14px;
-  position: relative;
-  font-family: var(--font-body);
-}
-.md-content :deep(blockquote::before) {
-  content: '“';
-  position: absolute;
-  left: -12px;
-  top: -6px;
-  font-size: 32px;
-  color: color-mix(in oklab, var(--color-primary) 30%, transparent);
-  font-family: var(--font-display);
-  font-weight: bold;
-  line-height: 1;
-}
-.md-content :deep(code) {
-  background-color: rgba(0, 0, 0, 0.05);
-  padding: 0.2em 0.4em;
-  border-radius: 4px;
-  font-family: monospace;
-  font-size: 0.9em;
-}
+
 
 /* 流式输出光标 */
 :deep(.streaming-cursor) {
@@ -1008,19 +954,7 @@ const {
   white-space: pre-wrap;
 }
 
-.md-content :deep(p) {
-  margin-bottom: 8px !important;
-}
 
-.md-content :deep(p:last-child) {
-  margin-bottom: 0 !important;
-}
-
-.md-content :deep(pre) {
-  background: color-mix(in oklab, var(--color-primary) 3%, var(--color-surface)) !important;
-  border: 1px solid color-mix(in oklab, var(--color-primary) 10%, transparent) !important;
-  border-radius: 8px !important;
-}
 
 /* ── Magazine Style Features Index ── */
 .chat-features-index {

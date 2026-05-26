@@ -152,3 +152,17 @@ export function decodeHtmlEntities(text: string): string {
     textarea.innerHTML = text
     return textarea.value
 }
+
+/**
+ * 格式化老数据：判断文本中是否包含 <p>、<br> 或 <h1-6> 等典型 HTML 标签，
+ * 如果包含，说明是新版富文本，直接返回（使用 DOMPurify 净化）；
+ * 否则说明是旧版 Markdown，调用 renderSafeMarkdown 进行转换。
+ */
+export function formatLegacyContent(text: string): string {
+    if (!text) return ''
+    const isHtml = /<p>|<br>|<br\s*\/>|<h[1-6]>/i.test(text)
+    if (isHtml) {
+        return DOMPurify.sanitize(text, { USE_PROFILES: { html: true } })
+    }
+    return renderSafeMarkdown(text)
+}

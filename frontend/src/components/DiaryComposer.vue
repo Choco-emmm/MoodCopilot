@@ -25,7 +25,16 @@
 
     <!-- ★ 编辑器：纸质感 -->
     <div class="composer-editor">
-      <div ref="vditorContainer"></div>
+      <Toolbar
+        v-if="editorRef"
+        :editor="editorRef"
+        :defaultConfig="toolbarConfig"
+      />
+      <Editor
+        v-model="htmlContent"
+        :defaultConfig="editorConfig"
+        @onCreated="handleEditorCreated"
+      />
     </div>
 
     <!-- 音乐附件 -->
@@ -106,7 +115,7 @@
       </div>
       <button
         class="composer-submit"
-        :disabled="!draft.trim() || isOverLimit"
+        :disabled="!plainText.trim() || isOverLimit"
         @click="handleSave"
       >
         {{ isEditMode ? '保存修改' : (analyze ? '保存并分析' : '保存') }}
@@ -137,13 +146,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, shallowRef, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import type Vditor from 'vditor'
-import 'vditor/dist/index.css'
+import '@wangeditor/editor/dist/css/style.css'
+import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
+import type { IDomEditor, IToolbarConfig, IEditorConfig } from '@wangeditor/editor'
 import { useDiaryStore, type MusicMeta } from '../stores/diary'
 import { musicApi, imageApi } from '../api'
 import MusicCard from './MusicCard.vue'
+import { formatLegacyContent } from '../utils/markdown'
 
 const props = withDefaults(defineProps<{
   editId?: number
@@ -158,6 +169,7 @@ const props = withDefaults(defineProps<{
 const store = useDiaryStore()
 const router = useRouter()
 const draft = ref('')
+const htmlContent = ref('')
 const draftNotice = ref('')
 const draftSavedAt = ref('')
 const isEditMode = computed(() => props.editId != null && props.editId > 0)
@@ -165,8 +177,30 @@ const visibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
 const analyze = ref(true)
 const DRAFT_KEY = 'moodcopilot:draft'
 
-const vditorContainer = ref<HTMLElement | null>(null)
-const vditorInst = ref<Vditor | null>(null)
+const editorRef = shallowRef<IDomEditor | null>(null)
+
+const toolbarConfig: Partial<IToolbarConfig> = {
+  toolbarKeys: [
+    'bold',
+    'italic',
+    'underline',
+    'through',
+    '|',
+    'bulletedList',
+    'numberedList',
+    '|',
+    'divider',
+    '|',
+    'undo',
+    'redo',
+  ],
+}
+
+const editorConfig: Partial<IEditorConfig> = {
+  placeholder: '今天发生了什么？可以只写一句，也可以把说不清的感觉先放在这里。',
+  autoFocus: false,
+  scroll: false,
+}
 
 const musicMeta = ref<MusicMeta | null>(null)
 const musicSongUrl = ref('')
@@ -187,8 +221,6 @@ function updateDraftSavedAt() {
   }).format(new Date())
 }
 
-
-
 const visibilityOptions = [
   { label: '仅自己看', value: 'PRIVATE' },
   { label: '分享到社区', value: 'PUBLIC' },
@@ -200,12 +232,17 @@ const visibilityCopy = computed(() =>
     : '私密日记只进入你的个人记录，也会生成 AI 分析。',
 )
 
-const isOverLimit = computed(() => draft.value.length > 3000)
+const plainText = computed(() => htmlContent.value.replace(/<[^>]*>/g, '').trim())
+const isOverLimit = computed(() => plainText.value.length > 3000)
+
+function handleEditorCreated(editor: IDomEditor) {
+  editorRef.value = editor
+}
 
 onMounted(async () => {
   let initialValue = ''
   if (isEditMode.value) {
-    initialValue = props.initialContent || ''
+    initialValue = formatLegacyContent(props.initialContent || '')
     visibility.value = props.initialVisibility || 'PRIVATE'
     if (props.initialMusicMeta) {
       musicMeta.value = props.initialMusicMeta
@@ -226,48 +263,21 @@ onMounted(async () => {
     }
   }
 
-  const VditorModule = await import('vditor')
-  const Vditor = VditorModule.default
-
-  if (!vditorContainer.value) return
-
-  vditorInst.value = new Vditor(vditorContainer.value, {
-    mode: 'wysiwyg',
-    height: 'auto',
-    minHeight: 260,
-    cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.11.2',
-    placeholder: '今天发生了什么？可以只写一句，也可以把说不清的感觉先放在这里。',
-    cache: { enable: false },
-    counter: { enable: true, max: 3000, type: 'text' },
-    outline: { enable: false, position: 'right' },
-    preview: {
-      markdown: {
-        paragraphBeginningSpace: false,
-      },
-    },
-    customWysiwygToolbar: () => {},
-    toolbar: window.innerWidth <= 780
-      ? ['bold', 'italic', 'strike', 'line', 'list', 'ordered-list', 'undo', 'redo']
-      : ['headings', 'bold', 'italic', 'strike', 'line', 'quote', 'list', 'ordered-list', 'undo', 'redo'],
-    after: () => {
-      if (initialValue) {
-        vditorInst.value?.setValue(initialValue)
-      }
-      draft.value = initialValue
-    },
-    input: (val: string) => {
-      draft.value = val
-    }
-  })
-
+  htmlContent.value = initialValue
+  draft.value = initialValue
 })
 
 onBeforeUnmount(() => {
-  try {
-    vditorInst.value?.destroy()
-  } catch (e) {
-    console.warn('Vditor destory error ignored:', e)
+  const editor = editorRef.value
+  if (editor) {
+    try { editor.destroy() } catch (e) { /* ignore */ }
+    editorRef.value = null
   }
+})
+
+// 同步编辑器 HTML 到 draft，保持现有的 localStorage 草稿逻辑
+watch(htmlContent, (val) => {
+  draft.value = val
 })
 
 // 粘贴/输入音乐链接后自动解析，无需手动 Enter
@@ -278,7 +288,6 @@ watch(musicUrlDraft, (val) => {
 })
 
 watch(draft, (value, oldValue) => {
-  // 编辑模式下不写草稿，避免旧日记内容污染新日记草稿
   if (isEditMode.value) return
   if (value) {
     localStorage.setItem(DRAFT_KEY, value)
@@ -314,7 +323,7 @@ async function handleMusicInputPaste(e: ClipboardEvent) {
   const url = detectMusicUrl(text)
   if (!url) return
   e.preventDefault()
-  musicUrlDraft.value = url // watch 自动触发解析
+  musicUrlDraft.value = url
 }
 
 async function handleMusicUrlSubmit() {
@@ -365,9 +374,9 @@ function removeImage(i: number) {
   imageList.value.splice(i, 1)
 }
 
-
 async function handleSave() {
-  if (!draft.value.trim()) return
+  const content = htmlContent.value.trim()
+  if (!content) return
   try {
     const musicPayload = musicMeta.value
       ? { ...musicMeta.value, userLyric: userLyric.value, songUrl: musicSongUrl.value }
@@ -375,12 +384,12 @@ async function handleSave() {
     const imagesPayload = imageList.value.length ? imageList.value : undefined
 
     if (isEditMode.value) {
-      await store.updateDiary(props.editId!, draft.value.trim(), visibility.value, musicPayload, imagesPayload, analyze.value)
+      await store.updateDiary(props.editId!, content, visibility.value, musicPayload, imagesPayload, analyze.value)
       router.push(`/diary/${props.editId}`)
     } else {
-      await store.createDiary(draft.value.trim(), visibility.value, musicPayload, analyze.value, imagesPayload)
+      await store.createDiary(content, visibility.value, musicPayload, analyze.value, imagesPayload)
+      htmlContent.value = ''
       draft.value = ''
-      vditorInst.value?.setValue('')
       musicMeta.value = null
       userLyric.value = ''
       imageList.value = []
@@ -390,7 +399,6 @@ async function handleSave() {
     // error handled by store
   }
 }
-
 </script>
 
 <style scoped>
@@ -503,10 +511,6 @@ async function handleSave() {
   margin-bottom: 20px;
   width: 100%;
   min-width: 0;
-}
-
-.composer-editor :deep(.vditor) {
-  position: relative !important;
   border: none !important;
   border-radius: 14px !important;
   background: var(--color-surface) !important;
@@ -515,143 +519,89 @@ async function handleSave() {
   box-shadow:
     0 1px 2px rgba(32,32,29,0.03),
     0 6px 20px color-mix(in oklab, var(--color-primary) 6%, transparent) !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
-  transition: box-shadow 0.3s var(--ease-out) !important;
   overflow: hidden !important;
-  --vditor-toolbar-background-color: transparent;
-  --vditor-toolbar-border-color: transparent;
+  transition: box-shadow 0.3s var(--ease-out) !important;
+
+  /* 覆盖 wangEditor 默认 CSS 变量，使其完美兼容明暗主题 */
+  --w-e-textarea-bg-color: transparent;
+  --w-e-textarea-color: var(--color-text);
+  --w-e-textarea-border-color: transparent;
+  --w-e-toolbar-color: var(--color-text-secondary);
+  --w-e-toolbar-bg-color: transparent;
+  --w-e-toolbar-active-color: var(--color-primary);
+  --w-e-toolbar-active-bg-color: color-mix(in oklab, var(--color-primary) 10%, transparent);
+  --w-e-toolbar-disabled-color: var(--color-text-muted);
+  --w-e-toolbar-border-color: color-mix(in oklab, var(--color-primary) 12%, transparent);
 }
 
-.composer-editor:focus-within :deep(.vditor) {
+.composer-editor:focus-within {
   box-shadow:
     0 1px 2px rgba(32,32,29,0.04),
     0 10px 32px color-mix(in oklab, var(--color-primary) 12%, transparent),
     0 0 0 3px color-mix(in oklab, var(--color-primary) 10%, transparent) !important;
 }
 
-.composer-editor :deep(.vditor::before) {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 14px;
-  background:
-    radial-gradient(ellipse at 20% 80%, color-mix(in oklab, var(--color-primary) 2%, transparent) 0%, transparent 40%),
-    radial-gradient(ellipse at 85% 15%, color-mix(in oklab, var(--color-accent) 1.5%, transparent) 0%, transparent 30%);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.composer-editor :deep(.vditor-toolbar) {
+/* wangEditor 工具栏容器 */
+.composer-editor :deep(.w-e-toolbar) {
   padding: 10px 20px !important;
   border-bottom: 1px solid color-mix(in oklab, var(--color-primary) 8%, transparent) !important;
   background: transparent !important;
 }
 
-.composer-editor :deep(.vditor-toolbar__item > button) {
+.composer-editor :deep(.w-e-bar-item button) {
   color: var(--color-text-muted);
   border-radius: 8px;
   transition: all 0.15s;
 }
 
-.composer-editor :deep(.vditor-toolbar__item > button:hover) {
+.composer-editor :deep(.w-e-bar-item button:hover) {
   background: color-mix(in oklab, var(--color-primary) 8%, transparent);
   color: var(--color-primary);
 }
 
-.composer-editor :deep(.vditor-content) {
-  width: 100% !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
-  background: transparent !important;
-}
-
-.composer-editor :deep(.vditor-ir),
-.composer-editor :deep(.vditor-wysiwyg),
-.composer-editor :deep(.vditor-sv) {
+/* 编辑区容器 */
+.composer-editor :deep(.w-e-text-container) {
+  min-height: 260px;
   padding: 20px 24px 40px 24px !important;
   background: transparent !important;
+}
+
+/* 占位符 */
+.composer-editor :deep(.w-e-text-placeholder) {
+  color: var(--color-text-light) !important;
+  font-style: normal !important;
+}
+
+/* 编辑区域文字 */
+.composer-editor :deep(.w-e-text-container [data-slate-editor]) {
   color: var(--color-text) !important;
-  min-height: 260px;
-  position: relative;
-  z-index: 1;
+  line-height: 1.55 !important;
 }
 
-.composer-editor :deep(.vditor-reset) {
-  max-width: none !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  color: var(--color-text) !important;
-  line-height: 1.5 !important;
+.composer-editor :deep(.w-e-text-container [data-slate-editor] p) {
+  margin: 0.1em 0 !important;
 }
 
-/* 优化 vditor 段落间距 */
-.composer-editor :deep(.vditor-reset p) {
-  margin: 0.5em 0 !important;
-}
-
-.composer-editor :deep(.vditor-reset h1),
-.composer-editor :deep(.vditor-reset h2),
-.composer-editor :deep(.vditor-reset h3),
-.composer-editor :deep(.vditor-reset h4) {
+.composer-editor :deep(.w-e-text-container [data-slate-editor] h1),
+.composer-editor :deep(.w-e-text-container [data-slate-editor] h2),
+.composer-editor :deep(.w-e-text-container [data-slate-editor] h3),
+.composer-editor :deep(.w-e-text-container [data-slate-editor] h4) {
   margin: 0.5em 0 0.15em !important;
 }
 
-
-.composer-editor :deep(.vditor-ir pre.vditor-reset) {
-  color: var(--color-text-muted) !important;
-}
-
-/* ── 分屏视图 (Split View) ── */
-.composer-editor :deep(.vditor-sv) {
-  display: flex !important;
-  padding: 0 !important;
-}
-
-.composer-editor :deep(.vditor-sv .vditor-textarea),
-.composer-editor :deep(.vditor-sv .vditor-sv__preview) {
-  background: transparent !important;
-  color: var(--color-text) !important;
-  border-color: color-mix(in oklab, var(--color-primary) 10%, transparent) !important;
-}
-
-/* ── 模式切换下拉菜单 ── */
-.composer-editor :deep(.vditor-panel) {
+/* 下拉菜单面板主题适配 */
+.composer-editor :deep(.w-e-panel-container) {
   background: var(--color-surface) !important;
   border: 1px solid var(--color-border) !important;
 }
 
-.composer-editor :deep(.vditor-panel__item) {
+.composer-editor :deep(.w-e-panel-container .w-e-panel-content) {
   color: var(--color-text-secondary) !important;
 }
 
-.composer-editor :deep(.vditor-panel__item:hover) {
-  background: color-mix(in oklab, var(--color-primary) 8%, transparent) !important;
-}
-
-/* ── Markdown 代码块 ── */
-.composer-editor :deep(.vditor-reset pre > code) {
-  background-color: color-mix(in oklab, var(--color-text) 6%, transparent) !important;
-  color: var(--color-text) !important;
-}
-
-.composer-editor :deep(.vditor-reset code:not(.hljs)) {
-  background-color: color-mix(in oklab, var(--color-primary) 10%, transparent) !important;
-  color: var(--color-primary) !important;
-}
-
-.composer-editor :deep(.vditor-counter) {
-  position: absolute !important;
-  left: 24px !important;
-  right: auto !important;
-  bottom: 14px !important;
-  top: auto !important;
-  background: transparent !important;
-  color: var(--color-text-light) !important;
-  font-size: 12px;
-  pointer-events: none;
-  z-index: 10;
+.composer-editor :deep(.w-e-dropdown-content) {
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
 }
 
 /* ── 音乐附件 ── */
@@ -951,36 +901,21 @@ async function handleSave() {
     gap: 12px;
   }
 
-  .composer-editor :deep(.vditor) {
+  .composer-editor {
     border-radius: 12px !important;
   }
 
-  .composer-editor :deep(.vditor-toolbar) {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 4px 2px !important;
-    overflow: visible !important;
-    white-space: normal !important;
+  .composer-editor :deep(.w-e-toolbar) {
     padding: 6px 12px !important;
   }
 
-  .composer-editor :deep(.vditor-toolbar::-webkit-scrollbar) {
-    display: none !important;
+  .composer-editor :deep(.w-e-toolbar) {
+    display: flex !important;
+    flex-wrap: wrap !important;
   }
 
-  .composer-editor :deep(.vditor-toolbar__item) {
-    display: inline-flex !important;
-  }
-
-  .composer-editor :deep(.vditor-ir),
-  .composer-editor :deep(.vditor-wysiwyg),
-  .composer-editor :deep(.vditor-sv) {
+  .composer-editor :deep(.w-e-text-container) {
     padding: 16px 16px 36px 16px !important;
-  }
-
-  .composer-editor :deep(.vditor-counter) {
-    left: 16px !important;
-    bottom: 10px !important;
   }
 
   .composer-hint { display: none; }
@@ -1001,14 +936,8 @@ async function handleSave() {
 @media (max-width: 420px) {
   .composer-title { font-size: 1.35rem; }
 
-  .composer-editor :deep(.vditor-ir),
-  .composer-editor :deep(.vditor-wysiwyg),
-  .composer-editor :deep(.vditor-sv) {
+  .composer-editor :deep(.w-e-text-container) {
     padding: 14px 12px 32px 12px !important;
-  }
-
-  .composer-editor :deep(.vditor-counter) {
-    left: 12px !important;
   }
 
   .composer-vis-opt { padding: 6px 14px; font-size: 0.75rem; }
@@ -1020,4 +949,3 @@ async function handleSave() {
   }
 }
 </style>
-
