@@ -44,15 +44,23 @@ export function renderSafeMarkdown(
     // ── 第一道：转义复杂 Markdown，防止 DOMPurify 事后撕碎 ──
     const escaped = preprocessComplexMarkdown(text)
 
-    // ── 第二道：修复 AI 常见笔误与 CommonMark 兼容性问题 ──
-    const processedText = escaped
+    // ── 第二道：保留用户主动按下的多次回车（Vditor 存储为多个空行） ──
+    // preprocessComplexMarkdown 已转义用户输入的 HTML，这里注入的 <br> 是安全的
+    const withLineBreaks = escaped.replace(/\n{3,}/g, (match) => {
+        // 正常段落分隔需要 2 个 \n，超出的每 2 个 \n 对应一个可见空行
+        const extra = Math.max(0, Math.floor((match.length - 2) / 2))
+        return '\n\n' + '<br>\n\n'.repeat(extra)
+    })
+
+    // ── 第三道：修复 AI 常见笔误与 CommonMark 兼容性问题 ──
+    const processedText = withLineBreaks
         .replace(/\\\*/g, '*')                   // \*\* → **
         .replace(/^ {0,3}-(?=[^\s])/gm, '$& ')   // -X → - X
         .replace(/([。！？])(不过|但是|其实|所以|然而|总之)/g, '$1\n$2') // 句子+连词 → 换行
         .replace(/([^\s\dA-Za-z])(-)(\*\*)/gu, '$1\n- $3') // ** 粗体列表
         .replace(/([^\s\dA-Za-z])(-)([^\s\d])/gu, '$1\n- $3') // 普通列表
-        .replace(/\*\*(["""“])/g, '**​$1')   // **" → 零宽空格
-        .replace(/([""”])\*\*/g, '$1​**')   // "** → 零宽空格
+        .replace(/\*\*(["\u201c\u201d\u201e])/g, '**\u200b$1')   // **" → 零宽空格
+        .replace(/(["\u201c\u201d])\*\*/g, '$1\u200b**')   // "** → 零宽空格
 
     const html = marked.parse(processedText, { async: false }) as string
     return DOMPurify.sanitize(html, {

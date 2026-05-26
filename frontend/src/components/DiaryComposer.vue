@@ -241,7 +241,7 @@ onMounted(async () => {
     counter: { enable: true, max: 3000, type: 'text' },
     outline: { enable: false, position: 'right' },
     preview: {
-      render: {
+      markdown: {
         paragraphBeginningSpace: false,
       },
     },
