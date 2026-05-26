@@ -134,18 +134,18 @@ export const useNotificationStore = defineStore('notification', () => {
               const diff = payload.data?.diff
 
               const nodes: any[] = []
-              const lineStyle = (color: string) => ({ 
-                style: `color: ${color}; margin-top: 4px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;` 
+              const lineStyle = (color: string) => ({
+                style: `color: ${color}; margin-top: 4px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`
               })
 
               if (diff) {
                 if (payload.type === 'MEMORY_UPDATED') {
-                  diff.added?.forEach((item: any) => nodes.push(h('div', lineStyle('#18a058'), `+ [${item.key}] ${item.value}`)))
-                  diff.updated?.forEach((item: any) => nodes.push(h('div', lineStyle('#f0a020'), `~ [${item.key}] ${item.oldValue} ➔ ${item.newValue}`)))
-                  diff.deleted?.forEach((item: any) => nodes.push(h('div', { ...lineStyle('#d03050'), style: lineStyle('#d03050').style + ' text-decoration: line-through;' }, `- [${item.key}] ${item.value}`)))
+                  diff.added?.forEach((item: any) => nodes.push(h('div', lineStyle('var(--color-success)'), `+ [${item.key}] ${item.value}`)))
+                  diff.updated?.forEach((item: any) => nodes.push(h('div', lineStyle('var(--color-warning)'), `~ [${item.key}] ${item.oldValue} ➔ ${item.newValue}`)))
+                  diff.deleted?.forEach((item: any) => nodes.push(h('div', { ...lineStyle('var(--color-error)'), style: lineStyle('var(--color-error)').style + ' text-decoration: line-through;' }, `- [${item.key}] ${item.value}`)))
                 } else if (payload.type === 'GRAPH_UPDATED') {
-                  diff.added?.forEach((item: any) => nodes.push(h('div', lineStyle('#18a058'), `+ ${item.head} —[${item.relation}]→ ${item.tail}`)))
-                  diff.deleted?.forEach((item: any) => nodes.push(h('div', { ...lineStyle('#d03050'), style: lineStyle('#d03050').style + ' text-decoration: line-through;' }, `- ${item.head} —[${item.relation}]→ ${item.tail}`)))
+                  diff.added?.forEach((item: any) => nodes.push(h('div', lineStyle('var(--color-success)'), `+ ${item.head} —[${item.relation}]→ ${item.tail}`)))
+                  diff.deleted?.forEach((item: any) => nodes.push(h('div', { ...lineStyle('var(--color-error)'), style: lineStyle('var(--color-error)').style + ' text-decoration: line-through;' }, `- ${item.head} —[${item.relation}]→ ${item.tail}`)))
                 }
               }
 
@@ -153,7 +153,7 @@ export const useNotificationStore = defineStore('notification', () => {
               if (nodes.length > MAX_DISPLAY_NODES) {
                 const hiddenCount = nodes.length - MAX_DISPLAY_NODES;
                 nodes.splice(MAX_DISPLAY_NODES);
-                nodes.push(h('div', { style: 'color: #999; margin-top: 8px; font-size: 12px; font-style: italic;' }, `...以及其他 ${hiddenCount} 项变更`));
+                nodes.push(h('div', { style: 'color: var(--color-text-muted); margin-top: 8px; font-size: 12px; font-style: italic;' }, `...以及其他 ${hiddenCount} 项变更`));
               }
 
               window.$notification.create({
@@ -163,8 +163,24 @@ export const useNotificationStore = defineStore('notification', () => {
                   ...nodes
                 ]),
                 meta: new Date().toLocaleTimeString(),
-                duration: 8000,
+                duration: 12000,
                 keepAliveOnHover: true
+              })
+
+              // 同时存入通知列表，确保切页后仍可回溯
+              const syntheticId = -(Date.now() % 1e9)
+              mergeIncomingNotification({
+                id: syntheticId,
+                recipientUserId: 0,
+                actorUserId: null,
+                diaryId: null,
+                commentId: null,
+                type: payload.type,
+                message: msg,
+                isMarkdown: false,
+                isRead: false,
+                readAt: null,
+                createdAt: new Date().toISOString(),
               })
             }
           }
