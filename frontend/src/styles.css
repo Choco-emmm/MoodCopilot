@@ -1,7 +1,7 @@
-/* ══════════════════════════════════════════�?
-  MoodCopilot �?绿意轻盈
+/* ══════════════════════════════════════════�?
+  MoodCopilot �?绿意轻盈
   设计方向：温和、克制、轻呼吸
-  ══════════════════════════════════════════�?*/
+  ══════════════════════════════════════════�?*/
 
 :root {
   /* ── Color (Dynamically linked to App.vue injection) ── */
@@ -32,7 +32,7 @@
   --color-primary-light: #eef4f0;
   --color-primary-hover: var(--theme-accent, #326a54);
 
-  /* �?Jade 别名，保持兼�?*/
+  /* �?Jade 别名，保持兼�?*/
   --color-jade: var(--color-primary);
   --color-jade-hover: var(--color-primary-hover);
 
@@ -44,7 +44,7 @@
   --font-body: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Segoe UI", "Helvetica Neue", sans-serif;
   --font-serif: "Noto Serif SC", "Songti SC", "STSong", Georgia, "Times New Roman", serif;
 
-  /* Type scale �?1.25 major third */
+  /* Type scale �?1.25 major third */
   --text-xs: 0.7rem;
   --text-sm: 0.82rem;
   --text-base: 0.95rem;
@@ -217,7 +217,7 @@ button,
   background: transparent;
 }
 
-/* Brand mark �?links to home */
+/* Brand mark �?links to home */
 .brand-mark {
   display: inline-flex;
   align-items: center;
@@ -1208,7 +1208,7 @@ h3 {
 
 /* ── Comments ── */
 /* ==========================================
-   一、评论区：剥离气泡感，回归排版之美
+   一、评论区：剥离气泡感，回归排版之�?
    ========================================== */
 .comments {
   padding-top: 12px;
@@ -1239,7 +1239,7 @@ h3 {
   border: none !important;
 }
 
-/* 发言者与时间：基线对齐，名字使用衬线体 */
+/* 发言者与时间：基线对齐，名字使用衬线�?*/
 .comment-text {
   display: flex;
   align-items: baseline;
@@ -1259,7 +1259,7 @@ h3 {
   letter-spacing: 0.05em;
 }
 
-/* 正文：提升行高 */
+/* 正文：提升行�?*/
 .comment-body {
   margin: 0;
   color: var(--color-text);
@@ -1283,7 +1283,7 @@ h3 {
   font-weight: 400;
 }
 .reply-to::before {
-  content: '→';
+  content: '�?;
   margin-right: 4px;
   color: color-mix(in oklab, var(--color-jade) 50%, transparent);
 }
@@ -1380,7 +1380,7 @@ h3 {
 }
 
 /* ==========================================
-   二、通知页：化繁为简的“墨点”设计
+   二、通知页：化繁为简的“墨点”设�?
    ========================================== */
 /* 通知项：拉平，取消左右内边距 */
 .notif-item {
@@ -1394,7 +1394,7 @@ h3 {
   transition: opacity 0.2s;
 }
 .notif-item:hover {
-  opacity: 0.7; /* 用透明度变化代替背景色块 */
+  opacity: 0.7; /* 用透明度变化代替背景色�?*/
 }
 
 /* 未读状态：左侧精致的指示点 */
@@ -1417,7 +1417,7 @@ h3 {
   font-weight: 600;
 }
 
-/* 通知正文与时间 */
+/* 通知正文与时�?*/
 .notif-msg {
   margin: 0;
   font-size: 14.5px;
@@ -1496,7 +1496,7 @@ h3 {
 .notification-page-list {
   display: grid;
   gap: 0;
-  padding-left: 16px; /* 确保未读圆点有空间显示 */
+  padding-left: 16px; /* 确保未读圆点有空间显�?*/
 }
 
 .notification-page-error {
@@ -1687,7 +1687,7 @@ h3 {
   font-weight: 600;
 }
 
-/* 顶级 Tab：常规报�?/ 自定义总结 */
+/* 顶级 Tab：常规报�?/ 自定义总结 */
 .main-tabs {
   display: flex;
   gap: 0;
@@ -3038,7 +3038,7 @@ h3 {
     font-size: 10px;
   }
 
-  /* 完全隐藏移动端的顶部导航栏，只保留底�?Tab Bar */
+  /* 完全隐藏移动端的顶部导航栏，只保留底�?Tab Bar */
   .masthead-top {
     transform: none;
     position: static;
@@ -3060,7 +3060,7 @@ h3 {
 
   .nav-links {
     pointer-events: auto;
-    /* 横向滚动适配管理员多出的导航�?*/
+    /* 横向滚动适配管理员多出的导航�?*/
     justify-content: space-around;
     padding: 0 10px;
   }
@@ -3926,7 +3926,7 @@ h3 {
   }
 }
 
-/* ── willow-breeze · 柳岸春风 (清透柳绿 + 柔和嫩黄) ── */
+/* ── willow-breeze · 柳岸春风 (清透柳�?+ 柔和嫩黄) ── */
 [data-theme="willow-breeze"] {
   --color-primary: #699859;
   --color-primary-hover: #558046;
@@ -3992,7 +3992,7 @@ h3 {
   }
 }
 
-/* ── oat-milk · 燕麦奶盖 (奶油原木色 + 抹茶点缀) ── */
+/* ── oat-milk · 燕麦奶盖 (奶油原木�?+ 抹茶点缀) ── */
 [data-theme="oat-milk"] {
   --color-primary: #a88863;
   --color-primary-hover: #8f714e;
@@ -4109,7 +4109,7 @@ h3 {
   }
 }
 
-/* ── abyss-blue · 深渊海蓝 (深蓝灰 + 灰蓝主色 + 暗金点缀) ── */
+/* ── abyss-blue · 深渊海蓝 (深蓝�?+ 灰蓝主色 + 暗金点缀) ── */
 [data-theme="abyss-blue"] {
   color-scheme: dark;
   --color-primary: #4a8b9e;
@@ -4149,7 +4149,7 @@ h3 {
   }
 }
 
-/* ── midnight-pine · 暮夜松林 (极暗绿 + 松绿主色 + 砖红点缀) ── */
+/* ── midnight-pine · 暮夜松林 (极暗�?+ 松绿主色 + 砖红点缀) ── */
 [data-theme="midnight-pine"] {
   color-scheme: dark;
   --color-primary: #5b8a72;
@@ -4189,7 +4189,7 @@ h3 {
   }
 }
 
-/* ── mocha-night · 浓醇摩卡 (暗咖啡 + 焦糖主色 + 铁锈红点缀) ── */
+/* ── mocha-night · 浓醇摩卡 (暗咖�?+ 焦糖主色 + 铁锈红点缀) ── */
 [data-theme="mocha-night"] {
   color-scheme: dark;
   --color-primary: #d4a373;
@@ -4229,7 +4229,7 @@ h3 {
   }
 }
 
-/* ── cyber-purple · 紫曜星河 (暗夜紫 + 星光紫主色 + 霓虹粉点缀) ── */
+/* ── cyber-purple · 紫曜星河 (暗夜�?+ 星光紫主�?+ 霓虹粉点缀) ── */
 [data-theme="cyber-purple"] {
   color-scheme: dark;
   --color-primary: #a385e0;
@@ -4270,9 +4270,9 @@ h3 {
 }
 
 
-/* ═══════════════════════════════════════════
+/* ══════════════════════════════════════════�?
    Custom themes (4-color & 2-color palettes)
-   ═══════════════════════════════════════════ */
+   ══════════════════════════════════════════�?*/
 
 /* ── sakura-blush · 樱落桃酥 ── #ffdbf2 #ffa0d2 #ff78ae #f54291 */
 [data-theme="sakura-blush"] {
@@ -4473,7 +4473,7 @@ h3 {
 }
 
 /* ── dream-rainbow · 梦境彩虹 ── #ffa8a8 #ffc4a3 #ffe5a1 #d8c2f9
-   全部是柔彩虹色，主色取珊瑚方向加�?*/
+   全部是柔彩虹色，主色取珊瑚方向加�?*/
 [data-theme="dream-rainbow"] {
   --color-primary: #5a80d8;
   --color-primary-hover: #486ac2;
@@ -4507,7 +4507,7 @@ h3 {
 }
 
 /* ── cloud-song · 云端清歌 ── #fff2b2 #c1f0c1 #a2e4e4 #a2c5f2
-   柔和四色渐变（蜜黄→薄荷→天青→雾蓝），主色取青绿深�?*/
+   柔和四色渐变（蜜黄→薄荷→天青→雾蓝），主色取青绿深�?*/
 [data-theme="cloud-song"] {
   --color-primary: #2b8692;
   --color-primary-hover: #3a8a94;
@@ -4644,8 +4644,8 @@ h3 {
 
 
 
-/* ══════════════════════════════════════════�?   Naive UI Overrides
-   ══════════════════════════════════════════�?*/
+/* ══════════════════════════════════════════�?   Naive UI Overrides
+   ══════════════════════════════════════════�?*/
 
 /* Naive UI global overrides to match theme colors and fix usability */
 .n-input, .n-input.n-input--textarea {
@@ -4695,7 +4695,7 @@ h3 {
   --n-text-color-focus: var(--color-primary) !important;
 }
 
-/* 彻底去除 text 按钮悬浮和点击时的背景色块，改用透明度变化 */
+/* 彻底去除 text 按钮悬浮和点击时的背景色块，改用透明度变�?*/
 .n-button--text-type {
   --n-color-hover: transparent !important;
   --n-color-pressed: transparent !important;
@@ -4725,12 +4725,12 @@ h3 {
   --n-border: 1px solid transparent !important;
 }
 
-/* ═══════════════════════════════════════════
+/* ══════════════════════════════════════════�?
    Naive UI n-input theme color overrides
    (Only inputs, not buttons)
-   ═══════════════════════════════════════════ */
+   ══════════════════════════════════════════�?*/
 
-/* 评论输入框、聊天输入框 — 统一跟随主题色 */
+/* 评论输入框、聊天输入框 �?统一跟随主题�?*/
 .comment-box .n-input,
 .comment-reply-box .n-input,
 .chat-input-row .n-input {
@@ -4780,7 +4780,7 @@ h3 {
   margin-bottom: 0.3em;
 }
 
-/* 加粗与斜体 */
+/* 加粗与斜�?*/
 .md-content strong, 
 .md-content b {
   font-weight: 700;
@@ -4791,7 +4791,7 @@ h3 {
   font-style: italic;
 }
 
-/* 引用块 */
+/* 引用�?*/
 .md-content blockquote {
   margin: 0.8em 0;
   padding: 0.5em 1em;
@@ -4845,9 +4845,9 @@ h3 {
   border-bottom-style: solid;
 }
 
-/* ═══════════════════════════════════════════
+/* ══════════════════════════════════════════�?
    新增分类追加主题 (Nature, Cozy, Poetry, Dreamy, Night)
-   ═══════════════════════════════════════════ */
+   ══════════════════════════════════════════�?*/
 
 /* ── bamboo-whisper · 竹影清风 (🌱 自然风物) ── */
 [data-theme="bamboo-whisper"] {
@@ -4915,7 +4915,7 @@ h3 {
   }
 }
 
-/* ── ink-wash-mist · 水墨微岚 (🌧️ 清冷诗意) ── */
+/* ── ink-wash-mist · 水墨微岚 (🌧�?清冷诗意) ── */
 [data-theme="ink-wash-mist"] {
   --color-primary: #546a76;
   --color-primary-hover: #445660;
@@ -4948,7 +4948,7 @@ h3 {
   }
 }
 
-/* ── starlight-coral · 星芒珊瑚 (✨ 梦境童话) ── */
+/* ── starlight-coral · 星芒珊瑚 (�?梦境童话) ── */
 [data-theme="starlight-coral"] {
   --color-primary: #d97381;
   --color-primary-hover: #c45b69;
@@ -5030,12 +5030,12 @@ h3 {
 @media (max-width: 768px) { .msg-actions { opacity: 1; margin-top: 4px; } }
 
 /* �û������ڵ� Markdown ������ʽ */
-.chat-user .md-content blockquote { border-left-color: rgba(255, 255, 255, 0.4); color: rgba(255, 255, 255, 0.85); background: rgba(0, 0, 0, 0.1); padding: 6px 12px; margin: 4px 0 8px 0; border-radius: 0 4px 4px 0; }
+.chat-user .md-content blockquote { border-left-color: currentColor; color: inherit; opacity: 0.9; background: rgba(0, 0, 0, 0.1); padding: 6px 12px; margin: 4px 0 8px 0; border-radius: 0 4px 4px 0; }
 
 
 .msg-actions-user { justify-content: flex-end; }
 
 
-.chat-user .msg-action-btn { color: rgba(255, 255, 255, 0.6); }
+.chat-user .msg-action-btn { color: inherit; opacity: 0.7; }
 .chat-user .msg-action-btn:hover { background: rgba(0, 0, 0, 0.1); color: #fff; }
 
