@@ -164,6 +164,8 @@ const dynamicThemeOverrides = computed<GlobalThemeOverrides>(() => {
     },
     Input: {
       borderRadius: '6px',
+      color: 'var(--color-surface-hover)',
+      colorFocus: 'var(--color-surface)',
     },
     Tag: {
       borderRadius: '4px',

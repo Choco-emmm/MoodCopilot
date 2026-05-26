@@ -2290,6 +2290,19 @@ h3 {
   margin-bottom: 0;
 }
 
+.md-content blockquote {
+  margin: 10px 0;
+  padding: 8px 14px;
+  border-left: 4px solid color-mix(in oklab, var(--color-primary) 80%, transparent);
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
+  border-radius: 0 6px 6px 0;
+}
+
+.md-content blockquote > :last-child {
+  margin-bottom: 0;
+}
+
 .md-content ul,
 .md-content ol {
   padding-left: 18px;

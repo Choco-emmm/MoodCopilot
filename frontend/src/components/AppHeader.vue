@@ -20,6 +20,16 @@
             >{{ item.label }}</router-link>
           </div>
           <div class="nav-sep desktop-only" />
+          <n-button
+            v-if="deferredPrompt"
+            size="small"
+            type="primary"
+            ghost
+            style="font-weight: bold; margin-right: 8px;"
+            @click="installPwa"
+          >
+            添加到桌面
+          </n-button>
           <CheckinButton
             :checked-in-today="growth.checkedInToday"
             :checking-in="checkingIn"
@@ -147,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { NButton, NBadge, NPopover } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
@@ -167,6 +177,23 @@ const quotas = ref<Record<string, number>>({})
 const quotaError = ref('')
 const showQuotaPopover = ref(false)
 const showQuotaTable = ref(false)
+
+// ── PWA Install ──
+const deferredPrompt = ref<any>(null)
+
+function onBeforeInstallPrompt(e: Event) {
+  e.preventDefault()
+  deferredPrompt.value = e
+}
+
+async function installPwa() {
+  if (!deferredPrompt.value) return
+  deferredPrompt.value.prompt()
+  const { outcome } = await deferredPrompt.value.userChoice
+  if (outcome === 'accepted') {
+    deferredPrompt.value = null
+  }
+}
 
 // ── 签到 ──
 const checkingIn = ref(false)
@@ -240,6 +267,11 @@ onMounted(() => {
   notif.connectRealtime()
   void notif.fetchUnreadCount()
   fetchGrowth()
+  window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
 })
 
 function handleLogout() {

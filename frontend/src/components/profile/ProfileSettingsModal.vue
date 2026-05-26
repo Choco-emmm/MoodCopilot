@@ -15,7 +15,7 @@
           <img v-if="auth.avatar" :src="auth.avatar" class="settings-avatar-preview" decoding="async" />
           <span v-else class="settings-avatar-placeholder">{{ auth.displayName?.charAt(0) || '我' }}</span>
         </div>
-        <n-button size="small" @click="triggerUpload">更换头像</n-button>
+        <n-button size="small" type="primary" secondary @click="triggerUpload">更换头像</n-button>
         <input type="file" ref="fileInput" accept="image/jpeg,image/png,image/webp" style="display: none" @change="onFileChange" />
       </div>
 

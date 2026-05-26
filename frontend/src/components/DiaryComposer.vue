@@ -19,7 +19,7 @@
 
 
     <div class="composer-editor">
-      <div id="vditor-composer"></div>
+      <div ref="vditorContainer"></div>
     </div>
 
     <div class="composer-toolbar">
@@ -163,6 +163,7 @@ const visibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
 const analyze = ref(true)
 const DRAFT_KEY = 'moodcopilot:draft'
 
+const vditorContainer = ref<HTMLElement | null>(null)
 const vditorInst = ref<Vditor | null>(null)
 
 const musicMeta = ref<MusicMeta | null>(null)
@@ -226,7 +227,9 @@ onMounted(async () => {
   const VditorModule = await import('vditor')
   const Vditor = VditorModule.default
 
-  vditorInst.value = new Vditor('vditor-composer', {
+  if (!vditorContainer.value) return
+
+  vditorInst.value = new Vditor(vditorContainer.value, {
     mode: 'ir',
     height: 'auto',
     minHeight: 260,
