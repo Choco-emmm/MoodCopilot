@@ -106,4 +106,17 @@ async function loadMore() {
     const res = await diaryApi.following(page.value, 20)
     const data = res.data?.data
     const items: Diary[] = Array.isArray(data?.items)
-      ? data
+      ? data.items.map(store.normalize)
+      : Array.isArray(data)
+        ? data.map(store.normalize)
+        : []
+    diaries.value.push(...items)
+    hasMore.value = items.length >= 20
+  } catch (e: any) {
+    page.value = Math.max(1, page.value - 1)
+    errorMessage.value = e?.response?.data?.message || '加载更多失败，请稍后重试。'
+  } finally {
+    loading.value = false
+  }
+}
+</script>
