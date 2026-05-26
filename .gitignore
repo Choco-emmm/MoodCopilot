@@ -41,3 +41,6 @@ backend/moodcopilot/db/
 
 # Temp test scripts
 backend/moodcopilot/test_script.ps1
+
+# Claude settings
+.claude/
