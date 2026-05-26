@@ -30,7 +30,7 @@
       <!-- Graph View -->
       <div v-else-if="!isGraphListView" style="flex: 1; min-height: 500px; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; background: var(--color-surface-soft); position: relative; touch-action: none;">
         <VChart ref="chartRef" class="chart" :option="graphOptions" autoresize style="height: 100%; min-height: 500px;" />
-        <div style="position: absolute; right: 16px; bottom: 16px; z-index: 10;">
+        <div style="position: absolute; right: 16px; top: 16px; z-index: 10;">
           <n-button size="small" secondary @click="resetGraph">
             🧭 恢复视角
           </n-button>
@@ -239,9 +239,10 @@ async function loadGraph() {
             color: textSecColor
           },
           categories: [
-            { name: '触发源 (事件/人物/环境)', itemStyle: { color: primaryColor } },
+            { name: '触发源 (事件/环境)', itemStyle: { color: primaryColor } },
             { name: '正向感受', itemStyle: { color: '#18a058' } },
-            { name: '负向与压力', itemStyle: { color: '#d03050' } }
+            { name: '负向与压力', itemStyle: { color: '#d03050' } },
+            { name: '中性/平和', itemStyle: { color: '#8a8e99' } }
           ],
           data: data.nodes.map((n: any) => {
             const edgeAsTarget = data.edges.find((e: any) => e.target === n.name);
@@ -250,7 +251,7 @@ async function loadGraph() {
               const p = edgeAsTarget.tailPolarity;
               if (p === 1) categoryIndex = 1;
               else if (p === -1) categoryIndex = 2;
-              else categoryIndex = 0;
+              else categoryIndex = 3;
             }
             return {
               name: n.name,
