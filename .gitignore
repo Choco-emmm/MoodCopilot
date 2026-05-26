@@ -44,3 +44,18 @@ backend/moodcopilot/test_script.ps1
 
 # Claude settings
 .claude/
+
+# Temporary logs and screenshots
+frontend/*.log
+frontend/*.png
+!frontend/public/**/*.png
+frontend/*.cjs
+frontend/extracted_log.json
+frontend/refactor_profile.js
+frontend/src/pages/*-preview.html
+
+# Uploads
+backend/moodcopilot/uploads/
+
+# Test results
+test-results/
