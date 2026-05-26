@@ -914,4 +914,153 @@ const {
   background: var(--color-surface) !important;
   background-image: repeating-linear-gradient(
     transparent,
-    tra
+    transparent 27px,
+    rgba(139, 115, 85, 0.15) 27px,
+    rgba(139, 115, 85, 0.15) 28px
+  ) !important;
+  background-attachment: local !important;
+  border: 1px solid color-mix(in oklab, rgba(139, 115, 85, 0.2) 100%, transparent) !important;
+  border-radius: 2px 15px 3px 18px / 15px 3px 18px 2px !important;
+  box-shadow: 2px 4px 12px rgba(139, 115, 85, 0.05) !important;
+  color: #3b3a38 !important;
+  line-height: 28px !important;
+  position: relative;
+  font-family: var(--font-body) !important;
+}
+
+:deep(.chat-bubble.chat-user p) {
+  margin: 0;
+  color: #3b3a38 !important;
+  line-height: 28px !important;
+}
+
+:deep(.msg-item.ai) {
+  transform: rotate(0.2deg);
+}
+
+:deep(.chat-bubble.chat-ai) {
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 4px !important;
+  padding: 16px 20px !important;
+  box-shadow: 0 4px 16px rgba(32, 32, 29, 0.06) !important;
+  font-family: var(--font-display) !important;
+  color: var(--color-text) !important;
+  font-size: 15.5px !important;
+  line-height: 1.6 !important;
+  position: relative;
+  background-image: radial-gradient(circle at 100% 0%, color-mix(in oklab, var(--color-primary) 3%, transparent) 0%, transparent 40%) !important;
+}
+
+:deep(.chat-bubble.chat-ai::after) {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 15px;
+  width: 12px;
+  height: 25px;
+  border: 2px solid color-mix(in oklab, var(--color-text) 15%, transparent);
+  border-radius: 10px;
+  border-bottom: none;
+  transform: rotate(-15deg);
+}
+
+:deep(.chat-user-refs) {
+  margin: 8px 0 0;
+  padding-left: 12px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  border-left: 2px solid rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.85);
+  list-style-type: none;
+}
+
+:deep(.chat-user-refs li) {
+  margin-bottom: 2px;
+}
+
+:deep(.think-block) {
+  margin: 4px 0 12px 0;
+  padding: 10px 12px;
+  background-color: var(--color-primary-light);
+  border-radius: 8px;
+  border-left: 3px solid var(--color-primary-light);
+  font-family: Consolas, Monaco, "Andale Mono", monospace;
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+}
+
+:deep(.think-block summary) {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--color-primary);
+  user-select: none;
+  outline: none;
+  margin-bottom: 4px;
+}
+
+:deep(.think-content) {
+  margin-top: 8px;
+  border-top: 1px dashed var(--color-primary-light);
+  padding-top: 8px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.md-content :deep(p) {
+  margin-bottom: 8px !important;
+}
+
+.md-content :deep(p:last-child) {
+  margin-bottom: 0 !important;
+}
+
+.md-content :deep(pre) {
+  background: color-mix(in oklab, var(--color-primary) 3%, var(--color-surface)) !important;
+  border: 1px solid color-mix(in oklab, var(--color-primary) 10%, transparent) !important;
+  border-radius: 8px !important;
+}
+
+/* ── Magazine Style Features Index ── */
+.chat-features-index {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 28px 0;
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.chat-features-index .index-label {
+  font-style: italic;
+  opacity: 0.6;
+}
+
+.chat-features-index .index-link {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+
+.chat-features-index .index-link:hover {
+  color: var(--color-primary);
+}
+
+.chat-features-index .index-separator {
+  opacity: 0.4;
+}
+
+@media (max-width: 600px) {
+  .chat-features-index {
+    padding: 10px 14px 0;
+  }
+}
+</style>

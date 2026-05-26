@@ -241,4 +241,18 @@ useInfiniteScroll(sentinel, () => {
 }
 
 /* ── Responsive ── */
-@media (max-width: 768px)
+@media (max-width: 768px) {
+  .feed-section-header {
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+  }
+
+  .feed-section-heading {
+    font-size: 1.15rem;
+  }
+
+  .feed-list {
+    gap: 4px;
+  }
+}
+</style>

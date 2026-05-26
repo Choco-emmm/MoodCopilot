@@ -23,3 +23,21 @@ skills-lock.json
 AGENTS.md
 cloudflared-login-debug.*.log
 ~
+
+# Logs
+*.log
+
+# Design previews / scrapbooks
+frontend/src/pages/*-preview.html
+
+# Temp diff / fix scripts
+frontend/userprofile_diff.txt
+frontend/userprofile_master.vue
+frontend/fix_*.cjs
+frontend/rebuild_modal.cjs
+
+# Duplicate migrations (real ones in resources/db/migration/)
+backend/moodcopilot/db/
+
+# Temp test scripts
+backend/moodcopilot/test_script.ps1

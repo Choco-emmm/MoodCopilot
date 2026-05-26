@@ -520,4 +520,24 @@ function ensureCommentInputVisible() {
 
 .analyzing-footer-hint {
   text-align: center;
-  padd
+  padding: 16px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-bg);
+  border-radius: 12px;
+  margin-top: 16px;
+  border: 1px dashed var(--color-border);
+}
+.analyzing-footer-hint .sparkle-icon {
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+</style>

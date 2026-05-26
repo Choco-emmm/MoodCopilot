@@ -744,3 +744,215 @@ async function handleSave() {
   border-color: var(--color-primary);
   color: var(--color-primary);
 }
+
+.composer-image-add.uploading {
+  cursor: wait;
+  opacity: 0.6;
+  border-color: var(--color-primary);
+}
+
+.composer-image-add-plus {
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.composer-upload-text {
+  color: var(--color-primary);
+  font-weight: 500;
+  font-size: 0.7rem;
+}
+
+@keyframes composer-slide-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── 提示文字 ── */
+.composer-hint {
+  margin: 24px 0;
+  padding: 14px 18px;
+  border-left: 3px solid var(--color-primary);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in oklab, var(--color-primary) 3%, var(--color-surface));
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.7;
+  font-style: italic;
+}
+
+/* ── 底部操作栏 ── */
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.composer-footer-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.composer-privacy-note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-light);
+  line-height: 1.5;
+  max-width: 380px;
+}
+
+.composer-draft-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.composer-draft-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 15%, transparent);
+}
+
+.composer-submit {
+  padding: 13px 36px;
+  border: none;
+  border-radius: 14px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-out);
+  letter-spacing: 0.03em;
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--color-primary) 30%, transparent);
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.composer-submit:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  box-shadow: 0 4px 16px color-mix(in oklab, var(--color-primary) 40%, transparent);
+  transform: translateY(-1px);
+}
+
+.composer-submit:active:not(:disabled) { transform: scale(0.97); }
+
+.composer-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── 分析状态 ── */
+.composer-status {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--color-primary) 5%, var(--color-surface));
+  border: 1px solid color-mix(in oklab, var(--color-primary) 12%, transparent);
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.composer-inline-link {
+  border: none;
+  background: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-weight: 700;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.composer-error {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--color-error) 8%, transparent);
+  color: var(--color-error);
+  font-size: 0.85rem;
+  border: 1px solid color-mix(in oklab, var(--color-error) 15%, transparent);
+}
+
+/* ═══ Mobile ═══ */
+@media (max-width: 768px) {
+  .composer-title { font-size: 1.5rem; }
+
+  .composer-controls {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .composer-editor :deep(.vditor) {
+    border-radius: 12px !important;
+  }
+
+  .composer-editor :deep(.vditor-toolbar) {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 4px 2px !important;
+    overflow: visible !important;
+    white-space: normal !important;
+    padding: 6px 12px !important;
+  }
+
+  .composer-editor :deep(.vditor-toolbar::-webkit-scrollbar) {
+    display: none !important;
+  }
+
+  .composer-editor :deep(.vditor-toolbar__item) {
+    display: inline-flex !important;
+  }
+
+  .composer-editor :deep(.vditor-ir) {
+    padding: 16px 16px 36px 16px !important;
+  }
+
+  .composer-editor :deep(.vditor-counter) {
+    left: 16px !important;
+    bottom: 10px !important;
+  }
+
+  .composer-hint { display: none; }
+
+  .composer-footer {
+    flex-direction: column;
+    gap: 14px;
+    align-items: stretch;
+  }
+
+  .composer-submit {
+    width: 100%;
+    text-align: center;
+    padding: 14px 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .composer-title { font-size: 1.35rem; }
+
+  .composer-editor :deep(.vditor-ir) {
+    padding: 14px 12px 32px 12px !important;
+  }
+
+  .composer-editor :deep(.vditor-counter) {
+    left: 12px !important;
+  }
+
+  .composer-vis-opt { padding: 6px 14px; font-size: 0.75rem; }
+
+  .composer-image-thumb,
+  .composer-image-add {
+    width: 66px;
+    height: 66px;
+  }
+}
+</style>
+

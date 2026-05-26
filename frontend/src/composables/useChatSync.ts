@@ -93,4 +93,32 @@ export function useChatSync(
     } catch (e: any) {
       // 429 或被限流时指数回退
       const status = e?.response?.status ?? e?.status
-      if (status === 429 || status
+      if (status === 429 || status === 503) {
+        currentBackoff = Math.min(currentBackoff * BACKOFF_MULTIPLIER, MAX_BACKOFF)
+      }
+      logWarn('chat', '同步消息失败', e)
+    }
+
+    scheduleNextSync()
+  }
+
+  function isSameMessageList(a: Message[], b: Message[]): boolean {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i += 1) {
+      if (a[i].id !== b[i].id) return false
+    }
+    return true
+  }
+
+  function cleanup() {
+    stopAutoSync()
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+    window.removeEventListener('focus', handleWindowFocus)
+  }
+
+  return {
+    startAutoSync, stopAutoSync,
+    handleVisibilityChange, handleWindowFocus,
+    syncFromServer, cleanup,
+  }
+}
