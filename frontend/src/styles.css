@@ -1210,35 +1210,85 @@ h3 {
 }
 
 /* ── Comments ── */
+/* ==========================================
+   一、评论区：剥离气泡感，回归排版之美
+   ========================================== */
 .comments {
-  padding-top: 2px;
+  padding-top: 12px;
   display: grid;
-  gap: 8px;
+  gap: 0;
 }
 
+/* 顶级评论容器，底部用极细的线分隔 */
+.comment-thread {
+  display: grid;
+  gap: 6px;
+  padding: 16px 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent);
+  content-visibility: auto;
+  contain-intrinsic-size: 130px;
+}
+.comment-thread:last-child {
+  border-bottom: none;
+}
+
+/* 强制去掉原有的色块背景和边框 */
+.comment-main,
+.reply-item {
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* 发言者与时间：基线对齐，名字使用衬线体 */
 .comment-text {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: baseline;
+  gap: 12px;
   margin: 0;
 }
-
 .comment-text strong {
+  font-family: var(--font-display);
   color: var(--color-text);
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
-
 .comment-time {
-  color: var(--color-text-muted);
-  font-size: 12px;
+  color: var(--color-text-light);
+  font-size: 11px;
+  letter-spacing: 0.05em;
 }
 
+/* 正文：提升行高 */
 .comment-body {
   margin: 0;
-  color: var(--color-text-secondary);
-  line-height: 1.6;
+  color: var(--color-text);
+  line-height: 1.75;
   font-size: 14px;
-  padding: 4px 0;
+  padding: 4px 0 6px;
+}
+
+/* 嵌套回复：极简的缩进与细线 */
+.comment-replies {
+  margin-top: 8px;
+  margin-left: 24px;
+  padding-left: 16px;
+  border-left: 1px solid color-mix(in oklab, var(--color-primary) 20%, transparent);
+  display: grid;
+  gap: 16px;
+}
+.reply-to {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.reply-to::before {
+  content: '→';
+  margin-right: 4px;
+  color: color-mix(in oklab, var(--color-jade) 50%, transparent);
 }
 
 .comment-foot {
@@ -1259,65 +1309,27 @@ h3 {
   color: var(--color-text);
 }
 
-.comments p {
-  padding: 10px 12px;
-  border-radius: var(--radius-md);
-  background: var(--color-primary-light);
-  line-height: 1.5;
+/* ==========================================
+   三、Naive UI 输入框覆写：去工业化
+   ========================================== */
+.comment-box .n-input,
+.comment-reply-box .n-input {
+  flex: 1; /* Keep flex: 1 layout */
+  --n-color: color-mix(in oklab, var(--color-surface-hover) 50%, transparent) !important;
+  --n-color-focus: var(--color-surface) !important;
+  --n-border: none !important;
+  --n-border-hover: none !important;
+  --n-border-focus: none !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  border-radius: 4px 4px 0 0 !important; 
+  --n-caret-color: var(--color-primary) !important;
+  --n-text-color: var(--color-text) !important;
+  --n-placeholder-color: color-mix(in oklab, var(--color-text-muted) 60%, transparent) !important;
+  box-shadow: none !important;
 }
-
-.comments .md-content p {
-  margin: 0 0 4px;
-  padding: 0;
-  background: transparent;
-}
-
-.comments span {
-  color: var(--color-text-secondary);
-}
-
-.comment-thread {
-  display: grid;
-  gap: 7px;
-  content-visibility: auto;
-  contain-intrinsic-size: 130px;
-}
-
-.comment-main {
-  display: grid;
-  gap: 4px;
-  padding: 9px 10px;
-  border-radius: var(--radius-md);
-  background: var(--color-primary-light);
-}
-
-.comment-main .comment-body,
-.reply-item .comment-body {
-  color: var(--color-text);
-}
-
-.comment-replies {
-  margin-left: 20px;
-  padding-left: 12px;
-  border-left: 2px solid var(--color-border-strong);
-  display: grid;
-  gap: 6px;
-}
-
-.reply-item {
-  padding: 8px 10px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-hover);
-  border: 1px solid rgba(138, 147, 163, 0.22);
-}
-
-.reply-to {
-  color: var(--color-jade);
-  font-weight: 500;
-}
-
-.comment-box .n-input {
-  flex: 1;
+.comment-box .n-input.n-input--focus,
+.comment-reply-box .n-input.n-input--focus {
+  border-bottom: 1px solid var(--color-primary) !important;
 }
 
 .comment-box .n-button,
@@ -1370,28 +1382,50 @@ h3 {
   font-size: var(--text-sm);
 }
 
+/* ==========================================
+   二、通知页：化繁为简的“墨点”设计
+   ========================================== */
+/* 通知项：拉平，取消左右内边距 */
 .notif-item {
+  position: relative;
   display: grid;
-  gap: 4px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--color-border);
+  gap: 8px;
+  padding: 20px 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent);
   cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out);
+  background: transparent !important;
+  transition: opacity 0.2s;
 }
-
 .notif-item:hover {
-  background: var(--color-surface-hover);
+  opacity: 0.7; /* 用透明度变化代替背景色块 */
 }
 
+/* 未读状态：左侧精致的指示点 */
 .notif-item.unread {
-  background: var(--color-primary-light);
+  background: transparent !important;
+}
+.notif-item.unread::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 26px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 12%, transparent);
+}
+.notif-item.unread .notif-msg {
+  color: var(--color-text);
+  font-weight: 600;
 }
 
+/* 通知正文与时间 */
 .notif-msg {
   margin: 0;
-  font-size: var(--text-sm);
-  line-height: var(--leading-snug);
-  color: var(--color-text);
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--color-text-secondary);
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -1439,8 +1473,11 @@ h3 {
 }
 
 .notif-time {
-  color: var(--color-text-muted);
-  font-size: 12px;
+  font-family: var(--font-display);
+  color: var(--color-text-light);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
 }
 
 .notification-page {
@@ -1461,6 +1498,8 @@ h3 {
 
 .notification-page-list {
   display: grid;
+  gap: 0;
+  padding-left: 16px; /* 确保未读圆点有空间显示 */
 }
 
 .notification-page-error {
@@ -1480,13 +1519,6 @@ h3 {
   font-size: 13px;
 }
 
-.notification-page-item {
-  border-bottom: 1px solid var(--color-border);
-}
-
-.notification-page-item:last-child {
-  border-bottom: none;
-}
 
 .notification-page-empty {
   padding: 24px 0;

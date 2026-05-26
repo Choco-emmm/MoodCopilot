@@ -485,21 +485,17 @@ function ensureCommentInputVisible() {
   justify-content: space-between;
   gap: 10px;
   min-height: 36px;
-  padding: 8px 12px;
+  padding: 8px 0;
   margin-bottom: 10px;
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-hover);
+  border-bottom: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent);
+  background: transparent;
   color: var(--color-text-secondary);
   font-size: 12px;
 }
 
 .comment-error {
   margin: 8px 0 10px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-accent-bg);
+  padding: 4px 0;
   color: var(--color-error);
   font-size: 12px;
 }
