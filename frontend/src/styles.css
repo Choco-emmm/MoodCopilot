@@ -2932,8 +2932,6 @@ h3 {
     width: 100%;
     justify-content: space-around;
     align-items: center;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     background: var(--color-surface);
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     box-shadow: 0 -4px 20px rgba(0,0,0,0.03);
@@ -3040,14 +3038,11 @@ h3 {
     pointer-events: auto;
     /* 横向滚动适配管理员多出的导航项 */
     justify-content: space-around;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     padding: 0 10px;
   }
 
   .nav-link {
     flex: 1 1 0;
-    min-width: 56px;
   }
 
   .nav-link.nav-link-write {
