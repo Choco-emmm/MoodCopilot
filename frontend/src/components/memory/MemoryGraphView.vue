@@ -28,8 +28,13 @@
       </div>
       
       <!-- Graph View -->
-      <div v-else-if="!isGraphListView" style="flex: 1; min-height: 500px; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; background: var(--color-surface-soft);">
-        <VChart class="chart" :option="graphOptions" autoresize style="height: 100%; min-height: 500px;" />
+      <div v-else-if="!isGraphListView" style="flex: 1; min-height: 500px; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; background: var(--color-surface-soft); position: relative; touch-action: none;">
+        <VChart ref="chartRef" class="chart" :option="graphOptions" autoresize style="height: 100%; min-height: 500px;" />
+        <div style="position: absolute; right: 16px; bottom: 16px; z-index: 10;">
+          <n-button size="small" secondary @click="resetGraph">
+            🧭 恢复视角
+          </n-button>
+        </div>
       </div>
 
       <!-- List View -->
@@ -114,16 +119,23 @@ import { logWarn } from '../../utils/logger'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { GraphChart } from 'echarts/charts'
-import { TitleComponent, TooltipComponent, LegendComponent } from 'echarts/components'
+import { TitleComponent, TooltipComponent, LegendComponent, ToolboxComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 
-use([CanvasRenderer, GraphChart, TitleComponent, TooltipComponent, LegendComponent])
+use([CanvasRenderer, GraphChart, TitleComponent, TooltipComponent, LegendComponent, ToolboxComponent])
 
 // Graph state
+const chartRef = ref<any>(null)
 const graphLoading = ref(false)
 const graphOptions = ref<any>(null)
 const isGraphListView = ref(false)
 const consolidatingGraph = ref(false)
+
+function resetGraph() {
+  if (chartRef.value) {
+    chartRef.value.dispatchAction({ type: 'restore' })
+  }
+}
 
 interface TripleItem {
   id: number
@@ -169,6 +181,17 @@ async function loadGraph() {
     const lineColor = style.getPropertyValue('--color-border-strong').trim() || '#ccc'
 
     graphOptions.value = {
+      toolbox: {
+        show: false,
+        feature: {
+          restore: {} // required for dispatchAction({type: 'restore'})
+        }
+      },
+      legend: {
+        show: true,
+        bottom: 10,
+        textStyle: { color: textSecColor }
+      },
       tooltip: {
         trigger: 'item',
         formatter: (params: any) => {
@@ -184,6 +207,7 @@ async function loadGraph() {
           type: 'graph',
           layout: 'force',
           roam: true,
+          scaleLimit: { min: 0.2, max: 4 }, // Limit zoom on mobile
           draggable: true,
           label: {
             show: true,
@@ -200,20 +224,34 @@ async function loadGraph() {
             curveness: 0.2,
             width: 2
           },
-          itemStyle: {
-            color: primaryColor
-          },
           edgeLabel: {
             show: true,
             fontSize: 10,
             formatter: (params: any) => params.data.label,
             color: textSecColor
           },
-          data: data.nodes.map((n: any) => ({
-            name: n.name,
-            value: n.value,
-            symbolSize: Math.max(10, Math.min(30, n.value * 5))
-          })),
+          categories: [
+            { name: '触发源 (事件/人物/环境)', itemStyle: { color: primaryColor } },
+            { name: '正向感受', itemStyle: { color: '#18a058' } },
+            { name: '负向与压力', itemStyle: { color: '#d03050' } }
+          ],
+          data: data.nodes.map((n: any) => {
+            // 根据提取规则，作为 target (终点) 的节点通常是情绪/感受
+            const isEmotion = data.edges.some((e: any) => e.target === n.name);
+            let categoryIndex = 0;
+            if (isEmotion) {
+              const positiveKeywords = ['喜悦', '期待', '兴奋', '自豪', '轻松', '平静', '感恩', '满足', '开心', '快乐', '释怀', '治愈', '安心', '充实'];
+              const isPositive = positiveKeywords.some(kw => n.name.includes(kw));
+              categoryIndex = isPositive ? 1 : 2;
+            }
+            return {
+              name: n.name,
+              value: n.value,
+              category: categoryIndex,
+              // 加大节点的基础大小和生长率，提升视觉显著度
+              symbolSize: Math.max(15, Math.min(45, n.value * 8))
+            };
+          }),
           links: data.edges.map((e: any) => ({
             source: e.source,
             target: e.target,
