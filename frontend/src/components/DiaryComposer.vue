@@ -232,7 +232,7 @@ onMounted(async () => {
   if (!vditorContainer.value) return
 
   vditorInst.value = new Vditor(vditorContainer.value, {
-    mode: 'ir',
+    mode: 'wysiwyg',
     height: 'auto',
     minHeight: 260,
     cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.11.2',
@@ -245,9 +245,10 @@ onMounted(async () => {
         paragraphBeginningSpace: false,
       },
     },
+    customWysiwygToolbar: () => {},
     toolbar: window.innerWidth <= 780
       ? ['bold', 'italic', 'strike', 'line', 'list', 'ordered-list', 'undo', 'redo']
-      : ['headings', 'bold', 'italic', 'strike', 'line', 'quote', 'list', 'ordered-list', 'check', 'outdent', 'indent', 'code', 'inline-code', 'undo', 'redo'],
+      : ['headings', 'bold', 'italic', 'strike', 'line', 'quote', 'list', 'ordered-list', 'undo', 'redo'],
     after: () => {
       if (initialValue) {
         vditorInst.value?.setValue(initialValue)
@@ -566,7 +567,9 @@ async function handleSave() {
   background: transparent !important;
 }
 
-.composer-editor :deep(.vditor-ir) {
+.composer-editor :deep(.vditor-ir),
+.composer-editor :deep(.vditor-wysiwyg),
+.composer-editor :deep(.vditor-sv) {
   padding: 20px 24px 40px 24px !important;
   background: transparent !important;
   color: var(--color-text) !important;
@@ -580,12 +583,12 @@ async function handleSave() {
   padding: 0 !important;
   margin: 0 !important;
   color: var(--color-text) !important;
-  line-height: 1.55 !important;
+  line-height: 1.5 !important;
 }
 
-/* 压缩 vditor 段落间距 */
+/* 优化 vditor 段落间距 */
 .composer-editor :deep(.vditor-reset p) {
-  margin: 0.1em 0 !important;
+  margin: 0.5em 0 !important;
 }
 
 .composer-editor :deep(.vditor-reset h1),
@@ -598,6 +601,44 @@ async function handleSave() {
 
 .composer-editor :deep(.vditor-ir pre.vditor-reset) {
   color: var(--color-text-muted) !important;
+}
+
+/* ── 分屏视图 (Split View) ── */
+.composer-editor :deep(.vditor-sv) {
+  display: flex !important;
+  padding: 0 !important;
+}
+
+.composer-editor :deep(.vditor-sv .vditor-textarea),
+.composer-editor :deep(.vditor-sv .vditor-sv__preview) {
+  background: transparent !important;
+  color: var(--color-text) !important;
+  border-color: color-mix(in oklab, var(--color-primary) 10%, transparent) !important;
+}
+
+/* ── 模式切换下拉菜单 ── */
+.composer-editor :deep(.vditor-panel) {
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+.composer-editor :deep(.vditor-panel__item) {
+  color: var(--color-text-secondary) !important;
+}
+
+.composer-editor :deep(.vditor-panel__item:hover) {
+  background: color-mix(in oklab, var(--color-primary) 8%, transparent) !important;
+}
+
+/* ── Markdown 代码块 ── */
+.composer-editor :deep(.vditor-reset pre > code) {
+  background-color: color-mix(in oklab, var(--color-text) 6%, transparent) !important;
+  color: var(--color-text) !important;
+}
+
+.composer-editor :deep(.vditor-reset code:not(.hljs)) {
+  background-color: color-mix(in oklab, var(--color-primary) 10%, transparent) !important;
+  color: var(--color-primary) !important;
 }
 
 .composer-editor :deep(.vditor-counter) {
@@ -931,7 +972,9 @@ async function handleSave() {
     display: inline-flex !important;
   }
 
-  .composer-editor :deep(.vditor-ir) {
+  .composer-editor :deep(.vditor-ir),
+  .composer-editor :deep(.vditor-wysiwyg),
+  .composer-editor :deep(.vditor-sv) {
     padding: 16px 16px 36px 16px !important;
   }
 
@@ -958,7 +1001,9 @@ async function handleSave() {
 @media (max-width: 420px) {
   .composer-title { font-size: 1.35rem; }
 
-  .composer-editor :deep(.vditor-ir) {
+  .composer-editor :deep(.vditor-ir),
+  .composer-editor :deep(.vditor-wysiwyg),
+  .composer-editor :deep(.vditor-sv) {
     padding: 14px 12px 32px 12px !important;
   }
 

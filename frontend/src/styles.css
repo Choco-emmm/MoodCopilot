@@ -4365,11 +4365,32 @@ h3 {
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary) 20%, transparent) !important;
 }
 
-.n-button--primary-type {
+/* 1. Base solid primary button */
+.n-button--primary-type:not(.n-button--ghost-type):not(.n-button--text-type):not(.n-button--secondary-type):not(.n-button--tertiary-type):not(.n-button--quaternary-type) {
   --n-color: var(--color-primary) !important;
   --n-color-hover: var(--color-primary-hover) !important;
   --n-color-pressed: var(--color-primary-hover) !important;
   --n-color-focus: var(--color-primary) !important;
+  --n-border: 1px solid var(--color-primary) !important;
+  --n-border-hover: 1px solid var(--color-primary-hover) !important;
+  --n-border-pressed: 1px solid var(--color-primary-hover) !important;
+  --n-border-focus: 1px solid var(--color-primary) !important;
+  --n-text-color: var(--color-on-primary) !important;
+  --n-text-color-hover: var(--color-on-primary) !important;
+  --n-text-color-pressed: var(--color-on-primary) !important;
+  --n-text-color-focus: var(--color-on-primary) !important;
+}
+
+/* 2. Text and Ghost primary buttons */
+.n-button--primary-type.n-button--text-type,
+.n-button--primary-type.n-button--ghost-type {
+  --n-text-color: var(--color-primary) !important;
+  --n-text-color-hover: var(--color-primary-hover) !important;
+  --n-text-color-pressed: var(--color-primary-hover) !important;
+  --n-text-color-focus: var(--color-primary) !important;
+}
+
+.n-button--primary-type.n-button--ghost-type {
   --n-border: 1px solid var(--color-primary) !important;
   --n-border-hover: 1px solid var(--color-primary-hover) !important;
   --n-border-pressed: 1px solid var(--color-primary-hover) !important;
@@ -4381,6 +4402,7 @@ h3 {
   --n-color-hover: color-mix(in oklab, var(--color-primary) 15%, transparent) !important;
   --n-text-color: var(--color-primary) !important;
   --n-text-color-hover: var(--color-primary) !important;
+  --n-border: 1px solid transparent !important;
 }
 
 /* ═══════════════════════════════════════════

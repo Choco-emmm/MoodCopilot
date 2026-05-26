@@ -132,7 +132,7 @@ const isDark = computed(() => osTheme.value === 'dark')
 /** 全局任务 FAB：在任务中心页自身不显示 */
 const showTaskFab = computed(() => {
   const p = route.path
-  return p !== '/task-center' && p !== '/login' && p !== '/register'
+  return p !== '/task-center' && p !== '/login' && p !== '/register' && p !== '/chat'
 })
 
 const activeThemeName = computed(() => {
