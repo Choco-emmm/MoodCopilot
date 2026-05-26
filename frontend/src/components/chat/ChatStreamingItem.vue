@@ -133,8 +133,9 @@ function renderMd(text: string) {
 }
 
 function renderStreamingMd(text: string, showCursor: boolean) {
-  const processed = showCursor ? text + '<span class="streaming-cursor">▋</span>' : text
-  return renderMd(processed)
+  const html = renderMd(text)
+  if (!showCursor) return html
+  return html + '<span class="streaming-cursor">▋</span>'
 }
 
 const parsedStreaming = computed(() => {
