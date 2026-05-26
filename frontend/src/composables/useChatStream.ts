@@ -12,6 +12,7 @@ export interface ChatReference {
   fullContent: string
   diaryId?: number
   type?: 'quote'
+  quoteAuthor?: string
 }
 
 export function useChatStream(
@@ -55,7 +56,8 @@ export function useChatStream(
     let finalContent = content
     const quoteRef = references.value.find(r => r.type === 'quote')
     if (quoteRef) {
-      finalContent = '> [引用] AI: ' + quoteRef.content + '\n\n' + finalContent
+      const author = quoteRef.quoteAuthor || 'AI'
+      finalContent = '> [引用] ' + author + ': ' + quoteRef.content + '\n\n' + finalContent
     }
 
     const refContents = references.value.filter(r => r.type !== 'quote').slice(0, 2).map(r => r.fullContent || r.content)

@@ -166,13 +166,15 @@ const {
   handleDraftFocus, handleDraftEnter, goToDiary,
 } = useChat()
 
-function handleQuote(text: string) {
+function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   references.value = references.value.filter((r: any) => r.type !== 'quote')
+  const author = data.role === 'ai' ? 'AI' : '我'
   references.value.push({
-    label: '引用 AI',
-    content: text,
-    fullContent: text,
-    type: 'quote'
+    label: `引用 ${author}`,
+    content: data.text,
+    fullContent: data.text,
+    type: 'quote',
+    quoteAuthor: author // stash author to be used in useChatStream
   } as any)
   handleDraftFocus()
 }
