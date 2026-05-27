@@ -55,7 +55,7 @@
 
       <!-- 正文 -->
       <div
-        class="feed-body md-content"
+        class="feed-content md-content"
         role="button"
         tabindex="0"
         @click.stop="$emit('open-detail', diary)"
@@ -469,18 +469,16 @@ function getAvatarStyle(name: string) {
 .feed-follow:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* 正文 */
-.feed-body {
-  font-size: 1rem;
-  line-height: 1.9;
+.feed-content {
   color: var(--color-text);
   word-break: break-word;
   cursor: pointer;
   transition: opacity 0.2s;
 }
 
-.feed-body:hover { opacity: 0.8; }
+.feed-content:hover { opacity: 0.8; }
 
-.feed-body:focus-visible {
+.feed-content:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 4px;
   border-radius: 4px;
@@ -667,7 +665,6 @@ function getAvatarStyle(name: string) {
 
   .feed-pin-tag { margin-left: auto; }
 
-  .feed-body { font-size: 0.93rem; line-height: 1.75; }
   .feed-foot { gap: 14px; }
 
   .feed-author-name { max-width: 110px; font-size: 0.88rem; }
@@ -680,8 +677,6 @@ function getAvatarStyle(name: string) {
   .feed-date-day { font-size: 1.4rem; }
   .feed-date-month { font-size: 0.9rem; }
   .feed-date-time { font-size: 0.72rem; }
-
-  .feed-body { font-size: 0.88rem; line-height: 1.7; }
 
   .feed-stat { font-size: 0.78rem; }
   .feed-author-name { max-width: 90px; }
