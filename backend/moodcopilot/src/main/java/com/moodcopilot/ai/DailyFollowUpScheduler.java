@@ -107,10 +107,10 @@ public class DailyFollowUpScheduler {
                                 (left, right) -> left,
                                 LinkedHashMap::new));
 
-                List<String> contents = new ArrayList<>();
+                List<AiAnalysisService.DiaryEntryContext> contents = new ArrayList<>();
                 List<DiaryAnalysis> analyses = new ArrayList<>();
                 for (DiaryEntity d : recent) {
-                    contents.add(d.getContent());
+                    contents.add(new AiAnalysisService.DiaryEntryContext(d.getCreatedAt().toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("MM-dd")), d.getContent()));
                     DiaryAnalysisEntity a = analysisMap.get(d.getId());
                     if (a != null) {
                         analyses.add(new DiaryAnalysis(a.getMoodLabel(), a.getMoodIntensity(),

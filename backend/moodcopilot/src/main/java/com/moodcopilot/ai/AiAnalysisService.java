@@ -161,11 +161,13 @@ public class AiAnalysisService {
         return List.of();
     }
 
+    public record DiaryEntryContext(String date, String content) {}
+
     // ── Weekly report ──
 
-    public String generateWeeklySummary(List<String> diaryContents, List<DiaryAnalysis> analyses,
+    public String generateWeeklySummary(List<DiaryEntryContext> diaryEntries, List<DiaryAnalysis> analyses,
             String memoryContext) {
-        if (diaryContents.isEmpty())
+        if (diaryEntries.isEmpty())
             return "本周还没有记录日记，去写一篇吧～";
 
         StringBuilder prompt = new StringBuilder();
@@ -173,7 +175,7 @@ public class AiAnalysisService {
             prompt.append("<user_profile>\n").append(memoryContext).append("\n</user_profile>\n\n");
         }
         prompt.append("本周日记摘要：\n");
-        appendDiaryEntries(prompt, diaryContents, analyses);
+        appendDiaryEntries(prompt, diaryEntries, analyses);
         prompt.append("\n").append(buildQuadrantHint(analyses));
 
         try {
@@ -184,27 +186,27 @@ public class AiAnalysisService {
                     .content();
         } catch (Exception e) {
             log.warn("AI weekly summary failed, falling back: {}", e.getMessage());
-            return fallbackWeeklySummary(diaryContents.size(), analyses);
+            return fallbackWeeklySummary(diaryEntries.size(), analyses);
         }
     }
 
-    public ReportGuidance generateWeeklyGuidance(List<String> diaryContents, List<DiaryAnalysis> analyses) {
-        return generateReportGuidance("本周", diaryContents, analyses);
+    public ReportGuidance generateWeeklyGuidance(List<DiaryEntryContext> diaryEntries, List<DiaryAnalysis> analyses) {
+        return generateReportGuidance("本周", diaryEntries, analyses);
     }
 
-    public ReportGuidance generateCustomGuidance(String period, List<String> diaryContents,
+    public ReportGuidance generateCustomGuidance(String period, List<DiaryEntryContext> diaryEntries,
             List<DiaryAnalysis> analyses) {
-        return generateReportGuidance(period, diaryContents, analyses);
+        return generateReportGuidance(period, diaryEntries, analyses);
     }
 
     // ── Custom summary (date-range agnostic) ──
 
-    public String generateCustomSummary(List<String> diaryContents, List<DiaryAnalysis> analyses) {
-        if (diaryContents.isEmpty())
+    public String generateCustomSummary(List<DiaryEntryContext> diaryEntries, List<DiaryAnalysis> analyses) {
+        if (diaryEntries.isEmpty())
             return "该时段还没有记录日记，去写一篇吧～";
 
         StringBuilder prompt = new StringBuilder("自选时段日记摘要：\n");
-        appendDiaryEntries(prompt, diaryContents, analyses);
+        appendDiaryEntries(prompt, diaryEntries, analyses);
 
         try {
             return analysisChatClient.prompt()
@@ -214,23 +216,55 @@ public class AiAnalysisService {
                     .content();
         } catch (Exception e) {
             log.warn("AI custom summary failed, falling back: {}", e.getMessage());
-            return fallbackWeeklySummary(diaryContents.size(), analyses);
+            return fallbackWeeklySummary(diaryEntries.size(), analyses);
         }
     }
 
     // ── Monthly report ──
 
-    public String generateMonthlySummary(List<String> diaryContents, List<DiaryAnalysis> analyses,
+    public String generateMonthlySummary(List<DiaryEntryContext> diaryEntries, List<DiaryAnalysis> analyses,
             String memoryContext) {
-        if (diaryContents.isEmpty())
+        if (diaryEntries.isEmpty())
             return "本月还没有记录日记，去写一篇吧～";
+
+        List<DiaryEntryContext> filteredEntries = new ArrayList<>(diaryEntries);
+        List<DiaryAnalysis> filteredAnalyses = new ArrayList<>(analyses);
+        
+        boolean truncated = false;
+        if (diaryEntries.size() > 20) {
+            truncated = true;
+            record Paired(DiaryEntryContext entry, DiaryAnalysis analysis, int intensity, int originalIndex) {}
+            List<Paired> pairs = new ArrayList<>();
+            for (int i = 0; i < diaryEntries.size(); i++) {
+                DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
+                int intensity = (a != null) ? a.moodIntensity() : 3;
+                pairs.add(new Paired(diaryEntries.get(i), a, intensity, i));
+            }
+            
+            pairs.sort((p1, p2) -> Integer.compare(p2.intensity(), p1.intensity()));
+            List<Paired> top20 = pairs.subList(0, 20);
+            top20.sort(java.util.Comparator.comparingInt(Paired::originalIndex));
+            
+            filteredEntries.clear();
+            filteredAnalyses.clear();
+            for (Paired p : top20) {
+                filteredEntries.add(p.entry());
+                filteredAnalyses.add(p.analysis());
+            }
+        }
 
         StringBuilder prompt = new StringBuilder();
         if (memoryContext != null && !memoryContext.isBlank()) {
             prompt.append("<user_profile>\n").append(memoryContext).append("\n</user_profile>\n\n");
         }
-        prompt.append("本月日记摘要：\n");
-        appendDiaryEntries(prompt, diaryContents, analyses);
+        
+        if (truncated) {
+            prompt.append(String.format("本月共记录了 %d 篇日记，此处为你提取了情绪波动最强烈的 20 篇供趋势分析：\n", diaryEntries.size()));
+        } else {
+            prompt.append("本月日记摘要：\n");
+        }
+        
+        appendDiaryEntries(prompt, filteredEntries, filteredAnalyses);
         prompt.append("\n").append(buildQuadrantHint(analyses));
 
         try {
@@ -241,24 +275,24 @@ public class AiAnalysisService {
                     .content();
         } catch (Exception e) {
             log.warn("AI monthly summary failed, falling back: {}", e.getMessage());
-            return fallbackMonthlySummary(diaryContents.size(), analyses);
+            return fallbackMonthlySummary(diaryEntries.size(), analyses);
         }
     }
 
-    public ReportGuidance generateMonthlyGuidance(List<String> diaryContents, List<DiaryAnalysis> analyses) {
-        return generateReportGuidance("本月", diaryContents, analyses);
+    public ReportGuidance generateMonthlyGuidance(List<DiaryEntryContext> diaryEntries, List<DiaryAnalysis> analyses) {
+        return generateReportGuidance("本月", diaryEntries, analyses);
     }
 
     @SuppressWarnings("unchecked")
-    private ReportGuidance generateReportGuidance(String period, List<String> diaryContents,
+    private ReportGuidance generateReportGuidance(String period, List<DiaryEntryContext> diaryEntries,
             List<DiaryAnalysis> analyses) {
-        if (diaryContents.isEmpty()) {
+        if (diaryEntries.isEmpty()) {
             return new ReportGuidance(List.of(), List.of(), "等你多记录几天，我们再一起看看变化。");
         }
         StringBuilder prompt = new StringBuilder(period).append("日记模式：\n");
-        for (int i = 0; i < diaryContents.size(); i++) {
+        for (int i = 0; i < diaryEntries.size(); i++) {
             DiaryAnalysis analysis = i < analyses.size() ? analyses.get(i) : null;
-            prompt.append("- ");
+            prompt.append("- [").append(diaryEntries.get(i).date()).append("] ");
             if (analysis != null) {
                 prompt.append("情绪：").append(analysis.moodLabel());
                 if (analysis.hasSecondaryMoods()) {
@@ -270,7 +304,7 @@ public class AiAnalysisService {
                 prompt.append("，主题：").append(String.join("、", analysis.topicLabels()))
                         .append("，摘要：").append(analysis.summary());
             } else {
-                String content = diaryContents.get(i);
+                String content = diaryEntries.get(i).content();
                 prompt.append(content.length() > 80 ? content.substring(0, 80) + "..." : content);
             }
             prompt.append("\n");
@@ -320,10 +354,11 @@ public class AiAnalysisService {
         for (DiaryAnalysis a : analyses) {
             if (a == null || a.moodLabel() == null)
                 continue;
-            weighted.merge(a.moodLabel(), 1.0, Double::sum);
+            double intensity = a.moodIntensity();
+            weighted.merge(a.moodLabel(), 1.0 * intensity, Double::sum);
             if (a.secondaryMoods() != null) {
                 for (String s : a.secondaryMoods()) {
-                    weighted.merge(s, 0.5, Double::sum);
+                    weighted.merge(s, 0.5 * intensity, Double::sum);
                 }
             }
         }
@@ -375,11 +410,11 @@ public class AiAnalysisService {
 
     // ── Coaching plan ──
 
-    public String generateCoaching(List<String> contents, List<DiaryAnalysis> analyses) {
-        if (contents.isEmpty())
+    public String generateCoaching(List<DiaryEntryContext> diaryEntries, List<DiaryAnalysis> analyses) {
+        if (diaryEntries.isEmpty())
             return "还没有足够的日记数据，多记录几天后我会为你生成陪跑建议。";
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < contents.size(); i++) {
+        for (int i = 0; i < diaryEntries.size(); i++) {
             DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
             if (a != null) {
                 sb.append("情绪：").append(a.moodLabel());
@@ -505,10 +540,11 @@ public class AiAnalysisService {
         return String.format("本周共记录了 %d 篇日记，主要情绪为「%s」。继续记录，你会慢慢看清自己的节奏。", count, topMood);
     }
 
-    private void appendDiaryEntries(StringBuilder prompt, List<String> diaryContents, List<DiaryAnalysis> analyses) {
-        for (int i = 0; i < diaryContents.size(); i++) {
+    private void appendDiaryEntries(StringBuilder prompt, List<DiaryEntryContext> diaryEntries, List<DiaryAnalysis> analyses) {
+        for (int i = 0; i < diaryEntries.size(); i++) {
+            DiaryEntryContext entry = diaryEntries.get(i);
             DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
-            prompt.append("- ");
+            prompt.append("- [").append(entry.date()).append("] ");
             if (a != null) {
                 prompt.append("情绪：").append(a.moodLabel());
                 if (a.hasSecondaryMoods()) {
@@ -520,7 +556,7 @@ public class AiAnalysisService {
                 prompt.append("，主题：").append(String.join("、", a.topicLabels()))
                         .append("，摘要：").append(a.summary());
             } else {
-                String content = diaryContents.get(i);
+                String content = entry.content();
                 prompt.append(content.length() > 60 ? content.substring(0, 60) + "..." : content);
             }
             prompt.append("\n");
@@ -541,9 +577,18 @@ public class AiAnalysisService {
             if (analysis == null || analysis.moodLabel() == null) {
                 continue;
             }
-            String mood = analysis.moodLabel();
-            boolean positive = isPositiveMood(mood);
-            boolean highEnergy = isHighEnergyMood(mood);
+            boolean positive;
+            boolean highEnergy;
+            
+            if (analysis.valence() != null && analysis.arousal() != null) {
+                positive = analysis.valence() > 0;
+                highEnergy = analysis.arousal() > 0;
+            } else {
+                String mood = analysis.moodLabel();
+                positive = isPositiveMood(mood);
+                highEnergy = isHighEnergyMood(mood);
+            }
+
             if (positive && highEnergy)
                 posHigh++;
             if (positive && !highEnergy)

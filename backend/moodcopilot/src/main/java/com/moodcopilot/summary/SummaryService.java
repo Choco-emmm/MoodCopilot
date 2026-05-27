@@ -69,7 +69,7 @@ public class SummaryService {
             throw new ResponseStatusException(BAD_REQUEST, "该时间段内没有日记");
         }
 
-        List<String> contents = new ArrayList<>();
+        List<AiAnalysisService.DiaryEntryContext> contents = new ArrayList<>();
         List<DiaryAnalysis> analyses = new ArrayList<>();
         List<DailyMood> dailyMoods = new ArrayList<>();
         List<Long> diaryIds = new ArrayList<>();
@@ -80,7 +80,7 @@ public class SummaryService {
                 .collect(Collectors.toMap(DiaryAnalysisEntity::getDiaryId, analysis -> analysis));
 
         for (DiaryEntity diary : diaries) {
-            contents.add(diary.getContent());
+            contents.add(new AiAnalysisService.DiaryEntryContext(diary.getCreatedAt().toLocalDate().format(DateTimeFormatter.ofPattern("MM-dd")), diary.getContent()));
             diaryIds.add(diary.getId());
             DiaryAnalysisEntity analysisEntity = analysisMap.get(diary.getId());
             if (analysisEntity != null) {

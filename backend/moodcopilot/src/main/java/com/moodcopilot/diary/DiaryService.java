@@ -861,13 +861,13 @@ public class DiaryService {
 
         List<WeeklyReportView.DailyMood> dailyMoods = new ArrayList<>();
         Map<String, Integer> topicCounts = new LinkedHashMap<>();
-        List<String> contents = new ArrayList<>();
+        List<AiAnalysisService.DiaryEntryContext> contents = new ArrayList<>();
         List<DiaryAnalysis> analyses = new ArrayList<>();
         Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
                 diaries.stream().map(DiaryEntity::getId).toList());
 
         for (DiaryEntity diary : diaries) {
-            contents.add(diary.getContent());
+            contents.add(new AiAnalysisService.DiaryEntryContext(diary.getCreatedAt().toLocalDate().format(DateTimeFormatter.ofPattern("MM-dd")), diary.getContent()));
             DiaryAnalysisEntity analysisEntity = analysisMap.get(diary.getId());
             if (analysisEntity != null) {
                 DiaryAnalysis analysis = new DiaryAnalysis(
@@ -1025,13 +1025,13 @@ public class DiaryService {
 
         List<WeeklyReportView.DailyMood> dailyMoods = new ArrayList<>();
         Map<String, Integer> topicCounts = new LinkedHashMap<>();
-        List<String> contents = new ArrayList<>();
+        List<AiAnalysisService.DiaryEntryContext> contents = new ArrayList<>();
         List<DiaryAnalysis> analyses = new ArrayList<>();
         Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
                 diaries.stream().map(DiaryEntity::getId).toList());
 
         for (DiaryEntity diary : diaries) {
-            contents.add(diary.getContent());
+            contents.add(new AiAnalysisService.DiaryEntryContext(diary.getCreatedAt().toLocalDate().format(DateTimeFormatter.ofPattern("MM-dd")), diary.getContent()));
             DiaryAnalysisEntity analysisEntity = analysisMap.get(diary.getId());
             if (analysisEntity != null) {
                 DiaryAnalysis analysis = new DiaryAnalysis(
@@ -1906,12 +1906,12 @@ public class DiaryService {
                         .eq(DiaryEntity::getAuthorUserId, user.getId())
                         .orderByDesc(DiaryEntity::getCreatedAt)
                         .last("LIMIT 7"));
-        List<String> contents = new ArrayList<>();
+        List<AiAnalysisService.DiaryEntryContext> contents = new ArrayList<>();
         List<DiaryAnalysis> analyses = new ArrayList<>();
         Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
                 recent.stream().map(DiaryEntity::getId).toList());
         for (DiaryEntity d : recent) {
-            contents.add(d.getContent());
+            contents.add(new AiAnalysisService.DiaryEntryContext(d.getCreatedAt().toLocalDate().format(DateTimeFormatter.ofPattern("MM-dd")), d.getContent()));
             DiaryAnalysisEntity a = analysisMap.get(d.getId());
             if (a != null)
                 analyses.add(new DiaryAnalysis(a.getMoodLabel(), a.getMoodIntensity(),
