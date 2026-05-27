@@ -9,6 +9,7 @@ export interface Message {
   content: string
   references?: string[]
   ragReferences?: RagRef[]
+  quoteRef?: { content: string; author: string }
 }
 
 export interface RagRef {
@@ -139,12 +140,16 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
         const refsRaw = Array.isArray(item.references) ? item.references
           : Array.isArray(item.refs) ? item.refs : []
         const references = refsRaw.map((v: any) => String(v ?? '').trim()).filter(Boolean).slice(0, 2)
+        const quoteRef = item.quoteRef && item.quoteRef.content
+          ? { content: String(item.quoteRef.content), author: String(item.quoteRef.author || 'AI') }
+          : undefined
         return {
           id: item.id || nextMsgId(),
           role: normalizeMessageRole(item.role),
           content,
           references: references.length ? references : undefined,
           ragReferences: Array.isArray(item.ragReferences) ? item.ragReferences : undefined,
+          quoteRef,
         }
       })
       .filter((msg): msg is Message => msg != null)

@@ -1,7 +1,7 @@
 <template>
   <div class="ref-bar">
     <div v-for="(item, i) in items" :key="i" class="ref-chip">
-      <span class="ref-chip-label">{{ item.content }}</span>
+      <span class="ref-chip-label">{{ item.displayContent || item.content }}</span>
       <button class="ref-chip-remove" @click="$emit('remove', i)">×</button>
     </div>
     
@@ -40,7 +40,7 @@
 import { ref } from 'vue'
 
 defineProps<{
-  items: { label: string; content: string }[]
+  items: { label: string; content: string; displayContent?: string }[]
   recentDiaries: { id: number; date: string; snippet: string }[]
   loading?: boolean
   errorMessage?: string | null

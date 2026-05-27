@@ -81,6 +81,7 @@
             :msg="msg"
             :user-avatar="authStore.avatar"
             :user-initial="userInitial"
+            :user-name="authStore.displayName || '我'"
             @go-diary="goToDiary"
             @quote="handleQuote"
           />
@@ -170,11 +171,12 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   references.value = references.value.filter((r: any) => r.type !== 'quote')
   const author = data.role === 'ai' ? 'AI' : '我'
   references.value.push({
-    label: `引用 ${author}`,
+    label: '引用',
     content: data.text,
     fullContent: data.text,
     type: 'quote',
-    quoteAuthor: author // stash author to be used in useChatStream
+    quoteAuthor: author,
+    displayContent: (data.role === 'ai' ? 'MoodCopilot' : (authStore.displayName || '我')) + '：' + data.text,
   } as any)
   handleDraftFocus()
 }
@@ -235,6 +237,34 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   font-size: 12px;
   line-height: 1.5;
   opacity: 0.9;
+}
+
+/* ── Quote Reference Bar ── */
+:deep(.quote-ref-bar) {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: color-mix(in oklab, var(--color-primary) 6%, transparent);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 0 8px 8px 0;
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+:deep(.quote-ref-label) {
+  font-weight: 600;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+:deep(.quote-ref-content) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
 }
 
 

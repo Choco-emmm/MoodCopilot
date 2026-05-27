@@ -13,6 +13,7 @@ export interface ChatReference {
   diaryId?: number
   type?: 'quote'
   quoteAuthor?: string
+  displayContent?: string
 }
 
 export function useChatStream(
@@ -54,16 +55,19 @@ export function useChatStream(
     lastReplyRequest.value = null
 
     let finalContent = content
-    const quoteRef = references.value.find(r => r.type === 'quote')
-    if (quoteRef) {
-      const author = quoteRef.quoteAuthor || 'AI'
-      finalContent = '> [引用] ' + author + ': ' + quoteRef.content + '\n\n' + finalContent
+    let quoteRef: { content: string; author: string } | undefined
+    const quoteRefItem = references.value.find(r => r.type === 'quote')
+    if (quoteRefItem) {
+      const author = quoteRefItem.quoteAuthor || 'AI'
+      quoteRef = { content: quoteRefItem.content, author }
+      finalContent = `[用户引用了之前的发言：\n"${quoteRefItem.content}"]\n\n用户的回复是：\n${content}`
     }
 
     const refContents = references.value.filter(r => r.type !== 'quote').slice(0, 2).map(r => r.fullContent || r.content)
     messages.value.push({
-      id: nextMsgId(), role: 'user', content: finalContent,
+      id: nextMsgId(), role: 'user', content,
       references: refContents.length ? refContents : undefined,
+      quoteRef,
     })
     saveToBackend(convId).catch(() => {})
     references.value = []

@@ -77,6 +77,10 @@
           </div>
         </template>
         <template v-else>
+          <div v-if="msg.quoteRef" class="quote-ref-bar">
+            <span class="quote-ref-label">{{ quoteLabel }}：</span>
+            <span class="quote-ref-content">{{ msg.quoteRef.content }}</span>
+          </div>
           <div class="md-content" v-html="renderMd(msg.content)" />
           
           <ul v-if="msg.references?.length" class="chat-user-refs">
@@ -124,12 +128,14 @@ export interface Message {
   content: string
   references?: string[]
   ragReferences?: RagRef[]
+  quoteRef?: { content: string; author: string }
 }
 
 const props = defineProps<{
   msg: Message
   userAvatar?: string | null
   userInitial: string
+  userName?: string
 }>()
 
 const emit = defineEmits<{
@@ -139,6 +145,11 @@ const emit = defineEmits<{
 
 const isRefsExpanded = ref(false)
 const expandedSnippets = ref<Set<number>>(new Set())
+
+const quoteLabel = computed(() => {
+  if (!props.msg.quoteRef) return ''
+  return props.msg.quoteRef.author === 'AI' ? 'MoodCopilot' : (props.userName || '我')
+})
 
 function toggleRefs() {
   isRefsExpanded.value = !isRefsExpanded.value
