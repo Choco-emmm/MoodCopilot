@@ -13,6 +13,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License" /></a>
   <a href="#"><img src="https://img.shields.io/badge/Java-21-orange" alt="Java 21" /></a>
   <a href="#"><img src="https://img.shields.io/badge/Vue-3.x-4fc08d" alt="Vue 3" /></a>
+  <a href="#"><img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white" alt="Tailwind CSS" /></a>
   <a href="#"><img src="https://img.shields.io/badge/Spring%20Boot-3.5-brightgreen" alt="Spring Boot 3.5" /></a>
   <a href="#"><img src="https://img.shields.io/badge/AI-DeepSeek-blue" alt="DeepSeek" /></a>
 </p>
@@ -90,7 +91,7 @@
 | **后端架构** | Spring Boot 3.5 + Java 21 + Spring AI + MyBatis-Plus |
 | **存储底座** | MySQL 8.0 + Redis Stack (利用 RediSearch 实现原生、高性能的 HNSW 向量检索) |
 | **安全体系** | Spring Security + JWT 无状态认证 + Cloudflare Turnstile 防机审人机验证 |
-| **前端交互** | Vue 3 + TypeScript + Vite + Naive UI (响应式、现代化的 UI 设计风格) |
+| **前端交互** | Vue 3 + TypeScript + Vite + Naive UI + Tailwind CSS (现代化的极简原子化样式栈) |
 | **AI 模型栈** | **deepseek-v4-flash / pro** (纯手写 WebClient 实现流式思考过程解析) + **DashScope VLM** (qwen-vl 等) |
 | **RAG 引擎** | BAAI/bge-m3 (SiliconFlow API 1024 维密集向量嵌入), 支持多模态独立建库、HyDE 查询重写、长文本滑动窗口分块。 |
 | **部署架构** | 阿里云 OSS 浏览器直传（极低服务器带宽压力）、Docker Compose 容器化编排部署、Nginx 反代。 |
