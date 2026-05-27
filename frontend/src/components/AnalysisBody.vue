@@ -13,7 +13,7 @@
             <div class="mood-guide">
               <div class="guide-section">
                 <p class="guide-section-title">色彩与情绪坐标</p>
-                <p style="font-size: 0.75rem; color: #999; margin: 0 0 8px;">情绪颜色由效价(正负向)与唤醒度决定，并通过双线性插值进行平滑渐变计算：</p>
+                <p class="guide-desc">情绪颜色由 AI 根据你的心情积极程度与能量高低动态调配：</p>
                 <div class="quadrant-grid">
                   <div class="quadrant-cell">
                     <p class="quadrant-label">积极 · 高能量</p>
@@ -322,6 +322,14 @@ onUnmounted(() => {
   font-size: 0.82rem;
   line-height: 1.6;
   color: var(--color-text, #444);
+  white-space: normal;
+  word-break: break-word;
+}
+.guide-desc {
+  font-size: 0.75rem; 
+  color: var(--color-text-tertiary, #999); 
+  margin: 0 0 10px;
+  line-height: 1.5;
 }
 .guide-section + .guide-section {
   margin-top: 16px;
