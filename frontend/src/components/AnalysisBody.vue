@@ -8,7 +8,7 @@
           <span :style="{ color: moodColor(diary.analysis.moodLabel, diary.analysis.valence, diary.analysis.arousal) }">
             {{ diary.analysis.moodLabel }}
           </span> · 强度 {{ diary.analysis.moodIntensity }}/5
-          <n-popover trigger="click" placement="bottom-start" :width="popoverWidth" :delay="0" :scrollable="false">
+          <n-popover trigger="click" placement="bottom" style="max-width: calc(100vw - 32px);" :delay="0" :scrollable="false">
             <template #trigger>
               <span class="mood-guide-trigger" title="情绪与强度评级指南">ⓘ</span>
             </template>
@@ -122,11 +122,7 @@ const intensityLevels = [
   { value: 5, name: '压倒性的', desc: '几乎失控，难以独自承受' },
 ]
 
-// ── 弹窗宽度自适应 ──
-const popoverWidth = computed(() => {
-  if (typeof window === 'undefined') return 370
-  return window.innerWidth <= 600 ? window.innerWidth - 32 : 370
-})
+
 
 const progressHint = ref('正在读取你的日记...')
 let hintTimer: ReturnType<typeof setInterval> | null = null
