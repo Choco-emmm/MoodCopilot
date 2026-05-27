@@ -5,7 +5,9 @@
       <div>
         <p class="eyebrow">AI 分析</p>
         <h2>
-          {{ diary.analysis.moodLabel }} · 强度 {{ diary.analysis.moodIntensity }}/5
+          <span :style="{ color: moodColor(diary.analysis.moodLabel, diary.analysis.valence, diary.analysis.arousal) }">
+            {{ diary.analysis.moodLabel }}
+          </span> · 强度 {{ diary.analysis.moodIntensity }}/5
           <n-popover trigger="click" placement="bottom-start" :width="popoverWidth" :delay="0" :scrollable="false">
             <template #trigger>
               <span class="mood-guide-trigger" title="情绪与强度评级指南">ⓘ</span>

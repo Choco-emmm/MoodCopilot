@@ -3,7 +3,7 @@
     <AppHeader />
     <div v-if="diary" class="diary-detail-page">
       <!-- 日记正文 -->
-      <article class="panel analysis-panel">
+      <article class="panel analysis-panel diary-main-panel" :style="diaryMoodColor !== 'transparent' ? { '--mood-color': diaryMoodColor } : {}">
         <div class="diary-content-section">
           <div class="diary-author-row">
             <img v-if="diary.authorAvatar" :src="diary.authorAvatar" class="avatar avatar-img" loading="lazy" decoding="async" />
@@ -200,6 +200,7 @@ import ImageGallery from '../components/ImageGallery.vue'
 import SimilarDiariesPanel from '../components/SimilarDiariesPanel.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
+import { moodColor } from '../utils/mood'
 
 const route = useRoute()
 const router = useRouter()
@@ -214,6 +215,13 @@ function renderMd(text: string) {
 const diary = computed({
   get: () => store.activeDiary,
   set: (val) => { store.activeDiary = val }
+})
+
+const diaryMoodColor = computed(() => {
+  if (diary.value?.analysis) {
+    return moodColor(diary.value.analysis.moodLabel, diary.value.analysis.valence, diary.value.analysis.arousal)
+  }
+  return 'transparent'
 })
 const commentDraft = ref('')
 const replyDraft = ref('')
@@ -477,6 +485,34 @@ function ensureCommentInputVisible() {
   color: var(--color-text-secondary);
   font-size: 12px;
   margin-bottom: 8px;
+}
+
+/* 纸张温度杂志风：情绪色彩晕染背景 */
+.diary-main-panel {
+  position: relative;
+  overflow: hidden;
+}
+.diary-main-panel::before {
+  content: '';
+  position: absolute;
+  top: 0; 
+  right: 0;
+  width: 50vw;
+  max-width: 400px;
+  height: 300px;
+  background: radial-gradient(circle at top right, var(--mood-color, transparent), transparent 70%);
+  opacity: 0.12; /* 极度克制的微晕染，只提供一丝温度感 */
+  pointer-events: none;
+  z-index: 0;
+  mix-blend-mode: multiply; /* 杂志印刷感叠底效果 */
+}
+:root[data-theme='dark'] .diary-main-panel::before {
+  mix-blend-mode: screen; /* 暗黑模式下的发光感 */
+  opacity: 0.08;
+}
+.diary-content-section {
+  position: relative;
+  z-index: 1;
 }
 
 .reply-mode-hint {
