@@ -31,7 +31,7 @@ const router = createRouter({
       path: '/chat',
       name: 'chat',
       component: () => import('../pages/ChatPage.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, keepAlive: true },
     },
     {
       path: '/report',

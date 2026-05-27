@@ -1,8 +1,8 @@
-﻿/**
+/**
  * useChat — orchestrator that composes all chat sub-composables
  * into a single API for ChatPage.vue to consume.
  */
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, onActivated, onDeactivated, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { diaryApi } from '../api'
 import { useAuthStore } from '../stores/auth'
@@ -253,6 +253,28 @@ export function useChat() {
     }
     sync.cleanup()
     document.body.classList.remove('chat-keyboard-open')
+  })
+
+  // ── Keep-alive: pause/resume without killing the stream ──
+  onDeactivated(() => {
+    // Stop sync polling while hidden, but do NOT abort the SSE stream
+    sync.stopAutoSync()
+    if (window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', handleViewportResize)
+    }
+    document.body.classList.remove('chat-keyboard-open')
+  })
+
+  onActivated(async () => {
+    // Resume sync polling and scroll to latest messages
+    sync.startAutoSync()
+    if (window.visualViewport) {
+      viewportBaseHeight.value = Math.max(window.visualViewport.height, window.innerHeight)
+      updateMobileKeyboardState()
+      window.visualViewport.addEventListener('resize', handleViewportResize)
+    }
+    await nextTick()
+    scroll.scrollBottom()
   })
 
   return {
