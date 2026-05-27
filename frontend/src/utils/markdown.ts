@@ -1,4 +1,4 @@
-﻿import { marked } from 'marked'
+import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
 // 单换行识别为 <br>，聊天应用中 AI 输出多行文本时确保换行生效
@@ -20,6 +20,8 @@ const DEFAULT_ALLOWED_ATTR = ['href', 'target', 'rel', 'class', 'open']
 export function stripMarkdown(text: string): string {
     if (!text) return ''
     return text
+        .replace(/<\/(p|div|h[1-6]|li|blockquote)>/gi, '\n')
+        .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<[^>]+>/g, '')                     // HTML 鏍囩
         .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')  // 图片 → alt 文本
         .replace(/\[([^\]]*)\]\([^)]+\)/g, '$1')    // 链接 → 文本
@@ -29,7 +31,7 @@ export function stripMarkdown(text: string): string {
         .replace(/^[-*+]\s+/gm, '')                  // 无序列表
         .replace(/^\d+\.\s+/gm, '')                  // 有序列表
         .replace(/^---+/gm, '')                      // 分隔线
-        .replace(/\n{2,}/g, '\n')                    // 多余空行压缩
+        .replace(/\n{3,}/g, '\n\n')                  // 预览保留空行断句（最多连续两个换行）
         .trim()
 }
 
