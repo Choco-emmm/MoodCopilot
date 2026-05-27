@@ -13,7 +13,7 @@
             <div class="mood-guide">
               <div class="guide-section">
                 <p class="guide-section-title">色彩与情绪坐标</p>
-                <p style="font-size: 0.75rem; color: #999; margin: 0 0 8px;">情绪颜色由大模型解析出的效价(正负向)与唤醒度决定：</p>
+                <p style="font-size: 0.75rem; color: #999; margin: 0 0 8px;">情绪颜色由效价(正负向)与唤醒度决定，并通过双线性插值进行平滑渐变计算：</p>
                 <div class="quadrant-grid">
                   <div class="quadrant-cell">
                     <p class="quadrant-label">积极 · 高能量</p>

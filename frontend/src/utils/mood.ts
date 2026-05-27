@@ -29,11 +29,32 @@ export const MOOD_COLORS: Record<string, string> = {
 
 export function moodColor(label?: string, valence?: number | null, arousal?: number | null): string {
   if (valence != null && arousal != null) {
-    // Both -100 to 100
-    if (valence > 0 && arousal > 0) return '#e69a63'; // 暖橙 (积极高能)
-    if (valence > 0 && arousal <= 0) return '#72a192'; // 灰绿 (积极低能)
-    if (valence <= 0 && arousal > 0) return '#a15c54'; // 焦红 (消极高能)
-    if (valence <= 0 && arousal <= 0) return '#758296'; // 蓝灰 (消极低能)
+    // Both -100 to 100, normalize to 0..1
+    const v = Math.min(100, Math.max(-100, valence));
+    const a = Math.min(100, Math.max(-100, arousal));
+    const tx = (v + 100) / 200;
+    const ty = (a + 100) / 200;
+
+    // Corner RGB values (Morandi palette)
+    const q1 = [230, 154, 99];  // +V, +A (暖橙)
+    const q2 = [161, 92, 84];   // -V, +A (焦红)
+    const q3 = [117, 130, 150]; // -V, -A (蓝灰)
+    const q4 = [114, 161, 146]; // +V, -A (灰绿)
+
+    // Bilinear interpolation
+    const bottomR = (1 - tx) * q3[0] + tx * q4[0];
+    const bottomG = (1 - tx) * q3[1] + tx * q4[1];
+    const bottomB = (1 - tx) * q3[2] + tx * q4[2];
+
+    const topR = (1 - tx) * q2[0] + tx * q1[0];
+    const topG = (1 - tx) * q2[1] + tx * q1[1];
+    const topB = (1 - tx) * q2[2] + tx * q1[2];
+
+    const finalR = Math.round((1 - ty) * bottomR + ty * topR);
+    const finalG = Math.round((1 - ty) * bottomG + ty * topG);
+    const finalB = Math.round((1 - ty) * bottomB + ty * topB);
+
+    return `rgb(${finalR}, ${finalG}, ${finalB})`;
   }
   return label && MOOD_COLORS[label] ? MOOD_COLORS[label] : '#9cb4a8';
 }
