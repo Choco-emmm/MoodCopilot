@@ -227,14 +227,18 @@ const sentinel = ref<HTMLElement | null>(null)
 const hasMore = computed(() => diaries.value.length < total.value)
 const profileInitial = computed(() => (profileName.value || '用').charAt(0))
 
+const currentLoadedUserId = ref<number | null>(null)
+
 useInfiniteScroll(sentinel, loadMore, { enabled: hasMore, rootMargin: '300px' })
 
 onMounted(() => {
   void reload()
 })
 
-watch(() => route.params.userId, () => {
-  void reload()
+watch(() => route.params.userId, (newId) => {
+  if (route.name === 'profile' && newId && Number(newId) !== currentLoadedUserId.value) {
+    void reload()
+  }
 })
 
 
@@ -279,6 +283,7 @@ async function reload() {
   loading.value = true
   profileLoading.value = true
   page.value = 1
+  currentLoadedUserId.value = profileUserId.value
   try {
     const profileRes = await authApi.profile(profileUserId.value)
     const profile = profileRes.data.data
