@@ -775,7 +775,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   }
   .starter-icon { margin-top: 0; }
   .chat-input-area {
-    border-radius: 16px !important;
+    border-radius: 6px !important;
     padding: 6px 6px 6px 14px !important;
   }
 }
@@ -803,7 +803,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   backdrop-filter: blur(24px) !important;
   -webkit-backdrop-filter: blur(24px) !important;
   border: 1.5px solid color-mix(in oklab, var(--color-primary) 12%, transparent) !important;
-  border-radius: 20px !important;
+  border-radius: 8px !important;
   padding: 8px 8px 8px 20px !important;
   box-shadow: 0 8px 32px color-mix(in oklab, var(--color-primary) 6%, transparent) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -820,7 +820,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 }
 
 :deep(.chat-input-row .n-input) {
-  --n-border-radius: 12px !important;
+  --n-border-radius: 6px !important;
   --n-border: none !important;
   --n-border-hover: none !important;
   --n-border-focus: none !important;
@@ -829,7 +829,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 }
 
 :deep(.chat-input-row .n-button) {
-  --n-border-radius: 12px !important;
+  --n-border-radius: 6px !important;
   height: 40px !important;
   padding: 0 20px !important;
   font-weight: 600 !important;
