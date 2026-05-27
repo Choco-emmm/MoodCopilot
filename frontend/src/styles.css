@@ -4769,10 +4769,10 @@ h3 {
    AI 聊天 Markdown 渲染样式 (.md-content)
    ========================================== */
 .md-content {
-  line-height: 1.6;
+  line-height: 1.7;
   word-wrap: break-word;
   color: var(--color-text);
-  font-family: var(--font-serif);
+  letter-spacing: 0.02em;
 }
 
 /* 段落间距 */
@@ -4821,6 +4821,7 @@ h3 {
   background: color-mix(in oklab, var(--color-primary) 5%, transparent);
   color: var(--color-text-secondary);
   border-radius: 4px;
+  font-family: var(--font-serif);
 }
 
 /* 标题样式 */
