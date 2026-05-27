@@ -19,19 +19,19 @@
                 <div class="quadrant-grid">
                   <div class="quadrant-cell">
                     <p class="quadrant-label">积极 · 高能量</p>
-                    <div class="color-demo" style="background: #f2b17e; color: #fff;">暖黄色</div>
+                    <div class="color-demo" :style="{ background: moodColor('', 100, 100), color: '#fff' }">暖黄色</div>
                   </div>
                   <div class="quadrant-cell">
                     <p class="quadrant-label">积极 · 低能量</p>
-                    <div class="color-demo" style="background: #78a8a1; color: #fff;">草木绿</div>
+                    <div class="color-demo" :style="{ background: moodColor('', 100, -100), color: '#fff' }">草木绿</div>
                   </div>
                   <div class="quadrant-cell">
                     <p class="quadrant-label">消极 · 高能量</p>
-                    <div class="color-demo" style="background: #a65d53; color: #fff;">红褐色</div>
+                    <div class="color-demo" :style="{ background: moodColor('', -100, 100), color: '#fff' }">红褐色</div>
                   </div>
                   <div class="quadrant-cell">
                     <p class="quadrant-label">消极 · 低能量</p>
-                    <div class="color-demo" style="background: #8b94a0; color: #fff;">蓝灰色</div>
+                    <div class="color-demo" :style="{ background: moodColor('', -100, -100), color: '#fff' }">蓝灰色</div>
                   </div>
                 </div>
               </div>

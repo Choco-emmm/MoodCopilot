@@ -27,7 +27,18 @@ export const MOOD_COLORS: Record<string, string> = {
   '内疚': '#8a858a',
 }
 
+function hexToRgb(hex: string): [number, number, number] {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? [
+    parseInt(result[1], 16),
+    parseInt(result[2], 16),
+    parseInt(result[3], 16)
+  ] : [128, 128, 128];
+}
+
 export function moodColor(label?: string, valence?: number | null, arousal?: number | null): string {
+  let r = 156, g = 180, b = 168; // fallback rgb for #9cb4a8
+
   if (valence != null && arousal != null) {
     // Both -100 to 100, normalize to 0..1
     const v = Math.min(100, Math.max(-100, valence));
@@ -50,13 +61,27 @@ export function moodColor(label?: string, valence?: number | null, arousal?: num
     const topG = (1 - tx) * q2[1] + tx * q1[1];
     const topB = (1 - tx) * q2[2] + tx * q1[2];
 
-    const finalR = Math.round((1 - ty) * bottomR + ty * topR);
-    const finalG = Math.round((1 - ty) * bottomG + ty * topG);
-    const finalB = Math.round((1 - ty) * bottomB + ty * topB);
-
-    return `rgb(${finalR}, ${finalG}, ${finalB})`;
+    r = Math.round((1 - ty) * bottomR + ty * topR);
+    g = Math.round((1 - ty) * bottomG + ty * topG);
+    b = Math.round((1 - ty) * bottomB + ty * topB);
+  } else if (label && MOOD_COLORS[label]) {
+    const rgb = hexToRgb(MOOD_COLORS[label]);
+    r = rgb[0]; g = rgb[1]; b = rgb[2];
   }
-  return label && MOOD_COLORS[label] ? MOOD_COLORS[label] : '#9cb4a8';
+
+  // 结合用户自选主题色：轻微混入主题色，使其在不同主题下保持微妙的和谐感
+  if (typeof document !== 'undefined') {
+    const themeHex = document.documentElement.style.getPropertyValue('--theme-primary').trim();
+    if (themeHex) {
+      const themeRgb = hexToRgb(themeHex);
+      const blend = 0.15; // 15% 主题色晕染，保持克制
+      r = Math.round(r * (1 - blend) + themeRgb[0] * blend);
+      g = Math.round(g * (1 - blend) + themeRgb[1] * blend);
+      b = Math.round(b * (1 - blend) + themeRgb[2] * blend);
+    }
+  }
+
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
 /** 所有有效情绪标签 */
