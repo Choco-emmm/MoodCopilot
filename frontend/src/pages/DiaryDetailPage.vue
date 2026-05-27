@@ -496,12 +496,11 @@ function ensureCommentInputVisible() {
   content: '';
   position: absolute;
   top: 0; 
+  left: 0;
   right: 0;
-  width: 50vw;
-  max-width: 400px;
-  height: 300px;
-  background: radial-gradient(circle at top right, var(--mood-color, transparent), transparent 70%);
-  opacity: 0.12; /* 极度克制的微晕染，只提供一丝温度感 */
+  height: 500px;
+  background: radial-gradient(circle 500px at top right, var(--mood-color, transparent), transparent 80%);
+  opacity: 0.15; /* 极度克制的微晕染，只提供一丝温度感 */
   pointer-events: none;
   z-index: 0;
   mix-blend-mode: multiply; /* 杂志印刷感叠底效果 */
