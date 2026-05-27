@@ -8,10 +8,10 @@
         <n-button size="small" secondary @click="isGraphListView = !isGraphListView">
           {{ isGraphListView ? '🕸️ 切换图谱视图' : '📝 切换列表视图' }}
         </n-button>
-        <n-button size="small" secondary type="primary" :loading="consolidatingGraph" @click="consolidateGraph">
+        <n-button size="small" secondary type="primary" :loading="store.consolidatingGraph" @click="store.consolidateGraph()">
           ✨ 智能整理图谱
         </n-button>
-        <n-button size="small" secondary :loading="graphLoading" @click="loadGraph">
+        <n-button size="small" secondary :loading="graphLoading" @click="loadGraphAndTriples">
            刷新
         </n-button>
       </div>
@@ -40,7 +40,7 @@
       <!-- List View -->
       <div v-else class="memory-list">
          <div
-            v-for="(t, index) in triples"
+            v-for="(t, index) in store.triples"
             :key="t.id"
             class="memory-item"
             v-motion
@@ -80,47 +80,21 @@
               </template>
             </div>
          </div>
-         <div v-if="triples.length === 0" class="empty-triples">
+         <div v-if="store.triples.length === 0" class="empty-triples">
            暂无图谱数据
          </div>
       </div>
     </div>
 
-    <!-- Graph Preview Modal -->
-    <n-modal v-model:show="showGraphPreviewModal" preset="card" title="🕸️ 知识图谱整理预览" class="graph-preview-modal">
-      <p class="preview-desc">MoodCopilot 已合并冗余关系。确认后将覆盖旧的图谱关系：</p>
-
-      <div v-if="deletedTriples.length > 0" class="deleted-triples-panel">
-        <div class="mb-4">以下旧关系将被合并或移除：</div>
-        <div v-for="t in deletedTriples" :key="t.id">
-          <del>{{ t.headEntity }} --({{ t.relation }})--> {{ t.tailEntity }}</del>
-        </div>
-      </div>
-
-      <div class="preview-list preview-list-panel">
-        <div v-for="(t, index) in previewTriples" :key="index" class="preview-item">
-          <span class="triple-entity">{{ t.headEntity }}</span>
-          <span class="triple-relation">--({{ t.relation }})--></span>
-          <span class="triple-entity">{{ t.tailEntity }}</span>
-          <n-tag v-if="isTripleNew(t)" size="small" type="success" class="ml-8">✨ 已变动</n-tag>
-          <n-tag v-else size="small" class="ml-8">无变化</n-tag>
-        </div>
-      </div>
-      <template #action>
-        <div style="display: flex; justify-content: flex-end; gap: 12px;">
-          <n-button @click="showGraphPreviewModal = false">取消</n-button>
-          <n-button type="primary" :loading="applyingGraph" @click="applyGraphConsolidation">确认替换</n-button>
-        </div>
-      </template>
-    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { NButton, NSpin, NInput, NModal, NTag, NRadioGroup, NRadio } from 'naive-ui'
+import { ref, onMounted } from 'vue'
+import { NButton, NSpin, NInput, NTag, NRadioGroup, NRadio } from 'naive-ui'
 import { graphApi } from '../../api'
 import { logWarn } from '../../utils/logger'
+import { useConsolidationStore } from '../../stores/consolidation'
 
 // ECharts
 import { use } from 'echarts/core'
@@ -136,7 +110,7 @@ const chartRef = ref<any>(null)
 const graphLoading = ref(false)
 const graphOptions = ref<any>(null)
 const isGraphListView = ref(false)
-const consolidatingGraph = ref(false)
+const store = useConsolidationStore()
 
 function resetGraph() {
   if (chartRef.value) {
@@ -152,24 +126,14 @@ interface TripleItem {
   tailPolarity: number
   diaryId: number
 }
-const triples = ref<TripleItem[]>([])
 const triplesLoading = ref(false)
 const deletingTripleId = ref<number | null>(null)
 const editingTripleId = ref<number | null>(null)
 const editingTriple = ref({ headEntity: '', relation: '', tailEntity: '', tailPolarity: 0 })
 const savingTripleId = ref<number | null>(null)
 
-const showGraphPreviewModal = ref(false)
-const previewTriples = ref<any[]>([])
-const applyingGraph = ref(false)
-
-const deletedTriples = computed(() => {
-  return triples.value.filter(old => !previewTriples.value.some(newT => old.headEntity === newT.headEntity && old.relation === newT.relation && old.tailEntity === newT.tailEntity))
-})
-
 onMounted(() => {
-  loadGraph()
-  loadTriples()
+  loadGraphAndTriples()
 })
 
 async function loadGraph() {
@@ -240,9 +204,9 @@ async function loadGraph() {
           },
           categories: [
             { name: '触发源 (事件/环境)', itemStyle: { color: primaryColor } },
-            { name: '正向感受', itemStyle: { color: '#18a058' } },
-            { name: '负向与压力', itemStyle: { color: '#d03050' } },
-            { name: '中性/平和', itemStyle: { color: '#8a8e99' } }
+            { name: '正向感受', itemStyle: { color: style.getPropertyValue('--color-success').trim() || '#18a058' } },
+            { name: '负向与压力', itemStyle: { color: style.getPropertyValue('--color-error').trim() || '#d03050' } },
+            { name: '中性/平和', itemStyle: { color: style.getPropertyValue('--color-info').trim() || '#8a8e99' } }
           ],
           data: data.nodes.map((n: any) => {
             const edgeAsTarget = data.edges.find((e: any) => e.target === n.name);
@@ -277,21 +241,11 @@ async function loadGraph() {
   }
 }
 
-async function loadTriples() {
-  triplesLoading.value = true
-  try {
-    const res = await graphApi.getTriples()
-    triples.value = res.data.data || []
-  } catch (err) {
-    logWarn('graph', '加载三元组失败', err)
-  } finally {
-    triplesLoading.value = false
-  }
+async function loadGraphAndTriples() {
+  await loadGraph()
+  await store.loadTriples()
 }
 
-function isTripleNew(t: any) {
-  return !triples.value.some(old => old.headEntity === t.headEntity && old.relation === t.relation && old.tailEntity === t.tailEntity)
-}
 
 function isRecentlyUpdated(t: any) {
   if (!t.createdAt) return false
@@ -318,9 +272,9 @@ async function saveTriple(id: number) {
   savingTripleId.value = id
   try {
     await graphApi.updateTriple(id, editingTriple.value)
-    const idx = triples.value.findIndex(t => t.id === id)
+    const idx = store.triples.findIndex((t: any) => t.id === id)
     if (idx !== -1) {
-      triples.value[idx] = { ...triples.value[idx], ...editingTriple.value }
+      store.triples[idx] = { ...store.triples[idx], ...editingTriple.value }
     }
     editingTripleId.value = null
     window.$message?.success('关系已更新')
@@ -336,7 +290,7 @@ async function deleteTriple(id: number) {
   deletingTripleId.value = id
   try {
     await graphApi.deleteTriple(id)
-    triples.value = triples.value.filter(t => t.id !== id)
+    store.triples = store.triples.filter((t: any) => t.id !== id)
     window.$message?.success('关系已删除')
     loadGraph() // 重新渲染图谱
   } catch (err) {
@@ -346,44 +300,6 @@ async function deleteTriple(id: number) {
   }
 }
 
-async function consolidateGraph() {
-  if (consolidatingGraph.value) return
-  consolidatingGraph.value = true
-  const loadingMsg = window.$message?.loading('MoodCopilot 正在努力整理图谱中，可能需要一点时间，你可以先去其他页面转转~', { duration: 0 })
-  try {
-    const res = await graphApi.previewConsolidate()
-    previewTriples.value = res.data.data || []
-    if (previewTriples.value.length === 0) {
-      window.$message?.warning('未能生成有效的合并结果')
-      if (loadingMsg) loadingMsg.destroy()
-      return
-    }
-    if (loadingMsg) loadingMsg.destroy()
-    showGraphPreviewModal.value = true
-  } catch (err: any) {
-    if (loadingMsg) loadingMsg.destroy()
-    logWarn('graph', '图谱整理失败', err)
-    alert('图谱整理失败：' + (err.response?.data?.message || err.message))
-  } finally {
-    consolidatingGraph.value = false
-  }
-}
-
-async function applyGraphConsolidation() {
-  applyingGraph.value = true
-  try {
-    await graphApi.applyConsolidate(previewTriples.value)
-    showGraphPreviewModal.value = false
-    window.$message?.success('图谱关系已更新！')
-    await loadGraph()
-    await loadTriples()
-  } catch (err: any) {
-    logWarn('graph', '应用整合失败', err)
-    window.$message?.error('应用失败：' + (err.response?.data?.message || err.message))
-  } finally {
-    applyingGraph.value = false
-  }
-}
 </script>
 
 <style scoped>

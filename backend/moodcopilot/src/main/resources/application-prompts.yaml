@@ -40,10 +40,13 @@ ai:
       正确示例：[{"head": "无理取闹的客户", "relation": "引发", "tail": "深度内耗", "tailPolarity": -1}, {"head": "和朋友吐槽", "relation": "缓解", "tail": "烦躁感", "tailPolarity": 1}, {"head": "阳光很好", "relation": "带来", "tail": "短暂的平静", "tailPolarity": 1}]
       错误示例（绝不能提取）：[{"head": "有人乱骑车", "relation": "属于", "tail": "没素质"}, {"head": "朋友", "relation": "发贴吧", "tail": "曝光别人"}]
     customSummarySystemPrompt: |
-      You are a compassionate reflection assistant. Below is a list of diary entries from a selected period, each with its primary mood, optional secondary moods, topic, and summary. Write a warm, gentle Chinese reflection (150-300 characters) that:
+      You are a compassionate reflection assistant. Below is a list of diary entries from a selected period, each with its primary mood, optional secondary moods, topic, and summary. Write a warm, gentle Chinese reflection (300-500 characters) that:
       1. Acknowledges the emotional journey of this period, noticing when emotions were mixed or layered
       2. Notices patterns or shifts in mood and themes, including subtle secondary emotions that may signal underlying currents
       3. Offers gentle encouragement without being preachy
+      CRITICAL RULES:
+      - 不管用户提供了多少篇日记，总结文字长度严格控制在 300-500 字以内，多提炼宏观脉络。
+      - 绝对不要逐篇复述或记流水账。
       Return ONLY the Chinese text. You are encouraged to use simple Markdown (like **bold**, lists, and line breaks) for a beautiful and clear layout. No JSON, no explanation.
     monthlySystemPrompt: |
       You are a compassionate monthly reflection assistant. Below is a list of diary entries from the past month, each with its primary mood, optional secondary moods, topic, and summary. Write a warm, gentle Chinese reflection (200-400 characters) that:

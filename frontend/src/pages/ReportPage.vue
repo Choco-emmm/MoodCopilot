@@ -3,7 +3,15 @@
     <AppHeader />
 
     <div class="report-page">
-      <h1 class="page-title">情绪报告</h1>
+      <div class="page-title-container">
+        <h1 class="page-title">情绪报告</h1>
+        <n-dropdown trigger="click" :options="exportOptions" @select="handleExport">
+          <button class="export-icon-btn" :disabled="exporting" title="导出报告">
+            <n-spin v-if="exporting" size="small" />
+            <n-icon v-else size="20"><DownloadOutline /></n-icon>
+          </button>
+        </n-dropdown>
+      </div>
 
       <!-- 单行切换：周报 / 月报 / 自定义总结 -->
       <div class="tab-switch">
@@ -21,7 +29,7 @@
         >自定义总结</button>
       </div>
 
-      <div class="report-panel">
+      <div class="report-panel" ref="reportContentRef" :class="{ 'is-exporting': exporting }">
       <!-- ==================== 常规报告 ==================== -->
       <template v-if="mainTab === 'regular'">
       <!-- ==================== 周报 ==================== -->
@@ -239,7 +247,7 @@
 
       <!-- ==================== 自定义总结 ==================== -->
       <template v-if="mainTab === 'custom'">
-        <section class="report-section">
+        <section class="report-section hide-in-export">
         <h3>自定义总结</h3>
         <div class="create-row">
           <n-date-picker v-model:value="startDate" type="date" placeholder="开始日期" />
@@ -251,7 +259,7 @@
 
       <!-- 已保存的总结 -->
       <section v-if="summaries.length > 0" class="report-section">
-        <h3>保存的总结</h3>
+        <h3 class="hide-in-export">保存的总结</h3>
         <div class="summary-list">
           <article v-for="s in summaries" :key="s.id" class="summary-card">
             <div class="summary-head">
@@ -315,12 +323,15 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton, NTag, NDatePicker, NSpin } from 'naive-ui'
+import { NButton, NTag, NDatePicker, NSpin, NDropdown, NIcon } from 'naive-ui'
+import { DownloadOutline } from '@vicons/ionicons5'
 import AppHeader from '../components/AppHeader.vue'
 import { useReportStore } from '../stores/report'
 import { summaryApi } from '../api'
 import { moodColor } from '../utils/mood'
 import { renderSafeMarkdown } from '../utils/markdown'
+import domtoimage from 'dom-to-image-more'
+import { jsPDF } from 'jspdf'
 
 function renderMd(text: string) {
   return renderSafeMarkdown(text)
@@ -340,6 +351,57 @@ const startDate = ref<number | null>(null)
 const endDate = ref<number | null>(null)
 const summaries = ref<any[]>([])
 const showAllMonthDetails = ref(false)
+
+// 导出相关
+const exporting = ref(false)
+const reportContentRef = ref<HTMLElement | null>(null)
+const exportOptions = [
+  { label: '导出为长图 (JPG)', key: 'image' },
+  { label: '导出为 PDF', key: 'pdf' }
+]
+
+async function handleExport(key: 'image' | 'pdf') {
+  if (!reportContentRef.value) return
+  exporting.value = true
+  const msg = window.$message?.loading('正在生成导出文件，请稍候...', { duration: 0 })
+  try {
+    const node = reportContentRef.value
+    const scale = window.devicePixelRatio > 1 ? 2 : 1
+    const imgData = await domtoimage.toJpeg(node, {
+      quality: 0.95,
+      bgcolor: '#ffffff',
+      width: node.clientWidth * scale,
+      height: node.clientHeight * scale,
+      style: {
+        transform: `scale(${scale})`,
+        transformOrigin: 'top left',
+        width: `${node.clientWidth}px`,
+        height: `${node.clientHeight}px`
+      }
+    })
+    
+    if (key === 'image') {
+      const link = document.createElement('a')
+      link.href = imgData
+      link.download = `MoodCopilot-情绪报告-${Date.now()}.jpg`
+      link.click()
+    } else if (key === 'pdf') {
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: [node.clientWidth, node.clientHeight]
+      })
+      pdf.addImage(imgData, 'JPEG', 0, 0, node.clientWidth, node.clientHeight)
+      pdf.save(`MoodCopilot-情绪报告-${Date.now()}.pdf`)
+    }
+  } catch (err) {
+    console.error('Export error:', err)
+    window.$message?.error('导出失败，请重试')
+  } finally {
+    if (msg) msg.destroy()
+    exporting.value = false
+  }
+}
 
 const report = computed(() => store.weeklyReport)
 const monthReport = computed(() => store.monthlyReport)
@@ -454,14 +516,46 @@ function formatGeneratedAt(value?: string | Date | null) {
   padding: 0 16px 40px;
 }
 
+.page-title-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
 .page-title {
   display: block;
-  width: 100%;
   font-family: var(--font-display);
   font-size: 2rem;
   font-weight: 700;
   text-align: center;
-  margin: 0 0 16px;
+  margin: 0;
+  padding-top: 6px;
+}
+
+.export-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  position: absolute;
+  right: 0;
+}
+.export-icon-btn:hover {
+  background: var(--color-border);
+  color: var(--color-text);
+}
+.export-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── Segmented Control (Tabs) ── */
@@ -565,9 +659,9 @@ function formatGeneratedAt(value?: string | Date | null) {
   flex-direction: column;
   gap: 8px;
   padding: 16px;
-  background: color-mix(in oklab, var(--theme-bg) 50%, transparent);
+  background: var(--color-surface-soft, rgba(0,0,0,0.02));
   border-radius: 6px;
-  border: 1px dashed color-mix(in oklab, var(--color-border) 60%, transparent);
+  border: 1px dashed var(--color-border);
 }
 
 .stat-label {
@@ -664,7 +758,7 @@ function formatGeneratedAt(value?: string | Date | null) {
 /* ── Guidance/Insights ── */
 .guidance-box {
   margin-top: 40px;
-  background: color-mix(in oklab, var(--color-primary) 4%, transparent);
+  background: rgba(228, 80, 154, 0.04);
   border-left: 3px solid var(--color-primary);
   padding: 24px;
 }
@@ -813,6 +907,7 @@ function formatGeneratedAt(value?: string | Date | null) {
   .page-title {
     font-size: 1.5rem;
     margin: 0 0 12px;
+    text-align: center;
   }
 
   .report-panel {
@@ -930,11 +1025,29 @@ function formatGeneratedAt(value?: string | Date | null) {
   .report-auto-hint {
     font-size: 12px;
   }
+
+  /* --- 导出专用隐藏样式 --- */
+  .is-exporting .hide-in-export {
+    display: none !important;
+  }
+  .is-exporting .summary-list .summary-card:not(:first-child) {
+    display: none !important;
+  }
+  .is-exporting .date-nav-controls {
+    display: none !important;
+  }
+  .is-exporting .regenerate-banner {
+    display: none !important;
+  }
+  .is-exporting .empty-state {
+    display: none !important;
+  }
 }
 
 @media (max-width: 480px) {
   .page-title {
     font-size: 1.3rem;
+    text-align: center;
   }
 
   .report-panel {
@@ -1098,6 +1211,7 @@ function formatGeneratedAt(value?: string | Date | null) {
 
   .report-auto-hint {
     font-size: 10px;
+    text-align: center;
   }
 
   .chart-footnote {

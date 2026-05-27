@@ -116,9 +116,25 @@ public class SummaryService {
         String title = startDate.format(fmt) + " - " + endDate.format(fmt);
 
         rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REPORT);
-        String aiSummary = aiAnalysisService.generateCustomSummary(contents, analyses);
+        
+        // AI 抽取最多 50 篇日记用于阅读（均匀抽样，防止超出 Token 限制）
+        int MAX_AI_DIARIES = 50;
+        List<AiAnalysisService.DiaryEntryContext> sampledContents = contents;
+        List<DiaryAnalysis> sampledAnalyses = analyses;
+        if (contents.size() > MAX_AI_DIARIES) {
+            sampledContents = new ArrayList<>();
+            sampledAnalyses = new ArrayList<>();
+            double step = (double) contents.size() / MAX_AI_DIARIES;
+            for (int i = 0; i < MAX_AI_DIARIES; i++) {
+                int index = (int) Math.min(Math.round(i * step), contents.size() - 1);
+                sampledContents.add(contents.get(index));
+                sampledAnalyses.add(analyses.get(index));
+            }
+        }
+        
+        String aiSummary = aiAnalysisService.generateCustomSummary(sampledContents, sampledAnalyses);
         AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateCustomGuidance(
-                title, contents, analyses);
+                title, sampledContents, sampledAnalyses);
 
         var sortedTopics = topicCounts.entrySet().stream()
                 .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())

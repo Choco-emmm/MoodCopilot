@@ -54,6 +54,7 @@
             </div>
           </div>
         </n-modal>
+        <GlobalConsolidationModals />
       </n-message-provider>
     </n-notification-provider>
   </n-config-provider>
@@ -68,6 +69,7 @@ import { useDiaryStore } from './stores/diary'
 import { useAuthStore } from './stores/auth'
 import { useNotificationStore } from './stores/notification'
 import { useTaskStore } from './stores/task'
+import GlobalConsolidationModals from './components/GlobalConsolidationModals.vue'
 import type { GlobalThemeOverrides } from 'naive-ui'
 import { themeOptions } from './constants/theme'
 
@@ -300,6 +302,15 @@ const dynamicThemeOverrides = computed<GlobalThemeOverrides>(() => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.modal-actions :deep(.n-button:not(.n-button--primary-type)) {
+  --n-text-color-hover: var(--color-primary) !important;
+  --n-border-hover: 1px solid var(--color-primary) !important;
+  --n-text-color-focus: var(--color-primary) !important;
+  --n-border-focus: 1px solid var(--color-primary) !important;
+  --n-text-color-pressed: var(--color-primary-hover) !important;
+  --n-border-pressed: 1px solid var(--color-primary-hover) !important;
 }
 
 /* ── 全局任务中心 FAB ── */

@@ -40,7 +40,7 @@
           v-for="item in notif.items"
           :key="item.id"
           class="notif-item notification-page-item"
-          :class="{ unread: !item.isRead }"
+          :class="{ unread: !item.isRead || initialUnreadIds.has(item.id) }"
           @click="handleNotifClick(item)"
         >
           <div
@@ -80,16 +80,18 @@ const router = useRouter()
 const notif = useNotificationStore()
 
 const expandedNotificationIds = ref<number[]>([])
+const initialUnreadIds = ref<Set<number>>(new Set())
 const markingAll = ref(false)
 const loadingMore = ref(false)
 const page = ref(1)
 const hasMore = ref(true)
 const PAGE_SIZE = 20
-const hasUnread = computed(() => notif.items.some((item) => !item.isRead))
+const hasUnread = computed(() => notif.items.some((item) => !item.isRead) || initialUnreadIds.value.size > 0)
 
 onMounted(() => {
   notif.connectRealtime()
   expandedNotificationIds.value = []
+  initialUnreadIds.value = new Set()
   void notif.fetchUnreadCount(true)
   void loadNotifications(true)
 })
@@ -117,6 +119,13 @@ async function loadNotifications(reset = false) {
       hasMore.value = true
       return
     }
+    
+    notif.items.forEach(item => {
+      if (!item.isRead) {
+        initialUnreadIds.value.add(item.id)
+      }
+    })
+    
     hasMore.value = loaded >= PAGE_SIZE
     if (notif.unreadCount > 0) {
       void notif.markAllRead()
@@ -129,6 +138,13 @@ async function loadNotifications(reset = false) {
   if (loaded == null) {
     return
   }
+  
+  notif.items.forEach(item => {
+    if (!item.isRead) {
+      initialUnreadIds.value.add(item.id)
+    }
+  })
+  
   page.value = nextPage
   hasMore.value = loaded >= PAGE_SIZE
 }
@@ -144,10 +160,11 @@ async function loadMore() {
 }
 
 async function handleMarkAllRead() {
-  if (!hasUnread.value || markingAll.value) return
+  if (markingAll.value) return
   markingAll.value = true
   try {
     await notif.markAllRead()
+    initialUnreadIds.value.clear()
   } finally {
     markingAll.value = false
   }
@@ -162,15 +179,21 @@ function formatTime(value: string) {
 
 function renderNotification(item: Notification) {
   if (!item?.message) return ''
-  if (item.isMarkdown === false) {
-    return renderSafeMarkdown(item.message.replace(/\n/g, '  \n'))
+  let message = item.message
+  if (item.type !== 'SYSTEM') {
+    message = message.replace(/<[^>]+>/g, '')
   }
-  return renderSafeMarkdown(item.message)
+  
+  if (item.isMarkdown === false) {
+    return renderSafeMarkdown(message.replace(/\n/g, '  \n'))
+  }
+  return renderSafeMarkdown(message)
 }
 
 function shouldCollapseNotification(item: Notification) {
   if (!item?.message) return false
-  return item.message.length > 88 || item.message.includes('\n') || item.message.includes('**')
+  const msg = item.type !== 'SYSTEM' ? item.message.replace(/<[^>]+>/g, '') : item.message
+  return msg.length > 88 || msg.includes('\n') || msg.includes('**')
 }
 
 function isNotificationExpanded(id: number) {

@@ -4,7 +4,7 @@
       <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
         <p class="settings-label" style="margin: 0; font-weight: bold; white-space: nowrap;">我的记忆</p>
       </div>
-      <n-button size="small" secondary type="primary" :loading="consolidatingMemory" @click="consolidateMemories">
+      <n-button size="small" secondary type="primary" :loading="store.consolidatingMemory" @click="store.consolidateMemories()">
         ✨ 智能整理记忆
       </n-button>
       <n-button size="small" secondary :loading="memoriesLoading" @click="loadMemories">
@@ -15,12 +15,12 @@
     <div v-if="memoriesLoading" class="memory-loading" style="text-align: center; padding: 40px 0;">
       <n-spin size="small" />
     </div>
-    <div v-else-if="memories.length === 0" class="memory-empty" style="text-align: center; padding: 40px 0; color: var(--color-text-light);">
+    <div v-else-if="store.memories.length === 0" class="memory-empty" style="text-align: center; padding: 40px 0; color: var(--color-text-light);">
       MoodCopilot 正在默默观察你，多写点日记或和 MoodCopilot 聊天吧。
     </div>
     <div v-else class="memory-list">
       <div
-        v-for="(m, index) in memories"
+        v-for="(m, index) in store.memories"
         :key="m.id"
         class="memory-item"
         v-motion
@@ -72,44 +72,15 @@
         </div>
       </div>
     </div>
-
-    <!-- Memory Preview Modal -->
-    <n-modal v-model:show="showMemoryPreviewModal" preset="card" title="👀 长期画像整理预览" class="graph-preview-modal">
-      <p class="preview-desc">MoodCopilot 已将你的碎片记忆重新梳理为以下核心画像。确认替换后，这些内容将覆盖旧的数据：</p>
-      
-      <div v-if="deletedMemories.length > 0" style="background: var(--color-surface-hover); border-left: 3px solid var(--color-border); padding: 8px 12px; margin-bottom: 16px; font-size: 12px; color: var(--color-text-secondary); border-radius: 4px; max-height: 15vh; overflow-y: auto;">
-        <div style="margin-bottom: 4px;">以下旧画像将被合并或移除：</div>
-        <div v-for="m in deletedMemories" :key="m.id">
-          <del>{{ m.attributeKey }}: {{ m.attributeValue.length > 30 ? m.attributeValue.substring(0, 30) + '...' : m.attributeValue }}</del>
-        </div>
-      </div>
-
-      <div class="preview-list preview-list-panel">
-        <div v-for="(item, index) in previewMemories" :key="index" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border);">
-          <div class="preview-item-key">
-            {{ item.attributeKey }}
-            <n-tag v-if="item.isCore" size="small" type="warning" style="margin-left: 8px;">核心</n-tag>
-            <n-tag v-if="isMemoryNew(item)" size="small" type="success" style="margin-left: 8px;">✨ 已变动</n-tag>
-            <n-tag v-else size="small" style="margin-left: 8px;">无变化</n-tag>
-          </div>
-          <div style="font-size: 13px; color: var(--color-text); white-space: pre-wrap;">{{ item.attributeValue }}</div>
-        </div>
-      </div>
-      <template #action>
-        <div style="display: flex; justify-content: flex-end; gap: 12px;">
-          <n-button @click="showMemoryPreviewModal = false">取消</n-button>
-          <n-button type="primary" :loading="applyingMemory" @click="applyMemoryConsolidation">确认替换</n-button>
-        </div>
-      </template>
-    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { NButton, NSpin, NInput, NModal, NTag, NCheckbox, NPopover } from 'naive-ui'
+import { ref, onMounted } from 'vue'
+import { NButton, NSpin, NInput, NTag, NCheckbox, NPopover } from 'naive-ui'
 import { memoryApi } from '../../api'
 import { logWarn } from '../../utils/logger'
+import { useConsolidationStore } from '../../stores/consolidation'
 
 interface MemoryItem {
   id: number
@@ -118,22 +89,13 @@ interface MemoryItem {
   isCore?: boolean
 }
 
-const memories = ref<MemoryItem[]>([])
+const store = useConsolidationStore()
 const memoriesLoading = ref(false)
-const consolidatingMemory = ref(false)
 const deletingMemoryId = ref<number | null>(null)
 const editingMemoryId = ref<number | null>(null)
 const editingMemoryValue = ref('')
 const editingMemoryIsCore = ref(false)
 const savingMemoryId = ref<number | null>(null)
-
-const showMemoryPreviewModal = ref(false)
-const previewMemories = ref<any[]>([])
-const applyingMemory = ref(false)
-
-const deletedMemories = computed(() => {
-  return memories.value.filter(old => !previewMemories.value.some(newM => old.attributeKey === newM.attributeKey && old.attributeValue === newM.attributeValue))
-})
 
 onMounted(() => {
   loadMemories()
@@ -141,19 +103,8 @@ onMounted(() => {
 
 async function loadMemories() {
   memoriesLoading.value = true
-  try {
-    const res = await memoryApi.getAll()
-    memories.value = (res.data.data ?? []) as MemoryItem[]
-  } catch (e) {
-    logWarn('memory', '加载记忆失败', e)
-    memories.value = []
-  } finally {
-    memoriesLoading.value = false
-  }
-}
-
-function isMemoryNew(item: any) {
-  return !memories.value.some(old => old.attributeKey === item.attributeKey && old.attributeValue === item.attributeValue)
+  await store.loadMemories()
+  memoriesLoading.value = false
 }
 
 function isRecentlyUpdated(item: any) {
@@ -167,7 +118,7 @@ async function forgetMemory(id: number) {
   deletingMemoryId.value = id
   try {
     await memoryApi.forget(id)
-    memories.value = memories.value.filter((m) => m.id !== id)
+    store.memories = store.memories.filter((m: any) => m.id !== id)
   } catch (e) {
     logWarn('memory', '删除记忆失败', id, e)
   } finally {
@@ -191,10 +142,10 @@ async function saveMemory(id: number) {
       attributeValue: value,
       isCore: editingMemoryIsCore.value
     })
-    const idx = memories.value.findIndex((m) => m.id === id)
+    const idx = store.memories.findIndex((m: any) => m.id === id)
     if (idx !== -1) {
-      memories.value[idx] = { 
-        ...memories.value[idx], 
+      store.memories[idx] = { 
+        ...store.memories[idx], 
         attributeValue: value,
         isCore: editingMemoryIsCore.value
       }
@@ -211,48 +162,6 @@ async function saveMemory(id: number) {
 function cancelEditMemory() {
   editingMemoryId.value = null
   editingMemoryValue.value = ''
-}
-
-async function consolidateMemories() {
-  if (consolidatingMemory.value) return
-  consolidatingMemory.value = true
-  const loadingMsg = window.$message?.loading('MoodCopilot 正在努力整理中，由于数据量较大可能需要较长时间，你可以先去其他页面转转~', { duration: 0 })
-  try {
-    const res = await memoryApi.previewConsolidate()
-    previewMemories.value = res.data.data || []
-    if (previewMemories.value.length === 0) {
-      window.$message?.warning('未能提取出有效的整合结果，请检查日记数量')
-      if (loadingMsg) loadingMsg.destroy()
-      return
-    }
-    if (loadingMsg) loadingMsg.destroy()
-    showMemoryPreviewModal.value = true
-  } catch (err: any) {
-    if (loadingMsg) loadingMsg.destroy()
-    if (err.response?.status === 429 || (err.response?.data?.message && err.response.data.message.includes('每天最多只能进行2次个人画像整理'))) {
-      alert('每天最多只能进行2次个人画像整理，请明天再试吧')
-    } else {
-      logWarn('memory', '记忆预览失败', err)
-      alert('记忆整理失败：' + (err.response?.data?.message || err.message))
-    }
-  } finally {
-    consolidatingMemory.value = false
-  }
-}
-
-async function applyMemoryConsolidation() {
-  applyingMemory.value = true
-  try {
-    await memoryApi.applyConsolidate(previewMemories.value)
-    showMemoryPreviewModal.value = false
-    window.$message?.success('长久记忆已重构成功！')
-    await loadMemories()
-  } catch (err: any) {
-    logWarn('memory', '应用整合失败', err)
-    window.$message?.error('应用失败：' + (err.response?.data?.message || err.message))
-  } finally {
-    applyingMemory.value = false
-  }
 }
 </script>
 

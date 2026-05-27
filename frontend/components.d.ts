@@ -23,6 +23,7 @@ declare module 'vue' {
     CheckinButton: typeof import('./src/components/CheckinButton.vue')['default']
     DiaryComposer: typeof import('./src/components/DiaryComposer.vue')['default']
     DiaryFeedItem: typeof import('./src/components/DiaryFeedItem.vue')['default']
+    GlobalConsolidationModals: typeof import('./src/components/GlobalConsolidationModals.vue')['default']
     ImageGallery: typeof import('./src/components/ImageGallery.vue')['default']
     LoadingSkeleton: typeof import('./src/components/LoadingSkeleton.vue')['default']
     MemoryGraphView: typeof import('./src/components/memory/MemoryGraphView.vue')['default']

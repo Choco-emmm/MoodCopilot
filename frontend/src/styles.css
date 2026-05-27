@@ -2365,6 +2365,15 @@ h3 {
   color: var(--color-text-secondary);
 }
 
+.md-content span {
+  background-color: transparent !important;
+}
+
+.md-content mark {
+  background-color: color-mix(in oklab, var(--color-warning) 30%, transparent) !important;
+  color: inherit;
+}
+
 .chat-messages {
   max-height: calc(100vh - 280px);
   min-height: 340px;
