@@ -50,10 +50,6 @@
               v-for="m in diary.analysis.secondaryMoods"
               :key="m"
               class="secondary-mood-tag"
-              :style="{
-                color: moodColor(m),
-                borderColor: moodColor(m),
-              }"
             >{{ m }}</span>
           </span>
         </h2>
@@ -406,7 +402,8 @@ onUnmounted(() => {
   padding: 1px 8px;
   border-radius: 10px;
   background: transparent;
-  border: 1px solid;
+  border: 1px solid var(--color-border, #ddd);
+  color: var(--color-text-secondary, #666);
 }
 
 /* ── 移动端适配 ── */
