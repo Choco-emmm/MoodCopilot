@@ -684,8 +684,8 @@ h3 {
 
 .diary-content.md-content,
 .feed-content.md-content {
-  font-size: 16px;
-  line-height: 1.8;
+  font-size: 15px;
+  line-height: 1.85;
 }
 
 .section-divider {
@@ -3322,8 +3322,8 @@ h3 {
 
   .feed-content.md-content,
   .diary-content.md-content {
-    font-size: 15px;
-    line-height: 1.75;
+    font-size: 14px;
+    line-height: 1.8;
   }
 
   /* Actions in detail/other pages still use feed-actions grid */
