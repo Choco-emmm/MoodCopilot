@@ -176,6 +176,23 @@ public class NotificationService {
         }
     }
 
+    public void notifySystemMarkdown(Long recipientUserId, String message) {
+        try {
+            NotificationEntity n = new NotificationEntity();
+            n.setRecipientUserId(recipientUserId);
+            n.setActorUserId(null);
+            n.setType("SYSTEM");
+            n.setMessage(message);
+            n.setIsMarkdown(true);
+            n.setIsRead(false);
+            n.setCreatedAt(LocalDateTime.now());
+            notificationMapper.insert(n);
+            notificationWebSocketHandler.pushNotification(recipientUserId, n);
+        } catch (Exception e) {
+            log.warn("Failed to create system markdown notification", e);
+        }
+    }
+
     public void notifyGlobalEvent(Long recipientUserId, String type, String message) {
         notifyGlobalEvent(recipientUserId, type, java.util.Map.of("message", message));
     }

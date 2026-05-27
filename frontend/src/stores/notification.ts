@@ -167,21 +167,6 @@ export const useNotificationStore = defineStore('notification', () => {
                 keepAliveOnHover: true
               })
 
-              // 同时存入通知列表，确保切页后仍可回溯
-              const syntheticId = -(Date.now() % 1e9)
-              mergeIncomingNotification({
-                id: syntheticId,
-                recipientUserId: 0,
-                actorUserId: null,
-                diaryId: null,
-                commentId: null,
-                type: payload.type,
-                message: msg,
-                isMarkdown: false,
-                isRead: false,
-                readAt: null,
-                createdAt: new Date().toISOString(),
-              })
             }
           }
         } catch (e) {

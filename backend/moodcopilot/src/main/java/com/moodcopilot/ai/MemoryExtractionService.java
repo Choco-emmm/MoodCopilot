@@ -634,11 +634,25 @@ public class MemoryExtractionService {
 
         if ((!diffAdded.isEmpty() || !diffUpdated.isEmpty() || !diffDeleted.isEmpty())
                 && Boolean.TRUE.equals(userMapper.selectById(userId).getProfileNotifyEnabled())) {
+            
             java.util.Map<String, Object> payload = java.util.Map.of(
                     "message", "✨ AI 已更新了关于你的长期记忆",
                     "diff", java.util.Map.of("added", diffAdded, "deleted", diffDeleted, "updated", diffUpdated)
             );
             notificationService.notifyGlobalEvent(userId, "MEMORY_UPDATED", payload);
+
+            StringBuilder md = new StringBuilder();
+            md.append("**✨ AI 已更新了关于你的长期记忆**\n\n");
+            for (java.util.Map<String, String> item : diffAdded) {
+                md.append("<div style=\"color: var(--color-success)\">+ [").append(item.get("key")).append("] ").append(item.get("value")).append("</div>");
+            }
+            for (java.util.Map<String, String> item : diffUpdated) {
+                md.append("<div style=\"color: var(--color-warning)\">~ [").append(item.get("key")).append("] ").append(item.get("oldValue")).append(" ➔ ").append(item.get("newValue")).append("</div>");
+            }
+            for (java.util.Map<String, String> item : diffDeleted) {
+                md.append("<div style=\"color: var(--color-error); text-decoration: line-through;\">- [").append(item.get("key")).append("] ").append(item.get("value")).append("</div>");
+            }
+            notificationService.notifySystemMarkdown(userId, md.toString());
         }
     }
 
