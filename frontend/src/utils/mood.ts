@@ -36,10 +36,10 @@ export function moodColor(label?: string, valence?: number | null, arousal?: num
     const ty = (a + 100) / 200;
 
     // Corner RGB values (Morandi palette)
-    const q1 = [230, 154, 99];  // +V, +A (暖橙)
-    const q2 = [161, 92, 84];   // -V, +A (焦红)
-    const q3 = [117, 130, 150]; // -V, -A (蓝灰)
-    const q4 = [114, 161, 146]; // +V, -A (灰绿)
+    const q1 = [242, 177, 126]; // +V, +A (暖黄/橙色 #f2b17e)
+    const q2 = [166, 93, 83];   // -V, +A (焦土红褐色 #a65d53)
+    const q3 = [139, 148, 160]; // -V, -A (暮霭蓝灰色 #8b94a0)
+    const q4 = [120, 168, 161]; // +V, -A (草木绿色 #78a8a1)
 
     // Bilinear interpolation
     const bottomR = (1 - tx) * q3[0] + tx * q4[0];
