@@ -1,4 +1,4 @@
-﻿/* ══════════════════════════════════════════�?
+/* ══════════════════════════════════════════�?
   MoodCopilot �?绿意轻盈
   设计方向：温和、克制、轻呼吸
   ══════════════════════════════════════════�?*/
@@ -3468,10 +3468,7 @@ h3 {
     border-radius: 12px;
   }
 
-  .ref-bar {
-    max-height: 96px;
-    overflow-y: auto;
-  }
+  /* .ref-bar clipping removed to allow custom popover to show */
 
   .diary-delete-btn {
     opacity: 1;
