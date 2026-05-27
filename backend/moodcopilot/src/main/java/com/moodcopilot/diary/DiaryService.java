@@ -1509,9 +1509,7 @@ public class DiaryService {
                 : resolveAuthorAvatar(diary.getAuthorUserId());
         Integer authorLevel = author != null ? author.getLevel() : null;
         String authorRole = author != null ? author.getRole() : null;
-        String feedContent = diary.getContent() != null && diary.getContent().length() > 150
-                ? diary.getContent().substring(0, 150) + "..."
-                : diary.getContent();
+        String feedContent = diary.getContent();
         int commentCount = commentCountMap.getOrDefault(diary.getId(), 0);
         return isPublic
                 ? DiaryView.fromPublicFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole, likedByMe, feedContent, commentCount)
@@ -1784,7 +1782,7 @@ public class DiaryService {
     public static String snippet(String content) {
         if (content == null || content.isEmpty())
             return "";
-        return content.length() > 500 ? content.substring(0, 500) + "..." : content;
+        return com.moodcopilot.common.TextSnippetUtil.generateSnippet(content, 500);
     }
 
     // ── Daily status ──

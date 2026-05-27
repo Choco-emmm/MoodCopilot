@@ -7,12 +7,15 @@ public class TextSnippetUtil {
             return "";
         }
 
-        // 1. Remove markdown images and links
-        String clean = content.replaceAll("!\\[.*?\\]\\(.*?\\)", "[图片]")
+        // 1. Remove HTML tags
+        String clean = content.replaceAll("<[^>]*>", "");
+
+        // 2. Remove markdown images and links
+        clean = clean.replaceAll("!\\[.*?\\]\\(.*?\\)", "[图片]")
                 .replaceAll("\\[.*?\\]\\(.*?\\)", "[链接]")
                 .replaceAll("[#*_~`>]", "");
 
-        // 2. Normalize whitespace and newlines
+        // 3. Normalize whitespace and newlines
         clean = clean.replaceAll("\\s+", " ").trim();
 
         int codePointCount = clean.codePointCount(0, clean.length());
@@ -20,7 +23,7 @@ public class TextSnippetUtil {
             return clean;
         }
 
-        // 3. Robust truncation avoiding surrogate pair splitting
+        // 4. Robust truncation avoiding surrogate pair splitting
         int endIndex = clean.offsetByCodePoints(0, maxLen);
         return clean.substring(0, endIndex) + "...";
     }
