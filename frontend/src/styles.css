@@ -2876,6 +2876,19 @@ h3 {
 
 /* ── Responsive ── */
 @media (max-width: 780px) {
+  /* 修复 Naive UI 弹窗（如分析卡片里的 'i' 提示）在移动端的宽度溢出问题 */
+  .n-popover {
+    max-width: calc(100vw - 32px) !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    box-sizing: border-box !important;
+  }
+  
+  .n-popover-shared {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
   body {
     padding-bottom: env(safe-area-inset-bottom);
   }
