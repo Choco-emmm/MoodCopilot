@@ -125,7 +125,7 @@ const intensityLevels = [
 // ── 弹窗宽度自适应 ──
 const popoverWidth = computed(() => {
   if (typeof window === 'undefined') return 370
-  return window.innerWidth <= 600 ? undefined : 370
+  return window.innerWidth <= 600 ? window.innerWidth - 32 : 370
 })
 
 const progressHint = ref('正在读取你的日记...')
