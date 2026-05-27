@@ -8,45 +8,46 @@
           <span :style="{ color: moodColor(diary.analysis.moodLabel, diary.analysis.valence, diary.analysis.arousal) }">
             {{ diary.analysis.moodLabel }}
           </span> · 强度 {{ diary.analysis.moodIntensity }}/5
-          <n-popover trigger="click" placement="bottom-start" style="max-width: calc(100vw - 32px);" :delay="0" :scrollable="false">
-            <template #trigger>
-              <span class="mood-guide-trigger" title="情绪与强度评级指南">ⓘ</span>
-            </template>
-            <div class="mood-guide">
-              <div class="guide-section">
-                <p class="guide-section-title">色彩与情绪坐标</p>
-                <p class="guide-desc">情绪颜色由 AI 根据你的心情积极程度与能量高低动态调配：</p>
-                <div class="quadrant-grid">
-                  <div class="quadrant-cell">
-                    <p class="quadrant-label">积极 · 高能量</p>
-                    <div class="color-demo" :style="{ background: moodColor('', 100, 100), color: '#fff' }">暖黄色</div>
-                  </div>
-                  <div class="quadrant-cell">
-                    <p class="quadrant-label">积极 · 低能量</p>
-                    <div class="color-demo" :style="{ background: moodColor('', 100, -100), color: '#fff' }">草木绿</div>
-                  </div>
-                  <div class="quadrant-cell">
-                    <p class="quadrant-label">消极 · 高能量</p>
-                    <div class="color-demo" :style="{ background: moodColor('', -100, 100), color: '#fff' }">红褐色</div>
-                  </div>
-                  <div class="quadrant-cell">
-                    <p class="quadrant-label">消极 · 低能量</p>
-                    <div class="color-demo" :style="{ background: moodColor('', -100, -100), color: '#fff' }">蓝灰色</div>
+          <span class="mood-guide-trigger" title="情绪与强度评级指南" @click="showGuide = true">ⓘ</span>
+          <n-modal v-model:show="showGuide">
+            <div class="mood-guide-card">
+              <button class="guide-close" @click="showGuide = false">✕</button>
+              <div class="mood-guide">
+                <div class="guide-section">
+                  <p class="guide-section-title">色彩与情绪坐标</p>
+                  <p class="guide-desc">情绪颜色由 AI 根据你的心情积极程度与能量高低动态调配：</p>
+                  <div class="quadrant-grid">
+                    <div class="quadrant-cell">
+                      <p class="quadrant-label">积极 · 高能量</p>
+                      <div class="color-demo" :style="{ background: moodColor('', 100, 100), color: '#fff' }">暖黄色</div>
+                    </div>
+                    <div class="quadrant-cell">
+                      <p class="quadrant-label">积极 · 低能量</p>
+                      <div class="color-demo" :style="{ background: moodColor('', 100, -100), color: '#fff' }">草木绿</div>
+                    </div>
+                    <div class="quadrant-cell">
+                      <p class="quadrant-label">消极 · 高能量</p>
+                      <div class="color-demo" :style="{ background: moodColor('', -100, 100), color: '#fff' }">红褐色</div>
+                    </div>
+                    <div class="quadrant-cell">
+                      <p class="quadrant-label">消极 · 低能量</p>
+                      <div class="color-demo" :style="{ background: moodColor('', -100, -100), color: '#fff' }">蓝灰色</div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div class="guide-section">
-                <p class="guide-section-title">强度标准</p>
-                <div class="intensity-list">
-                  <div v-for="lv in intensityLevels" :key="lv.value" class="intensity-item">
-                    <span class="intensity-dot" />
-                    <span class="intensity-label">{{ lv.value }} · {{ lv.name }}</span>
-                    <span class="intensity-desc">{{ lv.desc }}</span>
+                <div class="guide-section">
+                  <p class="guide-section-title">强度标准</p>
+                  <div class="intensity-list">
+                    <div v-for="lv in intensityLevels" :key="lv.value" class="intensity-item">
+                      <span class="intensity-dot" />
+                      <span class="intensity-label">{{ lv.value }} · {{ lv.name }}</span>
+                      <span class="intensity-desc">{{ lv.desc }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </n-popover>
+          </n-modal>
           <span v-if="diary.analysis.secondaryMoods?.length" class="secondary-moods">
             <span
               v-for="m in diary.analysis.secondaryMoods"
@@ -102,12 +103,13 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { NPopover } from 'naive-ui'
+import { NModal } from 'naive-ui'
 import type { Diary } from '../stores/diary'
 import { moodColor } from '../utils/mood'
 import { renderSafeMarkdown } from '../utils/markdown'
 
 const props = defineProps<{ diary: Diary }>()
+const showGuide = ref(false)
 
 function renderMd(text: string) {
   return renderSafeMarkdown(text)
@@ -316,6 +318,39 @@ onUnmounted(() => {
 }
 
 /* ── 弹窗内容 ── */
+.mood-guide-card {
+  width: calc(100vw - 48px);
+  max-width: 420px;
+  background: var(--color-surface, #fff);
+  border-radius: 16px;
+  padding: 24px 20px;
+  position: relative;
+  box-sizing: border-box;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+}
+.guide-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted, #999);
+  font-size: 1.1rem;
+  line-height: 1;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+.guide-close:hover {
+  background: var(--color-bg-elevated, #f5f5f5);
+  color: var(--color-text, #333);
+}
+
 .mood-guide {
   font-size: 0.82rem;
   line-height: 1.6;
