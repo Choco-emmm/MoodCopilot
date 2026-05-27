@@ -49,7 +49,7 @@ const router = createRouter({
       path: '/notifications',
       name: 'Notifications',
       component: () => import('../pages/NotificationPage.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, keepAlive: true },
     },
     {
       path: '/diary/:id',
@@ -61,13 +61,13 @@ const router = createRouter({
       path: '/ai-memory',
       name: 'ai-memory',
       component: () => import('../pages/AiMemoryCenter.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, keepAlive: true },
     },
     {
       path: '/profile/:userId',
       name: 'profile',
       component: () => import('../pages/UserProfilePage.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, keepAlive: true },
     },
     {
       path: '/search',
@@ -80,7 +80,7 @@ const router = createRouter({
       path: '/task-center',
       name: 'task-center',
       component: () => import('../pages/TaskCenterPage.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, keepAlive: true },
     },
     {
       path: '/support',
@@ -92,13 +92,13 @@ const router = createRouter({
       path: '/admin/users',
       name: 'admin-users',
       component: () => import('../pages/AdminUsersPage.vue'),
-      meta: { requiresAuth: true, requiresAdmin: true },
+      meta: { requiresAuth: true, requiresAdmin: true, keepAlive: true },
     },
     {
       path: '/admin/reports',
       name: 'admin-reports',
       component: () => import('../pages/AdminReportsPage.vue'),
-      meta: { requiresAuth: true, requiresAdmin: true },
+      meta: { requiresAuth: true, requiresAdmin: true, keepAlive: true },
     },
   ],
   scrollBehavior(to, from, savedPosition) {

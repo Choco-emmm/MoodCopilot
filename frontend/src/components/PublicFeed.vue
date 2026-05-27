@@ -5,23 +5,23 @@
         <span class="feed-section-eyebrow">心情广场</span>
         <h2 class="feed-section-heading">最近的心情</h2>
       </div>
-      <button class="feed-section-refresh" :disabled="loading" @click="$emit('refresh')">
+      <button class="feed-section-refresh" :disabled="loading" @click="$emit('refresh')" title="刷新">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" :class="{ spinning: loading }">
           <polyline points="23 4 23 10 17 10"/>
           <polyline points="1 20 1 14 7 14"/>
           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
         </svg>
-        <span>{{ loading ? '刷新中...' : '刷新' }}</span>
       </button>
     </div>
 
     <div v-if="diaries.length" class="feed-list">
-      <DynamicScroller
-        :items="diaries"
-        :min-item-size="200"
-        key-field="id"
-        page-mode
-      >
+      <PullToRefresh :loading="loading" @refresh="$emit('refresh')">
+        <DynamicScroller
+          :items="diaries"
+          :min-item-size="200"
+          key-field="id"
+          page-mode
+        >
         <template #default="{ item, index, active }">
           <DynamicScrollerItem
             :item="item"
@@ -56,20 +56,25 @@
         <span class="feed-list-loading-dot"></span>
         <span class="feed-list-loading-dot"></span>
       </div>
-      <button v-if="hasMore && !loading" class="feed-list-more" @click="$emit('loadMore')">
-        加载更多
-      </button>
+        <button v-if="hasMore && !loading" class="feed-list-more" @click="$emit('loadMore')">
+          加载更多
+        </button>
+      </PullToRefresh>
     </div>
 
     <div v-else-if="!loading" class="feed-list-empty">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feed-empty-icon">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <line x1="16" y1="13" x2="8" y2="13"/>
-        <line x1="16" y1="17" x2="8" y2="17"/>
-      </svg>
-      <p>还没有人写下公开日记</p>
-      <p class="feed-empty-sub">成为第一个分享心情的人吧</p>
+      <PullToRefresh :loading="loading" @refresh="$emit('refresh')">
+        <div style="display: flex; flex-direction: column; align-items: center; padding: 56px 20px;">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feed-empty-icon">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <p>还没有人写下公开日记</p>
+          <p class="feed-empty-sub">成为第一个分享心情的人吧</p>
+        </div>
+      </PullToRefresh>
     </div>
   </section>
 </template>
@@ -77,6 +82,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import DiaryFeedItem from './DiaryFeedItem.vue'
+import PullToRefresh from './PullToRefresh.vue'
 import type { Diary } from '../stores/diary'
 import { useInfiniteScroll } from '../composables/useScrollManager'
 
@@ -137,21 +143,20 @@ useInfiniteScroll(sentinel, () => {
 .feed-section-refresh {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border: 1.5px solid var(--color-border);
-  border-radius: 100px;
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  font-size: 0.8rem;
-  font-weight: 600;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
   cursor: pointer;
   transition: all 0.2s var(--ease-out);
 }
 
 .feed-section-refresh:hover:not(:disabled) {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  color: var(--color-text);
+  background: color-mix(in oklab, var(--color-text-muted) 10%, transparent);
 }
 
 .feed-section-refresh:disabled {

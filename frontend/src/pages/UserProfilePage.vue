@@ -63,7 +63,15 @@
           >
             🔍
           </n-button>
-          <n-button quaternary size="small" :loading="loading" @click="reload">刷新</n-button>
+          <n-button quaternary circle size="small" :loading="loading" @click="reload" title="刷新">
+            <template #icon>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"/>
+                <polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+            </template>
+          </n-button>
         </div>
       </div>
 
@@ -83,12 +91,13 @@
       />
 
       <div v-if="diaries.length" class="feed">
-        <DynamicScroller
-          :items="diaries"
-          :min-item-size="200"
-          key-field="id"
-          page-mode
-        >
+        <PullToRefresh :loading="loading" @refresh="reload">
+          <DynamicScroller
+            :items="diaries"
+            :min-item-size="200"
+            key-field="id"
+            page-mode
+          >
           <template #default="{ item, index, active }">
             <DynamicScrollerItem
               :item="item"
@@ -116,15 +125,20 @@
           </template>
         </DynamicScroller>
 
-        <div v-if="hasMore" ref="sentinel" class="profile-load-more">
-          <n-spin v-if="loadingMore" size="small" />
-          <n-button v-else secondary block @click="loadMore">加载更多</n-button>
-        </div>
+          <div v-if="hasMore" ref="sentinel" class="profile-load-more">
+            <n-spin v-if="loadingMore" size="small" />
+            <n-button v-else secondary block @click="loadMore">加载更多</n-button>
+          </div>
+        </PullToRefresh>
       </div>
 
       <div v-else-if="!loading" class="profile-empty-wrap">
-        <n-empty :description="isSearching ? '未找到匹配的日记' : (isOwner ? '你还没有写日记' : '暂无公开日记')" />
-        <p class="profile-empty-tip">{{ isSearching ? '尝试缩短或修改搜索关键词、扩大时间范围' : (isOwner ? '从一条简单记录开始，持续比完美更重要。' : '晚点再来看看，或先去广场看看大家的分享。') }}</p>
+        <PullToRefresh :loading="loading" @refresh="reload">
+          <div style="display: flex; flex-direction: column; align-items: center; padding-top: 20px;">
+            <n-empty :description="isSearching ? '未找到匹配的日记' : (isOwner ? '你还没有写日记' : '暂无公开日记')" />
+            <p class="profile-empty-tip" style="margin-top: 10px;">{{ isSearching ? '尝试缩短或修改搜索关键词、扩大时间范围' : (isOwner ? '从一条简单记录开始，持续比完美更重要。' : '晚点再来看看，或先去广场看看大家的分享。') }}</p>
+          </div>
+        </PullToRefresh>
       </div>
       <n-spin v-else size="small" />
       </div>
@@ -149,6 +163,7 @@ import ProfileSettingsModal from '../components/profile/ProfileSettingsModal.vue
 import ProfileSearchPanel from '../components/profile/ProfileSearchPanel.vue'
 import AdminSuggestionsModal from '../components/profile/AdminSuggestionsModal.vue'
 import DiaryFeedItem from '../components/DiaryFeedItem.vue'
+import PullToRefresh from '../components/PullToRefresh.vue'
 import { authApi, diaryApi, memoryApi } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useDiaryStore, type Diary } from '../stores/diary'
@@ -816,6 +831,10 @@ function handleProfileUpdated() {
   
   .avatar-wrap {
     transform: rotate(0deg);
+  }
+  
+  .profile-title-row {
+    justify-content: center;
   }
   
   .profile-signature {

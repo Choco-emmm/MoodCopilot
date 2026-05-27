@@ -41,6 +41,7 @@ declare module 'vue' {
     ProfileSearchPanel: typeof import('./src/components/profile/ProfileSearchPanel.vue')['default']
     ProfileSettingsModal: typeof import('./src/components/profile/ProfileSettingsModal.vue')['default']
     PublicFeed: typeof import('./src/components/PublicFeed.vue')['default']
+    PullToRefresh: typeof import('./src/components/PullToRefresh.vue')['default']
     QuotaTableModal: typeof import('./src/components/QuotaTableModal.vue')['default']
     ReferenceBar: typeof import('./src/components/ReferenceBar.vue')['default']
     ReportCharts: typeof import('./src/components/ReportCharts.vue')['default']
