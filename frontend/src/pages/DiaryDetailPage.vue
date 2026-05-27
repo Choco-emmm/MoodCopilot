@@ -218,7 +218,7 @@ const diary = computed({
 })
 
 const diaryMoodColor = computed(() => {
-  if (diary.value?.analysis) {
+  if (diary.value?.analysis && isOwner.value) {
     return moodColor(diary.value.analysis.moodLabel, diary.value.analysis.valence, diary.value.analysis.arousal)
   }
   return 'transparent'
