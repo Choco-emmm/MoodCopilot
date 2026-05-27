@@ -500,14 +500,9 @@ function ensureCommentInputVisible() {
   right: 0;
   height: 500px;
   background: radial-gradient(circle 500px at top right, var(--mood-color, transparent), transparent 80%);
-  opacity: 0.15; /* 极度克制的微晕染，只提供一丝温度感 */
+  opacity: 0.2; /* 适中的透明度，无需 mix-blend-mode 即可完美适配明暗所有主题 */
   pointer-events: none;
   z-index: 0;
-  mix-blend-mode: multiply; /* 杂志印刷感叠底效果 */
-}
-:root[data-theme='dark'] .diary-main-panel::before {
-  mix-blend-mode: screen; /* 暗黑模式下的发光感 */
-  opacity: 0.08;
 }
 .diary-content-section {
   position: relative;

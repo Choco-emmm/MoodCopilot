@@ -347,7 +347,7 @@ onUnmounted(() => {
   transition: background 0.2s, color 0.2s;
 }
 .guide-close:hover {
-  background: var(--color-bg-elevated, #f5f5f5);
+  background: var(--color-surface-soft, #f5f5f5);
   color: var(--color-text, #333);
 }
 
@@ -383,7 +383,7 @@ onUnmounted(() => {
 .quadrant-cell {
   padding: 8px 10px;
   border-radius: 8px;
-  background: var(--color-bg-elevated, #fafafa);
+  background: var(--color-surface-hover, #f0ede6);
 }
 .quadrant-label {
   margin: 0 0 5px;
