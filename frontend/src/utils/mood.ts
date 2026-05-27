@@ -27,8 +27,15 @@ export const MOOD_COLORS: Record<string, string> = {
   '内疚': '#8a858a',
 }
 
-export function moodColor(label: string): string {
-  return MOOD_COLORS[label] || '#9cb4a8'
+export function moodColor(label?: string, valence?: number | null, arousal?: number | null): string {
+  if (valence != null && arousal != null) {
+    // Both -100 to 100
+    if (valence > 0 && arousal > 0) return '#e69a63'; // 暖橙 (积极高能)
+    if (valence > 0 && arousal <= 0) return '#72a192'; // 灰绿 (积极低能)
+    if (valence <= 0 && arousal > 0) return '#a15c54'; // 焦红 (消极高能)
+    if (valence <= 0 && arousal <= 0) return '#758296'; // 蓝灰 (消极低能)
+  }
+  return label && MOOD_COLORS[label] ? MOOD_COLORS[label] : '#9cb4a8';
 }
 
 /** 所有有效情绪标签 */

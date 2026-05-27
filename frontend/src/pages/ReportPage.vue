@@ -191,7 +191,7 @@
                 @click="goDiary(day.diaryIds)"
               >
                 <span class="mood-snippet-date">{{ formatDay(day.date) }}</span>
-                <span class="mood-snippet-tag" :style="{ color: moodColor(day.moodLabel) }">{{ day.moodLabel }}</span>
+                <span class="mood-snippet-tag" :style="{ color: moodColor(day.moodLabel, day.valence, day.arousal) }">{{ day.moodLabel }}</span>
                 <span class="mood-snippet-intensity">强度 {{ day.moodIntensity }}/5</span>
                 <span v-if="day.contentSnippet" class="mood-snippet-text">「{{ day.contentSnippet.length > 30 ? day.contentSnippet.slice(0, 30) + '...' : day.contentSnippet }}」</span>
               </div>

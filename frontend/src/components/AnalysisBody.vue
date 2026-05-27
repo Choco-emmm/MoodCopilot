@@ -12,22 +12,24 @@
             </template>
             <div class="mood-guide">
               <div class="guide-section">
-                <p class="guide-section-title">情绪分类</p>
+                <p class="guide-section-title">色彩与情绪坐标</p>
+                <p style="font-size: 0.75rem; color: #999; margin: 0 0 8px;">情绪颜色由大模型解析出的效价(正负向)与唤醒度决定：</p>
                 <div class="quadrant-grid">
-                  <div
-                    v-for="group in moodGroups"
-                    :key="group.label"
-                    class="quadrant-cell"
-                  >
-                    <p class="quadrant-label">{{ group.label }}</p>
-                    <div class="mood-chips">
-                      <span
-                        v-for="m in group.moods"
-                        :key="m"
-                        class="mood-chip"
-                        :style="{ background: moodColor(m) }"
-                      >{{ m }}</span>
-                    </div>
+                  <div class="quadrant-cell">
+                    <p class="quadrant-label">积极 · 高能量</p>
+                    <div class="color-demo" style="background: #e69a63;">暖橙色</div>
+                  </div>
+                  <div class="quadrant-cell">
+                    <p class="quadrant-label">积极 · 低能量</p>
+                    <div class="color-demo" style="background: #72a192;">灰绿色</div>
+                  </div>
+                  <div class="quadrant-cell">
+                    <p class="quadrant-label">消极 · 高能量</p>
+                    <div class="color-demo" style="background: #a15c54;">焦红色</div>
+                  </div>
+                  <div class="quadrant-cell">
+                    <p class="quadrant-label">消极 · 低能量</p>
+                    <div class="color-demo" style="background: #758296;">蓝灰色</div>
                   </div>
                 </div>
               </div>
@@ -113,24 +115,6 @@ function renderMd(text: string) {
   return renderSafeMarkdown(text)
 }
 
-const moodGroups = [
-  {
-    label: '积极 · 高能量',
-    moods: ['喜悦', '期待', '兴奋', '自豪'],
-  },
-  {
-    label: '积极 · 低能量',
-    moods: ['轻松', '平静', '感恩', '满足'],
-  },
-  {
-    label: '消极 · 高能量',
-    moods: ['烦躁', '愤怒', '焦虑', '害怕'],
-  },
-  {
-    label: '消极 · 低能量',
-    moods: ['疲惫', '委屈', '难过', '孤独', '迷茫', '内疚'],
-  },
-]
 
 const intensityLevels = [
   { value: 1, name: '转瞬即逝', desc: '极其轻微，一闪而过' },
@@ -371,19 +355,13 @@ onUnmounted(() => {
   color: var(--color-text-tertiary, #999);
   letter-spacing: 0.02em;
 }
-.mood-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.mood-chip {
+.color-demo {
   display: inline-block;
-  padding: 2px 7px;
-  border-radius: 8px;
-  font-size: 0.68rem;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
   color: #fff;
-  white-space: nowrap;
-  opacity: 0.88;
+  opacity: 0.9;
 }
 
 /* ── 强度列表 ── */
@@ -454,10 +432,9 @@ onUnmounted(() => {
     font-size: 0.68rem;
     margin-bottom: 4px;
   }
-  .mood-chip {
+  .color-demo {
     padding: 2px 6px;
     font-size: 0.65rem;
-    white-space: normal;
   }
   .intensity-item {
     font-size: 0.74rem;

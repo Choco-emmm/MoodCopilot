@@ -144,8 +144,8 @@ const lineOption = computed(() => {
       textStyle: { color: '#20201d', fontSize: 13, fontFamily: '"Noto Serif SC", serif' },
       formatter: (params: any) => {
         const d = params[0].data
-        const dot = `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${moodColor(d.moodLabel)};margin-right:8px;vertical-align:middle;"></span>`
-        return `<div style="font-family:'Noto Serif SC',serif;"><div style="margin-bottom:6px;">${dot}<b style="color:${moodColor(d.moodLabel)};font-size:14px;">${d.moodLabel || '--'}</b> &nbsp;<span style="font-size:11px;color:#a3a3a3;font-family:sans-serif;">${d.name}</span></div>${d.snippet ? `<div style="font-size:12px;color:#67645d;line-height:1.6;border-left:2px solid #eaeaea;padding-left:8px;">${d.snippet}</div>` : ''}</div>`
+        const dot = `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${moodColor(d.moodLabel, d.value, d.arousal)};margin-right:8px;vertical-align:middle;"></span>`
+        return `<div style="font-family:'Noto Serif SC',serif;"><div style="margin-bottom:6px;">${dot}<b style="color:${moodColor(d.moodLabel, d.value, d.arousal)};font-size:14px;">${d.moodLabel || '--'}</b> &nbsp;<span style="font-size:11px;color:#a3a3a3;font-family:sans-serif;">${d.name}</span></div>${d.snippet ? `<div style="font-size:12px;color:#67645d;line-height:1.6;border-left:2px solid #eaeaea;padding-left:8px;">${d.snippet}</div>` : ''}</div>`
       }
     },
     grid: { left: 45, right: 20, top: 20, bottom: isMobile.value ? 24 : 40 },
@@ -216,7 +216,10 @@ const lineOption = computed(() => {
         },
         itemStyle: {
           color: '#fff', // white center
-          borderColor: (params: any) => moodColor(data[params.dataIndex]?.moodLabel),
+          borderColor: (params: any) => {
+            const row = data[params.dataIndex];
+            return row ? moodColor(row.moodLabel, row.value, row.arousal) : '#9cb4a8';
+          },
           borderWidth: 1.5,
         },
         lineStyle: { 
@@ -272,8 +275,8 @@ const scatterOption = computed(() => {
       textStyle: { color: '#20201d', fontSize: 13, fontFamily: '"Noto Serif SC", serif' },
       formatter: (params: any) => {
         const d = params.data
-        const dot = `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${moodColor(d.moodLabel)};margin-right:8px;vertical-align:middle;"></span>`
-        return `<div style="font-family:'Noto Serif SC',serif;"><div style="margin-bottom:6px;">${dot}<b style="color:${moodColor(d.moodLabel)};font-size:14px;">${d.moodLabel || '--'}</b> &nbsp;<span style="font-size:11px;color:#a3a3a3;font-family:sans-serif;">${d.date}</span></div>${d.snippet ? `<div style="font-size:12px;color:#67645d;line-height:1.6;border-left:2px solid #eaeaea;padding-left:8px;">${d.snippet}</div>` : ''}</div>`
+        const dot = `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${moodColor(d.moodLabel, d.value[0], d.value[1])};margin-right:8px;vertical-align:middle;"></span>`
+        return `<div style="font-family:'Noto Serif SC',serif;"><div style="margin-bottom:6px;">${dot}<b style="color:${moodColor(d.moodLabel, d.value[0], d.value[1])};font-size:14px;">${d.moodLabel || '--'}</b> &nbsp;<span style="font-size:11px;color:#a3a3a3;font-family:sans-serif;">${d.date}</span></div>${d.snippet ? `<div style="font-size:12px;color:#67645d;line-height:1.6;border-left:2px solid #eaeaea;padding-left:8px;">${d.snippet}</div>` : ''}</div>`
       }
     },
     grid: { left: 55, right: 55, top: 40, bottom: 40 },
@@ -326,7 +329,7 @@ const scatterOption = computed(() => {
         type: 'scatter',
         symbolSize: (val: any, params: any) => 4 + (params.data.intensity ?? 1) * 3,
         itemStyle: {
-          color: (params: any) => moodColor(params.data.moodLabel),
+          color: (params: any) => moodColor(params.data.moodLabel, params.data.value[0], params.data.value[1]),
           opacity: 0.7,
         },
         data,
