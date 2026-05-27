@@ -196,6 +196,11 @@ const parsedContent = computed(() => {
   }
 })
 
+function stripHtml(html?: string): string {
+  if (!html) return ''
+  return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim()
+}
+
 // Filters
 const diaryRefs = computed(() => {
   const seen = new Set<string>()
@@ -204,11 +209,12 @@ const diaryRefs = computed(() => {
     if (seen.has(r.diaryId)) return false
     seen.add(r.diaryId)
     return true
-  })
+  }).map(r => ({ ...r, snippet: stripHtml(r.snippet) }))
 })
 
 const profileRefs = computed(() => {
   return (props.msg.ragReferences || []).filter(r => r.type === 'profile_memory')
+    .map(r => ({ ...r, snippet: stripHtml(r.snippet), value: stripHtml(r.value) }))
 })
 
 const graphRefs = computed(() => {
@@ -216,10 +222,11 @@ const graphRefs = computed(() => {
   return (props.msg.ragReferences || []).filter(r => {
     if (r.type !== 'graph_memory') return false
     if (!r.snippet) return false
-    if (seen.has(r.snippet)) return false
-    seen.add(r.snippet)
+    const clean = stripHtml(r.snippet)
+    if (seen.has(clean)) return false
+    seen.add(clean)
     return true
-  })
+  }).map(r => ({ ...r, snippet: stripHtml(r.snippet) }))
 })
 
 function toolLabel(name?: string): string {
