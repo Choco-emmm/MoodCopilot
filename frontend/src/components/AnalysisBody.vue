@@ -8,7 +8,7 @@
           <span :style="{ color: moodColor(diary.analysis.moodLabel, diary.analysis.valence, diary.analysis.arousal) }">
             {{ diary.analysis.moodLabel }}
           </span> · 强度 {{ diary.analysis.moodIntensity }}/5
-          <n-popover trigger="click" placement="bottom" style="max-width: calc(100vw - 32px);" :delay="0" :scrollable="false">
+          <n-popover trigger="click" placement="bottom-start" style="max-width: calc(100vw - 32px);" :delay="0" :scrollable="false">
             <template #trigger>
               <span class="mood-guide-trigger" title="情绪与强度评级指南">ⓘ</span>
             </template>
