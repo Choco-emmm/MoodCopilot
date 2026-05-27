@@ -24,7 +24,7 @@
     </div>
 
     <!-- ★ 编辑器：纸质感 -->
-    <div class="composer-editor">
+    <div class="composer-editor" style="position: relative;">
       <Toolbar
         v-if="editorRef"
         :editor="editorRef"
@@ -35,6 +35,9 @@
         :defaultConfig="editorConfig"
         @onCreated="handleEditorCreated"
       />
+      <div class="composer-word-count" :class="{ 'text-error': isOverLimit }">
+        {{ plainText.length }} / 3000
+      </div>
     </div>
 
     <!-- 音乐附件 -->
@@ -595,6 +598,20 @@ async function handleSave() {
 .composer-editor :deep(.w-e-dropdown-content) {
   background: var(--color-surface) !important;
   border: 1px solid var(--color-border) !important;
+}
+
+.composer-word-count {
+  position: absolute;
+  left: 24px;
+  bottom: 14px;
+  font-size: 12px;
+  color: var(--color-text-light);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.composer-word-count.text-error {
+  color: var(--color-error);
 }
 
 /* ── 音乐附件 ── */

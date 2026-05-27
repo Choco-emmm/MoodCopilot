@@ -2,37 +2,36 @@
   <n-modal :show="show"
     @update:show="emit('update:show', $event)"
     preset="card"
-    class="settings-modal"
-    style="width: 520px; max-width: 90vw; border-radius: 20px;"
+    class="settings-modal modal-card"
     :bordered="false"
     :auto-focus="false"
   >
     <template #header>
-      <div style="text-align: center; font-weight: bold; font-size: 18px;">系统设置</div>
+      <div class="modal-title">系统设置</div>
     </template>
     <div class="settings-modal-scroll">
       <div class="settings-avatar-wrap">
-        <div style="display: flex; align-items: center; gap: 16px;">
+        <div class="flex-center gap-16">
           <div class="settings-avatar-preview-wrap">
             <img v-if="auth.avatar" :src="auth.avatar" class="settings-avatar-preview" decoding="async" />
             <span v-else class="settings-avatar-placeholder">{{ auth.displayName?.charAt(0) || '我' }}</span>
           </div>
-          <div style="font-size: 14px; color: var(--color-text); font-weight: 500;">{{ auth.displayName }}</div>
+          <div class="user-name">{{ auth.displayName }}</div>
         </div>
         <button class="upload-btn" @click="triggerUpload">更换头像</button>
-        <input type="file" ref="fileInput" accept="image/jpeg,image/png,image/webp" style="display: none" @change="onFileChange" />
+        <input type="file" ref="fileInput" accept="image/jpeg,image/png,image/webp" class="hidden" @change="onFileChange" />
       </div>
 
       <SettingSection title="用户名" tag="Identity">
-        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
+        <div class="settings-row flex-col-stretch gap-8">
           <n-input
             v-model:value="editingName"
             placeholder="设置你的用户名"
             :maxlength="20"
             @blur="checkEditingName"
           />
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 12px; color: var(--color-text-light);">
+          <div class="flex-between-center">
+            <span class="text-xs-light">
               当前可用改名次数：{{ auth.remainingNameChanges ?? 0 }}
             </span>
             <n-button
@@ -54,7 +53,7 @@
       </SettingSection>
 
       <SettingSection title="个性签名" tag="Profile">
-        <div class="settings-row settings-row-signature" style="flex-direction: column; align-items: stretch; gap: 8px;">
+        <div class="settings-row settings-row-signature flex-col-stretch gap-8">
           <n-input
             v-model:value="editingSignature"
             type="textarea"
@@ -62,7 +61,7 @@
             :autosize="{ minRows: 2, maxRows: 4 }"
             placeholder="写一句你希望别人看到的状态（最多160字）"
           />
-          <div style="display: flex; justify-content: flex-end;">
+          <div class="flex-end">
             <n-button
               size="small"
               type="primary"
@@ -114,10 +113,10 @@
               >
                 <div class="theme-preview">
                   <div class="theme-preview-bg">
-                    <div class="theme-preview-swatch" style="left: 6px; top: 6px; width: 18px; height: 18px; border-radius: 50%; background: var(--t-primary);"></div>
-                    <div class="theme-preview-swatch" style="right: 6px; top: 8px; width: 10px; height: 10px; border-radius: 3px; background: var(--t-accent); opacity: 0.8;"></div>
-                    <div class="theme-preview-bar" style="left: 6px; bottom: 8px; width: 24px; height: 3px; border-radius: 2px; background: var(--t-primary); opacity: 0.3;"></div>
-                    <div class="theme-preview-bar" style="left: 6px; bottom: 14px; width: 16px; height: 2px; border-radius: 1px; background: var(--t-primary); opacity: 0.15;"></div>
+                    <div class="theme-preview-swatch theme-swatch-1"></div>
+                    <div class="theme-preview-swatch theme-swatch-2"></div>
+                    <div class="theme-preview-bar theme-bar-1"></div>
+                    <div class="theme-preview-bar theme-bar-2"></div>
                   </div>
                 </div>
                 <span class="theme-label">{{ t.label }}</span>
@@ -139,10 +138,10 @@
           >
             <div class="theme-preview">
               <div class="theme-preview-bg">
-                <div class="theme-preview-swatch" style="left: 6px; top: 6px; width: 18px; height: 18px; border-radius: 50%; background: var(--t-primary);"></div>
-                <div class="theme-preview-swatch" style="right: 6px; top: 8px; width: 10px; height: 10px; border-radius: 3px; background: var(--t-accent); opacity: 0.8;"></div>
-                <div class="theme-preview-bar" style="left: 6px; bottom: 8px; width: 24px; height: 3px; border-radius: 2px; background: var(--t-primary); opacity: 0.3;"></div>
-                <div class="theme-preview-bar" style="left: 6px; bottom: 14px; width: 16px; height: 2px; border-radius: 1px; background: var(--t-primary); opacity: 0.15;"></div>
+                <div class="theme-preview-swatch theme-swatch-1"></div>
+                <div class="theme-preview-swatch theme-swatch-2"></div>
+                <div class="theme-preview-bar theme-bar-1"></div>
+                <div class="theme-preview-bar theme-bar-2"></div>
               </div>
             </div>
             <span class="theme-label">{{ t.label }}</span>
@@ -158,16 +157,16 @@
       </SettingSection>
 
       <SettingSection title="提醒与陪伴" tag="Routine">
-        <div class="settings-row" style="justify-content: space-between;">
-          <span style="font-size: 14px; color: var(--color-text);">每日心情日记提醒</span>
+        <div class="settings-row justify-between">
+          <span class="text-sm">每日心情日记提醒</span>
           <n-switch
             :value="auth.dailyNotifyEnabled"
             :loading="toggling"
             @update:value="toggleNotify"
           />
         </div>
-        <div class="settings-row" style="justify-content: space-between; margin-top: 12px;">
-          <span style="font-size: 14px; color: var(--color-text);">长期记忆画像生成通知</span>
+        <div class="settings-row justify-between mt-12">
+          <span class="text-sm">长期记忆画像生成通知</span>
           <n-switch
             :value="auth.profileNotifyEnabled"
             :loading="toggling"
@@ -177,12 +176,12 @@
       </SettingSection>
 
       <SettingSection title="安全设置" tag="Security">
-        <div class="settings-row" style="flex-direction: column; align-items: flex-start; gap: 8px;">
-          <button class="upload-btn" @click="showPasswordChange = !showPasswordChange" style="margin-top: 8px;">
+        <div class="settings-row flex-col-start gap-8">
+          <button class="upload-btn mt-8" @click="showPasswordChange = !showPasswordChange">
             {{ showPasswordChange ? '取消修改密码' : '修改登录密码' }}
           </button>
           
-          <div v-if="showPasswordChange" style="width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 8px; padding: 12px; background: var(--color-surface-hover); border-radius: 8px;">
+          <div v-if="showPasswordChange" class="password-panel">
             <p class="settings-desc">修改密码前会向当前账号邮箱发送验证码，验证通过后才会生效。</p>
             <n-input
               v-model:value="oldPassword"
@@ -202,11 +201,11 @@
               placeholder="再次输入新密码"
               show-password-on="click"
             />
-            <div style="display: flex; gap: 8px;">
+            <div class="flex-gap-8">
               <n-input
                 v-model:value="passwordVerificationCode"
                 placeholder="输入邮箱验证码"
-                style="flex: 1;"
+                class="flex-1"
               />
               <n-button
                 :disabled="passwordCodeCountdown > 0 || sendingPasswordCode"
@@ -232,8 +231,8 @@
       </SettingSection>
 
       <SettingSection title="请开发者喝杯奶茶" tag="🧋" extraClass="support-donate-section">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 13px; color: var(--color-text-light);">觉得 MoodCopilot 不错？支持一下独立开发者吧！</span>
+        <div class="flex-between-center">
+          <span class="text-sm-light">觉得 MoodCopilot 不错？支持一下独立开发者吧！</span>
           <n-button size="small" type="primary" secondary @click="router.push('/support')">
             去看看 →
           </n-button>
@@ -241,14 +240,14 @@
       </SettingSection>
 
       <SettingSection title="建议与反馈" tag="Feedback">
-        <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="flex-col-gap-12">
           <n-input
             v-model:value="suggestionContent"
             type="textarea"
             :autosize="{ minRows: 2, maxRows: 6 }"
             placeholder="你在使用中遇到了什么问题？或者有什么想要的新功能？请告诉我们..."
           />
-          <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div class="flex-between-center">
             <n-button v-if="isOwner && auth.isAdmin" size="small" type="warning" secondary @click="emit('open-admin-suggestions')">查看所有用户反馈 (Admin)</n-button>
             <div v-else></div>
             <n-button
@@ -264,14 +263,14 @@
         </div>
       </SettingSection>
 
-      <div style="margin-top: 40px; margin-bottom: 24px;">
+      <div class="my-40-24">
         <button class="danger-btn" @click="handleLogout">退出登录</button>
       </div>
     </div>
   </n-modal>
 
   <!-- 头像裁剪弹窗 -->
-  <n-modal v-model:show="showCropModal" preset="card" style="width: 400px; max-width: 90vw;" title="调整头像">
+  <n-modal v-model:show="showCropModal" preset="card" class="crop-modal-card" title="调整头像">
     <div class="crop-area-container">
       <div 
         class="crop-area" 
@@ -291,12 +290,12 @@
         <n-button size="small" @click="zoomOut">−</n-button>
         <n-button size="small" @click="zoomIn">＋</n-button>
       </div>
-      <p style="font-size: 12px; color: var(--color-text-light); text-align: center; margin-top: -8px;">
+      <p class="crop-hint">
         可拖动调整位置，滑轮缩放
       </p>
-      <div style="display: flex; gap: 12px; width: 100%; margin-top: 8px;">
-        <n-button block @click="showCropModal = false" style="flex: 1;">取消</n-button>
-        <n-button type="primary" block :loading="uploading" @click="handleCrop" style="flex: 1;">确定</n-button>
+      <div class="crop-actions">
+        <n-button block @click="showCropModal = false" class="flex-1">取消</n-button>
+        <n-button type="primary" block :loading="uploading" @click="handleCrop" class="flex-1">确定</n-button>
       </div>
     </div>
   </n-modal>
@@ -1099,6 +1098,37 @@ onBeforeUnmount(() => {
     grid-template-columns: repeat(4, 1fr);
   }
 }
+
+.modal-card { width: 520px; max-width: 90vw; border-radius: 20px; }
+.modal-title { text-align: center; font-weight: bold; font-size: 18px; }
+.flex-center { display: flex; align-items: center; }
+.gap-16 { gap: 16px; }
+.user-name { font-size: 14px; color: var(--color-text); font-weight: 500; }
+.hidden { display: none; }
+.flex-col-stretch { display: flex; flex-direction: column; align-items: stretch; }
+.gap-8 { gap: 8px; }
+.flex-between-center { display: flex; justify-content: space-between; align-items: center; }
+.text-xs-light { font-size: 12px; color: var(--color-text-light); }
+.flex-end { display: flex; justify-content: flex-end; }
+.theme-swatch-1 { left: 6px; top: 6px; width: 18px; height: 18px; border-radius: 50%; background: var(--t-primary); }
+.theme-swatch-2 { right: 6px; top: 8px; width: 10px; height: 10px; border-radius: 3px; background: var(--t-accent); opacity: 0.8; }
+.theme-bar-1 { left: 6px; bottom: 8px; width: 24px; height: 3px; border-radius: 2px; background: var(--t-primary); opacity: 0.3; }
+.theme-bar-2 { left: 6px; bottom: 14px; width: 16px; height: 2px; border-radius: 1px; background: var(--t-primary); opacity: 0.15; }
+.justify-between { justify-content: space-between; }
+.text-sm { font-size: 14px; color: var(--color-text); }
+.mt-12 { margin-top: 12px; }
+.flex-col-start { display: flex; flex-direction: column; align-items: flex-start; }
+.mt-8 { margin-top: 8px; }
+.password-panel { width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 8px; padding: 12px; background: var(--color-surface-hover); border-radius: 8px; }
+.flex-gap-8 { display: flex; gap: 8px; }
+.flex-1 { flex: 1; }
+.text-sm-light { font-size: 13px; color: var(--color-text-light); }
+.flex-col-gap-12 { display: flex; flex-direction: column; gap: 12px; }
+.my-40-24 { margin-top: 40px; margin-bottom: 24px; }
+.crop-modal-card { width: 400px; max-width: 90vw; }
+.crop-hint { font-size: 12px; color: var(--color-text-light); text-align: center; margin-top: -8px; }
+.crop-actions { display: flex; gap: 12px; width: 100%; margin-top: 8px; }
+
 </style>
 
 <style>

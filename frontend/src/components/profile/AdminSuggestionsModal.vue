@@ -4,27 +4,27 @@
     @update:show="$emit('update:show', $event)"
     preset="card"
     title="用户建议列表"
-    style="width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto;"
+    class="suggestions-modal"
   >
-    <div v-if="loading" style="text-align: center; padding: 20px;">
+    <div v-if="loading" class="center-p20">
       <n-spin size="small" />
     </div>
-    <div v-else-if="!suggestions.length" style="text-align: center; padding: 20px; color: var(--color-text-light);">
+    <div v-else-if="!suggestions.length" class="center-p20 text-light">
       暂无用户建议
     </div>
     <div v-else class="admin-suggestions-list">
-      <div v-for="s in suggestions" :key="s.id" class="suggestion-item" style="border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <img v-if="s.userAvatar" :src="s.userAvatar" style="width: 24px; height: 24px; border-radius: 50%;" />
-            <span v-else style="width: 24px; height: 24px; border-radius: 50%; background: var(--color-border); display: inline-flex; align-items: center; justify-content: center; font-size: 12px;">{{ s.userName.charAt(0) }}</span>
+      <div v-for="s in suggestions" :key="s.id" class="suggestion-item suggestion-card">
+        <div class="suggestion-header">
+          <div class="flex-center-gap-8">
+            <img v-if="s.userAvatar" :src="s.userAvatar" class="avatar-img" />
+            <span v-else class="avatar-placeholder">{{ s.userName.charAt(0) }}</span>
             <strong>{{ s.userName }}</strong>
           </div>
-          <span style="font-size: 12px; color: var(--color-text-light);">{{ new Date(s.createdAt).toLocaleString() }}</span>
+          <span class="suggestion-date">{{ new Date(s.createdAt).toLocaleString() }}</span>
         </div>
-        <p style="white-space: pre-wrap; font-size: 14px; margin: 0;">{{ s.content }}</p>
+        <p class="suggestion-text">{{ s.content }}</p>
       </div>
-      <div v-if="hasMore" style="text-align: center; margin-top: 12px;">
+      <div v-if="hasMore" class="center-mt12">
         <n-button size="small" :loading="loadingMore" @click="loadMore">加载更多</n-button>
       </div>
     </div>
@@ -90,4 +90,17 @@ watch(() => props.show, (val) => {
 
 <style scoped>
 /* Extracted from global if necessary */
+
+.suggestions-modal { width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; }
+.center-p20 { text-align: center; padding: 20px; }
+.text-light { color: var(--color-text-light); }
+.suggestion-card { border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.suggestion-header { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center; }
+.flex-center-gap-8 { display: flex; align-items: center; gap: 8px; }
+.avatar-img { width: 24px; height: 24px; border-radius: 50%; }
+.avatar-placeholder { width: 24px; height: 24px; border-radius: 50%; background: var(--color-border); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+.suggestion-date { font-size: 12px; color: var(--color-text-light); }
+.suggestion-text { white-space: pre-wrap; font-size: 14px; margin: 0; }
+.center-mt12 { text-align: center; margin-top: 12px; }
+
 </style>

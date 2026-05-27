@@ -98,6 +98,7 @@ public class DiaryService {
     private final UserGrowthService userGrowthService;
     private final TransactionTemplate transactionTemplate;
     private final AiTaskProducer aiTaskProducer;
+    private final DiaryCacheService diaryCacheService;
 
     public DiaryService(DiaryMapper diaryMapper,
             DiaryAnalysisMapper diaryAnalysisMapper,
@@ -121,7 +122,8 @@ public class DiaryService {
             RateLimitService rateLimitService,
             UserGrowthService userGrowthService,
             TransactionTemplate transactionTemplate,
-            @org.springframework.context.annotation.Lazy AiTaskProducer aiTaskProducer) {
+            @org.springframework.context.annotation.Lazy AiTaskProducer aiTaskProducer,
+            DiaryCacheService diaryCacheService) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
@@ -145,6 +147,7 @@ public class DiaryService {
         this.userGrowthService = userGrowthService;
         this.transactionTemplate = transactionTemplate;
         this.aiTaskProducer = aiTaskProducer;
+        this.diaryCacheService = diaryCacheService;
     }
 
     @jakarta.annotation.PostConstruct
@@ -684,24 +687,7 @@ public class DiaryService {
         Long userId = currentUser().getId();
         String cacheKey = "public:diaries:%d:%d".formatted(cappedPage, cappedSize);
 
-        try {
-            String cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null) {
-                Page<DiaryView> cachedPage = objectMapper.readValue(cached, new TypeReference<Page<DiaryView>>() {
-                });
-                return populateLikedByMe(filterHiddenViews(cachedPage, userId), userId);
-            }
-        } catch (Exception e) {
-            log.debug("Cache miss {}", cacheKey);
-        }
-
-        Page<DiaryView> result = queryPublicDiaries(cappedPage, cappedSize);
-
-        try {
-            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(result), Duration.ofMinutes(5));
-        } catch (Exception e) {
-            log.debug("Cache write failed");
-        }
+        Page<DiaryView> result = diaryCacheService.getCachedPage(cacheKey, () -> queryPublicDiaries(cappedPage, cappedSize));
         return populateLikedByMe(filterHiddenViews(result, userId), userId);
     }
 
@@ -767,22 +753,7 @@ public class DiaryService {
         int cappedSize = Math.min(50, Math.max(1, size));
         String cacheKey = "following:%d:%d:%d".formatted(userId, cappedPage, cappedSize);
 
-        try {
-            String cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null)
-                return populateLikedByMe(objectMapper.readValue(cached, new TypeReference<Page<DiaryView>>() {
-                }), userId);
-        } catch (Exception e) {
-            log.debug("Cache miss {}", cacheKey);
-        }
-
-        Page<DiaryView> result = queryFollowingDiaries(userId, cappedPage, cappedSize);
-
-        try {
-            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(result), Duration.ofMinutes(5));
-        } catch (Exception e) {
-            log.debug("Cache write failed");
-        }
+        Page<DiaryView> result = diaryCacheService.getCachedPage(cacheKey, () -> queryFollowingDiaries(userId, cappedPage, cappedSize));
         return populateLikedByMe(result, userId);
     }
 

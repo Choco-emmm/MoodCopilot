@@ -79,7 +79,7 @@ public class MemoryConsolidationService {
             redisTemplate.expire(redisKey, java.time.Duration.ofDays(1));
         }
         if (count != null && count > 2) {
-            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行两次智能整理");
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行2次个人画像整理");
         }
 
         List<UserProfileMemoryEntity> existing = memoryExtractionService.listUserMemories(userId);

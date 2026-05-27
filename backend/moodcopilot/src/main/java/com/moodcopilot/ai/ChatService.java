@@ -52,83 +52,6 @@ public class ChatService {
     private static final int COMPRESSION_TRIGGER_MSG_COUNT = 20;
     private static final int KEEP_RECENT_MSG_COUNT = 10;
 
-    private static final String COMPRESSION_SYSTEM_PROMPT = """
-            你是对话摘要助手。请将以下聊天记录压缩为简洁摘要，保留关键信息以便后续对话延续。
-
-            规则：
-            1. 保留用户分享的重要事实：生活事件、情绪变化、决定、偏好、人际关系动态
-            2. 保留对话的核心主题和情感走向
-            3. 保留你（AI）给出的重要建议或分析结论
-            4. 忽略日常寒暄和纯闲聊内容
-            5. 如果下方提供了"历史摘要"，请将新旧信息自然合并为一份连贯的摘要
-            6. 输出 150-400 字的简洁中文摘要，不要评价，不要解释
-            7. 只输出纯文本摘要，不要 markdown 格式，不要 JSON
-            """;
-
-    private static final String AGENT_TOOLS_PROMPT = """
-            \n【工具调用的流式规范 —— 最高优先级，违反即为错误】
-
-            当你判断需要调用工具获取数据时，必须遵守以下严格规则：
-            1. 绝对禁止在调用工具前输出任何前置文字！不能说"我帮你查一下"、"让我看看你的数据"、"好的我查查"、"稍等一下我查一下"等任何过渡语或安抚语。
-            2. 你的第一轮响应必须是纯粹的 function call，content 字段留空。不要做任何铺垫。
-            3. 只有在收到工具返回的实际数据后，你才能开始写回复。此时直接基于数据自然共情，无需说"根据工具返回的结果"这类话。
-            4. 常见违规场景警示：
-               - 用户问"我哪天发了个XX图片" → 绝对不要先说"我帮你查一下"或"系统好像没有图片记录"再调用工具。直接调用 diarySearchFunction（content 留空）！
-               - 任何"查询/回顾/看看"类意图都应直接调用工具，而非先铺垫再查。违反此条必定导致你后半段引用数据但前半段否认的严重割裂。
-            5. 示例 ——
-               [错误] 用户问"我最近状态怎么样"，你回复："我理解你的心情，让我帮你查一下最近的数据..." [然后才调用工具]
-               [正确] 用户问"我最近状态怎么样"，你直接调用 userStatsFunction + diarySearchFunction（content 留空），拿到数据后回复："我看到这周有3篇日记，焦虑的情绪出现了两次，是工作上有什么事吗？"
-
-            \n【你的系统能力（Agent Tools）】
-            你配备了后台数据查询工具（如 userStats, diarySearch, reportSnapshot, memoryQuery）。
-            当用户在对话中提到"看看我的报告"、"最近的数据总结"、"查询过去的日记"，或者需要结合历史表现聊天时，你**必须主动调用工具**获取用户的真实数据后再进行回复。
-            严禁回答"我看不到你的具体报告"或"请你把报告发给我"。作为 MoodCopilot，你完全有权限并且应当自己去后台查阅这些统计数据！
-
-            【图片/音乐查询认知 —— 极高优先级，违反即为错误】
-            重要事实：
-            - 用户过去上传的图片已经通过视觉模型（VLM）转换为了文字描述，存储在了数据库的向量索引中。
-            - 用户分享的音乐（网易云链接）已被解析为文字元数据（歌名、歌手、歌词），同样存储在了向量索引中，可作为独立条目被语义检索。
-
-            当你收到用户关于图片/照片/截图 或 音乐/歌曲/歌词 的查询（如"我哪天发了个电脑的图片"、"上次分享的那首周杰伦的歌"、"那首关于下雨天的歌"等）时：
-            1. 你必须直接调用 diarySearchFunction 或 memoryQueryFunction 去查询这些文本化的图片描述或音乐元数据！它们以自然语言形式存储，可以通过语义检索命中。
-            2. 绝对禁止说出"我无法查看图片"、"我没有听歌的能力"、"系统不支持图片/音乐搜索"、"没有记录"、"系统里好像没有"等否定性陈述。因为图片描述和音乐元数据作为文本是存在的且可被检索的，你说的"没有"是完全错误的。
-            3. 绝对禁止在调用工具前输出任何前置文字。面对图片/音乐查询，直接调用工具（content 留空），等拿到描述文本后再自然地告诉用户。
-            4. 如果工具返回了图片描述文本（如"一张深夜电脑屏幕的图片"）或音乐元数据（如"歌曲：晴天 歌手：周杰伦"），直接引用它，无需对用户说"这是一段文字描述"——把它当作你亲眼看到/亲耳听到的内容来理解。
-
-            【隐式实体查询 —— 高优先级】
-            当用户在对话中提到某个具体的品牌、商品、地点或看似随意的名词（例如“爷爷不泡茶”、“某某餐厅”、“那个杯子”）时，即使他们没有明确说“帮我查一下日记”，你也**必须主动调用 diarySearchFunction** 以该名词为 keyword 去检索！
-            因为用户很可能在最近的日记里记录过与此相关的心愿或图片。主动检索能让你瞬间捕捉到用户的上下文。只有在搜索不到时，你再把它当作一般性话题回答。
-
-            【并行工具调用 — 极其重要】
-            当你需要分析用户历史状态时，可以**同时调用多个工具**来准备数据，而不是一个一个地串行查：
-            - 用户问"我最近状态怎么样" → 同时调用 userStatsFunction + diarySearchFunction + memoryQueryFunction
-            - 用户问"帮我分析一下这周" → 同时调用 reportSnapshotFunction + userStatsFunction
-            一次请求中并行调用所有相关工具，能大幅减少用户等待时间。系统已检索到的语义片段会和你的工具查询结果互补，你只需综合回答即可。
-
-            【记忆与当前上下文的优先级铁律 —— 极其重要】
-            在多轮对话中，你必须**绝对优先结合紧邻的 <chat_history>（用户刚才和你聊的具体事件）**来回答用户的追问！
-            由系统检索拉取的历史记录（<rag_retrieved_context>）或长期画像仅作为次要的性格补充。如果检索到的旧记录（例如旧日记里的人物、事件）与当前 <chat_history> 中正在讨论的话题明显脱节，请**果断忽略**那些旧记录，保持当前对话的逻辑连贯性！绝对不允许用毫不相干的过往记忆去强行回答用户的当前提问！
-
-            【工具检索结果的话术规范 — 极其重要】
-            如果你通过调用工具拿到了用户过去的数据（报告、统计、历史日记等），记住：这些数据是你自己查出来的，不是用户在这一轮对话里主动告诉你的！
-            请严格区分两种情况：
-            1. 用户在本轮对话中显式引用/粘贴了某篇日记给你看 → 可以用"你写到的"等表达。
-            2. 你通过 Function Calling 或 RAG 向量检索从后台拿到的数据 → **绝对不要**说"你分享的""正如你提到的""你刚才说""你表示"。"分享"一词暗示用户主动递交，而系统检索的数据（日记、聊天记录、画像）并非用户在本轮对话中递交的。必须使用明确表示系统检索的说法，例如：
-               - "我帮你查了一下你过去的数据……"
-               - "根据你的历史记录显示……"
-               - "从你之前的日记/报告中我看到……"
-               - "系统检索到你曾经记录过……"
-            这样做是为了让用户清楚地知道：有些内容是你主动帮他们查的，而不会产生"我什么时候说过这个？"的困惑。
-
-            【时间与工具检索规范 — 极其重要】
-            1. 当你需要根据用户提到的相对时间（如"昨天"、"上周"）调用 diarySearch 等工具时，你必须先参考上方的 <system_metadata> 中的【当前系统时间】，将其在心里计算成绝对日期（如 yyyy-MM-dd），然后再将绝对日期作为参数传入工具！
-            2. 禁忌：<system_metadata> 中的时间仅供你作为底层计算基准。在最终回复用户的文字中，**绝对不要**主动提及或重复当前的日期和星期（例如绝对不要说"今天是2024年X月X日"或"现在是星期几"），除非用户明确问你今天几号。请始终保持像真人朋友一样自然、共情的对话风格，不要像个报时的机器人。
-            【引用回复规范 — 极其重要】
-            当用户在对话中使用 Markdown 块引用（即以 `> ` 开头）回复了你之前的某段话时，这意味着用户希望针对这段具体内容与你探讨。
-            1. 你必须重点关注被引用的片段，优先解答针对该片段的疑问或回应其情绪。
-            2. 为了让对话焦点更清晰，你在回复时，如果需要针对用户的某几个具体问题/细节分别作答，也非常鼓励你主动使用 Markdown 块引用（例如 `> 你刚才提到...`）来明确你在回答哪一部分。
-            """;
-
     private final ChatClient chatChatClient;
     private final ChatClient analysisChatClient;
     private final ChatConversationMapper conversationMapper;
@@ -147,6 +70,7 @@ public class ChatService {
     private final com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper;
     private final com.moodcopilot.mapper.DiaryMapper diaryMapper;
     private final VisionService visionService;
+    private final com.moodcopilot.config.AiPromptProperties aiPrompts;
 
     public ChatService(ChatClient chatChatClient,
             ChatClient analysisChatClient,
@@ -165,7 +89,8 @@ public class ChatService {
             DeepSeekClient deepSeekClient,
             com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper,
             com.moodcopilot.mapper.DiaryMapper diaryMapper,
-            VisionService visionService) {
+            VisionService visionService,
+            com.moodcopilot.config.AiPromptProperties aiPrompts) {
         this.chatChatClient = chatChatClient;
         this.analysisChatClient = analysisChatClient;
         this.conversationMapper = conversationMapper;
@@ -184,6 +109,7 @@ public class ChatService {
         this.diaryKnowledgeGraphMapper = diaryKnowledgeGraphMapper;
         this.diaryMapper = diaryMapper;
         this.visionService = visionService;
+        this.aiPrompts = aiPrompts;
     }
 
     // ---- 会话管理 ----
@@ -285,21 +211,7 @@ public class ChatService {
 
     private void generateAndCacheWelcomeTopics(Long userId, String memoryBackground) {
         String cacheKey = "chat:welcome_topics:" + userId;
-        String systemPrompt = """
-            你是一个懂心理学的情绪树洞助手。请根据用户的画像和最近状态，生成 4 个推荐的聊天开场白话题（每个话题长度在10-20字左右），供用户点击快速开始聊天。
-            请确保话题贴合用户的状态、兴趣或最近可能有的困惑。
-            【重要警告】：这些话题将作为预设按钮供用户点击并发送给你。因此，请必须以**用户的口吻（第一人称）**来写，例如："我今天有点累，陪我聊一下"，绝对不要以 AI 的口吻去问候用户（不能出现类似"你累了吗，我陪你聊聊"）。
-            
-            必须严格返回合法的 JSON 数组，格式如下：
-            [
-              {"icon": "🌟", "text": "分析我最近三天的情绪波动"},
-              {"icon": "💡", "text": "帮我回顾我最近开心的事情"},
-              {"icon": "🌿", "text": "推荐一些适合我解压的音乐与方法"},
-              {"icon": "💬", "text": "今天有点累，陪我聊一下"}
-            ]
-            
-            用户背景画像：
-            """ + memoryBackground;
+        String systemPrompt = aiPrompts.getWelcomeTopicsSystemPrompt() + "\n用户背景画像：\n" + memoryBackground;
 
         try {
             String response = analysisChatClient.prompt()
@@ -325,33 +237,19 @@ public class ChatService {
 
     public ChatStreamContext chat(Long conversationId, String message, List<String> refs, String memoryBackground) {
         // 流式接口：先统一装配上下文，再决定走普通模型还是思考模型。
-        ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
-        // 捕获当前 SecurityContext，通过 Reactor Context 传递给 Function Calling 的异步回调线程
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        UserEntity user = currentUser();
-        long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = ""; // 已迁移为 Agentic RAG，不再强制前置全量检索
+        ChatExecutionResult exec = prepareChatExecution(conversationId, message, refs, memoryBackground);
+        ChatRequest request = exec.request();
+        Authentication auth = exec.auth();
+        String ragCtx = exec.ragCtx();
 
-        if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
-            boolean useReasoning = false;
-            try {
-                rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REASONING);
-                useReasoning = true;
-            } catch (RateLimitException e) {
-                log.info("推理额度不足，降级到普通聊天 userId={}", user.getId());
-            }
-            if (useReasoning) {
-                log.info("聊天路由结果：reasoning（流式），conversationId={}，messageLength={}", conversationId,
-                        message == null ? 0 : message.length());
-                userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
-                return new ChatStreamContext(ragCtx, callReasoningModelStream(request, message, auth, conversationId, ragCtx));
-            }
+        if (exec.useReasoning()) {
+            log.info("聊天路由结果：reasoning（流式），conversationId={}，messageLength={}", conversationId,
+                    message == null ? 0 : message.length());
+            return new ChatStreamContext(ragCtx, callReasoningModelStream(request, message, auth, conversationId, ragCtx));
         }
 
         log.info("聊天路由结果：normal，conversationId={}，messageLength={}", conversationId,
                 message == null ? 0 : message.length());
-        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT);
-        userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
 
         Sinks.Many<String> sseSink = Sinks.many().unicast().onBackpressureBuffer();
 
@@ -359,7 +257,7 @@ public class ChatService {
                 .user(message)
                 .system(s -> {
                     StringBuilder sys = new StringBuilder();
-                    sys.append(AGENT_TOOLS_PROMPT).append("\n\n");
+                    sys.append(aiPrompts.getAgentToolsPrompt()).append("\n\n");
                     if (request.context() != null && !request.context().isBlank()) {
                         sys.append(request.context()).append("\n\n");
                     }
@@ -391,38 +289,25 @@ public class ChatService {
 
     public String reply(Long conversationId, String message, List<String> refs, String memoryBackground) {
         // 非流式接口：移动端/公网优先走这里，减少 SSE 连接不稳定的影响。
-        ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        UserEntity user = currentUser();
-        long uid = ((UserEntity) auth.getPrincipal()).getId();
-        String ragCtx = ""; // 已迁移为 Agentic RAG，不再强制前置全量检索
+        ChatExecutionResult exec = prepareChatExecution(conversationId, message, refs, memoryBackground);
+        ChatRequest request = exec.request();
+        Authentication auth = exec.auth();
+        String ragCtx = exec.ragCtx();
 
-        if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
-            boolean useReasoning = false;
-            try {
-                rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REASONING);
-                useReasoning = true;
-            } catch (RateLimitException e) {
-                log.info("推理额度不足，降级到普通聊天 userId={}", user.getId());
-            }
-            if (useReasoning) {
-                log.info("非流式聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
-                        message == null ? 0 : message.length());
-                userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
-                return callReasoningModel(request, message, auth, conversationId, ragCtx);
-            }
+        if (exec.useReasoning()) {
+            log.info("非流式聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
+                    message == null ? 0 : message.length());
+            return callReasoningModel(request, message, auth, conversationId, ragCtx);
         }
 
         log.info("非流式聊天路由结果：normal，conversationId={}，messageLength={}", conversationId,
                 message == null ? 0 : message.length());
-        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT);
-        userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
 
         String result = chatChatClient.prompt()
                 .user(message)
                 .system(s -> {
                     StringBuilder sys = new StringBuilder();
-                    sys.append(AGENT_TOOLS_PROMPT).append("\n\n");
+                    sys.append(aiPrompts.getAgentToolsPrompt()).append("\n\n");
                     if (request.context() != null && !request.context().isBlank()) {
                         sys.append(request.context()).append("\n\n");
                     }
@@ -450,6 +335,32 @@ public class ChatService {
 
 
 
+    private record ChatExecutionResult(ChatRequest request, Authentication auth, UserEntity user, String ragCtx, boolean useReasoning) {}
+
+    private ChatExecutionResult prepareChatExecution(Long conversationId, String message, List<String> refs, String memoryBackground) {
+        ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity user = currentUser();
+        String ragCtx = ""; // 已迁移为 Agentic RAG，不再强制前置全量检索
+
+        boolean useReasoning = false;
+        if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
+            try {
+                rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REASONING);
+                useReasoning = true;
+            } catch (RateLimitException e) {
+                log.info("推理额度不足，降级到普通聊天 userId={}", user.getId());
+            }
+        }
+
+        if (!useReasoning) {
+            rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT);
+        }
+        userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
+
+        return new ChatExecutionResult(request, auth, user, ragCtx, useReasoning);
+    }
+
     private boolean shouldUseReasoning(Long conversationId, String message, List<String> refs,
             String memoryBackground) {
         return chatIntentRouter.shouldUseReasoning(message, refs, memoryBackground, conversationId);
@@ -458,7 +369,7 @@ public class ChatService {
     private List<Map<String, Object>> buildMessagesForReasoner(ChatRequest request, String message, Authentication auth, String ragCtx) {
         List<Map<String, Object>> msgs = new ArrayList<>();
         StringBuilder sys = new StringBuilder();
-        sys.append(AGENT_TOOLS_PROMPT).append("\n\n");
+        sys.append(aiPrompts.getAgentToolsPrompt()).append("\n\n");
         if (request.context() != null && !request.context().isBlank()) {
             sys.append(request.context()).append("\n\n");
         }
@@ -977,7 +888,7 @@ public class ChatService {
 
         try {
             String newSummary = analysisChatClient.prompt()
-                    .system(COMPRESSION_SYSTEM_PROMPT)
+                    .system(aiPrompts.getChatCompressionSystemPrompt())
                     .user(compressionInput.toString())
                     .call()
                     .content();

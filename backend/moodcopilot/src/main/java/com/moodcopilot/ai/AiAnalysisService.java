@@ -20,38 +20,14 @@ public class AiAnalysisService {
 
     private static final Logger log = LoggerFactory.getLogger(AiAnalysisService.class);
 
-    private static final String SYSTEM_PROMPT = """
-            You are a compassionate emotion analysis assistant. Analyze the following diary entry and return ONLY valid JSON (no markdown, no explanation). The JSON must have these exact fields:
-            - moodLabel: one of [喜悦, 期待, 兴奋, 自豪, 轻松, 平静, 感恩, 满足, 烦躁, 愤怒, 焦虑, 害怕, 疲惫, 委屈, 难过, 孤独, 迷茫, 内疚]
-            - moodIntensity: integer 1-5, anchored as:
-              1 = extremely mild / fleeting, barely noticeable
-              2 = faintly present / background emotion
-              3 = clearly felt / affecting current attention
-              4 = strong / driving physiological reactions or behavior
-              5 = overwhelming / hard to control or bear
-            - valence: integer from -100 to 100 representing emotional positivity/negativity. -100 is extreme agony/pain, 0 is neutral, 100 is extreme ecstasy/joy.
-            - arousal: integer from -100 to 100 representing physiological energy/activation. -100 is extreme exhaustion/calm, 0 is neutral, 100 is extreme excitement/tension.
-            - secondaryMoods: OPTIONAL array of strings from the same mood list above. Include only if the diary clearly expresses more than one emotion. Return empty array [] when the emotion is singular.
-            - topicLabels: array of strings from [人际关系, 工作学习, 睡眠身体, 自我成长, 日常情绪]
-            - summary: brief Chinese summary, max 48 characters
-            - feedback: gentle, compassionate Chinese feedback, max 200 characters
-
-            If the diary includes a [音乐分享] block with song title, artist, and user-selected lyrics, factor the music's mood and the user's lyrical resonance into your emotion analysis. The song choice and beloved lyric reveal deeper emotional undertones.
-            """;
-
-    private static final String WEEKLY_SYSTEM_PROMPT = """
-            You are a compassionate weekly reflection assistant. Below is a list of diary entries from the past week, each with its primary mood, optional secondary moods, topic, and summary. Write a warm, gentle Chinese reflection (150-300 characters) that:
-            1. Acknowledges the emotional journey of the week, noticing when emotions were mixed or layered
-            2. Notices patterns or shifts in mood and themes, including subtle secondary emotions that may signal underlying currents
-            3. Offers gentle encouragement without being preachy
-            Return ONLY the Chinese text. You are encouraged to use simple Markdown (like **bold**, lists, and line breaks) for a beautiful and clear layout. No JSON, no explanation.""";
-
     private final ChatClient analysisChatClient;
     private final ObjectMapper objectMapper;
+    private final com.moodcopilot.config.AiPromptProperties aiPrompts;
 
-    public AiAnalysisService(ChatClient analysisChatClient, ObjectMapper objectMapper) {
+    public AiAnalysisService(ChatClient analysisChatClient, ObjectMapper objectMapper, com.moodcopilot.config.AiPromptProperties aiPrompts) {
         this.analysisChatClient = analysisChatClient;
         this.objectMapper = objectMapper;
+        this.aiPrompts = aiPrompts;
     }
 
     public DiaryAnalysis analyze(String content) {
@@ -79,7 +55,7 @@ public class AiAnalysisService {
                 sb.append("请结合图片中的画面与氛围来丰富情绪分析，但不要在反馈中复述图片内容。");
             }
             String json = analysisChatClient.prompt()
-                    .system(SYSTEM_PROMPT)
+                    .system(aiPrompts.getAnalysisSystemPrompt())
                     .user(sb.toString())
                     .call()
                     .content();
@@ -118,24 +94,6 @@ public class AiAnalysisService {
 
     // ── Knowledge Graph Extraction ──
 
-    private static final String GRAPH_EXTRACTION_SYSTEM_PROMPT = """
-            你是一个专注于情绪与心理分析的知识图谱提取助手。你的唯一目标是挖掘“触发源”与“内心具体情绪/心理状态”之间的底层联系，而不是做流水账总结。
-            只返回一个 JSON 数组，不要加 markdown 代码块或任何解释文字。
-            每个对象必须包含以下四个字段：
-            - head (字符串): 触发源（具体事件、人物、习惯、甚至是某种思维方式，如"连续加班"、"同事的指责"、"深夜独处"）
-            - relation (字符串): 影响动词（如"导致"、"缓解"、"加重"、"引发"、"治愈"）
-            - tail (字符串): 最终落地的具体情绪、感受或心理状态（必须是针对作者本人的心理词汇，如"焦虑"、"无力感"、"内耗"、"释怀"、"满足感"）
-            - tailPolarity (整数): tail 的情绪极性判定（1: 积极/疗愈/正向，0: 中性/平和，-1: 消极/压力/负向）。必须结合日记上下文判断。
-            严格遵守以下绝对规则：
-            1. 拒绝流水账记录：严禁提取“事件A -> 事件B”的纯行为流水账（例如绝对不能提取“去操场 -> 看到人骑车”、“朋友 -> 挂贴吧”这种不含情绪深度的记录）。
-            2. tail 必须是具体情绪或心理状态：tail 节点必须归结到作者本人的情绪感受或生理心理反应，不能是客观动作或外界事件。
-            3. 排他性：切勿提取关于他人的情绪（如“朋友很生气”），你只关心作者本人的情绪脉络。
-            4. 实体提纯：实体名称必须高度精简，提炼核心词（如使用“愤怒”而非“我感到了愤怒”），切勿将整句话塞进节点。
-            5. 如果日记中没有明确的“触发源 -> 情绪状态”的因果关系，请直接返回 []。
-            正确示例：[{"head": "无理取闹的客户", "relation": "引发", "tail": "深度内耗", "tailPolarity": -1}, {"head": "和朋友吐槽", "relation": "缓解", "tail": "烦躁感", "tailPolarity": 1}, {"head": "阳光很好", "relation": "带来", "tail": "短暂的平静", "tailPolarity": 1}]
-            错误示例（绝不能提取）：[{"head": "有人乱骑车", "relation": "属于", "tail": "没素质"}, {"head": "朋友", "relation": "发贴吧", "tail": "曝光别人"}]
-            """;
-
     public record KnowledgeTriple(String head, String relation, String tail, Integer tailPolarity) {}
 
     public List<KnowledgeTriple> extractKnowledgeGraph(String content) {
@@ -146,7 +104,7 @@ public class AiAnalysisService {
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 String json = analysisChatClient.prompt()
-                        .system(GRAPH_EXTRACTION_SYSTEM_PROMPT)
+                        .system(aiPrompts.getGraphExtractionSystemPrompt())
                         .user(content)
                         .call()
                         .content();
@@ -180,30 +138,12 @@ public class AiAnalysisService {
             prompt.append("<user_profile>\n").append(memoryContext).append("\n</user_profile>\n\n");
         }
         prompt.append("本周日记摘要：\n");
-        for (int i = 0; i < diaryContents.size(); i++) {
-            DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
-            prompt.append("- ");
-            if (a != null) {
-                prompt.append("情绪：").append(a.moodLabel());
-                if (a.hasSecondaryMoods()) {
-                    prompt.append("（同时感受到：").append(String.join("、", a.secondaryMoods())).append("）");
-                }
-                prompt.append("，强度：").append(a.moodIntensity());
-                if (a.valence() != null) prompt.append("，正负向：").append(a.valence());
-                if (a.arousal() != null) prompt.append("，唤醒度：").append(a.arousal());
-                prompt.append("，主题：").append(String.join("、", a.topicLabels()))
-                        .append("，摘要：").append(a.summary());
-            } else {
-                String content = diaryContents.get(i);
-                prompt.append(content.length() > 60 ? content.substring(0, 60) + "..." : content);
-            }
-            prompt.append("\n");
-        }
+        appendDiaryEntries(prompt, diaryContents, analyses);
         prompt.append("\n").append(buildQuadrantHint(analyses));
 
         try {
             return analysisChatClient.prompt()
-                    .system(WEEKLY_SYSTEM_PROMPT)
+                    .system(aiPrompts.getWeeklySystemPrompt())
                     .user(prompt.toString())
                     .call()
                     .content();
@@ -224,41 +164,16 @@ public class AiAnalysisService {
 
     // ── Custom summary (date-range agnostic) ──
 
-    private static final String CUSTOM_SUMMARY_SYSTEM_PROMPT = """
-            You are a compassionate reflection assistant. Below is a list of diary entries from a selected period, each with its primary mood, optional secondary moods, topic, and summary. Write a warm, gentle Chinese reflection (150-300 characters) that:
-            1. Acknowledges the emotional journey of this period, noticing when emotions were mixed or layered
-            2. Notices patterns or shifts in mood and themes, including subtle secondary emotions that may signal underlying currents
-            3. Offers gentle encouragement without being preachy
-            Return ONLY the Chinese text. You are encouraged to use simple Markdown (like **bold**, lists, and line breaks) for a beautiful and clear layout. No JSON, no explanation.""";
-
     public String generateCustomSummary(List<String> diaryContents, List<DiaryAnalysis> analyses) {
         if (diaryContents.isEmpty())
             return "该时段还没有记录日记，去写一篇吧～";
 
         StringBuilder prompt = new StringBuilder("自选时段日记摘要：\n");
-        for (int i = 0; i < diaryContents.size(); i++) {
-            DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
-            prompt.append("- ");
-            if (a != null) {
-                prompt.append("情绪：").append(a.moodLabel());
-                if (a.hasSecondaryMoods()) {
-                    prompt.append("（同时感受到：").append(String.join("、", a.secondaryMoods())).append("）");
-                }
-                prompt.append("，强度：").append(a.moodIntensity());
-                if (a.valence() != null) prompt.append("，正负向：").append(a.valence());
-                if (a.arousal() != null) prompt.append("，唤醒度：").append(a.arousal());
-                prompt.append("，主题：").append(String.join("、", a.topicLabels()))
-                        .append("，摘要：").append(a.summary());
-            } else {
-                String content = diaryContents.get(i);
-                prompt.append(content.length() > 60 ? content.substring(0, 60) + "..." : content);
-            }
-            prompt.append("\n");
-        }
+        appendDiaryEntries(prompt, diaryContents, analyses);
 
         try {
             return analysisChatClient.prompt()
-                    .system(CUSTOM_SUMMARY_SYSTEM_PROMPT)
+                    .system(aiPrompts.getCustomSummarySystemPrompt())
                     .user(prompt.toString())
                     .call()
                     .content();
@@ -270,13 +185,6 @@ public class AiAnalysisService {
 
     // ── Monthly report ──
 
-    private static final String MONTHLY_SYSTEM_PROMPT = """
-            You are a compassionate monthly reflection assistant. Below is a list of diary entries from the past month, each with its primary mood, optional secondary moods, topic, and summary. Write a warm, gentle Chinese reflection (200-400 characters) that:
-            1. Acknowledges the emotional journey of the month, noticing when emotions were layered or contradictory
-            2. Notices patterns, shifts, or trends in mood and themes over the longer period, paying attention to the interplay between primary and secondary emotions
-            3. Offers gentle encouragement and a forward-looking perspective
-            Return ONLY the Chinese text. You are encouraged to use simple Markdown (like **bold**, lists, and line breaks) for a beautiful and clear layout. No JSON, no explanation.""";
-
     public String generateMonthlySummary(List<String> diaryContents, List<DiaryAnalysis> analyses,
             String memoryContext) {
         if (diaryContents.isEmpty())
@@ -287,30 +195,12 @@ public class AiAnalysisService {
             prompt.append("<user_profile>\n").append(memoryContext).append("\n</user_profile>\n\n");
         }
         prompt.append("本月日记摘要：\n");
-        for (int i = 0; i < diaryContents.size(); i++) {
-            DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
-            prompt.append("- ");
-            if (a != null) {
-                prompt.append("情绪：").append(a.moodLabel());
-                if (a.hasSecondaryMoods()) {
-                    prompt.append("（同时感受到：").append(String.join("、", a.secondaryMoods())).append("）");
-                }
-                prompt.append("，强度：").append(a.moodIntensity());
-                if (a.valence() != null) prompt.append("，正负向：").append(a.valence());
-                if (a.arousal() != null) prompt.append("，唤醒度：").append(a.arousal());
-                prompt.append("，主题：").append(String.join("、", a.topicLabels()))
-                        .append("，摘要：").append(a.summary());
-            } else {
-                String content = diaryContents.get(i);
-                prompt.append(content.length() > 60 ? content.substring(0, 60) + "..." : content);
-            }
-            prompt.append("\n");
-        }
+        appendDiaryEntries(prompt, diaryContents, analyses);
         prompt.append("\n").append(buildQuadrantHint(analyses));
 
         try {
             return analysisChatClient.prompt()
-                    .system(MONTHLY_SYSTEM_PROMPT)
+                    .system(aiPrompts.getMonthlySystemPrompt())
                     .user(prompt.toString())
                     .call()
                     .content();
@@ -323,14 +213,6 @@ public class AiAnalysisService {
     public ReportGuidance generateMonthlyGuidance(List<String> diaryContents, List<DiaryAnalysis> analyses) {
         return generateReportGuidance("本月", diaryContents, analyses);
     }
-
-    private static final String REPORT_GUIDANCE_SYSTEM_PROMPT = """
-            You are MoodCopilot. Based on the user's diary patterns, return ONLY valid JSON with:
-            - insights: array of 2-3 concise Chinese observations about emotional patterns (consider both primary and secondary moods for deeper insight)
-            - suggestions: array of 2-3 small, concrete Chinese actions the user can try
-            - followUpPrompt: one Chinese sentence the user could ask MoodCopilot to explore further
-            Avoid mechanical time-template wording such as “花几分钟”“先给自己X分钟”.
-            Be warm and specific. Do not diagnose. You can use simple Markdown (like **bold**) inside the strings for emphasis. You may use emoji sparingly (1-2 per response) to add warmth, but don't overuse them.""";
 
     @SuppressWarnings("unchecked")
     private ReportGuidance generateReportGuidance(String period, List<String> diaryContents,
@@ -360,7 +242,7 @@ public class AiAnalysisService {
         }
         try {
             String json = analysisChatClient.prompt()
-                    .system(REPORT_GUIDANCE_SYSTEM_PROMPT)
+                    .system(aiPrompts.getReportGuidanceSystemPrompt())
                     .user(prompt.toString())
                     .call()
                     .content();
@@ -458,14 +340,6 @@ public class AiAnalysisService {
 
     // ── Coaching plan ──
 
-    private static final String COACHING_SYSTEM_PROMPT = """
-            You are a compassionate emotional wellness coach. Below are the user's recent diary entries with primary moods, optional secondary moods, and topics. Write a gentle, personalized Chinese coaching suggestion (100-200 characters) that:
-            1. Acknowledges their recent emotional patterns, noticing when primary and secondary moods reveal layered feelings
-            2. Suggests one small, concrete action they could try today
-            3. Is encouraging but not preachy
-            4. Avoids mechanical time-template wording such as “花几分钟”“先给自己X分钟”
-            Return ONLY the Chinese text. You can use simple Markdown (like **bold**) to highlight key actionable advice. No JSON, no explanation.""";
-
     public String generateCoaching(List<String> contents, List<DiaryAnalysis> analyses) {
         if (contents.isEmpty())
             return "还没有足够的日记数据，多记录几天后我会为你生成陪跑建议。";
@@ -482,7 +356,7 @@ public class AiAnalysisService {
         }
         try {
             return analysisChatClient.prompt()
-                    .system(COACHING_SYSTEM_PROMPT)
+                    .system(aiPrompts.getCoachingSystemPrompt())
                     .user(sb.toString())
                     .call()
                     .content();
@@ -494,15 +368,6 @@ public class AiAnalysisService {
     }
 
     // ── User chat context ──
-
-    private static final String USER_CONTEXT_SYSTEM_PROMPT = """
-            你是用户长期背景总结助手。请将"已有用户背景"和"本次新日记"融合成新的用户专属背景，用于后续聊天。
-            要求：
-            1) 中文，120-220字；
-            2) 只保留稳定、可帮助理解用户的关键信息（常见情绪（含主次情绪）、触发主题、近期变化、偏好表达方式）；
-            3) 不要复述过多细节，不要逐条罗列历史日记，不要输出建议清单；
-            4) 输出纯文本，不要 markdown、不要 JSON。
-            """;
 
     public String generateUserContext(String previousContext, String diaryContent, DiaryAnalysis analysis) {
         String oldContext = previousContext == null ? "" : previousContext.trim();
@@ -533,7 +398,7 @@ public class AiAnalysisService {
 
         try {
             String merged = analysisChatClient.prompt()
-                    .system(USER_CONTEXT_SYSTEM_PROMPT)
+                    .system(aiPrompts.getUserContextSystemPrompt())
                     .user(prompt)
                     .call()
                     .content();
@@ -575,14 +440,10 @@ public class AiAnalysisService {
 
     // ── Encouragement generation ──
 
-    private static final String ENCOURAGEMENT_SYSTEM_PROMPT = """
-            You are a warm, compassionate stranger. Below is a diary entry. Generate exactly 3 short, anonymous encouragement messages in Chinese, each under 60 characters. They should be gentle, specific (reference the diary content), and feel like a real person wrote them, not a therapist. Format your response as a JSON array of 3 strings, nothing else.
-            Example: ["抱抱你，摔倒了没关系，明天又是新的一天","减肥真的好难，但你已经在努力了","我也有过类似的委屈，想说你不是一个人"]""";
-
     public List<String> generateEncouragements(String diaryContent) {
         try {
             String response = analysisChatClient.prompt()
-                    .system(ENCOURAGEMENT_SYSTEM_PROMPT)
+                    .system(aiPrompts.getEncouragementSystemPrompt())
                     .user(diaryContent)
                     .call()
                     .content();
@@ -607,6 +468,28 @@ public class AiAnalysisService {
 
         String topMood = topMood(analyses);
         return String.format("本周共记录了 %d 篇日记，主要情绪为「%s」。继续记录，你会慢慢看清自己的节奏。", count, topMood);
+    }
+
+    private void appendDiaryEntries(StringBuilder prompt, List<String> diaryContents, List<DiaryAnalysis> analyses) {
+        for (int i = 0; i < diaryContents.size(); i++) {
+            DiaryAnalysis a = i < analyses.size() ? analyses.get(i) : null;
+            prompt.append("- ");
+            if (a != null) {
+                prompt.append("情绪：").append(a.moodLabel());
+                if (a.hasSecondaryMoods()) {
+                    prompt.append("（同时感受到：").append(String.join("、", a.secondaryMoods())).append("）");
+                }
+                prompt.append("，强度：").append(a.moodIntensity());
+                if (a.valence() != null) prompt.append("，正负向：").append(a.valence());
+                if (a.arousal() != null) prompt.append("，唤醒度：").append(a.arousal());
+                prompt.append("，主题：").append(String.join("、", a.topicLabels()))
+                        .append("，摘要：").append(a.summary());
+            } else {
+                String content = diaryContents.get(i);
+                prompt.append(content.length() > 60 ? content.substring(0, 60) + "..." : content);
+            }
+            prompt.append("\n");
+        }
     }
 
     private String buildQuadrantHint(List<DiaryAnalysis> analyses) {
@@ -852,42 +735,6 @@ public class AiAnalysisService {
         return false;
     }
 
-    private static final String QUERY_REWRITE_PROMPT = """
-            你是一位日记检索专家。根据用户的输入，首先判断查询意图类型，然后选择合适的改写策略。
-
-            【第一步：意图分类】
-            仔细判断用户的查询属于哪一类：
-
-            A. 客观事实查询 —— 用户想回溯过去发生的具体事件、行为或客观信息：
-               - 例："我上个月听了什么歌"、"去年我去过哪些地方"、"我写过关于工作的日记吗"、"最近吃了什么"
-               - 特征：询问"什么"、"哪些"、"有没有"、"是不是做过"、"什么时候"等客观事实
-
-            B. 情感反思查询 —— 用户想探索自己的情绪模式、心理状态或自我认知：
-               - 例："我最近是不是太焦虑了"、"为什么我总是感到孤独"、"我的状态怎么样"、"我是不是很有耐心"
-               - 特征：涉及情绪标签、心理状态、自我评价、性格反思
-
-            【第二步：按类型改写】
-            - 如果是A类（客观事实）：提取用户问题中的核心事实关键词，输出为简洁的关键词短语（10-30字），不要添加情感色彩，不要编造场景。例如：
-              输入 "我上个月听了什么歌" → 输出 "上月 听歌 音乐 歌曲"
-              输入 "去年我去过哪些地方" → 输出 "去年 旅行 出行 去过的地方"
-              输入 "最近吃了什么美食" → 输出 "最近 美食 吃饭 好吃的"
-
-            - 如果是B类（情感反思）：以第一人称（"我"）的口吻，替用户写一段他可能会记录在日记里的自然语言陈述句（30-80字）。这段话需要包含具体的场景、心理活动和情感色彩，以便用于在向量库中寻找语义最接近的真实日记。
-              示例：
-              '工作让我焦虑' → 最近工作压力好大，每天无休止的加班让我感到非常焦虑和疲惫，感觉自己快撑不住了。
-              '我喜欢吃什么' → 今天突然好想吃火锅，那种热气腾腾的氛围和麻辣的味道让我觉得很幸福。
-
-            【多轮对话语境理解 —— 极其重要】
-            你现在处于多轮对话中。请结合下方 <chat_history>（最近两轮的对话上下文）来理解用户当前输入的真正意图。
-            例如，如果上一轮在聊"写Bug卡了四小时"，这一轮用户问"我是不是很有耐心"，你应当理解用户的隐含意图是想寻找关于"死磕难题、写代码有耐心"的历史记录，而不是宽泛的"为人处世有耐心"。
-            如果 <chat_history> 为空或不存在，说明这是第一轮对话，直接基于当前输入改写即可。
-
-            重要规则：
-            1. A类查询务必输出简洁关键词，不要编造场景，不要添加情感色彩
-            2. B类查询用"我"的第一人称视角，写成连贯自然的句子，包含具体场景和内心感受
-            3. 输出纯文本，不要解释、不要引号、不要标点以外的格式
-            """;
-
     /**
      * 将用户口语化输入改写为日记风格的陈述句，用于向量语义检索（HyDE）。
      * @param query 用户当前消息
@@ -896,7 +743,7 @@ public class AiAnalysisService {
      */
     public String rewriteQueryForSearch(String query, String memoryContext, String chatHistoryContext) {
         try {
-            StringBuilder prompt = new StringBuilder(QUERY_REWRITE_PROMPT);
+            StringBuilder prompt = new StringBuilder(aiPrompts.getQueryRewritePrompt());
             if (chatHistoryContext != null && !chatHistoryContext.isBlank()) {
                 prompt.append("\n<chat_history>\n").append(chatHistoryContext).append("</chat_history>\n");
             }

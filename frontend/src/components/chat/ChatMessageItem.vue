@@ -79,6 +79,12 @@
         <template v-else>
           <div class="md-content" v-html="renderMd(msg.content)" />
           
+          <ul v-if="msg.references?.length" class="chat-user-refs">
+            <li v-for="(refText, refIndex) in msg.references" :key="`${msg.id}-ref-${refIndex}`">
+              引用：{{ refText }}
+            </li>
+          </ul>
+          
           <!-- Quote Action -->
           <div class="msg-actions msg-actions-user">
             <button class="msg-action-btn" title="引用此回复" @click="handleQuote">
@@ -86,11 +92,6 @@
               <span>引用</span>
             </button>
           </div>
-          <ul v-if="msg.references?.length" class="chat-user-refs">
-            <li v-for="(refText, refIndex) in msg.references" :key="`${msg.id}-ref-${refIndex}`">
-              引用：{{ refText }}
-            </li>
-          </ul>
         </template>
       </div>
     </div>

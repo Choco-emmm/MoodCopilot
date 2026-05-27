@@ -74,8 +74,8 @@
     </div>
 
     <!-- Memory Preview Modal -->
-    <n-modal v-model:show="showMemoryPreviewModal" preset="card" title="👀 长期画像整理预览" style="width: 600px; max-width: 90vw;">
-      <p style="margin-top: 0; color: var(--color-text-secondary); font-size: 13px;">MoodCopilot 已将你的碎片记忆重新梳理为以下核心画像。确认替换后，这些内容将覆盖旧的数据：</p>
+    <n-modal v-model:show="showMemoryPreviewModal" preset="card" title="👀 长期画像整理预览" class="graph-preview-modal">
+      <p class="preview-desc">MoodCopilot 已将你的碎片记忆重新梳理为以下核心画像。确认替换后，这些内容将覆盖旧的数据：</p>
       
       <div v-if="deletedMemories.length > 0" style="background: var(--color-surface-hover); border-left: 3px solid var(--color-border); padding: 8px 12px; margin-bottom: 16px; font-size: 12px; color: var(--color-text-secondary); border-radius: 4px; max-height: 15vh; overflow-y: auto;">
         <div style="margin-bottom: 4px;">以下旧画像将被合并或移除：</div>
@@ -84,9 +84,9 @@
         </div>
       </div>
 
-      <div class="preview-list" style="max-height: 35vh; overflow-y: auto; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+      <div class="preview-list preview-list-panel">
         <div v-for="(item, index) in previewMemories" :key="index" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border);">
-          <div style="font-weight: bold; color: var(--color-primary); margin-bottom: 4px;">
+          <div class="preview-item-key">
             {{ item.attributeKey }}
             <n-tag v-if="item.isCore" size="small" type="warning" style="margin-left: 8px;">核心</n-tag>
             <n-tag v-if="isMemoryNew(item)" size="small" type="success" style="margin-left: 8px;">✨ 已变动</n-tag>
@@ -229,8 +229,8 @@ async function consolidateMemories() {
     showMemoryPreviewModal.value = true
   } catch (err: any) {
     if (loadingMsg) loadingMsg.destroy()
-    if (err.response?.status === 429 || (err.response?.data?.message && err.response.data.message.includes('每天最多只能进行两次'))) {
-      alert('每天最多只能进行两次智能整理，请明天再试吧')
+    if (err.response?.status === 429 || (err.response?.data?.message && err.response.data.message.includes('每天最多只能进行2次个人画像整理'))) {
+      alert('每天最多只能进行2次个人画像整理，请明天再试吧')
     } else {
       logWarn('memory', '记忆预览失败', err)
       alert('记忆整理失败：' + (err.response?.data?.message || err.message))
@@ -329,4 +329,29 @@ async function applyMemoryConsolidation() {
   padding: 0 12px;
   border-radius: var(--radius-full);
 }
+
+.profile-header-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.profile-header-title { margin: 0; font-weight: bold; }
+.mb-12 { margin-bottom: 12px; }
+.profile-filter-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.w-140 { width: 140px; }
+.profile-tab-content { min-height: 400px; display: flex; flex-direction: column; }
+.flex-center-full { flex: 1; display: flex; justify-content: center; align-items: center; }
+.flex-wrap-gap-8 { display: flex; flex-wrap: wrap; gap: 8px; }
+.ml-6 { margin-left: 6px; }
+.empty-profile-state { text-align: center; color: var(--color-text-light); padding: 40px 20px; }
+.profile-details-section { margin-top: 24px; padding-top: 16px; border-top: 1px dashed var(--color-border); }
+.details-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.details-title { font-size: 16px; font-weight: bold; margin: 0; color: var(--color-text); }
+.profile-detail-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; }
+.details-content-text { font-size: 14px; color: var(--color-text-secondary); line-height: 1.6; white-space: pre-wrap; }
+.details-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: 12px; color: var(--color-text-light); }
+.graph-preview-modal { width: 600px; max-width: 90vw; }
+.preview-desc { margin-top: 0; color: var(--color-text-secondary); font-size: 13px; }
+.preview-list-panel { max-height: 35vh; overflow-y: auto; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; padding: 12px; margin-bottom: 16px; }
+.preview-item { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); font-size: 13px; color: var(--color-text); }
+.preview-item-key { font-weight: bold; color: var(--color-primary); margin-bottom: 4px; }
+.preview-item-value { color: var(--color-text-secondary); line-height: 1.5; }
+.flex-end-gap-12 { display: flex; gap: 12px; justify-content: flex-end; }
+
 </style>

@@ -82,7 +82,7 @@ public class GraphConsolidationService {
             redisTemplate.expire(redisKey, java.time.Duration.ofDays(1));
         }
         if (count != null && count > 2) {
-            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行两次智能整理");
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行2次关系图谱整理");
         }
 
         List<DiaryKnowledgeGraphEntity> existing = graphService.getTriplesForUser(userId);

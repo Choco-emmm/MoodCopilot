@@ -23,7 +23,7 @@
 
     <n-modal v-model:show="showModal">
       <n-card
-        style="width: 90%; max-width: 400px; border-radius: var(--radius-xl); background: var(--color-surface); border: none;"
+        class="report-modal-card"
         :title="selectedMood?.date"
         :bordered="false"
         size="medium"
@@ -31,7 +31,7 @@
         aria-modal="true"
       >
         <template #header-extra>
-          <span :style="{ color: moodColor(selectedMood?.moodLabel || '') }" style="font-weight: 600; font-family: var(--font-serif)">
+          <span :style="{ color: moodColor(selectedMood?.moodLabel || '') }" class="modal-mood-title">
             {{ selectedMood?.moodLabel }}
           </span>
         </template>
@@ -44,8 +44,8 @@
         </p>
 
         <template #footer>
-          <div class="modal-footer" style="display: flex; justify-content: flex-end; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 16px;">
-            <button class="action-btn" @click="goToDiary" :disabled="!selectedMood?.diaryIds?.length" style="background: transparent; border: none; color: var(--color-primary); cursor: pointer; font-size: 0.95rem;">
+          <div class="modal-footer modal-footer-controls">
+            <button class="action-btn go-diary-btn" @click="goToDiary" :disabled="!selectedMood?.diaryIds?.length">
               翻开日记 →
             </button>
           </div>
@@ -422,4 +422,10 @@ const scatterOption = computed(() => {
   color: var(--color-text-secondary) !important;
   cursor: not-allowed !important;
 }
+
+.report-modal-card { width: 90%; max-width: 400px; border-radius: var(--radius-xl); background: var(--color-surface); border: none; }
+.modal-mood-title { font-weight: 600; font-family: var(--font-serif); }
+.modal-footer-controls { display: flex; justify-content: flex-end; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 16px; }
+.go-diary-btn { background: transparent; border: none; color: var(--color-primary); cursor: pointer; font-size: 0.95rem; }
+
 </style>

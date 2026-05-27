@@ -1,4 +1,4 @@
-/**
+﻿/**
  * useChat — orchestrator that composes all chat sub-composables
  * into a single API for ChatPage.vue to consume.
  */
@@ -93,10 +93,11 @@ export function useChat() {
         const data = res.data.data || []
         const diaries = (Array.isArray(data) ? data : data.items ?? []) as any[]
         diaries.slice(0, 20).forEach((d: any) => {
+          const plainText = (d.content ?? '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim()
           options.push({
             id: d.id,
             date: d.createdAt?.split('T')[0] ?? '',
-            snippet: d.content?.length > 30 ? d.content.slice(0, 30) + '...' : d.content ?? '',
+            snippet: plainText.length > 30 ? plainText.slice(0, 30) + '...' : plainText,
             fullContent: d.content ?? '',
           })
         })
@@ -299,3 +300,4 @@ export function useChat() {
     goToDiary,
   }
 }
+

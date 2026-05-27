@@ -886,7 +886,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   border: 1px solid color-mix(in oklab, rgba(139, 115, 85, 0.2) 100%, transparent) !important;
   border-radius: 2px 15px 3px 18px / 15px 3px 18px 2px !important;
   box-shadow: 2px 4px 12px rgba(139, 115, 85, 0.05) !important;
-  color: #3b3a38 !important;
+  color: var(--color-text) !important;
   line-height: 28px !important;
   position: relative;
   font-family: var(--font-body) !important;
@@ -894,7 +894,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 
 :deep(.chat-bubble.chat-user p) {
   margin: 0;
-  color: #3b3a38 !important;
+  color: var(--color-text) !important;
   line-height: 28px !important;
 }
 
@@ -931,11 +931,14 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 
 :deep(.chat-user-refs) {
   margin: 8px 0 0;
-  padding-left: 12px;
+  padding: 6px 12px;
+  background: color-mix(in oklab, var(--color-text) 5%, transparent);
+  border-radius: 4px;
   font-size: 11.5px;
   line-height: 1.5;
-  border-left: 2px solid rgba(255, 255, 255, 0.4);
-  color: rgba(255, 255, 255, 0.85);
+  border-left: 2px solid color-mix(in oklab, var(--color-text) 30%, transparent);
+  color: var(--color-text-secondary);
+  opacity: 1;
   list-style-type: none;
 }
 

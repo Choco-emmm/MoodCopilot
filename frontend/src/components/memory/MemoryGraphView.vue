@@ -1,10 +1,10 @@
 <template>
   <div>
-    <div class="section-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
-      <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-        <p class="settings-label" style="margin: 0; font-weight: bold; white-space: nowrap;">因果关联网络</p>
+    <div class="section-head graph-header-controls">
+      <div class="flex-center-gap-8 shrink-0">
+        <p class="settings-label graph-header-title">因果关联网络</p>
       </div>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <div class="flex-gap-8-wrap">
         <n-button size="small" secondary @click="isGraphListView = !isGraphListView">
           {{ isGraphListView ? '🕸️ 切换图谱视图' : '📝 切换列表视图' }}
         </n-button>
@@ -17,20 +17,20 @@
       </div>
     </div>
     
-    <div class="tab-content" style="position: relative; min-height: 500px; display: flex; flex-direction: column;">
-      <p class="memory-desc" style="margin-bottom: 12px;">从你的日记中提取的事件因果关系与概念网络。图谱上的“关联数”代表该事件与其他事件的联系程度，你可以在列表视图中手动调整不准确的关联。</p>
+    <div class="tab-content graph-tab-content">
+      <p class="memory-desc mb-12">从你的日记中提取的事件因果关系与概念网络。图谱上的“关联数”代表该事件与其他事件的联系程度，你可以在列表视图中手动调整不准确的关联。</p>
       
-      <div v-if="graphLoading" style="flex: 1; display: flex; justify-content: center; align-items: center;">
+      <div v-if="graphLoading" class="flex-center-full">
         <n-spin size="small" />
       </div>
-      <div v-else-if="!graphOptions && !isGraphListView" style="flex: 1; display: flex; justify-content: center; align-items: center; color: var(--color-text-light);">
+      <div v-else-if="!graphOptions && !isGraphListView" class="flex-center-full text-light">
         暂无图谱数据，写些有深度关联的日记吧。
       </div>
       
       <!-- Graph View -->
-      <div v-else-if="!isGraphListView" style="flex: 1; min-height: 500px; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; background: var(--color-surface-soft); position: relative; touch-action: none;">
-        <VChart ref="chartRef" class="chart" :option="graphOptions" autoresize style="height: 100%; min-height: 500px;" />
-        <div style="position: absolute; right: 16px; top: 16px; z-index: 10;">
+      <div v-else-if="!isGraphListView" class="chart-container">
+        <VChart ref="chartRef" class="chart chart-canvas" :option="graphOptions" autoresize />
+        <div class="chart-overlay-controls">
           <n-button size="small" secondary @click="resetGraph">
             🧭 恢复视角
           </n-button>
@@ -47,15 +47,15 @@
             :initial="{ opacity: 0, y: 30 }"
             :enter="{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 250, damping: 25, delay: index * 50 } }"
           >
-            <div class="memory-content" style="flex-direction: row; align-items: center; flex-wrap: wrap;">
+            <div class="memory-content flex-row-wrap-center">
               <template v-if="editingTripleId === t.id">
-                <div style="display: flex; flex-direction: column; gap: 8px; flex: 1; width: 100%;">
-                  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <n-input v-model:value="editingTriple.headEntity" size="small" placeholder="起点" style="flex: 1; min-width: 90px;" />
-                    <n-input v-model:value="editingTriple.relation" size="small" placeholder="关系" style="flex: 1; min-width: 60px;" />
-                    <n-input v-model:value="editingTriple.tailEntity" size="small" placeholder="终点" style="flex: 1; min-width: 90px;" />
+                <div class="flex-col-gap-8-full">
+                  <div class="flex-gap-8-wrap">
+                    <n-input v-model:value="editingTriple.headEntity" size="small" placeholder="起点" class="flex-1-min-90" />
+                    <n-input v-model:value="editingTriple.relation" size="small" placeholder="关系" class="flex-1-min-60" />
+                    <n-input v-model:value="editingTriple.tailEntity" size="small" placeholder="终点" class="flex-1-min-90" />
                   </div>
-                  <n-radio-group v-model:value="editingTriple.tailPolarity" size="small" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
+                  <n-radio-group v-model:value="editingTriple.tailPolarity" size="small" class="flex-wrap-gap-8-mt-4">
                     <n-radio :value="1">😃 积极</n-radio>
                     <n-radio :value="0">😐 中性</n-radio>
                     <n-radio :value="-1">😔 消极</n-radio>
@@ -63,10 +63,10 @@
                 </div>
               </template>
               <template v-else>
-                <span style="font-weight: bold; color: var(--color-primary);">{{ t.headEntity }}</span>
-                <span style="color: var(--color-text-light); margin: 0 6px;">--({{ t.relation }})--></span>
-                <span style="font-weight: bold; color: var(--color-primary);">{{ t.tailEntity }}</span>
-                <n-tag v-if="isRecentlyUpdated(t)" size="small" type="success" style="margin-left: 8px;">✨ 近期新增</n-tag>
+                <span class="triple-entity">{{ t.headEntity }}</span>
+                <span class="triple-relation">--({{ t.relation }})--></span>
+                <span class="triple-entity">{{ t.tailEntity }}</span>
+                <n-tag v-if="isRecentlyUpdated(t)" size="small" type="success" class="ml-8">✨ 近期新增</n-tag>
               </template>
             </div>
             <div class="memory-actions">
@@ -80,30 +80,30 @@
               </template>
             </div>
          </div>
-         <div v-if="triples.length === 0" style="text-align: center; color: var(--color-text-light); padding: 20px;">
+         <div v-if="triples.length === 0" class="empty-triples">
            暂无图谱数据
          </div>
       </div>
     </div>
 
     <!-- Graph Preview Modal -->
-    <n-modal v-model:show="showGraphPreviewModal" preset="card" title="🕸️ 知识图谱整理预览" style="width: 600px; max-width: 90vw;">
-      <p style="margin-top: 0; color: var(--color-text-secondary); font-size: 13px;">MoodCopilot 已合并冗余关系。确认后将覆盖旧的图谱关系：</p>
+    <n-modal v-model:show="showGraphPreviewModal" preset="card" title="🕸️ 知识图谱整理预览" class="graph-preview-modal">
+      <p class="preview-desc">MoodCopilot 已合并冗余关系。确认后将覆盖旧的图谱关系：</p>
 
-      <div v-if="deletedTriples.length > 0" style="background: var(--color-surface-hover); border-left: 3px solid var(--color-border); padding: 8px 12px; margin-bottom: 16px; font-size: 12px; color: var(--color-text-secondary); border-radius: 4px; max-height: 15vh; overflow-y: auto;">
-        <div style="margin-bottom: 4px;">以下旧关系将被合并或移除：</div>
+      <div v-if="deletedTriples.length > 0" class="deleted-triples-panel">
+        <div class="mb-4">以下旧关系将被合并或移除：</div>
         <div v-for="t in deletedTriples" :key="t.id">
           <del>{{ t.headEntity }} --({{ t.relation }})--> {{ t.tailEntity }}</del>
         </div>
       </div>
 
-      <div class="preview-list" style="max-height: 35vh; overflow-y: auto; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; padding: 12px; margin-bottom: 16px;">
-        <div v-for="(t, index) in previewTriples" :key="index" style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); font-size: 13px; color: var(--color-text);">
-          <span style="font-weight: bold; color: var(--color-primary);">{{ t.headEntity }}</span>
-          <span style="color: var(--color-text-light); margin: 0 6px;">--({{ t.relation }})--></span>
-          <span style="font-weight: bold; color: var(--color-primary);">{{ t.tailEntity }}</span>
-          <n-tag v-if="isTripleNew(t)" size="small" type="success" style="margin-left: 8px;">✨ 已变动</n-tag>
-          <n-tag v-else size="small" style="margin-left: 8px;">无变化</n-tag>
+      <div class="preview-list preview-list-panel">
+        <div v-for="(t, index) in previewTriples" :key="index" class="preview-item">
+          <span class="triple-entity">{{ t.headEntity }}</span>
+          <span class="triple-relation">--({{ t.relation }})--></span>
+          <span class="triple-entity">{{ t.tailEntity }}</span>
+          <n-tag v-if="isTripleNew(t)" size="small" type="success" class="ml-8">✨ 已变动</n-tag>
+          <n-tag v-else size="small" class="ml-8">无变化</n-tag>
         </div>
       </div>
       <template #action>
@@ -471,4 +471,34 @@ async function applyGraphConsolidation() {
   width: 100%;
   height: 100%;
 }
+
+.graph-header-controls { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.flex-center-gap-8 { display: flex; align-items: center; gap: 8px; }
+.shrink-0 { flex-shrink: 0; }
+.graph-header-title { margin: 0; font-weight: bold; white-space: nowrap; }
+.flex-gap-8-wrap { display: flex; gap: 8px; flex-wrap: wrap; }
+.graph-tab-content { position: relative; min-height: 500px; display: flex; flex-direction: column; }
+.mb-12 { margin-bottom: 12px; }
+.flex-center-full { flex: 1; display: flex; justify-content: center; align-items: center; }
+.text-light { color: var(--color-text-light); }
+.chart-container { flex: 1; min-height: 500px; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; background: var(--color-surface-soft); position: relative; touch-action: none; }
+.chart-canvas { height: 100%; min-height: 500px; }
+.chart-overlay-controls { position: absolute; right: 16px; top: 16px; z-index: 10; }
+.flex-row-wrap-center { flex-direction: row; align-items: center; flex-wrap: wrap; }
+.flex-col-gap-8-full { display: flex; flex-direction: column; gap: 8px; flex: 1; width: 100%; }
+.flex-1-min-90 { flex: 1; min-width: 90px; }
+.flex-1-min-60 { flex: 1; min-width: 60px; }
+.flex-wrap-gap-8-mt-4 { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.triple-entity { font-weight: bold; color: var(--color-primary); }
+.triple-relation { color: var(--color-text-light); margin: 0 6px; }
+.ml-8 { margin-left: 8px; }
+.empty-triples { text-align: center; color: var(--color-text-light); padding: 20px; }
+.graph-preview-modal { width: 600px; max-width: 90vw; }
+.preview-desc { margin-top: 0; color: var(--color-text-secondary); font-size: 13px; }
+.deleted-triples-panel { background: var(--color-surface-hover); border-left: 3px solid var(--color-border); padding: 8px 12px; margin-bottom: 16px; font-size: 12px; color: var(--color-text-secondary); border-radius: 4px; max-height: 15vh; overflow-y: auto; }
+.mb-4 { margin-bottom: 4px; }
+.preview-list-panel { max-height: 35vh; overflow-y: auto; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; padding: 12px; margin-bottom: 16px; }
+.preview-item { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); font-size: 13px; color: var(--color-text); }
+.flex-end-gap-12 { display: flex; gap: 12px; justify-content: flex-end; }
+
 </style>
