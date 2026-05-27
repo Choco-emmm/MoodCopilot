@@ -367,9 +367,17 @@ async function handleExport(key: 'image' | 'pdf') {
   try {
     const node = reportContentRef.value
     const scale = window.devicePixelRatio > 1 ? 2 : 1
+    
+    // 获取当前主题的背景色（支持夜间模式）
+    const computedStyle = window.getComputedStyle(document.documentElement)
+    let bgColor = computedStyle.getPropertyValue('--color-bg').trim()
+    if (!bgColor) {
+      bgColor = computedStyle.backgroundColor === 'rgba(0, 0, 0, 0)' ? '#ffffff' : computedStyle.backgroundColor
+    }
+
     const imgData = await domtoimage.toJpeg(node, {
       quality: 0.95,
-      bgcolor: '#ffffff',
+      bgcolor: bgColor,
       width: node.clientWidth * scale,
       height: node.clientHeight * scale,
       style: {
