@@ -310,7 +310,7 @@ public class DiaryService {
                 content == null ? 0 : content.length(), musicMeta != null, images != null && !images.isEmpty());
         try {
             String imageDescriptions = visionService.describeImages(images);
-            DiaryAnalysis analysis = aiAnalysisService.analyze(content, musicMeta, imageDescriptions);
+            DiaryAnalysis analysis = aiAnalysisService.analyze(userId, content, musicMeta, imageDescriptions);
 
             DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
             analysisEntity.setDiaryId(diaryId);

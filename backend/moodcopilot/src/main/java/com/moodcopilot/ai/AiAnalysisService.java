@@ -23,47 +23,82 @@ public class AiAnalysisService {
     private final ChatClient analysisChatClient;
     private final ObjectMapper objectMapper;
     private final com.moodcopilot.config.AiPromptProperties aiPrompts;
+    private final MemoryExtractionService memoryExtractionService;
+    private final RagMemoryService ragMemoryService;
 
-    public AiAnalysisService(ChatClient analysisChatClient, ObjectMapper objectMapper, com.moodcopilot.config.AiPromptProperties aiPrompts) {
+    public AiAnalysisService(ChatClient analysisChatClient, ObjectMapper objectMapper, com.moodcopilot.config.AiPromptProperties aiPrompts,
+                             @org.springframework.context.annotation.Lazy MemoryExtractionService memoryExtractionService,
+                             @org.springframework.context.annotation.Lazy RagMemoryService ragMemoryService) {
         this.analysisChatClient = analysisChatClient;
         this.objectMapper = objectMapper;
         this.aiPrompts = aiPrompts;
+        this.memoryExtractionService = memoryExtractionService;
+        this.ragMemoryService = ragMemoryService;
     }
 
-    public DiaryAnalysis analyze(String content) {
-        return analyze(content, null, null);
+    public DiaryAnalysis analyze(Long userId, String content) {
+        return analyze(userId, content, null, null);
     }
 
-    public DiaryAnalysis analyze(String content, com.moodcopilot.entity.MusicMeta musicMeta) {
-        return analyze(content, musicMeta, null);
+    public DiaryAnalysis analyze(Long userId, String content, com.moodcopilot.entity.MusicMeta musicMeta) {
+        return analyze(userId, content, musicMeta, null);
     }
 
-    public DiaryAnalysis analyze(String content, com.moodcopilot.entity.MusicMeta musicMeta, String imageDescriptions) {
-        try {
-            StringBuilder sb = new StringBuilder(content);
-            if (musicMeta != null) {
-                sb.append("\n\n[音乐分享]\n");
-                sb.append("歌曲：").append(musicMeta.getTitle()).append("\n");
-                sb.append("歌手：").append(musicMeta.getArtist()).append("\n");
-                if (musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
-                    sb.append("用户标注的歌词：").append(musicMeta.getUserLyric()).append("\n");
+    public DiaryAnalysis analyze(Long userId, String content, com.moodcopilot.entity.MusicMeta musicMeta, String imageDescriptions) {
+        StringBuilder sb = new StringBuilder();
+        if (userId != null) {
+            try {
+                String coreMemory = memoryExtractionService.buildCoreUserMemoryPrompt(userId);
+                if (coreMemory != null && !coreMemory.isBlank()) {
+                    sb.append("[长期画像]\n").append(coreMemory).append("\n\n");
                 }
-                sb.append("请结合以上音乐元数据理解这篇日记的情绪色彩。");
+                String ragContext = ragMemoryService.buildRagContext(userId, content, 5, RagMemoryService.SOURCE_DIARY);
+                if (ragContext != null && !ragContext.isBlank()) {
+                    sb.append("[近期相关记忆]\n").append(ragContext).append("\n");
+                    sb.append("这是用户近期的相关历史日记，请结合前因后果进行分析。\n\n");
+                }
+            } catch (Exception e) {
+                log.warn("Failed to retrieve memory contexts for user {}: {}", userId, e.getMessage());
             }
-            if (imageDescriptions != null && !imageDescriptions.isBlank()) {
-                sb.append("\n\n[图片描述]\n").append(imageDescriptions).append("\n");
-                sb.append("请结合图片中的画面与氛围来丰富情绪分析，但不要在反馈中复述图片内容。");
-            }
-            String json = analysisChatClient.prompt()
-                    .system(aiPrompts.getAnalysisSystemPrompt())
-                    .user(sb.toString())
-                    .call()
-                    .content();
-            return parseAiResponse(json);
-        } catch (Exception e) {
-            log.warn("AI analysis failed, falling back to keyword analysis: {}", e.getMessage());
-            return keywordAnalyze(content);
         }
+        sb.append("[本次日记]\n").append(content);
+
+        if (musicMeta != null) {
+            sb.append("\n\n[音乐分享]\n");
+            sb.append("歌曲：").append(musicMeta.getTitle()).append("\n");
+            sb.append("歌手：").append(musicMeta.getArtist()).append("\n");
+            if (musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
+                sb.append("用户标注的歌词：").append(musicMeta.getUserLyric()).append("\n");
+            }
+            sb.append("请结合以上音乐元数据理解这篇日记的情绪色彩。");
+        }
+        if (imageDescriptions != null && !imageDescriptions.isBlank()) {
+            sb.append("\n\n[图片描述]\n").append(imageDescriptions).append("\n");
+            sb.append("请结合图片中的画面与氛围来丰富情绪分析，但不要在反馈中复述图片内容。");
+        }
+
+        int maxRetries = 3;
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                String json = analysisChatClient.prompt()
+                        .system(aiPrompts.getAnalysisSystemPrompt())
+                        .user(sb.toString())
+                        .call()
+                        .content();
+                return parseAiResponse(json);
+            } catch (JsonProcessingException e) {
+                if (attempt < maxRetries) {
+                    log.warn("AI analysis JSON parsing failed, retrying (attempt {}/{}): {}", attempt, maxRetries, e.getMessage());
+                } else {
+                    log.error("AI analysis JSON parsing failed finally after {} attempts: {}", maxRetries, e.getMessage());
+                    return keywordAnalyze(content);
+                }
+            } catch (Exception e) {
+                log.warn("AI analysis failed, falling back to keyword analysis: {}", e.getMessage());
+                return keywordAnalyze(content);
+            }
+        }
+        return keywordAnalyze(content);
     }
 
     @SuppressWarnings("unchecked")

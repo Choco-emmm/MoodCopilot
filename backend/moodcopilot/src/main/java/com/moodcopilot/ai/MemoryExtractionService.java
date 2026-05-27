@@ -324,12 +324,15 @@ public class MemoryExtractionService {
         return sb.append("]").toString();
     }
 
+    public String buildCoreUserMemoryPrompt() {
+        return buildCoreUserMemoryPrompt(currentUser().getId());
+    }
+
     /**
      * 只返回 isCore=true 的核心记忆，用于常驻注入 system prompt（Tier 1）。
      * 格式与 {@link #buildUserMemoryPrompt()} 一致。
      */
-    public String buildCoreUserMemoryPrompt() {
-        Long userId = currentUser().getId();
+    public String buildCoreUserMemoryPrompt(Long userId) {
         List<UserProfileMemoryEntity> coreMemories = listUserCoreMemories(userId);
         if (coreMemories.isEmpty()) {
             log.info("当前用户暂无核心画像，userId={}", userId);
