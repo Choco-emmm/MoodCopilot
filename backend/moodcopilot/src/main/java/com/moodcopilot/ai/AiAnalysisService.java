@@ -50,26 +50,32 @@ public class AiAnalysisService {
     @Async
     public void analyzeMusicAsync(String title, String artist, String lyrics, String cacheKey) {
         try {
-            String prompt = String.format("总结歌曲《%s - %s》的核心曲风、情感基调（3个词，逗号分隔）以及表达的核心主题（50字以内）。歌词如下：%s。请返回JSON格式：{\"moodTags\": \"...\", \"themeSummary\": \"...\"}", title, artist, lyrics);
-            String json = analysisChatClient.prompt()
-                    .user(prompt)
-                    .call()
-                    .content();
-            
-            Map<String, String> result = objectMapper.readValue(JsonUtils.cleanJson(json), new TypeReference<Map<String, String>>() {});
-            String moodTags = result.get("moodTags");
-            String themeSummary = result.get("themeSummary");
-            
+            var result = analyzeMusicSync(title, artist, lyrics);
             String cached = redisTemplate.opsForValue().get(cacheKey);
             if (cached != null) {
                 com.moodcopilot.entity.MusicMeta meta = objectMapper.readValue(cached, com.moodcopilot.entity.MusicMeta.class);
-                meta.setMoodTags(moodTags);
-                meta.setThemeSummary(themeSummary);
+                meta.setMoodTags(result.getLeft());
+                meta.setThemeSummary(result.getRight());
                 redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(meta), Duration.ofDays(7));
             }
         } catch (Exception e) {
             log.error("AI music analysis failed for {} - {}: {}", artist, title, e.getMessage());
         }
+    }
+
+    /**
+     * 同步分析歌曲氛围，返回 (moodTags, themeSummary)
+     */
+    public org.apache.commons.lang3.tuple.Pair<String, String> analyzeMusicSync(String title, String artist, String lyrics) {
+        String prompt = String.format("总结歌曲《%s - %s》的核心曲风、情感基调（3个词，逗号分隔）以及表达的核心主题（50字以内）。歌词如下：%s。请返回JSON格式：{\"moodTags\": \"...\", \"themeSummary\": \"...\"}", title, artist, lyrics);
+        String json = analysisChatClient.prompt()
+                .user(prompt)
+                .call()
+                .content();
+        Map<String, String> result = objectMapper.readValue(JsonUtils.cleanJson(json), new TypeReference<Map<String, String>>() {});
+        return org.apache.commons.lang3.tuple.Pair.of(
+                result.getOrDefault("moodTags", ""),
+                result.getOrDefault("themeSummary", ""));
     }
 
     public DiaryAnalysis analyze(Long userId, String content, com.moodcopilot.entity.MusicMeta musicMeta) {

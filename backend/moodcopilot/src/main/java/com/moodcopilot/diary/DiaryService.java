@@ -95,6 +95,7 @@ public class DiaryService {
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final RagMemoryService ragMemoryService;
+    private final com.moodcopilot.music.MusicParseService musicParseService;
     private final RateLimitService rateLimitService;
     private final UserGrowthService userGrowthService;
     private final TransactionTemplate transactionTemplate;
@@ -121,6 +122,7 @@ public class DiaryService {
             ObjectMapper objectMapper,
             ApplicationEventPublisher eventPublisher,
             RagMemoryService ragMemoryService,
+            com.moodcopilot.music.MusicParseService musicParseService,
             RateLimitService rateLimitService,
             UserGrowthService userGrowthService,
             TransactionTemplate transactionTemplate,
@@ -146,6 +148,7 @@ public class DiaryService {
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
         this.ragMemoryService = ragMemoryService;
+        this.musicParseService = musicParseService;
         this.rateLimitService = rateLimitService;
         this.userGrowthService = userGrowthService;
         this.transactionTemplate = transactionTemplate;
@@ -309,6 +312,39 @@ public class DiaryService {
         MusicMeta musicMeta = diary.getMusicMeta();
         java.util.List<String> images = diary.getImages();
         
+        // 补充音乐氛围（异步解析可能尚未完成，从缓存或同步补全）
+        if (musicMeta != null && musicMeta.getSongUrl() != null &&
+            (musicMeta.getMoodTags() == null || musicMeta.getThemeSummary() == null)) {
+            String md5Hex = org.springframework.util.DigestUtils.md5DigestAsHex(musicMeta.getSongUrl().getBytes());
+            String cacheKey = "music:meta:" + md5Hex;
+            try {
+                String cached = redisTemplate.opsForValue().get(cacheKey);
+                if (cached != null) {
+                    MusicMeta cachedMeta = objectMapper.readValue(cached, MusicMeta.class);
+                    if (cachedMeta.getMoodTags() != null) musicMeta.setMoodTags(cachedMeta.getMoodTags());
+                    if (cachedMeta.getThemeSummary() != null) musicMeta.setThemeSummary(cachedMeta.getThemeSummary());
+                    log.info("已从 Redis 补全音乐氛围 moodTags={} themeSummary={}", musicMeta.getMoodTags(), musicMeta.getThemeSummary());
+                }
+            } catch (Exception e) {
+                log.warn("从 Redis 读取音乐缓存失败: {}", e.getMessage());
+            }
+            // 缓存仍为空则同步解析
+            if (musicMeta.getMoodTags() == null || musicMeta.getThemeSummary() == null) {
+                try {
+                    List<String> lyrics = musicParseService.suggestLyrics(musicMeta.getTitle(), musicMeta.getArtist(), musicMeta.getSongUrl());
+                    if (!lyrics.isEmpty()) {
+                        String lyricsStr = String.join("\n", lyrics);
+                        var result = aiAnalysisService.analyzeMusicSync(musicMeta.getTitle(), musicMeta.getArtist(), lyricsStr);
+                        musicMeta.setMoodTags(result.getLeft());
+                        musicMeta.setThemeSummary(result.getRight());
+                        log.info("同步补全音乐氛围成功 moodTags={} themeSummary={}", result.getLeft(), result.getRight());
+                    }
+                } catch (Exception e) {
+                    log.warn("同步补全音乐氛围失败: {}", e.getMessage());
+                }
+            }
+        }
+
         log.info("开始同步执行日记 AI 分析，diaryId={}，userId={}，contentLength={}，hasMusic={}，hasImages={}", diaryId, userId,
                 content == null ? 0 : content.length(), musicMeta != null, images != null && !images.isEmpty());
         try {
