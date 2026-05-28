@@ -298,7 +298,7 @@ const newCollectionDesc = ref('')
 const newCollectionVisibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
 const newCollectionNameInput = ref<HTMLInputElement | null>(null)
 
-const visibilityOpts = [
+const visibilityOpts: { label: string; value: 'PRIVATE' | 'PUBLIC' }[] = [
   { label: '私密', value: 'PRIVATE' },
   { label: '公开', value: 'PUBLIC' },
 ]
