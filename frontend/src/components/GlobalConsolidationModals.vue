@@ -33,6 +33,13 @@
   <n-modal v-model:show="store.showGraphPreviewModal" preset="card" title="🕸️ 知识图谱整理预览" class="consolidation-preview-modal">
     <p class="preview-desc">MoodCopilot 已将你的碎片关联梳理为以下高度提纯的三元组。确认替换后，图谱将被重构：</p>
     
+    <div v-if="deletedTriples.length > 0" class="deleted-items-panel">
+      <div style="margin-bottom: 4px;">以下旧关联将被合并或移除：</div>
+      <div v-for="t in deletedTriples" :key="t.id">
+        <del>{{ t.headEntity }} --({{ t.relation }})--> {{ t.tailEntity }}</del>
+      </div>
+    </div>
+
     <div class="preview-list preview-list-panel">
       <div v-for="(item, index) in store.previewTriples" :key="index" class="preview-item" style="border-bottom: 1px dashed var(--color-border); padding-bottom: 8px;">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -42,6 +49,7 @@
             {{ item.tailEntity }}
           </span>
           <n-tag v-if="isTripleNew(item)" size="small" type="success" style="margin-left: 8px;">✨ 新合并</n-tag>
+          <n-tag v-else size="small" style="margin-left: 8px;">无变化</n-tag>
         </div>
       </div>
     </div>
@@ -63,6 +71,10 @@ const store = useConsolidationStore()
 
 const deletedMemories = computed(() => {
   return store.memories.filter(old => !store.previewMemories.some(newM => old.attributeKey === newM.attributeKey && old.attributeValue === newM.attributeValue))
+})
+
+const deletedTriples = computed(() => {
+  return store.triples.filter(old => !store.previewTriples.some(newT => old.headEntity === newT.headEntity && old.relation === newT.relation && old.tailEntity === newT.tailEntity))
 })
 
 function isMemoryNew(item: any) {
@@ -102,4 +114,14 @@ function isTripleNew(item: any) {
 .preview-item-key { font-weight: bold; color: var(--color-primary); margin-bottom: 4px; }
 .preview-item-value { color: var(--color-text-secondary); line-height: 1.5; white-space: pre-wrap; }
 .flex-end-gap-12 { display: flex; gap: 12px; justify-content: flex-end; }
+
+.flex-end-gap-12 :deep(.n-button:not(.n-button--primary-type)) {
+  --n-text-color-hover: var(--color-primary) !important;
+  --n-border-hover: 1px solid var(--color-primary) !important;
+  --n-text-color-focus: var(--color-primary) !important;
+  --n-border-focus: 1px solid var(--color-primary) !important;
+  --n-text-color-pressed: var(--color-primary-hover) !important;
+  --n-border-pressed: 1px solid var(--color-primary-hover) !important;
+  color: var(--color-text);
+}
 </style>

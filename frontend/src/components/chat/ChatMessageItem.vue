@@ -85,7 +85,7 @@
           
           <ul v-if="msg.references?.length" class="chat-user-refs">
             <li v-for="(refText, refIndex) in msg.references" :key="`${msg.id}-ref-${refIndex}`">
-              引用：{{ refText }}
+              引用：{{ stripHtml(refText).length > 200 ? stripHtml(refText).slice(0, 200) + '...' : stripHtml(refText) }}
             </li>
           </ul>
           
@@ -179,8 +179,9 @@ function renderMd(text: string) {
 function handleQuote() {
   const text = parsedContent.value.text || props.msg.content
   if (!text) return
-  // 去除所有 markdown 标签（粗糙处理），将多行合并
-  const plainText = text.replace(/[#*`_~>\[\]\(\)-]/g, '').replace(/\n+/g, ' ').trim()
+  // 去除所有 HTML 和 markdown 标签（粗糙处理），将多行合并
+  const noHtml = stripHtml(text)
+  const plainText = noHtml.replace(/[#*`_~>\[\]\(\)-]/g, '').replace(/\n+/g, ' ').trim()
   const snippet = plainText.length > 80 ? plainText.slice(0, 80) + '...' : plainText
   emit('quote', { text: snippet, role: props.msg.role })
 }

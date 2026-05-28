@@ -70,7 +70,7 @@ public class AiAnalysisService {
             if (musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
                 sb.append("用户标注的歌词：").append(musicMeta.getUserLyric()).append("\n");
             }
-            sb.append("请结合以上音乐元数据理解这篇日记的情绪色彩。");
+            sb.append("（注意：音乐仅作为氛围辅助参考。请主要基于用户自己写的正文进行情绪分析，如果正文很短或没有情绪表达，切勿过度放大音乐本身的极端情绪。）");
         }
         if (imageDescriptions != null && !imageDescriptions.isBlank()) {
             sb.append("\n\n[图片描述]\n").append(imageDescriptions).append("\n");
@@ -104,23 +104,27 @@ public class AiAnalysisService {
     @SuppressWarnings("unchecked")
     private DiaryAnalysis parseAiResponse(String json) throws JsonProcessingException {
         Map<String, Object> map = objectMapper.readValue(JsonUtils.cleanJson(json), Map.class);
-        String moodLabel = (String) map.get("moodLabel");
-        int moodIntensity = ((Number) map.get("moodIntensity")).intValue();
+        String moodLabel = sanitizeString(map.get("moodLabel"), "复杂");
+        int moodIntensity = 3;
+        if (map.get("moodIntensity") instanceof Number n) {
+            moodIntensity = n.intValue();
+        } else if (map.get("moodIntensity") instanceof String s) {
+            try { moodIntensity = Integer.parseInt(s); } catch (NumberFormatException ignored) {}
+        }
         
         Integer valence = null;
-        if (map.containsKey("valence") && map.get("valence") != null) {
-            valence = ((Number) map.get("valence")).intValue();
+        if (map.get("valence") instanceof Number n) {
+            valence = n.intValue();
         }
         Integer arousal = null;
-        if (map.containsKey("arousal") && map.get("arousal") != null) {
-            arousal = ((Number) map.get("arousal")).intValue();
+        if (map.get("arousal") instanceof Number n) {
+            arousal = n.intValue();
         }
 
-
-        List<String> topicLabels = (List<String>) map.get("topicLabels");
-        List<String> secondaryMoods = (List<String>) map.get("secondaryMoods");
-        String summary = (String) map.get("summary");
-        String feedback = (String) map.get("feedback");
+        List<String> topicLabels = sanitizeStringList(map.get("topicLabels"), List.of("日常情绪"));
+        List<String> secondaryMoods = sanitizeStringList(map.get("secondaryMoods"), List.of());
+        String summary = sanitizeString(map.get("summary"), "这是一篇关于心情记录的日记。");
+        String feedback = sanitizeString(map.get("feedback"), "感谢你的记录，你的每一点感受都很重要。");
         List<String> safeSecondary = (secondaryMoods != null) ? secondaryMoods : List.of();
         return new DiaryAnalysis(moodLabel, Math.min(5, Math.max(1, moodIntensity)),
                 valence, arousal,
@@ -317,9 +321,9 @@ public class AiAnalysisService {
                     .content();
             Map<String, Object> map = objectMapper.readValue(JsonUtils.cleanJson(json), Map.class);
             return new ReportGuidance(
-                    sanitizeStringList((List<Object>) map.get("insights"), fallbackInsights(analyses)),
-                    sanitizeStringList((List<Object>) map.get("suggestions"), fallbackSuggestions(analyses)),
-                    sanitizeString((String) map.get("followUpPrompt"), fallbackFollowUp(analyses)));
+                    sanitizeStringList(map.get("insights"), fallbackInsights(analyses)),
+                    sanitizeStringList(map.get("suggestions"), fallbackSuggestions(analyses)),
+                    sanitizeString(map.get("followUpPrompt"), fallbackFollowUp(analyses)));
         } catch (Exception e) {
             log.warn("AI report guidance failed, falling back: {}", e.getMessage());
             return fallbackGuidance(analyses);
@@ -376,23 +380,29 @@ public class AiAnalysisService {
                 .map(Map.Entry::getKey).orElse("日常情绪");
     }
 
-    private List<String> sanitizeStringList(List<Object> values, List<String> fallback) {
-        if (values == null || values.isEmpty())
-            return fallback;
-        List<String> result = values.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .limit(3)
-                .toList();
-        return result.isEmpty() ? fallback : result;
+    private List<String> sanitizeStringList(Object value, List<String> fallback) {
+        if (value instanceof List<?> list) {
+            List<String> result = list.stream()
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .limit(3)
+                    .toList();
+            return result.isEmpty() ? fallback : result;
+        } else if (value instanceof String str) {
+            if (str.isBlank()) return fallback;
+            return List.of(str.trim());
+        }
+        return fallback;
     }
 
-    private String sanitizeString(String value, String fallback) {
-        if (value == null || value.isBlank())
-            return fallback;
-        return value.trim();
+    private String sanitizeString(Object value, String fallback) {
+        if (value instanceof String str) {
+            if (str.isBlank()) return fallback;
+            return str.trim();
+        }
+        return fallback;
     }
 
     public record ReportGuidance(

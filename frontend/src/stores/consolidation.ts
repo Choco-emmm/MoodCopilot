@@ -47,6 +47,7 @@ export const useConsolidationStore = defineStore('consolidation', () => {
   async function consolidateMemories() {
     if (consolidatingMemory.value) return
     consolidatingMemory.value = true
+    await loadMemories() // Ensure old data is loaded for diffing
     memoryLoadingMsg = window.$message?.loading('MoodCopilot 正在努力整理个人画像中，由于数据量较大可能需要较长时间，你可以先去其他页面转转~', { duration: 0 })
     try {
       const res = await memoryApi.previewConsolidate()
@@ -90,6 +91,7 @@ export const useConsolidationStore = defineStore('consolidation', () => {
   async function consolidateGraph() {
     if (consolidatingGraph.value) return
     consolidatingGraph.value = true
+    await loadTriples() // Ensure old data is loaded for diffing
     graphLoadingMsg = window.$message?.loading('MoodCopilot 正在努力整理知识图谱中，可能需要一点时间，你可以先去其他页面转转~', { duration: 0 })
     try {
       const res = await graphApi.previewConsolidate()

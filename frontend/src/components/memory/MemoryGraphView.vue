@@ -152,6 +152,16 @@ async function loadGraph() {
     const textSecColor = style.getPropertyValue('--color-text-secondary').trim() || '#666'
     const lineColor = style.getPropertyValue('--color-border-strong').trim() || '#ccc'
 
+    // Some themes set --color-success and --color-info to the primary color for a monochrome UI aesthetic.
+    // However, for the knowledge graph, we MUST have distinguishable semantic colors.
+    let successColor = style.getPropertyValue('--color-success').trim() || '#18a058'
+    let errorColor = style.getPropertyValue('--color-error').trim() || '#d03050'
+    let infoColor = style.getPropertyValue('--color-info').trim() || '#8a8e99'
+
+    if (successColor === primaryColor) successColor = '#18a058'
+    if (errorColor === primaryColor) errorColor = '#d03050'
+    if (infoColor === primaryColor) infoColor = '#8a8e99'
+
     graphOptions.value = {
       toolbox: {
         show: false,
@@ -204,9 +214,9 @@ async function loadGraph() {
           },
           categories: [
             { name: '触发源 (事件/环境)', itemStyle: { color: primaryColor } },
-            { name: '正向感受', itemStyle: { color: style.getPropertyValue('--color-success').trim() || '#18a058' } },
-            { name: '负向与压力', itemStyle: { color: style.getPropertyValue('--color-error').trim() || '#d03050' } },
-            { name: '中性/平和', itemStyle: { color: style.getPropertyValue('--color-info').trim() || '#8a8e99' } }
+            { name: '正向感受', itemStyle: { color: successColor } },
+            { name: '负向与压力', itemStyle: { color: errorColor } },
+            { name: '中性/平和', itemStyle: { color: infoColor } }
           ],
           data: data.nodes.map((n: any) => {
             const edgeAsTarget = data.edges.find((e: any) => e.target === n.name);

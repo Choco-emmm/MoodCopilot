@@ -1,5 +1,5 @@
 <template>
-  <div class="ptr-wrapper" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+  <div class="ptr-wrapper" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" @touchcancel="onTouchEnd">
     <div 
       class="ptr-indicator"
       :style="{
@@ -68,21 +68,28 @@ function onTouchStart(e: TouchEvent) {
 function onTouchMove(e: TouchEvent) {
   if (!isPulling.value) return
   const y = e.touches[0].clientY
-  if (y > startY.value && window.scrollY <= 0) {
+  if (y > startY.value && window.scrollY <= 5) {
     if (e.cancelable) e.preventDefault()
     currentY.value = y
-  } else {
-    // User scrolled down instead of pulling
+  } else if (y < startY.value) {
+    // User scrolled down (finger went up)
     isPulling.value = false
   }
 }
 
 function onTouchEnd() {
   if (!isPulling.value) return
+  
+  // Evaluate readyToRefresh BEFORE setting isPulling to false, 
+  // because readyToRefresh depends on currentHeight which becomes 0 when isPulling is false.
+  const shouldRefresh = readyToRefresh.value && !props.loading
+  
   isPulling.value = false
-  if (readyToRefresh.value && !props.loading) {
+  
+  if (shouldRefresh) {
     emit('refresh')
   }
+  
   startY.value = 0
   currentY.value = 0
 }

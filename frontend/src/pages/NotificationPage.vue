@@ -180,9 +180,6 @@ function formatTime(value: string) {
 function renderNotification(item: Notification) {
   if (!item?.message) return ''
   let message = item.message
-  if (item.type !== 'SYSTEM') {
-    message = message.replace(/<[^>]+>/g, '')
-  }
   
   if (item.isMarkdown === false) {
     return renderSafeMarkdown(message.replace(/\n/g, '  \n'))
