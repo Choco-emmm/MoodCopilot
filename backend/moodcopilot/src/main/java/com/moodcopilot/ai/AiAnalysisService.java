@@ -67,15 +67,20 @@ public class AiAnalysisService {
      * 同步分析歌曲氛围，返回 (moodTags, themeSummary)
      */
     public org.apache.commons.lang3.tuple.Pair<String, String> analyzeMusicSync(String title, String artist, String lyrics) {
-        String prompt = String.format("总结歌曲《%s - %s》的核心曲风、情感基调（3个词，逗号分隔）以及表达的核心主题（50字以内）。歌词如下：%s。请返回JSON格式：{\"moodTags\": \"...\", \"themeSummary\": \"...\"}", title, artist, lyrics);
-        String json = analysisChatClient.prompt()
-                .user(prompt)
-                .call()
-                .content();
-        Map<String, String> result = objectMapper.readValue(JsonUtils.cleanJson(json), new TypeReference<Map<String, String>>() {});
-        return org.apache.commons.lang3.tuple.Pair.of(
-                result.getOrDefault("moodTags", ""),
-                result.getOrDefault("themeSummary", ""));
+        try {
+            String prompt = String.format("总结歌曲《%s - %s》的核心曲风、情感基调（3个词，逗号分隔）以及表达的核心主题（50字以内）。歌词如下：%s。请返回JSON格式：{\"moodTags\": \"...\", \"themeSummary\": \"...\"}", title, artist, lyrics);
+            String json = analysisChatClient.prompt()
+                    .user(prompt)
+                    .call()
+                    .content();
+            Map<String, String> result = objectMapper.readValue(JsonUtils.cleanJson(json), new TypeReference<Map<String, String>>() {});
+            return org.apache.commons.lang3.tuple.Pair.of(
+                    result.getOrDefault("moodTags", ""),
+                    result.getOrDefault("themeSummary", ""));
+        } catch (Exception e) {
+            log.error("同步音乐分析失败 {} - {}: {}", artist, title, e.getMessage());
+            return org.apache.commons.lang3.tuple.Pair.of("", "");
+        }
     }
 
     public DiaryAnalysis analyze(Long userId, String content, com.moodcopilot.entity.MusicMeta musicMeta) {
