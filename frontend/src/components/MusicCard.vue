@@ -31,7 +31,7 @@ const themeExpanded = ref(false)
 const themeNeedsExpand = computed(() => {
   const t = props.musicMeta?.themeSummary
   if (!t) return false
-  return t.length > 50
+  return t.length > 30
 })
 
 const lyricNeedsExpand = computed(() => {
