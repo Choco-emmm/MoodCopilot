@@ -111,12 +111,15 @@ public class AiAnalysisService {
             sb.append("图片分为两类：1) 纯画面信息（场景、色调、氛围）作为情绪分析的辅助参考；2) 从图片中提取的文字内容（如聊天截图、手写笔记、文档等）视为用户日记正文的一部分，与正文同等权重分析，尤其在正文简短时，图片中的文字可能是用户真正的表达重点。");
         }
 
+        String userPrompt = sb.toString();
+        log.info("AI 日记分析上下文:\n{}", userPrompt);
+
         int maxRetries = 3;
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 String json = analysisChatClient.prompt()
                         .system(aiPrompts.getAnalysisSystemPrompt())
-                        .user(sb.toString())
+                        .user(userPrompt)
                         .call()
                         .content();
                 return parseAiResponse(json);
