@@ -416,10 +416,17 @@ public class MemoryExtractionService {
             sb.append("[音乐分享]\n");
             sb.append("歌曲：").append(musicMeta.getTitle()).append("\n");
             sb.append("歌手：").append(musicMeta.getArtist()).append("\n");
-            if (musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
-                sb.append("用户标注的歌词：").append(musicMeta.getUserLyric()).append("\n");
+            if (musicMeta.getMoodTags() != null && !musicMeta.getMoodTags().isBlank()) {
+                sb.append("歌曲情感基调：").append(musicMeta.getMoodTags()).append("\n");
             }
-            sb.append("（音乐元数据可辅助理解用户的情绪倾向和审美偏好）\n\n");
+            if (musicMeta.getThemeSummary() != null && !musicMeta.getThemeSummary().isBlank()) {
+                sb.append("歌曲核心主题：").append(musicMeta.getThemeSummary()).append("\n");
+            }
+            if (musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
+                sb.append("用户特别标注的歌词片段：").append(musicMeta.getUserLyric()).append("\n");
+                sb.append("（用户主动选择这段歌词表明强烈共鸣，是重要的情绪信号）\n");
+            }
+            sb.append("（音乐偏好和情感共鸣可反映用户的情绪倾向和审美特质）\n\n");
         }
         if (imageDescriptions != null && !imageDescriptions.isBlank()) {
             sb.append("[图片描述]\n").append(imageDescriptions).append("\n");
