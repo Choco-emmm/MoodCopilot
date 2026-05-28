@@ -26,6 +26,13 @@ const lyricsError = ref(false)
 const showLyricsPanel = ref(false)
 const selectedIndices = ref<Set<number>>(new Set())
 const lyricExpanded = ref(false)
+const themeExpanded = ref(false)
+
+const themeNeedsExpand = computed(() => {
+  const t = props.musicMeta?.themeSummary
+  if (!t) return false
+  return t.length > 50
+})
 
 const lyricNeedsExpand = computed(() => {
   const t = props.musicMeta?.userLyric
@@ -97,7 +104,11 @@ function toggleLine(index: number) {
             class="music-mood-tag"
           >{{ tag.trim() }}</span>
         </div>
-        <p v-if="musicMeta.themeSummary" class="music-theme-summary">{{ musicMeta.themeSummary }}</p>
+        <p
+          v-if="musicMeta.themeSummary"
+          :class="['music-theme-summary', { expanded: themeExpanded, clickable: themeNeedsExpand }]"
+          @click="themeNeedsExpand && (themeExpanded = !themeExpanded)"
+        >{{ musicMeta.themeSummary }}</p>
       </div>
       <a
         v-if="musicMeta.songUrl"
@@ -272,6 +283,21 @@ function toggleLine(index: number) {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  transition: all 0.2s;
+}
+
+.music-theme-summary.clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.music-theme-summary.clickable:hover {
+  color: var(--color-text-secondary);
+}
+
+.music-theme-summary.expanded {
+  -webkit-line-clamp: unset;
+  display: block;
 }
 
 .music-user-lyric {
