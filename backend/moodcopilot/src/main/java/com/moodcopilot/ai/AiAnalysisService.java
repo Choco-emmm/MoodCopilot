@@ -101,13 +101,14 @@ public class AiAnalysisService {
             sb.append("情感基调为 ").append(musicMeta.getMoodTags() != null ? musicMeta.getMoodTags() : "未知").append("，");
             sb.append("主要表达 ").append(musicMeta.getThemeSummary() != null ? musicMeta.getThemeSummary() : "未知").append("。\n");
             if (musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
-                sb.append("用户标注的歌词片段：").append(musicMeta.getUserLyric()).append("\n");
+                sb.append("用户特别标注的歌词片段：").append(musicMeta.getUserLyric()).append("\n");
+                sb.append("（用户主动选择了这段歌词，说明这段文字与用户当前心境有强烈共鸣，应将这段歌词视为用户自我表达的一部分，结合正文重点分析。）\n");
             }
-            sb.append("（注意：音乐仅作为氛围辅助参考。请主要基于用户自己写的正文进行情绪分析，如果正文很短或没有情绪表达，切勿过度放大音乐本身的极端情绪。）");
+            sb.append("（注意：歌曲整体的情感基调和主题仅供氛围参考。请主要基于用户自己写的正文进行情绪分析，如果正文很短或没有情绪表达，切勿过度放大音乐本身的极端情绪。）");
         }
         if (imageDescriptions != null && !imageDescriptions.isBlank()) {
             sb.append("\n\n[图片描述]\n").append(imageDescriptions).append("\n");
-            sb.append("请结合图片中的画面与氛围来丰富情绪分析，但不要在反馈中复述图片内容。");
+            sb.append("图片分为两类：1) 纯画面信息（场景、色调、氛围）作为情绪分析的辅助参考；2) 从图片中提取的文字内容（如聊天截图、手写笔记、文档等）视为用户日记正文的一部分，与正文同等权重分析，尤其在正文简短时，图片中的文字可能是用户真正的表达重点。");
         }
 
         int maxRetries = 3;
