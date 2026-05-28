@@ -332,13 +332,18 @@ public class DiaryService {
             if (musicMeta.getMoodTags() == null || musicMeta.getThemeSummary() == null) {
                 try {
                     List<String> lyrics = musicParseService.suggestLyrics(musicMeta.getTitle(), musicMeta.getArtist(), musicMeta.getSongUrl());
+                    String lyricsStr;
                     if (!lyrics.isEmpty()) {
-                        String lyricsStr = String.join("\n", lyrics);
-                        var result = aiAnalysisService.analyzeMusicSync(musicMeta.getTitle(), musicMeta.getArtist(), lyricsStr);
-                        musicMeta.setMoodTags(result.getLeft());
-                        musicMeta.setThemeSummary(result.getRight());
-                        log.info("同步补全音乐氛围成功 moodTags={} themeSummary={}", result.getLeft(), result.getRight());
+                        lyricsStr = String.join("\n", lyrics);
+                    } else {
+                        lyricsStr = "（歌词未获取到，请根据歌曲名和歌手推测）";
+                        log.info("歌词获取为空，使用歌名兜底分析 title={} artist={}", musicMeta.getTitle(), musicMeta.getArtist());
                     }
+                    var result = aiAnalysisService.analyzeMusicSync(musicMeta.getTitle(), musicMeta.getArtist(), lyricsStr);
+                    musicMeta.setMoodTags(result.getLeft());
+                    musicMeta.setThemeSummary(result.getRight());
+                    log.info("同步补全音乐氛围成功 moodTags={} themeSummary={}", result.getLeft(), result.getRight());
+                }
                 } catch (Exception e) {
                     log.warn("同步补全音乐氛围失败: {}", e.getMessage());
                 }
