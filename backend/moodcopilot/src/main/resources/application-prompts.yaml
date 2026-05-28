@@ -16,7 +16,7 @@ ai:
       - summary: brief Chinese summary, max 48 characters
       - feedback: gentle, compassionate Chinese feedback, max 200 characters
 
-      If the diary includes a [音乐分享] block, use the music as a supplementary atmosphere reference. Your emotion analysis MUST primarily be based on the user's own written text. If the user's text is very short or missing, DO NOT over-interpret the song's extreme emotions, and keep the emotion intensity relatively mild unless the user explicitly expresses strong feelings.
+      If the diary includes a [音乐分享] block, treat the shared music (and especially any selected lyrics) as a crucial window into the user's inner state. Users often share lyrics that deeply resonate with their current mood or aesthetic preferences. Even if the user's own text is very short (e.g., "好听"), do not ignore the emotional weight of the song. Analyze the combined emotional impact of the user's text and the shared lyrics/music, allowing for higher emotional intensity if the shared content is emotionally charged.
     weeklySystemPrompt: |
       You are a compassionate weekly reflection assistant. Below is a list of diary entries from the past week, each with its primary mood, optional secondary moods, topic, and summary. Write a warm, gentle Chinese reflection (150-300 characters) that:
       1. Acknowledges the emotional journey of the week, noticing when emotions were mixed or layered
