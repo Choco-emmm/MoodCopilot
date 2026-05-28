@@ -69,6 +69,18 @@ public class RagMemoryService {
         this.diaryMapper = diaryMapper;
     }
 
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    void cleanupShortLegacyEmbeddings() {
+        try {
+            int cleaned = cleanupShortDiaryEmbeddings();
+            if (cleaned > 0) {
+                log.info("RAG 启动时清理存量短日记向量完成，移除 {} 条", cleaned);
+            }
+        } catch (Exception e) {
+            log.warn("RAG 启动时清理存量短日记向量失败: {}", e.getMessage());
+        }
+    }
+
     @PostConstruct
     void initIndex() {
         // 仅在索引不存在时创建，避免每次重启用 DD 清除所有持久化向量数据。
@@ -991,6 +1003,26 @@ public class RagMemoryService {
         } catch (Exception e) {
             log.warn("RAG 删除日记向量失败 diaryId={}: {}", diaryId, e.getMessage());
         }
+    /**
+     * 清理存量的超短日记向量索引（纯文本 < 8 字符），治理历史遗留噪音。
+     * 一次性运维操作，建议在低峰期执行。
+     */
+    public int cleanupShortDiaryEmbeddings() {
+        var allDiaries = diaryMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryEntity>()
+                        .eq(com.moodcopilot.entity.DiaryEntity::getIsDeleted, false)
+        );
+        int cleaned = 0;
+        for (var diary : allDiaries) {
+            String plainText = (diary.getContent() != null ? diary.getContent() : "")
+                    .replaceAll("<[^>]+>", "").replaceAll("&nbsp;", " ").trim();
+            if (plainText.length() < 8) {
+                deleteDiaryEmbedding(diary.getId());
+                cleaned++;
+            }
+        }
+        log.info("RAG 存量清理完成：检查 {} 篇日记，清理 {} 篇超短日记的向量索引", allDiaries.size(), cleaned);
+        return cleaned;
     }
 
 
