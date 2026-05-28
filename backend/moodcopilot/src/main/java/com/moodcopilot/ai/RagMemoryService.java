@@ -1003,6 +1003,8 @@ public class RagMemoryService {
         } catch (Exception e) {
             log.warn("RAG 删除日记向量失败 diaryId={}: {}", diaryId, e.getMessage());
         }
+    }
+
     /**
      * 清理存量的超短日记正文向量索引（纯文本 < 8 字符），治理历史遗留噪音。
      * 仅删除正文向量，保留音乐和图片的独立向量——短日记「1 + 一首歌」仍有音乐语义价值。
