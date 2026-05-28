@@ -1,6 +1,11 @@
 package com.moodcopilot.music;
 
 import com.moodcopilot.entity.MusicMeta;
+import com.moodcopilot.ai.AiAnalysisService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -15,6 +20,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -22,6 +28,16 @@ import java.util.regex.Pattern;
 public class MusicParseService {
 
     private static final Logger log = LoggerFactory.getLogger(MusicParseService.class);
+
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    @Lazy
+    private AiAnalysisService aiAnalysisService;
 
     // 分享{artist}的单曲《{title}》: url (来自@网易云音乐)
     private static final Pattern SHARE_TEXT_PATTERN = Pattern.compile(
@@ -53,18 +69,58 @@ public class MusicParseService {
      * Priority: parse share text format → fall back to page scraping.
      */
     public MusicMeta parse(String url, String shareText) {
+        String md5Hex = org.springframework.util.DigestUtils.md5DigestAsHex((url != null ? url : "").getBytes());
+        String cacheKey = "music:meta:" + md5Hex;
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                return objectMapper.readValue(cached, MusicMeta.class);
+            }
+        } catch (Exception e) {
+            log.warn("Read music meta cache failed: {}", e.getMessage());
+        }
+
+        MusicMeta meta = null;
+
         // Step 1: Try to parse artist/title from the share text
         if (shareText != null && !shareText.isBlank()) {
             MusicMeta fromText = parseFromShareText(shareText);
             if (fromText != null) {
                 // Try to fetch cover from page, but don't fail if we can't
                 String coverUrl = fetchCover(url);
-                return new MusicMeta(fromText.getTitle(), fromText.getArtist(), coverUrl, null);
+                meta = new MusicMeta(fromText.getTitle(), fromText.getArtist(), coverUrl, null);
             }
         }
 
         // Step 2: Fall back to page scraping
-        return parseFromPage(url);
+        if (meta == null) {
+            meta = parseFromPage(url);
+        }
+
+        if (meta != null) {
+            meta.setSongUrl(url);
+
+            try {
+                redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(meta), Duration.ofDays(7));
+            } catch (Exception e) {
+                log.warn("Write music meta cache failed: {}", e.getMessage());
+            }
+
+            // Trigger async AI analysis
+            if (aiAnalysisService != null) {
+                final String finalUrl = url;
+                final MusicMeta finalMeta = meta;
+                CompletableFuture.runAsync(() -> {
+                    List<String> lyrics = suggestLyrics(finalMeta.getTitle(), finalMeta.getArtist(), finalUrl);
+                    String lyricsStr = String.join("\n", lyrics);
+                    if (!lyricsStr.isBlank()) {
+                        aiAnalysisService.analyzeMusicAsync(finalMeta.getTitle(), finalMeta.getArtist(), lyricsStr, cacheKey);
+                    }
+                });
+            }
+        }
+
+        return meta;
     }
 
     private MusicMeta parseFromShareText(String text) {

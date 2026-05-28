@@ -77,8 +77,13 @@ public class VisionService {
     private String describe(String imageUrl) {
         try {
             String finalUrl = fetchImageAsBase64Uri(imageUrl);
+
+            // 增强的提示词，能够同时处理画面和文字内容
+            String enhancedPrompt = "请用一句话描述这张图片的画面内容与情感氛围（30字以内）。如果图片包含文字，请结合文字内容描述情感。" +
+                                  "不要评价图片质量，只描述你看到的场景和感受。";
+
             Map<String, Object> userMsg = Map.of("role", "user", "content", List.of(
-                    Map.of("type", "text", "text", "请用一句话描述这张图片的画面内容与情感氛围（30字以内）。不要评价图片质量，只描述你看到的场景和感受。"),
+                    Map.of("type", "text", "text", enhancedPrompt),
                     Map.of("type", "image_url", "image_url", Map.of("url", finalUrl))
             ));
             Map<String, Object> body = Map.of(

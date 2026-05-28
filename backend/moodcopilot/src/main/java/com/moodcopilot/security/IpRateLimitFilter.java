@@ -22,6 +22,7 @@ public class IpRateLimitFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(IpRateLimitFilter.class);
     private static final String PREFIX = "ratelimit:ip:";
     private static final int AUTH_LIMIT = 20;
+    private static final int PARSE_LIMIT = 10;
     private static final int API_LIMIT = 300;
     private static final Duration WINDOW = Duration.ofMinutes(1);
 
@@ -42,8 +43,8 @@ public class IpRateLimitFilter extends OncePerRequestFilter {
         }
 
         String ip = resolveClientIp(request);
-        String category = isAuthEndpoint(path) ? "auth" : "api";
-        int limit = category.equals("auth") ? AUTH_LIMIT : API_LIMIT;
+        String category = isAuthEndpoint(path) ? "auth" : (isParseEndpoint(path) ? "parse" : "api");
+        int limit = category.equals("auth") ? AUTH_LIMIT : (category.equals("parse") ? PARSE_LIMIT : API_LIMIT);
         String key = PREFIX + ip + ":" + category;
 
         long now = System.currentTimeMillis();
@@ -85,6 +86,10 @@ public class IpRateLimitFilter extends OncePerRequestFilter {
         return path.equals("/api/auth/login")
                 || path.equals("/api/auth/register")
                 || path.equals("/api/auth/send-code");
+    }
+
+    private boolean isParseEndpoint(String path) {
+        return path.equals("/api/music/parse") || path.equals("/api/music/lyrics");
     }
 
     /**

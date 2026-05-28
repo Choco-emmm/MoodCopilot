@@ -14,6 +14,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Async;
+import java.time.Duration;
 
 @Service
 public class AiAnalysisService {
@@ -25,6 +29,9 @@ public class AiAnalysisService {
     private final com.moodcopilot.config.AiPromptProperties aiPrompts;
     private final MemoryExtractionService memoryExtractionService;
     private final RagMemoryService ragMemoryService;
+
+    @Autowired
+    private StringRedisTemplate redisTemplate;
 
     public AiAnalysisService(ChatClient analysisChatClient, ObjectMapper objectMapper, com.moodcopilot.config.AiPromptProperties aiPrompts,
                              @org.springframework.context.annotation.Lazy MemoryExtractionService memoryExtractionService,
@@ -38,6 +45,31 @@ public class AiAnalysisService {
 
     public DiaryAnalysis analyze(Long userId, String content) {
         return analyze(userId, content, null, null);
+    }
+
+    @Async
+    public void analyzeMusicAsync(String title, String artist, String lyrics, String cacheKey) {
+        try {
+            String prompt = String.format("总结歌曲《%s - %s》的核心曲风、情感基调（3个词，逗号分隔）以及表达的核心主题（50字以内）。歌词如下：%s。请返回JSON格式：{\"moodTags\": \"...\", \"themeSummary\": \"...\"}", title, artist, lyrics);
+            String json = analysisChatClient.prompt()
+                    .user(prompt)
+                    .call()
+                    .content();
+            
+            Map<String, String> result = objectMapper.readValue(JsonUtils.cleanJson(json), new TypeReference<Map<String, String>>() {});
+            String moodTags = result.get("moodTags");
+            String themeSummary = result.get("themeSummary");
+            
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                com.moodcopilot.entity.MusicMeta meta = objectMapper.readValue(cached, com.moodcopilot.entity.MusicMeta.class);
+                meta.setMoodTags(moodTags);
+                meta.setThemeSummary(themeSummary);
+                redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(meta), Duration.ofDays(7));
+            }
+        } catch (Exception e) {
+            log.error("AI music analysis failed for {} - {}: {}", artist, title, e.getMessage());
+        }
     }
 
     public DiaryAnalysis analyze(Long userId, String content, com.moodcopilot.entity.MusicMeta musicMeta) {
@@ -64,11 +96,12 @@ public class AiAnalysisService {
         sb.append("[本次日记]\n").append(content);
 
         if (musicMeta != null) {
-            sb.append("\n\n[音乐分享]\n");
-            sb.append("歌曲：").append(musicMeta.getTitle()).append("\n");
-            sb.append("歌手：").append(musicMeta.getArtist()).append("\n");
+            sb.append("\n\n[音乐背景]\n");
+            sb.append("歌曲：《").append(musicMeta.getTitle()).append("》，");
+            sb.append("情感基调为 ").append(musicMeta.getMoodTags() != null ? musicMeta.getMoodTags() : "未知").append("，");
+            sb.append("主要表达 ").append(musicMeta.getThemeSummary() != null ? musicMeta.getThemeSummary() : "未知").append("。\n");
             if (musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
-                sb.append("用户标注的歌词：").append(musicMeta.getUserLyric()).append("\n");
+                sb.append("用户标注的歌词片段：").append(musicMeta.getUserLyric()).append("\n");
             }
             sb.append("（注意：音乐仅作为氛围辅助参考。请主要基于用户自己写的正文进行情绪分析，如果正文很短或没有情绪表达，切勿过度放大音乐本身的极端情绪。）");
         }
