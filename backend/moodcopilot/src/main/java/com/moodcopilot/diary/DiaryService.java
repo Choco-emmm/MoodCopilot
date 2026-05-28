@@ -343,7 +343,6 @@ public class DiaryService {
                     musicMeta.setMoodTags(result.getLeft());
                     musicMeta.setThemeSummary(result.getRight());
                     log.info("同步补全音乐氛围成功 moodTags={} themeSummary={}", result.getLeft(), result.getRight());
-                }
                 } catch (Exception e) {
                     log.warn("同步补全音乐氛围失败: {}", e.getMessage());
                 }
