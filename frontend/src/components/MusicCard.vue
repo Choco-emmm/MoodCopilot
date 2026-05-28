@@ -97,6 +97,7 @@ function toggleLine(index: number) {
             class="music-mood-tag"
           >{{ tag.trim() }}</span>
         </div>
+        <p v-if="musicMeta.themeSummary" class="music-theme-summary">{{ musicMeta.themeSummary }}</p>
       </div>
       <a
         v-if="musicMeta.songUrl"
@@ -260,6 +261,17 @@ function toggleLine(index: number) {
   color: var(--color-primary);
   font-weight: 500;
   line-height: 1.5;
+}
+
+.music-theme-summary {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .music-user-lyric {
