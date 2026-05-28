@@ -1004,8 +1004,8 @@ public class RagMemoryService {
             log.warn("RAG 删除日记向量失败 diaryId={}: {}", diaryId, e.getMessage());
         }
     /**
-     * 清理存量的超短日记向量索引（纯文本 < 8 字符），治理历史遗留噪音。
-     * 一次性运维操作，建议在低峰期执行。
+     * 清理存量的超短日记正文向量索引（纯文本 < 8 字符），治理历史遗留噪音。
+     * 仅删除正文向量，保留音乐和图片的独立向量——短日记「1 + 一首歌」仍有音乐语义价值。
      */
     public int cleanupShortDiaryEmbeddings() {
         var allDiaries = diaryMapper.selectList(
@@ -1017,11 +1017,25 @@ public class RagMemoryService {
             String plainText = (diary.getContent() != null ? diary.getContent() : "")
                     .replaceAll("<[^>]+>", "").replaceAll("&nbsp;", " ").trim();
             if (plainText.length() < 8) {
-                deleteDiaryEmbedding(diary.getId());
+                // 仅删正文向量，保留音乐和图片
+                redis.delete(KEY_PREFIX + "diary:" + diary.getId());
+                var chunkKeys = redis.keys(KEY_PREFIX + "diary:" + diary.getId() + ":*");
+                if (chunkKeys != null && !chunkKeys.isEmpty()) {
+                    // 过滤掉音乐和图片 key，只删分块
+                    var textChunks = new java.util.ArrayList<String>();
+                    for (var key : chunkKeys) {
+                        if (!key.contains(":music") && !key.contains(":images")) {
+                            textChunks.add(key);
+                        }
+                    }
+                    if (!textChunks.isEmpty()) {
+                        redis.delete(textChunks);
+                    }
+                }
                 cleaned++;
             }
         }
-        log.info("RAG 存量清理完成：检查 {} 篇日记，清理 {} 篇超短日记的向量索引", allDiaries.size(), cleaned);
+        log.info("RAG 存量清理完成：检查 {} 篇日记，清理 {} 篇超短日记的正文向量（保留音乐/图片）", allDiaries.size(), cleaned);
         return cleaned;
     }
 
