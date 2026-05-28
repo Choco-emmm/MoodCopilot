@@ -68,7 +68,7 @@ public class AiAnalysisService {
      */
     public org.apache.commons.lang3.tuple.Pair<String, String> analyzeMusicSync(String title, String artist, String lyrics) {
         try {
-            String prompt = String.format("总结歌曲《%s - %s》的语种、核心曲风、情感基调（3个词，逗号分隔）以及表达的核心主题（含语种信息，50字以内）。歌词如下：%s。请返回JSON格式：{\"moodTags\": \"...\", \"themeSummary\": \"...\"}", title, artist, lyrics);
+            String prompt = String.format("分析歌曲《%s - %s》：1) 语种；2) 曲风与情感基调（3个词，逗号分隔）；3) 核心主题（50字以内，用自然的中文描述歌曲表达的内容和情感，不要让语种信息成为描述的第一句）。歌词如下：%s。请返回JSON格式：{\"moodTags\": \"...\", \"themeSummary\": \"...\"}", title, artist, lyrics);
             String json = analysisChatClient.prompt()
                     .user(prompt)
                     .call()
