@@ -89,6 +89,18 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/collections/create',
+      name: 'create-collection',
+      component: () => import('../views/CreateCollection.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/collections/:id',
+      name: 'collection-detail',
+      component: () => import('../views/CollectionDetail.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/admin/users',
       name: 'admin-users',
       component: () => import('../pages/AdminUsersPage.vue'),

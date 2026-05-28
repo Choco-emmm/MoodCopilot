@@ -218,7 +218,7 @@ const lineOption = computed(() => {
           color: '#fff', // white center
           borderColor: (params: any) => {
             const row = data[params.dataIndex];
-            return row ? moodColor(row.moodLabel, row.value, row.arousal) : '#9cb4a8';
+            return row ? moodColor(row.moodLabel, row.value, row.arousal) : 'rgb(140,145,168)';
           },
           borderWidth: 1.5,
         },

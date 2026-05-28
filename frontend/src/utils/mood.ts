@@ -18,13 +18,13 @@ export const MOOD_COLORS: Record<string, string> = {
   '愤怒': '#9e4b43',
   '焦虑': '#a65d53',
   '害怕': '#825057',
-  // 消极 / 低能量 — 暮色系（蓝/紫/冷灰调：水、阴天与情绪收缩）
-  '疲惫': '#9b9eaa',
-  '委屈': '#968f9e',
-  '难过': '#7b8ba3',
-  '迷茫': '#8b94a0',
-  '孤独': '#6d768a',
-  '内疚': '#8a858a',
+  // 消极 / 低能量 — 暮色系（明确蓝调：水、阴天与情绪收缩）
+  '疲惫': '#8d98c2',
+  '委屈': '#9693be',
+  '难过': '#6d82b8',
+  '迷茫': '#7f8eb8',
+  '孤独': '#6074a3',
+  '内疚': '#8582a8',
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -37,7 +37,7 @@ function hexToRgb(hex: string): [number, number, number] {
 }
 
 export function moodColor(label?: string, valence?: number | null, arousal?: number | null): string {
-  let r = 156, g = 180, b = 168; // fallback rgb for #9cb4a8
+  let r = 140, g = 145, b = 168; // fallback: neutral blue-gray rgb for #9cb4a8
 
   if (valence != null && arousal != null) {
     // Both -100 to 100, normalize to 0..1
@@ -49,8 +49,8 @@ export function moodColor(label?: string, valence?: number | null, arousal?: num
     // Corner RGB values (Morandi palette)
     const q1 = [242, 177, 126]; // +V, +A (暖黄/橙色 #f2b17e)
     const q2 = [166, 93, 83];   // -V, +A (焦土红褐色 #a65d53)
-    const q3 = [139, 148, 160]; // -V, -A (暮霭蓝灰色 #8b94a0)
-    const q4 = [120, 168, 161]; // +V, -A (草木绿色 #78a8a1)
+    const q3 = [105, 125, 182]; // -V, -A (暮霭蓝调 #697db6)
+    const q4 = [125, 175, 138]; // +V, -A (草木绿色 #7daf8a)
 
     // Bilinear interpolation
     const bottomR = (1 - tx) * q3[0] + tx * q4[0];

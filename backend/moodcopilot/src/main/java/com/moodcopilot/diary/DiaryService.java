@@ -81,6 +81,7 @@ public class DiaryService {
     private final DiaryRecommendationExposureMapper exposureMapper;
     private final UserMapper userMapper;
     private final com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper;
+    private final com.moodcopilot.mapper.DiaryCollectionRelationMapper diaryCollectionRelationMapper;
     private static final Logger log = LoggerFactory.getLogger(DiaryService.class);
 
     private final AiAnalysisService aiAnalysisService;
@@ -108,6 +109,7 @@ public class DiaryService {
             DiaryRecommendationExposureMapper exposureMapper,
             UserMapper userMapper,
             com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper,
+            com.moodcopilot.mapper.DiaryCollectionRelationMapper diaryCollectionRelationMapper,
             AiAnalysisService aiAnalysisService,
             VisionService visionService,
             OssService ossService,
@@ -132,6 +134,7 @@ public class DiaryService {
         this.exposureMapper = exposureMapper;
         this.userMapper = userMapper;
         this.diaryKnowledgeGraphMapper = diaryKnowledgeGraphMapper;
+        this.diaryCollectionRelationMapper = diaryCollectionRelationMapper;
         this.aiAnalysisService = aiAnalysisService;
         this.visionService = visionService;
         this.ossService = ossService;
@@ -1741,6 +1744,13 @@ public class DiaryService {
             throw new ResponseStatusException(FORBIDDEN, "只能删除自己的日记或由管理员操作");
         }
         diaryMapper.deleteById(diaryId);
+
+        // 级联删除合集关联记录
+        diaryCollectionRelationMapper.delete(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryCollectionRelationEntity>()
+                        .eq(com.moodcopilot.entity.DiaryCollectionRelationEntity::getDiaryId, diaryId)
+        );
+
         markReportsStale(diary.getAuthorUserId());
         if ("PUBLIC".equals(diary.getVisibility())) {
             evictPublicDiaryCaches();

@@ -47,100 +47,154 @@
 
     <section class="fusion-panel">
       <div class="fusion-content profile-list-panel">
-      <div class="profile-list-head">
-        <h3>{{ isSearching ? '搜索结果' : '日记列表' }}</h3>
-        <div class="profile-list-actions" style="display: flex; align-items: center; gap: 8px;">
-          <n-button v-if="isSearching" text type="warning" size="small" @click="clearSearch" style="margin-right: 4px;">清除搜索</n-button>
-          <n-button
-            v-if="isOwner"
-            quaternary
-            circle
-            size="small"
-            :type="showSearchPanel ? 'primary' : 'default'"
-            @click="showSearchPanel = !showSearchPanel"
-            title="搜索日记"
-            style="font-size: 14px;"
-          >
-            🔍
-          </n-button>
-          <n-button quaternary circle size="small" :loading="loading" @click="reload" title="刷新">
-            <template #icon>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="23 4 23 10 17 10"/>
-                <polyline points="1 20 1 14 7 14"/>
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-              </svg>
-            </template>
-          </n-button>
-        </div>
-      </div>
+        <n-tabs v-model:value="activeTab" type="line" animated @update:value="handleTabChange">
+          <n-tab-pane name="diaries" tab="日记">
+            <div class="profile-list-head">
+              <h3>{{ isSearching ? '搜索结果' : '日记列表' }}</h3>
+              <div class="profile-list-actions" style="display: flex; align-items: center; gap: 8px;">
+                <n-button v-if="isSearching" text type="warning" size="small" @click="clearSearch" style="margin-right: 4px;">清除搜索</n-button>
+                <n-button
+                  v-if="isOwner"
+                  quaternary
+                  circle
+                  size="small"
+                  :type="showSearchPanel ? 'primary' : 'default'"
+                  @click="showSearchPanel = !showSearchPanel"
+                  title="搜索日记"
+                  style="font-size: 14px;"
+                >
+                  🔍
+                </n-button>
+                <n-button quaternary circle size="small" :loading="loading" @click="reload" title="刷新">
+                  <template #icon>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="23 4 23 10 17 10"/>
+                      <polyline points="1 20 1 14 7 14"/>
+                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                    </svg>
+                  </template>
+                </n-button>
+              </div>
+            </div>
 
-      <!-- 搜索卡片面板 -->
-      <ProfileSearchPanel
-        v-if="isOwner"
-        :show="showSearchPanel"
-        v-model:keyword="keyword"
-        v-model:startDate="startDateVal"
-        v-model:endDate="endDateVal"
-        v-model:visibility="visibilityFilter"
-        :visibility-opts="visibilityOpts"
-        :date-disabled="dateDisabled"
-        :loading="loading"
-        @search="triggerSearch"
-        @clear="clearFilters"
-      />
+            <!-- 搜索卡片面板 -->
+            <ProfileSearchPanel
+              v-if="isOwner"
+              :show="showSearchPanel"
+              v-model:keyword="keyword"
+              v-model:startDate="startDateVal"
+              v-model:endDate="endDateVal"
+              v-model:visibility="visibilityFilter"
+              :visibility-opts="visibilityOpts"
+              :date-disabled="dateDisabled"
+              :loading="loading"
+              @search="triggerSearch"
+              @clear="clearFilters"
+            />
 
-      <div v-if="diaries.length" class="feed">
-        <PullToRefresh :loading="loading" @refresh="reload">
-          <DynamicScroller
-            :items="diaries"
-            :min-item-size="200"
-            key-field="id"
-            page-mode
-          >
-          <template #default="{ item, index, active }">
-            <DynamicScrollerItem
-              :item="item"
-              :active="active"
-              :size-dependencies="[
-                item.content,
-                item.images?.length,
-                item.comments?.length,
-                item.musicMeta?.songUrl
-              ]"
-              :data-index="index"
-            >
-              <DiaryFeedItem
-                :diary="item"
-                :enable-comments="false"
-                :compact="true"
-                :preview-limit="120"
-                :show-expand-toggle="false"
-                :hide-follow-btn="!isOwner"
-                :show-visibility-badge="isOwner"
-                @resonate="(d: Diary) => store.resonate(d.id, d)"
-                @open-detail="(d: Diary) => router.push(`/diary/${d.id}`)"
-              />
-            </DynamicScrollerItem>
-          </template>
-        </DynamicScroller>
+            <div v-if="diaries.length" class="feed">
+              <PullToRefresh :loading="loading" @refresh="reload">
+                <DynamicScroller
+                  :items="diaries"
+                  :min-item-size="200"
+                  key-field="id"
+                  page-mode
+                >
+                <template #default="{ item, index, active }">
+                  <DynamicScrollerItem
+                    :item="item"
+                    :active="active"
+                    :size-dependencies="[
+                      item.content,
+                      item.images?.length,
+                      item.comments?.length,
+                      item.musicMeta?.songUrl
+                    ]"
+                    :data-index="index"
+                  >
+                    <DiaryFeedItem
+                      :diary="item"
+                      :enable-comments="false"
+                      :compact="true"
+                      :preview-limit="120"
+                      :show-expand-toggle="false"
+                      :hide-follow-btn="!isOwner"
+                      :show-visibility-badge="isOwner"
+                      @resonate="(d: Diary) => store.resonate(d.id, d)"
+                      @open-detail="(d: Diary) => router.push(`/diary/${d.id}`)"
+                    />
+                  </DynamicScrollerItem>
+                </template>
+              </DynamicScroller>
 
-          <div v-if="hasMore" ref="sentinel" class="profile-load-more">
-            <n-spin v-if="loadingMore" size="small" />
-            <n-button v-else secondary block @click="loadMore">加载更多</n-button>
-          </div>
-        </PullToRefresh>
-      </div>
+                <div v-if="hasMore" ref="sentinel" class="profile-load-more">
+                  <n-spin v-if="loadingMore" size="small" />
+                  <n-button v-else secondary block @click="loadMore">加载更多</n-button>
+                </div>
+              </PullToRefresh>
+            </div>
 
-      <div v-else-if="!loading" class="profile-empty-wrap">
-        <PullToRefresh :loading="loading" @refresh="reload">
-          <div style="display: flex; flex-direction: column; align-items: center; padding-top: 20px;">
-            <n-empty :description="isSearching ? '未找到匹配的日记' : (isOwner ? '你还没有写日记' : '暂无公开日记')" />
-            <p class="profile-empty-tip" style="margin-top: 10px;">{{ isSearching ? '尝试缩短或修改搜索关键词、扩大时间范围' : (isOwner ? '从一条简单记录开始，持续比完美更重要。' : '晚点再来看看，或先去广场看看大家的分享。') }}</p>
-          </div>
-        </PullToRefresh>
-      </div>
-      <n-spin v-else size="small" />
+            <div v-else-if="!loading" class="profile-empty-wrap">
+              <PullToRefresh :loading="loading" @refresh="reload">
+                <div style="display: flex; flex-direction: column; align-items: center; padding-top: 20px;">
+                  <n-empty :description="isSearching ? '未找到匹配的日记' : (isOwner ? '你还没有写日记' : '暂无公开日记')" />
+                  <p class="profile-empty-tip" style="margin-top: 10px;">{{ isSearching ? '尝试缩短或修改搜索关键词、扩大时间范围' : (isOwner ? '从一条简单记录开始，持续比完美更重要。' : '晚点再来看看，或先去广场看看大家的分享。') }}</p>
+                </div>
+              </PullToRefresh>
+            </div>
+            <n-spin v-else size="small" />
+          </n-tab-pane>
+
+          <n-tab-pane name="collections" tab="合集">
+            <div class="profile-list-head">
+              <h3>合集列表</h3>
+              <div class="profile-list-actions" style="display: flex; align-items: center; gap: 8px;">
+                <n-button
+                  v-if="isOwner"
+                  quaternary
+                  circle
+                  size="small"
+                  @click="router.push('/collections/create')"
+                  title="创建合集"
+                  style="font-size: 14px;"
+                >
+                  + 创建合集
+                </n-button>
+              </div>
+            </div>
+
+            <div v-if="loadingCollections" style="display: flex; justify-content: center; padding: 20px;">
+              <n-spin size="small" />
+            </div>
+
+            <div v-else-if="collections.length" class="collection-grid">
+              <div
+                v-for="item in collections"
+                :key="item.id"
+                class="collection-card"
+                @click="router.push(`/collections/${item.id}`)"
+              >
+                <div
+                  class="collection-cover"
+                  :style="{ backgroundImage: item.coverUrl ? `url(${item.coverUrl})` : 'none' }"
+                >
+                  <span v-if="!item.coverUrl">📖</span>
+                </div>
+                <div class="collection-info">
+                  <h4 class="collection-title">{{ item.name }}</h4>
+                  <p class="collection-description">{{ item.description || '暂无描述' }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="!loadingCollections" class="profile-empty-wrap">
+              <div style="display: flex; flex-direction: column; align-items: center; padding: 20px;">
+                <n-empty :description="isOwner ? '你还没有创建任何合集' : '该用户暂无公开合集'" />
+                <p class="profile-empty-tip" style="margin-top: 10px;">{{ isOwner ? '点击右上角按钮创建你的第一个合集' : '暂无公开合集' }}</p>
+              </div>
+            </div>
+          </n-tab-pane>
+        </n-tabs>
       </div>
     </section>
 
@@ -164,7 +218,7 @@ import ProfileSearchPanel from '../components/profile/ProfileSearchPanel.vue'
 import AdminSuggestionsModal from '../components/profile/AdminSuggestionsModal.vue'
 import DiaryFeedItem from '../components/DiaryFeedItem.vue'
 import PullToRefresh from '../components/PullToRefresh.vue'
-import { authApi, diaryApi, memoryApi } from '../api'
+import { authApi, diaryApi, memoryApi, collectionApi } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
@@ -202,6 +256,10 @@ const visibilityOpts = [
 
 
 const showAdminSuggestions = ref(false)
+
+const activeTab = ref('diaries')
+const collections = ref<any[]>([])
+const loadingCollections = ref(false)
 
 const profileUserId = computed(() => Number(route.params.userId))
 const isOwner = computed(() => auth.userId != null && auth.userId === profileUserId.value)
@@ -273,6 +331,29 @@ function clearSearch() {
   void reload()
 }
 
+function handleTabChange(tabName: string) {
+  if (tabName === 'collections' && collections.value.length === 0) {
+    void loadCollections()
+  }
+}
+
+async function loadCollections() {
+  if (!Number.isFinite(profileUserId.value)) {
+    collections.value = []
+    return
+  }
+  loadingCollections.value = true
+  try {
+    const res = isOwner.value
+      ? await collectionApi.mine(1, 100)
+      : await collectionApi.byUser(profileUserId.value, 1, 100)
+    const data = res.data.data
+    collections.value = data.records ?? []
+  } finally {
+    loadingCollections.value = false
+  }
+}
+
 async function reload() {
   if (!Number.isFinite(profileUserId.value)) {
     diaries.value = []
@@ -313,6 +394,10 @@ async function reload() {
       const items = (data.items ?? []).map(store.normalize)
       diaries.value = items
       total.value = data.total ?? items.length
+    }
+
+    if (activeTab.value === 'collections') {
+      void loadCollections()
     }
   } finally {
     profileLoading.value = false
@@ -854,6 +939,87 @@ function handleProfileUpdated() {
   
   .profile-list-head h3 {
     font-size: 1.2rem;
+  }
+}
+
+/* ── 合集卡片网格 ── */
+.collection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+  padding: 16px 0;
+}
+
+.collection-card {
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.collection-card:hover {
+  transform: translateY(-2px);
+}
+
+.collection-cover {
+  aspect-ratio: 4/3;
+  background: var(--color-surface-soft);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--color-text-muted);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.collection-info {
+  margin-top: 8px;
+}
+
+.collection-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.collection-description {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .collection-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 12px 0;
+  }
+
+  .collection-cover {
+    aspect-ratio: 1/1;
+    font-size: 20px;
+    border-radius: 6px;
+  }
+
+  .collection-info {
+    margin-top: 6px;
+  }
+
+  .collection-title {
+    font-size: 12px;
+  }
+
+  .collection-description {
+    font-size: 11px;
   }
 }
 

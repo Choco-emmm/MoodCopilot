@@ -91,6 +91,25 @@
         </template>
       </article>
 
+      <!-- 所属合集 -->
+      <section v-if="diaryCollections.length" class="panel analysis-panel collection-card-panel">
+        <h3 class="collection-card-title">
+          <span v-if="isOwner">所属合集</span>
+          <span v-else>收录于合集</span>
+        </h3>
+        <div class="collection-card-list">
+          <router-link
+            v-for="col in diaryCollections"
+            :key="col.id"
+            :to="`/collections/${col.id}`"
+            class="collection-card-item"
+          >
+            <span class="collection-card-name">{{ col.name }}</span>
+            <span class="collection-card-vis">{{ col.visibility === 'PUBLIC' ? '公开' : '私密' }}</span>
+          </router-link>
+        </div>
+      </section>
+
       <!-- 评论区域 -->
       <section class="panel analysis-panel">
         <h3 class="comment-section-title">评论 ({{ totalCommentCount }})</h3>
@@ -189,7 +208,7 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NInput, NTag, NEmpty, useMessage } from 'naive-ui'
-import { diaryApi, reportApi } from '../api'
+import { diaryApi, reportApi, collectionApi } from '../api'
 import { tryExpToast } from '../utils/toast'
 import { formatLegacyContent } from '../utils/markdown'
 import { useAuthStore } from '../stores/auth'
@@ -277,12 +296,26 @@ async function loadDiaryByRoute() {
   }
 }
 
+const diaryCollections = ref<any[]>([])
+
+async function loadCollectionsForDiary() {
+  if (!diary.value) return
+  try {
+    const res = await collectionApi.byDiary(diary.value.id)
+    diaryCollections.value = res.data.data ?? []
+  } catch {
+    diaryCollections.value = []
+  }
+}
+
 onMounted(async () => {
   await loadDiaryByRoute()
+  await loadCollectionsForDiary()
 })
 
 watch(() => route.params.id, async () => {
   await loadDiaryByRoute()
+  await loadCollectionsForDiary()
 })
 
 async function submitComment(parentId: number | null) {
@@ -565,5 +598,57 @@ function ensureCommentInputVisible() {
   0% { opacity: 0.5; }
   50% { opacity: 1; }
   100% { opacity: 0.5; }
+}
+
+/* ── 所属合集卡片 ── */
+.collection-card-panel {
+  margin-top: 16px;
+}
+
+.collection-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin: 0 0 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.collection-card-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.collection-card-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--color-primary) 4%, var(--color-surface));
+  border: 1px solid color-mix(in oklab, var(--color-primary) 10%, transparent);
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.collection-card-item:hover {
+  background: color-mix(in oklab, var(--color-primary) 8%, var(--color-surface));
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
+.collection-card-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.collection-card-vis {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  background: color-mix(in oklab, var(--color-surface-soft) 80%, transparent);
+  padding: 1px 6px;
+  border-radius: 3px;
 }
 </style>

@@ -159,6 +159,11 @@ public class AiAnalysisService {
         String summary = sanitizeString(map.get("summary"), "这是一篇关于心情记录的日记。");
         String feedback = sanitizeString(map.get("feedback"), "感谢你的记录，你的每一点感受都很重要。");
         List<String> safeSecondary = (secondaryMoods != null) ? secondaryMoods : List.of();
+
+        // 若 AI 未返回 valence/arousal，根据标签估算
+        if (valence == null) valence = estimateValence(moodLabel, moodIntensity);
+        if (arousal == null) arousal = estimateArousal(moodLabel, moodIntensity);
+
         return new DiaryAnalysis(moodLabel, Math.min(5, Math.max(1, moodIntensity)),
                 valence, arousal,
                 topicLabels, safeSecondary, summary, feedback);

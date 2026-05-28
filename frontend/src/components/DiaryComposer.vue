@@ -23,6 +23,98 @@
       </div>
     </div>
 
+    <!-- 合集选择 -->
+    <div class="composer-collections">
+      <div class="composer-collections-trigger" @click="showCollectionModal = true; loadCollections()">
+        <span v-if="selectedCollections.length === 0" class="composer-collections-placeholder">
+          <span class="composer-collections-icon">📚</span>
+          添加到合集...
+        </span>
+        <span v-else class="composer-collections-selected">
+          已选 {{ selectedCollections.length }} 个合集
+        </span>
+      </div>
+    </div>
+
+    <!-- 合集选择弹窗 -->
+    <div v-if="showCollectionModal" class="composer-collection-modal" @click.self="showCollectionModal = false">
+      <div class="composer-collection-modal-content" @click.stop>
+        <div class="composer-collection-modal-head">
+          <h3 class="composer-collection-modal-title">选择合集</h3>
+          <button class="composer-collection-modal-close" @click="showCollectionModal = false">&times;</button>
+        </div>
+
+        <div v-if="loadingCollections" style="display: flex; justify-content: center; padding: 40px 0;">
+          <n-spin size="small" />
+        </div>
+
+        <div v-else-if="collections.length === 0 && !showCreateForm" style="text-align: center; padding: 24px 0; color: var(--color-text-muted); font-size: 13px;">
+          暂无合集，右上角创建你的第一个合集
+        </div>
+
+        <div v-else class="composer-collection-modal-list">
+          <div
+            v-for="collection in collections"
+            :key="collection.id"
+            :class="['composer-collection-modal-item', {
+              selected: selectedCollections.includes(collection.id),
+              disabled: visibility === 'PRIVATE' && collection.visibility === 'PUBLIC'
+            }]"
+            @click="visibility !== 'PRIVATE' || collection.visibility !== 'PUBLIC' ? toggleCollection(collection.id) : null"
+          >
+            <span class="composer-collection-checkbox">
+              <span v-if="selectedCollections.includes(collection.id)" class="composer-collection-checked">✓</span>
+            </span>
+            <div class="composer-collection-modal-info">
+              <span class="composer-collection-modal-name">{{ collection.name }}</span>
+              <span v-if="visibility === 'PRIVATE' && collection.visibility === 'PUBLIC'" class="composer-collection-hint">需公开日记</span>
+              <span class="composer-collection-modal-vis">{{ collection.visibility === 'PUBLIC' ? '公开' : '私密' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 创建新合集表单 -->
+        <div v-if="showCreateForm" class="composer-collection-create-form">
+          <div class="composer-collection-create-divider" />
+          <input
+            ref="newCollectionNameInput"
+            v-model="newCollectionName"
+            class="composer-create-input"
+            type="text"
+            placeholder="合集名称"
+            @keyup.enter="submitCreateCollection"
+          />
+          <textarea
+            v-model="newCollectionDesc"
+            class="composer-create-textarea"
+            placeholder="描述（可选）"
+            rows="2"
+          />
+          <div class="composer-create-visibility">
+            <button
+              v-for="opt in visibilityOpts"
+              :key="opt.value"
+              :class="['composer-vis-opt-small', { active: newCollectionVisibility === opt.value }]"
+              @click="newCollectionVisibility = opt.value"
+            >{{ opt.label }}</button>
+          </div>
+          <div class="composer-create-actions">
+            <button class="composer-create-cancel" @click="showCreateForm = false">取消</button>
+            <button class="composer-create-submit" :disabled="!newCollectionName.trim()" @click="submitCreateCollection">创建</button>
+          </div>
+        </div>
+
+        <div class="composer-collection-modal-foot">
+          <button
+            v-if="!showCreateForm"
+            class="composer-collection-foot-btn"
+            @click="openCreateForm"
+          >+ 新建合集</button>
+          <button class="composer-collection-foot-btn primary" @click="showCollectionModal = false">完成</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ★ 编辑器：纸质感 -->
     <div class="composer-editor" style="position: relative;">
       <Toolbar
@@ -155,9 +247,10 @@ import '@wangeditor/editor/dist/css/style.css'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import type { IDomEditor, IToolbarConfig, IEditorConfig } from '@wangeditor/editor'
 import { useDiaryStore, type MusicMeta } from '../stores/diary'
-import { musicApi, imageApi } from '../api'
+import { musicApi, imageApi, collectionApi } from '../api'
 import MusicCard from './MusicCard.vue'
 import { formatLegacyContent } from '../utils/markdown'
+import { NButton, NSpin, NEmpty } from 'naive-ui'
 
 const props = withDefaults(defineProps<{
   editId?: number
@@ -194,6 +287,21 @@ const draftNotice = ref(initialDraftNotice)
 const draftSavedAt = ref('')
 const visibility = ref<'PRIVATE' | 'PUBLIC'>(props.initialVisibility || 'PRIVATE')
 const analyze = ref(true)
+
+const collections = ref<any[]>([])
+const selectedCollections = ref<number[]>([])
+const loadingCollections = ref(false)
+const showCollectionModal = ref(false)
+const showCreateForm = ref(false)
+const newCollectionName = ref('')
+const newCollectionDesc = ref('')
+const newCollectionVisibility = ref<'PRIVATE' | 'PUBLIC'>('PRIVATE')
+const newCollectionNameInput = ref<HTMLInputElement | null>(null)
+
+const visibilityOpts = [
+  { label: '私密', value: 'PRIVATE' },
+  { label: '公开', value: 'PUBLIC' },
+]
 
 const editorRef = shallowRef<IDomEditor | null>(null)
 
@@ -253,6 +361,9 @@ const visibilityCopy = computed(() =>
 const plainText = computed(() => htmlContent.value.replace(/<[^>]*>/g, '').trim())
 const isOverLimit = computed(() => plainText.value.length > 3000)
 
+// 编辑模式下，内容未变化时不触发 AI 重新分析
+const contentChanged = computed(() => !isEditMode.value || htmlContent.value !== initialHtml)
+
 function handleEditorCreated(editor: IDomEditor) {
   editorRef.value = editor
 }
@@ -261,6 +372,7 @@ onMounted(() => {
   if (draftNotice.value) {
     updateDraftSavedAt()
   }
+  void loadCollections()
 })
 
 onBeforeUnmount(() => {
@@ -370,6 +482,60 @@ function removeImage(i: number) {
   imageList.value.splice(i, 1)
 }
 
+async function loadCollections() {
+  loadingCollections.value = true
+  try {
+    const res = await collectionApi.mine(1, 100)
+    const data = res.data.data
+    collections.value = data.records ?? []
+  } catch (e) {
+    console.error('加载合集失败', e)
+  } finally {
+    loadingCollections.value = false
+  }
+}
+
+function toggleCollection(collectionId: number) {
+  const index = selectedCollections.value.indexOf(collectionId)
+  if (index === -1) {
+    selectedCollections.value.push(collectionId)
+  } else {
+    selectedCollections.value.splice(index, 1)
+  }
+}
+
+function openCreateForm() {
+  showCreateForm.value = true
+  nextTick(() => {
+    newCollectionNameInput.value?.focus()
+  })
+}
+
+async function submitCreateCollection() {
+  const name = newCollectionName.value.trim()
+  if (!name) return
+
+  try {
+    const res = await collectionApi.create({
+      name,
+      description: newCollectionDesc.value.trim() || undefined,
+      visibility: newCollectionVisibility.value,
+    })
+    const newCollection = res.data.data
+    collections.value.push(newCollection)
+    selectedCollections.value.push(newCollection.id)
+
+    newCollectionName.value = ''
+    newCollectionDesc.value = ''
+    newCollectionVisibility.value = 'PRIVATE'
+    showCreateForm.value = false
+    window.$message?.success('合集创建成功')
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || '创建合集失败'
+    window.$message?.error(msg)
+  }
+}
+
 async function handleSave() {
   const content = htmlContent.value.trim()
   if (!content) return
@@ -379,11 +545,15 @@ async function handleSave() {
       : undefined
     const imagesPayload = imageList.value.length ? imageList.value : undefined
 
+    let diaryId: number
+
     if (isEditMode.value) {
-      await store.updateDiary(props.editId!, content, visibility.value, musicPayload, imagesPayload, analyze.value)
-      router.push(`/diary/${props.editId}`)
+      diaryId = props.editId!
+      await store.updateDiary(diaryId, content, visibility.value, musicPayload, imagesPayload, analyze.value && contentChanged.value)
+      router.push(`/diary/${diaryId}`)
     } else {
       await store.createDiary(content, visibility.value, musicPayload, analyze.value, imagesPayload)
+      diaryId = store.activeDiary?.id!
       htmlContent.value = ''
       draft.value = ''
       musicMeta.value = null
@@ -391,6 +561,18 @@ async function handleSave() {
       imageList.value = []
       localStorage.removeItem(DRAFT_KEY)
     }
+
+    if (selectedCollections.value.length > 0 && diaryId) {
+      for (const collectionId of selectedCollections.value) {
+        try {
+          await collectionApi.addDiaries(collectionId, [diaryId])
+        } catch (e) {
+          console.error(`添加日记到合集 ${collectionId} 失败`, e)
+        }
+      }
+    }
+
+    selectedCollections.value = []
   } catch {
     // error handled by store
   }
@@ -498,6 +680,363 @@ async function handleSave() {
 }
 
 .composer-vis-opt.active {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+/* ── 合集选择 ── */
+.composer-collections {
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.composer-collections-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1.5px dashed color-mix(in oklab, var(--color-primary) 20%, transparent);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.composer-collections-trigger:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: color-mix(in oklab, var(--color-primary) 2%, transparent);
+}
+
+.composer-collections-icon { font-size: 14px; }
+
+.composer-collections-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.composer-collections-selected {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* ── 合集选择弹窗 ── */
+.composer-collection-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(3px);
+}
+
+.composer-collection-modal-content {
+  background: var(--color-surface);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 380px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.10);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.composer-collection-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 12px;
+}
+
+.composer-collection-modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+  font-family: var(--font-display);
+}
+
+.composer-collection-modal-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.composer-collection-modal-close:hover {
+  color: var(--color-text);
+}
+
+.composer-collection-modal-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 60px;
+  max-height: 280px;
+}
+
+.composer-collection-modal-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+}
+
+.composer-collection-modal-item:hover {
+  background: color-mix(in oklab, var(--color-primary) 3%, transparent);
+}
+
+.composer-collection-modal-item.selected {
+  background: color-mix(in oklab, var(--color-primary) 6%, transparent);
+  border-color: color-mix(in oklab, var(--color-primary) 15%, transparent);
+}
+
+.composer-collection-modal-item.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.composer-collection-checkbox {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--color-primary);
+  transition: all 0.15s;
+}
+
+.composer-collection-modal-item.selected .composer-collection-checkbox {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.composer-collection-modal-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  min-width: 0;
+  gap: 8px;
+}
+
+.composer-collection-modal-name {
+  font-size: 14px;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-collection-modal-vis {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: color-mix(in oklab, var(--color-surface-soft) 80%, transparent);
+  padding: 2px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.composer-collection-hint {
+  font-size: 10px;
+  color: var(--color-text-light);
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.composer-collection-modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px 18px;
+  gap: 10px;
+}
+
+.composer-collection-foot-btn {
+  padding: 8px 16px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.composer-collection-foot-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.composer-collection-foot-btn.primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.composer-collection-foot-btn.primary:hover {
+  background: var(--color-primary-hover);
+}
+
+/* ── 创建合集内联表单 ── */
+.composer-collection-create-form {
+  padding: 8px 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.composer-collection-create-divider {
+  border-top: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent);
+  margin-bottom: 12px;
+}
+
+.composer-create-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  margin-bottom: 10px;
+  transition: border-color 0.2s;
+}
+
+.composer-create-input::placeholder {
+  color: var(--color-text-light);
+}
+
+.composer-create-input:focus {
+  border-color: var(--color-primary);
+}
+
+.composer-create-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  resize: none;
+  margin-bottom: 14px;
+  transition: border-color 0.2s;
+}
+
+.composer-create-textarea::placeholder {
+  color: var(--color-text-light);
+}
+
+.composer-create-textarea:focus {
+  border-color: var(--color-primary);
+}
+
+.composer-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.composer-create-cancel {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-family: inherit;
+}
+
+.composer-create-cancel:hover {
+  background: color-mix(in oklab, var(--color-border) 50%, transparent);
+}
+
+.composer-create-submit {
+  padding: 8px 16px;
+  border: none;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px;
+  font-family: inherit;
+}
+
+.composer-create-submit:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.composer-create-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.composer-create-visibility {
+  display: flex;
+  gap: 0;
+  margin-bottom: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.composer-vis-opt-small {
+  flex: 1;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.composer-vis-opt-small:first-child {
+  border-right: 1px solid var(--color-border);
+}
+
+.composer-vis-opt-small:hover {
+  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  color: var(--color-primary);
+}
+
+.composer-vis-opt-small.active {
   background: var(--color-primary);
   color: var(--color-on-primary);
 }
