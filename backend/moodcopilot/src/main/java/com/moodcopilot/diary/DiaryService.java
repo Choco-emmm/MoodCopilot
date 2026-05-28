@@ -342,6 +342,11 @@ public class DiaryService {
                     var result = aiAnalysisService.analyzeMusicSync(musicMeta.getTitle(), musicMeta.getArtist(), lyricsStr);
                     musicMeta.setMoodTags(result.getLeft());
                     musicMeta.setThemeSummary(result.getRight());
+                    // 写回数据库，前端才能读到
+                    DiaryEntity updateEntity = new DiaryEntity();
+                    updateEntity.setId(diaryId);
+                    updateEntity.setMusicMeta(musicMeta);
+                    diaryMapper.updateById(updateEntity);
                     log.info("同步补全音乐氛围成功 moodTags={} themeSummary={}", result.getLeft(), result.getRight());
                 } catch (Exception e) {
                     log.warn("同步补全音乐氛围失败: {}", e.getMessage());
