@@ -99,14 +99,14 @@ public class VisionService {
         String prompt;
         if (!extractedText.isBlank()) {
             prompt = String.format(
-                "请用一句话描述这张图片的画面内容与情感氛围（30字以内）。" +
+                "请用一句话描述这张图片的画面内容、拍摄类型（如自拍/风景/美食/截图/手写等）与情感氛围（40字以内）。" +
                 "图片中已识别到以下文字内容：「%s」" +
                 "请结合这些文字和画面综合描述情感。不要评价图片质量。",
                 extractedText
             );
             log.info("VLM OCR 文字已注入 prompt index={} textLen={}", index, extractedText.length());
         } else {
-            prompt = "请用一句话描述这张图片的画面内容与情感氛围（30字以内）。" +
+            prompt = "请用一句话描述这张图片的画面内容、拍摄类型（如自拍/风景/美食/截图/手写等）与情感氛围（40字以内）。" +
                      "如果图片包含文字，请结合文字内容描述情感。不要评价图片质量。";
         }
 
