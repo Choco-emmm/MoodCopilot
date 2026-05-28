@@ -90,6 +90,13 @@ function toggleLine(index: number) {
       <div class="music-info">
         <span class="music-title">{{ decodeHtmlEntities(musicMeta.title) }}</span>
         <span class="music-artist">{{ decodeHtmlEntities(musicMeta.artist) }}</span>
+        <div v-if="musicMeta.moodTags" class="music-mood-tags">
+          <span
+            v-for="tag in musicMeta.moodTags.split(',')"
+            :key="tag"
+            class="music-mood-tag"
+          >{{ tag.trim() }}</span>
+        </div>
       </div>
       <a
         v-if="musicMeta.songUrl"
@@ -236,6 +243,23 @@ function toggleLine(index: number) {
 .music-artist {
   font-size: 12px;
   color: var(--color-text-secondary);
+}
+
+.music-mood-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.music-mood-tag {
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+  font-weight: 500;
+  line-height: 1.5;
 }
 
 .music-user-lyric {
