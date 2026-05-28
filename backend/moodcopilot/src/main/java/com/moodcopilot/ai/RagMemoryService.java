@@ -197,6 +197,12 @@ public class RagMemoryService {
             log.debug("RAG 索引跳过：日记内容为空 diaryId={}", diaryId);
             return;
         }
+        // 纯文本长度不足的不进向量索引（如 "1"、"好想哭" 等无上下文价值的超短日记）
+        String plainText = content.replaceAll("<[^>]+>", "").replaceAll("&nbsp;", " ").trim();
+        if (plainText.length() < 8) {
+            log.debug("RAG 索引跳过：日记纯文本过短 ({} chars) diaryId={}", plainText.length(), diaryId);
+            return;
+        }
         // 独立索引音乐元数据，避免被长篇日记稀释语义
         if (musicMeta != null && musicMeta.getTitle() != null && !musicMeta.getTitle().isBlank()) {
             String musicText = buildMusicIndexText(musicMeta);
@@ -414,11 +420,17 @@ public class RagMemoryService {
                 validHits = new ArrayList<>(validHits);
                 validHits.sort(java.util.Comparator.comparing(RagHit::score, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
                 
-                // 动态阈值截断：排除与 Top 1 差距过大的噪音数据
+                // 动态阈值截断：用相对比例排除与 Top 1 差距过大的噪音，Top 1 本身太弱时直接丢弃
                 List<RagHit> qualityHits = new ArrayList<>();
                 if (!validHits.isEmpty()) {
                     double topScore = validHits.get(0).score();
-                    double threshold = Math.min(0.55, topScore + 0.18);
+                    // Top 1 质量过低说明检索无意义，直接返回空
+                    if (topScore < 0.03) {
+                        log.info("RAG 检索跳过：topScore={} 过低，无有效匹配", String.format("%.3f", topScore));
+                        return List.of();
+                    }
+                    // 相对阈值：排除超过 Top 1 3 倍的噪音，同时硬上限 0.55
+                    double threshold = Math.min(0.55, Math.max(topScore * 3.0, topScore + 0.10));
                     qualityHits = validHits.stream().filter(h -> h.score() <= threshold).toList();
                 }
                 qualityHits = new ArrayList<>(qualityHits);
