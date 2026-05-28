@@ -14,6 +14,8 @@ export interface MusicMeta {
   coverUrl: string
   userLyric?: string
   songUrl?: string
+  moodTags?: string | null
+  themeSummary?: string | null
 }
 
 export interface Diary {
