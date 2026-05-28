@@ -388,7 +388,7 @@ public class DiaryService {
             Thread.startVirtualThread(() -> {
                 try {
                     // 先请求大模型，如果失败也不影响旧数据
-                    java.util.List<AiAnalysisService.KnowledgeTriple> triples = aiAnalysisService.extractKnowledgeGraph(content);
+                    java.util.List<AiAnalysisService.KnowledgeTriple> triples = aiAnalysisService.extractKnowledgeGraph(content, musicMeta, imageDescriptions);
 
                     // 获取旧数据
                     java.util.List<com.moodcopilot.entity.DiaryKnowledgeGraphEntity> oldTriples = diaryKnowledgeGraphMapper.selectList(

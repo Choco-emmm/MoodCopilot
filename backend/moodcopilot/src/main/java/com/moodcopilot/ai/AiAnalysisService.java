@@ -189,15 +189,40 @@ public class AiAnalysisService {
     public record KnowledgeTriple(String head, String relation, String tail, Integer tailPolarity) {}
 
     public List<KnowledgeTriple> extractKnowledgeGraph(String content) {
+        return extractKnowledgeGraph(content, null, null);
+    }
+
+    public List<KnowledgeTriple> extractKnowledgeGraph(String content, com.moodcopilot.entity.MusicMeta musicMeta, String imageDescriptions) {
         if (content == null || content.isBlank()) {
             return List.of();
         }
+        // 纯文本太短的不提取，避免产生空洞的三元组
+        String plainText = content.replaceAll("<[^>]+>", "").replaceAll("&nbsp;", " ").trim();
+        if (plainText.length() < 10) {
+            log.debug("KG 提取跳过：纯文本过短 ({} chars)", plainText.length());
+            return List.of();
+        }
+
+        StringBuilder ctx = new StringBuilder();
+        ctx.append("[日记正文]\n").append(plainText);
+        if (musicMeta != null && musicMeta.getTitle() != null) {
+            ctx.append("\n\n[音乐背景]\n歌曲：").append(musicMeta.getTitle())
+               .append(" - ").append(musicMeta.getArtist());
+            if (musicMeta.getMoodTags() != null) ctx.append("\n情感基调：").append(musicMeta.getMoodTags());
+            if (musicMeta.getThemeSummary() != null) ctx.append("\n核心主题：").append(musicMeta.getThemeSummary());
+            if (musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank())
+                ctx.append("\n用户标注的歌词：").append(musicMeta.getUserLyric());
+        }
+        if (imageDescriptions != null && !imageDescriptions.isBlank()) {
+            ctx.append("\n\n[图片描述]\n").append(imageDescriptions);
+        }
+
         int maxRetries = 3;
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 String json = analysisChatClient.prompt()
                         .system(aiPrompts.getGraphExtractionSystemPrompt())
-                        .user(content)
+                        .user(ctx.toString())
                         .call()
                         .content();
                 return objectMapper.readValue(JsonUtils.cleanJson(json), new TypeReference<List<KnowledgeTriple>>() {});
