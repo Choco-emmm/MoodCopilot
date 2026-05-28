@@ -87,6 +87,8 @@ public record DiaryView(
                                 viewAnalysis = new DiaryAnalysis(
                                                 analysis.getMoodLabel(),
                                                 analysis.getMoodIntensity(),
+                                                analysis.getValence(),
+                                                analysis.getArousal(),
                                                 analysis.getTopicLabelsJson(),
                                                 analysis.getSecondaryMoodsJson() != null
                                                                 ? analysis.getSecondaryMoodsJson()
@@ -154,6 +156,7 @@ public record DiaryView(
                 int commentCount) {
             DiaryAnalysis va = analysis != null
                     ? new DiaryAnalysis(analysis.getMoodLabel(), analysis.getMoodIntensity(),
+                            analysis.getValence(), analysis.getArousal(),
                             analysis.getTopicLabelsJson(),
                             analysis.getSecondaryMoodsJson() != null ? analysis.getSecondaryMoodsJson() : List.of(),
                             analysis.getSummary(), analysis.getFeedback())

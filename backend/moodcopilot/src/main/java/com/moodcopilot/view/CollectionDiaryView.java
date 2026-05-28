@@ -41,6 +41,8 @@ public record CollectionDiaryView(
             viewAnalysis = new DiaryAnalysis(
                     analysis.getMoodLabel(),
                     analysis.getMoodIntensity(),
+                    analysis.getValence(),
+                    analysis.getArousal(),
                     analysis.getTopicLabelsJson(),
                     analysis.getSecondaryMoodsJson() != null ? analysis.getSecondaryMoodsJson() : java.util.List.of(),
                     analysis.getSummary(),
