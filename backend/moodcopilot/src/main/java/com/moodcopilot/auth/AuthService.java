@@ -98,7 +98,7 @@ public class AuthService {
     private final String mailFrom;
 
     public void sendVerificationCode(String email) {
-        log.info("发送验证码请求: email={}", email);
+        log.info("发送验证码请求");
         if (email == null || !email.contains("@")) {
             throw new ResponseStatusException(BAD_REQUEST, "邮箱格式不正确");
         }
@@ -106,7 +106,7 @@ public class AuthService {
         String normalizedEmail = email.trim().toLowerCase();
 
         if (userMapper.exists(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, normalizedEmail))) {
-            log.info("发送验证码拒绝-邮箱已注册: email={}", normalizedEmail);
+            log.info("发送验证码拒绝-邮箱已注册");
             throw new ResponseStatusException(BAD_REQUEST, "该邮箱已注册，请直接登录");
         }
 
@@ -114,16 +114,16 @@ public class AuthService {
         String limitKey = "email:limit:" + normalizedEmail;
 
         if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(limitKey))) {
-            log.info("发送验证码被限流: email={}", normalizedEmail);
+            log.info("发送验证码被限流");
             throw new ResponseStatusException(BAD_REQUEST, "发送验证码太频繁，请 60 秒后再试");
         }
 
         String code = String.format("%06d", secureRandom.nextInt(1_000_000));
-        log.info("生成验证码: email={}, code={}", normalizedEmail, code);
+        // log.info("生成验证码: email={}, code={}", normalizedEmail, code); // 明文验证码，已注释
 
         try {
             sendCodeEmail(normalizedEmail, code, "MoodCopilot 注册验证码", "下面是你的注册验证码：");
-            log.info("邮件发送成功: email={}", normalizedEmail);
+            log.info("邮件发送成功");
         } catch (Exception e) {
             log.error("邮件发送失败: email={}", normalizedEmail, e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "邮件发送失败");
@@ -131,7 +131,7 @@ public class AuthService {
 
         stringRedisTemplate.opsForValue().set(codeKey, code, Duration.ofMinutes(5));
         stringRedisTemplate.opsForValue().set(limitKey, "1", Duration.ofSeconds(60));
-        log.info("验证码已写入Redis: email={}, codeKey={}, limitKey={}", normalizedEmail, codeKey, limitKey);
+        log.info("验证码已写入Redis: codeKey={}", codeKey);
     }
 
     public void sendPasswordChangeCode(Long userId) {
@@ -281,12 +281,13 @@ public class AuthService {
         String codeKey = "email:code:" + request.email().trim().toLowerCase();
         String storedCode = stringRedisTemplate.opsForValue().get(codeKey);
         if (storedCode == null || !storedCode.equals(request.verificationCode().trim())) {
-            log.info("验证码校验失败: email={}, received={}, stored={}",
-                    request.email().trim().toLowerCase(), request.verificationCode().trim(), storedCode);
+            // log.info("验证码校验失败: email={}, received={}, stored={}", // 包含验证码明文，已注释
+            //         request.email().trim().toLowerCase(), request.verificationCode().trim(), storedCode);
+            log.info("验证码校验失败，storedCodeExists={}", storedCode != null);
             throw new ResponseStatusException(BAD_REQUEST, "验证码无效或已过期");
         }
         stringRedisTemplate.delete(codeKey);
-        log.info("验证码校验成功并已销毁: email={}", request.email().trim().toLowerCase());
+        log.info("验证码校验成功并已销毁");
 
         boolean exists = userMapper.exists(
                 new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, request.email()));

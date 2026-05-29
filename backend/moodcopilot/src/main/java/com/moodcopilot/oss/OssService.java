@@ -91,7 +91,7 @@ public class OssService {
             int status = response.statusCode();
             if (status == 200) {
                 String url = "https://" + host + "/" + objectKey;
-                log.info("OSS 上传成功: {} ({} bytes)", url, data.length);
+                log.info("OSS 上传成功: {} bytes", data.length);
                 return url;
             } else {
                 log.error("OSS 上传失败 status={} body={} objectKey={}", status, response.body(), objectKey);

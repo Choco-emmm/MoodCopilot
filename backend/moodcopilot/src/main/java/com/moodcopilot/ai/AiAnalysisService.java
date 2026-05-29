@@ -125,7 +125,7 @@ public class AiAnalysisService {
         }
 
         String userPrompt = sb.toString();
-        log.info("AI 日记分析上下文:\n{}", userPrompt);
+        // log.info("AI 日记分析上下文:\n{}", userPrompt); // 包含完整日记内容，已注释保护隐私
 
         int maxRetries = 3;
         for (int attempt = 1; attempt <= maxRetries; attempt++) {

@@ -237,6 +237,7 @@ public class ChatService {
 
     public ChatStreamContext chat(Long conversationId, String message, List<String> refs, String memoryBackground) {
         // 流式接口：先统一装配上下文，再决定走普通模型还是思考模型。
+        message = augmentWithRefReminder(message, refs);
         ChatExecutionResult exec = prepareChatExecution(conversationId, message, refs, memoryBackground);
         ChatRequest request = exec.request();
         Authentication auth = exec.auth();
@@ -289,6 +290,7 @@ public class ChatService {
 
     public String reply(Long conversationId, String message, List<String> refs, String memoryBackground) {
         // 非流式接口：移动端/公网优先走这里，减少 SSE 连接不稳定的影响。
+        message = augmentWithRefReminder(message, refs);
         ChatExecutionResult exec = prepareChatExecution(conversationId, message, refs, memoryBackground);
         ChatRequest request = exec.request();
         Authentication auth = exec.auth();
@@ -742,7 +744,7 @@ public class ChatService {
                 case "diaryImageAnalysisFunction" -> {
                     var req = objectMapper.readValue(argumentsJson, DiaryImageAnalysisRequest.class);
                     UserEntity user = (UserEntity) auth.getPrincipal();
-                    log.info("触发图片深度分析(VLM)工具 userId={}, diaryIds={}, prompt={}", user.getId(), req.diaryIds(), req.prompt());
+                    log.info("触发图片深度分析(VLM)工具 userId={}, diaryIds={}, promptLength={}", user.getId(), req.diaryIds(), req.prompt() != null ? req.prompt().length() : 0);
                     try {
                         rateLimitService.tryAcquire(user, RateLimitService.AiApiType.IMAGE_ANALYSIS);
                     } catch (RateLimitException e) {
@@ -1138,6 +1140,17 @@ public class ChatService {
      * 精简设计：只包含长期画像和用户主动引用的资料。
      * 历史日记不再全量灌入——大模型需要时通过 diarySearchFunction / userStatsFunction 工具主动检索。
      */
+    /**
+     * 当用户引用了日记时，在用户消息最前面注入引用提醒。
+     * 因为 AI 天生对最后一条消息（用户消息）权重最高，system prompt 中的引用指令容易被"埋"掉。
+     * 把提醒放在用户消息开头，与引用日记的权重同向，确保 AI 不会因用户输入了大量文字就忽略引用内容。
+     */
+    private String augmentWithRefReminder(String message, List<String> refs) {
+        if (refs == null || refs.isEmpty() || message == null || message.isBlank()) return message;
+        if (message.startsWith("（请优先结合")) return message; // 防止重复注入
+        return "（请优先结合我引用的日记内容来回应，不要忽略日记中的具体细节和情绪）\n\n" + message;
+    }
+
     private String buildContext(long userId, List<String> refs, String memoryBackground) {
         StringBuilder sb = new StringBuilder();
 

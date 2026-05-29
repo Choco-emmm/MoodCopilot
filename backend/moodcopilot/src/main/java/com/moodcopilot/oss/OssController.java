@@ -56,7 +56,7 @@ public class OssController {
         }
 
         String url = ossService.uploadImage(file);
-        log.info("用户上传图片 userId={} size={} url={}", user.getId(), file.getSize(), url);
+        log.info("用户上传图片 userId={} size={}", user.getId(), file.getSize());
         return ApiResponse.ok(Map.of("url", url));
     }
 
@@ -79,7 +79,7 @@ public class OssController {
         if (!ext.startsWith(".")) ext = "." + ext;
         String objectKey = "images/temp/" + java.util.UUID.randomUUID() + ext;
         Map<String, Object> policy = ossService.postSign(objectKey, MAX_SIZE);
-        log.info("用户获取上传策略 userId={} key={}", user.getId(), policy.get("key"));
+        log.info("用户获取上传策略 userId={}", user.getId());
         return ApiResponse.ok(policy);
     }
 }

@@ -39,13 +39,18 @@ public final class TimeExpressionParser {
             if (m.find()) {
                 TimeRange tr = rule.calculator.calc(m);
                 String label = rule.label;
-                log.info("时间表达式匹配 text=\"{}\" pattern=\"{}\" from={} ({}) to={} ({})",
-                        truncate(text, 80), label,
+                // log.info("时间表达式匹配 text=\"{}\" pattern=\"{}\" from={} ({}) to={} ({})", // text 包含用户聊天消息，已注释
+                //         truncate(text, 80), label,
+                //         tr.fromTimestamp, formatDateTime(tr.fromTimestamp),
+                //         tr.toTimestamp, formatDateTime(tr.toTimestamp));
+                log.info("时间表达式匹配 pattern=\"{}\" from={} ({}) to={} ({})",
+                        label,
                         tr.fromTimestamp, formatDateTime(tr.fromTimestamp),
                         tr.toTimestamp, formatDateTime(tr.toTimestamp));
                 if (candidates.size() > 1) {
-                    log.info("多个时间表达式匹配 text=\"{}\" candidates={} 采用第一个: {}",
-                            truncate(text, 80), candidates, label);
+                    // log.info("多个时间表达式匹配 text=\"{}\" candidates={} 采用第一个: {}", // text 包含用户聊天消息，已注释
+                    //         truncate(text, 80), candidates, label);
+                    log.info("多个时间表达式匹配 candidates={} 采用第一个: {}", candidates, label);
                 }
                 return Optional.of(tr);
             }

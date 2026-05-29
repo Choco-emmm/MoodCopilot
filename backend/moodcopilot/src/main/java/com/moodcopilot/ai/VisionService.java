@@ -218,7 +218,7 @@ public class VisionService {
             log.warn("VLM 未配置（VISION_API_KEY 为空），跳过 {} 张图片的深度分析", imageUrls.size());
             return "系统后台视觉服务未配置，无法分析图片";
         }
-        log.info("VLM 开始深度分析 {} 张图片 model={} prompt={}", imageUrls.size(), model, targetedPrompt);
+        log.info("VLM 开始深度分析 {} 张图片 model={} promptLength={}", imageUrls.size(), model, targetedPrompt != null ? targetedPrompt.length() : 0);
         List<String> parts = new ArrayList<>();
         for (int i = 0; i < imageUrls.size(); i++) {
             String accessibleUrl = ossService != null ? ossService.getAccessibleUrl(imageUrls.get(i)) : imageUrls.get(i);

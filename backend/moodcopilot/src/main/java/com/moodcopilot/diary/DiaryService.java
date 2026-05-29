@@ -323,7 +323,7 @@ public class DiaryService {
                     MusicMeta cachedMeta = objectMapper.readValue(cached, MusicMeta.class);
                     if (cachedMeta.getMoodTags() != null) musicMeta.setMoodTags(cachedMeta.getMoodTags());
                     if (cachedMeta.getThemeSummary() != null) musicMeta.setThemeSummary(cachedMeta.getThemeSummary());
-                    log.info("已从 Redis 补全音乐氛围 moodTags={} themeSummary={}", musicMeta.getMoodTags(), musicMeta.getThemeSummary());
+                    log.info("已从 Redis 补全音乐氛围");
                 }
             } catch (Exception e) {
                 log.warn("从 Redis 读取音乐缓存失败: {}", e.getMessage());
@@ -338,12 +338,12 @@ public class DiaryService {
                         lyricsStr = String.join("\n", lyrics);
                     } else {
                         lyricsStr = "（歌词未获取到，请根据歌曲名和歌手推测）";
-                        log.info("歌词获取为空，使用歌名兜底分析 title={} artist={}", musicMeta.getTitle(), musicMeta.getArtist());
+                        log.info("歌词获取为空，使用歌名兜底分析");
                     }
                     var result = aiAnalysisService.analyzeMusicSync(musicMeta.getTitle(), musicMeta.getArtist(), lyricsStr);
                     musicMeta.setMoodTags(result.getLeft());
                     musicMeta.setThemeSummary(result.getRight());
-                    log.info("同步补全音乐氛围成功 moodTags={} themeSummary={}", result.getLeft(), result.getRight());
+                    log.info("同步补全音乐氛围成功");
                 } catch (Exception e) {
                     log.warn("同步补全音乐氛围失败: {}", e.getMessage());
                 }
@@ -559,7 +559,7 @@ public class DiaryService {
         keyword = keyword != null && !keyword.isBlank() ? keyword : null;
         LocalDate startDate = request != null ? request.startDate() : null;
         LocalDate endDate = request != null ? request.endDate() : null;
-        log.info("执行历史日记检索，userId={}，keyword={}，startDate={}，endDate={}", user.getId(), keyword, startDate, endDate);
+        log.info("执行历史日记检索，userId={}，startDate={}，endDate={}", user.getId(), startDate, endDate);
 
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
             log.info("历史日记检索参数非法，userId={}，startDate={}，endDate={}", user.getId(), startDate, endDate);
