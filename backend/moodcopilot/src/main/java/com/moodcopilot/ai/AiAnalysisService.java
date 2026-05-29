@@ -119,7 +119,9 @@ public class AiAnalysisService {
         }
         if (imageDescriptions != null && !imageDescriptions.isBlank()) {
             sb.append("\n\n[图片描述]\n").append(imageDescriptions).append("\n");
-            sb.append("图片分为两类：1) 纯画面信息（场景、色调、氛围）作为情绪分析的辅助参考；2) 从图片中提取的文字内容（如聊天截图、手写笔记、文档等）视为用户日记正文的一部分，与正文同等权重分析，尤其在正文简短时，图片中的文字可能是用户真正的表达重点。");
+            sb.append("图片信息带有明确的标签前缀，请严格按标签区分处理：");
+            sb.append("1) [视觉] 标签后的内容——纯画面信息（场景、色调、光线、氛围），与文字、音乐具有同等的情感表达权重，用户选择上传某张图片本身就是一种情感选择，当正文非常简短时图片就是用户的主要表达，请在 summary 和 feedback 中明确提及画面内容，让用户感受到「你看见了我的图片」；");
+            sb.append("2) [OCR文字] 标签后的内容——从图片中精确提取的文字，这些文字应直接视为用户日记正文的一部分，与用户手写文本同等权重参与情绪分析，图片中的聊天记录、手写笔记、文档文字可能是用户真正的表达重点。");
         }
 
         String userPrompt = sb.toString();

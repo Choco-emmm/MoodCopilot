@@ -459,16 +459,6 @@ public class DiaryService {
                                 "diff", java.util.Map.of("added", diffAdded, "deleted", diffDeleted)
                         );
                         notificationService.notifyGlobalEvent(userId, "GRAPH_UPDATED", payload);
-
-                        StringBuilder md = new StringBuilder();
-                        md.append("**🕸️ AI 已提取了新的事件因果关系**\n\n");
-                        for (java.util.Map<String, String> item : diffAdded) {
-                            md.append("+ 🟢 ").append(item.get("head")).append(" —[").append(item.get("relation")).append("]→ ").append(item.get("tail")).append("\n");
-                        }
-                        for (java.util.Map<String, String> item : diffDeleted) {
-                            md.append("- 🔴 ~~").append(item.get("head")).append(" —[").append(item.get("relation")).append("]→ ").append(item.get("tail")).append("~~\n");
-                        }
-                        notificationService.notifySystemMarkdown(userId, md.toString());
                     } else if (!oldTriples.isEmpty()) {
                         log.info("日记知识图谱已被清空或无变化，diaryId={}", diaryId);
                     }

@@ -146,53 +146,52 @@
           </n-tab-pane>
 
           <n-tab-pane name="collections" tab="合集">
-            <div class="profile-list-head">
-              <h3>合集列表</h3>
-              <div class="profile-list-actions" style="display: flex; align-items: center; gap: 8px;">
-                <n-button
-                  v-if="isOwner"
-                  quaternary
-                  circle
-                  size="small"
-                  @click="showCollectionModal = true"
-                  title="创建合集"
-                  style="font-size: 14px;"
-                >
-                  + 创建合集
-                </n-button>
+            <!-- ── 杂志风栏目头 ── -->
+            <div class="collection-section-head">
+              <div class="editorial-head">
+                <h3 class="editorial-head-title">合集</h3>
+                <span class="editorial-head-sub">Collections</span>
               </div>
+              <button
+                v-if="isOwner"
+                class="editorial-head-action"
+                @click="showCollectionModal = true"
+              >
+                + 新建
+              </button>
             </div>
 
             <PullToRefresh :loading="loadingCollections" @refresh="loadCollections">
-              <div v-if="loadingCollections" style="display: flex; justify-content: center; padding: 20px;">
-                <n-spin size="small" />
+              <div v-if="loadingCollections" class="collection-status">
+                <span class="collection-status-text">加载中...</span>
               </div>
 
-              <div v-else-if="collections.length" class="collection-grid">
+              <div v-else-if="collections.length" class="collection-list">
                 <div
                   v-for="item in collections"
                   :key="item.id"
-                  class="collection-card"
+                  class="collection-list-item"
                   @click="router.push(`/collections/${item.id}`)"
                 >
                   <div
-                    class="collection-cover"
-                    :style="{ backgroundImage: item.coverUrl ? `url(${item.coverUrl})` : 'none' }"
-                  >
-                    <span v-if="!item.coverUrl">📖</span>
-                  </div>
-                  <div class="collection-info">
-                    <h4 class="collection-title">{{ item.name }}</h4>
-                    <p class="collection-description">{{ item.description || '暂无描述' }}</p>
+                    class="collection-list-cover"
+                    :style="{ backgroundImage: item.coverUrl ? `url(${item.coverUrl})` : undefined }"
+                  />
+                  <div class="collection-list-info">
+                    <h4 class="collection-list-title">{{ item.name }}</h4>
+                    <p class="collection-list-desc">{{ item.description || '暂无描述' }}</p>
+                    <div class="collection-list-meta">
+                      <span class="collection-list-vis" :class="item.visibility === 'PUBLIC' ? 'vis-public' : 'vis-private'">
+                        {{ item.visibility === 'PUBLIC' ? '公开' : '私密' }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div v-else-if="!loadingCollections" class="profile-empty-wrap">
-                <div style="display: flex; flex-direction: column; align-items: center; padding: 20px;">
-                  <n-empty :description="isOwner ? '你还没有创建任何合集' : '该用户暂无公开合集'" />
-                  <p class="profile-empty-tip" style="margin-top: 10px;">{{ isOwner ? '点击右上角按钮创建你的第一个合集' : '暂无公开合集' }}</p>
-                </div>
+              <div v-else-if="!loadingCollections" class="collection-empty">
+                <p class="collection-empty-text">{{ isOwner ? '你还没有创建任何合集' : '该用户暂无公开合集' }}</p>
+                <p v-if="isOwner" class="collection-empty-hint">整理你的日记，创建第一个合集</p>
               </div>
             </PullToRefresh>
           </n-tab-pane>
@@ -261,7 +260,8 @@ const visibilityOpts = [
 
 const showAdminSuggestions = ref(false)
 
-const activeTab = ref('diaries')
+const initialTab = (route.query.tab as string) === 'collections' ? 'collections' : 'diaries'
+const activeTab = ref(initialTab)
 const collections = ref<any[]>([])
 const loadingCollections = ref(false)
 const showCollectionModal = ref(false)
@@ -299,10 +299,10 @@ onMounted(() => {
 })
 
 onActivated(() => {
-  // Return from collection detail page might need refresh
-  if (route.query.refresh && activeTab.value === 'collections') {
+  // Return from collection detail page — switch to collections tab and refresh
+  if (route.query.refresh) {
+    activeTab.value = 'collections'
     void loadCollections()
-    // Remove the refresh query parameter without triggering navigation again
     router.replace({ path: route.path, query: { ...route.query, refresh: undefined } })
   }
 })
@@ -956,84 +956,207 @@ function handleProfileUpdated() {
   }
 }
 
-/* ── 合集卡片网格 ── */
-.collection-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 16px;
-  padding: 16px 0;
-}
-
-.collection-card {
-  cursor: pointer;
-  transition: transform 0.15s;
-}
-
-.collection-card:hover {
-  transform: translateY(-2px);
-}
-
-.collection-cover {
-  aspect-ratio: 4/3;
-  background: var(--color-surface-soft);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+/* ── 合集栏目 · 杂志风 ── */
+.collection-section-head {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  color: var(--color-text-muted);
-  border-radius: 8px;
-  overflow: hidden;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 0 4px;
 }
 
-.collection-info {
-  margin-top: 8px;
+.editorial-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.collection-title {
-  margin: 0;
-  font-size: 14px;
+.editorial-head-title {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
   font-weight: 600;
   color: var(--color-text);
+  letter-spacing: -0.01em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.editorial-head-sub {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.editorial-head-action {
+  background: none;
+  border: 1px solid color-mix(in oklab, var(--color-primary) 18%, transparent);
+  border-radius: var(--radius-full);
+  padding: 4px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: all 0.15s;
+}
+
+.editorial-head-action:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: color-mix(in oklab, var(--color-primary) 4%, transparent);
+}
+
+/* 加载态 */
+.collection-status {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+.collection-status-text {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* 呼吸线列表 */
+.collection-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.collection-list-item {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--color-primary) 8%, transparent);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.collection-list-item:hover {
+  opacity: 0.92;
+}
+
+.collection-list-item:first-child {
+  padding-top: 0;
+}
+
+.collection-list-item:last-child {
+  border-bottom: none;
+}
+
+/* 封面 */
+.collection-list-cover {
+  flex-shrink: 0;
+  width: 90px;
+  height: 68px;
+  border-radius: 6px;
+  background-image: linear-gradient(135deg, var(--color-surface-soft) 0%, color-mix(in oklab, var(--color-primary) 3%, var(--color-surface-soft)) 100%);
+  background-size: cover;
+  background-position: center;
+  transition: transform 0.2s var(--ease-out);
+}
+
+.collection-list-item:hover .collection-list-cover {
+  transform: scale(1.03);
+}
+
+/* 文案 */
+.collection-list-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.collection-list-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.collection-description {
-  margin: 4px 0 0;
-  font-size: 12px;
+.collection-list-desc {
+  margin: 4px 0 6px;
+  font-size: var(--text-sm);
   color: var(--color-text-secondary);
-  white-space: nowrap;
+  font-style: italic;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.collection-list-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collection-list-vis {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 8px;
+}
+
+.collection-list-vis.vis-public {
+  color: var(--color-success);
+  background: color-mix(in oklab, var(--color-success) 12%, transparent);
+}
+
+.collection-list-vis.vis-private {
+  color: var(--color-text-muted);
+  background: color-mix(in oklab, var(--color-text-muted) 12%, transparent);
+}
+
+/* 空状态 */
+.collection-empty {
+  text-align: center;
+  padding: 48px 20px;
+}
+
+.collection-empty-text {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+  border-left: 3px solid var(--color-primary);
+  padding-left: 16px;
+  display: inline-block;
+  text-align: left;
+  margin: 0 0 8px;
+}
+
+.collection-empty-hint {
+  font-size: 12px;
+  color: var(--color-text-light);
+  margin: 0;
 }
 
 @media (max-width: 640px) {
-  .collection-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    padding: 12px 0;
+  .collection-list-item {
+    gap: 14px;
+    padding: 14px 0;
   }
 
-  .collection-cover {
-    aspect-ratio: 1/1;
-    font-size: 20px;
-    border-radius: 6px;
+  .collection-list-cover {
+    width: 72px;
+    height: 54px;
   }
 
-  .collection-info {
-    margin-top: 6px;
+  .collection-list-title {
+    font-size: 1rem;
   }
 
-  .collection-title {
-    font-size: 12px;
-  }
-
-  .collection-description {
-    font-size: 11px;
+  .editorial-head-title {
+    font-size: 1.4rem;
   }
 }
 

@@ -110,8 +110,8 @@ async function onFileChange(type: string, event: Event) {
     cacheBusters[type] = Date.now()
     uploadMsg.value = '已更新'
     setTimeout(() => { uploadMsg.value = '' }, 2000)
-  } catch {
-    uploadMsg.value = '上传失败'
+  } catch (e: any) {
+    uploadMsg.value = e?.response?.data?.message || '上传失败'
   }
   input.value = ''
 }

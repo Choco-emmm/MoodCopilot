@@ -86,7 +86,8 @@ public class VisionService {
 
     /**
      * 单张图片描述：OCR 路由 → 常规模型。
-     * OCR 阶段专注提取文字，常规模型阶段结合文字做情感氛围分析。
+     * OCR 阶段专注提取文字，常规模型阶段只描述画面视觉。
+     * 返回时 OCR 文字和视觉描述用标签分隔，方便下游分析模型区分处理。
      */
     private String describeWithOcrRouting(String imageUrl, int index) {
         // 尝试 OCR 提取文字
@@ -95,22 +96,20 @@ public class VisionService {
             extractedText = analyzeWithOcr(imageUrl, index);
         }
 
-        // 构建 prompt，如有 OCR 文字则注入
-        String prompt;
-        if (!extractedText.isBlank()) {
-            prompt = String.format(
-                "请用一句话描述这张图片的画面内容、拍摄类型（如自拍/风景/美食/截图/手写等）与情感氛围（40字以内）。" +
-                "图片中已识别到以下文字内容：「%s」" +
-                "请结合这些文字和画面综合描述情感。不要评价图片质量。",
-                extractedText
-            );
-            log.info("VLM OCR 文字已注入 prompt index={} textLen={}", index, extractedText.length());
-        } else {
-            prompt = "请用一句话描述这张图片的画面内容、拍摄类型（如自拍/风景/美食/截图/手写等）与情感氛围（40字以内）。" +
-                     "如果图片包含文字，请结合文字内容描述情感。不要评价图片质量。";
-        }
+        // 常规模型只描述画面视觉，不混入 OCR 文字
+        String visualPrompt = "请用一句话描述这张图片的画面内容、拍摄类型（如自拍/风景/美食/截图/手写等）与情感氛围（40字以内）。不要评价图片质量。" +
+                "注意：只需要描述你看到的画面本身，不要提及画面中的文字内容。";
+        String visualDesc = callVisionModel(model, imageUrl, visualPrompt, 80, 0.3, "图片描述");
 
-        return callVisionModel(model, imageUrl, prompt, 80, 0.3, "图片描述");
+        // OCR 文字和视觉描述用标签分隔
+        if (!extractedText.isBlank() && !visualDesc.isBlank()) {
+            log.info("VLM OCR+视觉双通道完成 index={} ocrLen={} visualLen={}", index, extractedText.length(), visualDesc.length());
+            return "[视觉] " + visualDesc + " [OCR文字] " + extractedText;
+        } else if (!visualDesc.isBlank()) {
+            return visualDesc;
+        } else {
+            return "";
+        }
     }
 
     /**

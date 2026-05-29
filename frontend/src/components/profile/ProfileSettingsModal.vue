@@ -19,6 +19,7 @@
           <div class="user-name">{{ auth.displayName }}</div>
         </div>
         <button class="upload-btn" @click="triggerUpload">更换头像</button>
+        <p v-if="uploadMsg" class="upload-msg" :style="{ color: uploadMsg === '头像已更新' ? 'var(--color-success)' : 'var(--color-error)' }">{{ uploadMsg }}</p>
         <input type="file" ref="fileInput" accept="image/jpeg,image/png,image/webp" class="hidden" @change="onFileChange" />
       </div>
 
@@ -434,8 +435,8 @@ async function onFileChange(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
 
-  if (file.size > 10 * 1024 * 1024) {
-    uploadMsg.value = '文件大小不能超过 10MB'
+  if (file.size > 20 * 1024 * 1024) {
+    uploadMsg.value = '文件大小不能超过 20MB'
     return
   }
 
@@ -608,8 +609,8 @@ function handleCrop() {
       uploadMsg.value = '头像已更新'
       showCropModal.value = false
       emit('profile-updated')
-    } catch (e) {
-      uploadMsg.value = '上传失败'
+    } catch (e: any) {
+      uploadMsg.value = e?.response?.data?.message || '上传失败'
       logWarn('profile', '头像上传失败', e)
     } finally {
       uploading.value = false
@@ -870,6 +871,11 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: all 0.2s;
   font-family: var(--font-body);
+}
+
+.upload-msg {
+  margin-top: 8px;
+  font-size: 12px;
 }
 
 .upload-btn:hover {

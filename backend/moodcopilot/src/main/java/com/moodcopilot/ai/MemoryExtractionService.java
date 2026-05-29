@@ -647,19 +647,6 @@ public class MemoryExtractionService {
                     "diff", java.util.Map.of("added", diffAdded, "deleted", diffDeleted, "updated", diffUpdated)
             );
             notificationService.notifyGlobalEvent(userId, "MEMORY_UPDATED", payload);
-
-            StringBuilder md = new StringBuilder();
-            md.append("**✨ AI 已更新了关于你的长期记忆**\n\n");
-            for (java.util.Map<String, String> item : diffAdded) {
-                md.append("+ 🟢 [").append(item.get("key")).append("] ").append(item.get("value")).append("\n");
-            }
-            for (java.util.Map<String, String> item : diffUpdated) {
-                md.append("~ 🟡 [").append(item.get("key")).append("] ~~").append(item.get("oldValue")).append("~~ ➔ **").append(item.get("newValue")).append("**\n");
-            }
-            for (java.util.Map<String, String> item : diffDeleted) {
-                md.append("- 🔴 [").append(item.get("key")).append("] ~~").append(item.get("value")).append("~~\n");
-            }
-            notificationService.notifySystemMarkdown(userId, md.toString());
         }
     }
 

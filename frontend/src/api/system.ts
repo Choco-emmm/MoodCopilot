@@ -25,7 +25,8 @@ export const imageApi = {
     fd.append('success_action_status', '200')
     fd.append('file', file)
 
-    await fetch(policy.host, { method: 'POST', body: fd })
+    const ossRes = await fetch(policy.host, { method: 'POST', body: fd })
+    if (!ossRes.ok) throw new Error('图片上传失败')
     return policy.url
   },
 }

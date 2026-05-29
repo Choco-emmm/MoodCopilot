@@ -21,7 +21,7 @@ public class OssController {
     private static final Logger log = LoggerFactory.getLogger(OssController.class);
     private static final Set<String> ALLOWED_TYPES = Set.of(
             "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif");
-    private static final long MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    private static final long MAX_SIZE = 20 * 1024 * 1024; // 20MB
 
     private final OssService ossService;
     private final RateLimitService rateLimitService;
@@ -42,7 +42,7 @@ public class OssController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "图片不能为空");
         }
         if (file.getSize() > MAX_SIZE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "图片不能超过 10MB");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "图片不能超过 20MB");
         }
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_TYPES.contains(contentType)) {
