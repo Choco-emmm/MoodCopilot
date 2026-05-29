@@ -154,7 +154,7 @@
                   quaternary
                   circle
                   size="small"
-                  @click="router.push('/collections/create')"
+                  @click="showCollectionModal = true"
                   title="创建合集"
                   style="font-size: 14px;"
                 >
@@ -163,36 +163,38 @@
               </div>
             </div>
 
-            <div v-if="loadingCollections" style="display: flex; justify-content: center; padding: 20px;">
-              <n-spin size="small" />
-            </div>
+            <PullToRefresh :loading="loadingCollections" @refresh="loadCollections">
+              <div v-if="loadingCollections" style="display: flex; justify-content: center; padding: 20px;">
+                <n-spin size="small" />
+              </div>
 
-            <div v-else-if="collections.length" class="collection-grid">
-              <div
-                v-for="item in collections"
-                :key="item.id"
-                class="collection-card"
-                @click="router.push(`/collections/${item.id}`)"
-              >
+              <div v-else-if="collections.length" class="collection-grid">
                 <div
-                  class="collection-cover"
-                  :style="{ backgroundImage: item.coverUrl ? `url(${item.coverUrl})` : 'none' }"
+                  v-for="item in collections"
+                  :key="item.id"
+                  class="collection-card"
+                  @click="router.push(`/collections/${item.id}`)"
                 >
-                  <span v-if="!item.coverUrl">📖</span>
-                </div>
-                <div class="collection-info">
-                  <h4 class="collection-title">{{ item.name }}</h4>
-                  <p class="collection-description">{{ item.description || '暂无描述' }}</p>
+                  <div
+                    class="collection-cover"
+                    :style="{ backgroundImage: item.coverUrl ? `url(${item.coverUrl})` : 'none' }"
+                  >
+                    <span v-if="!item.coverUrl">📖</span>
+                  </div>
+                  <div class="collection-info">
+                    <h4 class="collection-title">{{ item.name }}</h4>
+                    <p class="collection-description">{{ item.description || '暂无描述' }}</p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div v-else-if="!loadingCollections" class="profile-empty-wrap">
-              <div style="display: flex; flex-direction: column; align-items: center; padding: 20px;">
-                <n-empty :description="isOwner ? '你还没有创建任何合集' : '该用户暂无公开合集'" />
-                <p class="profile-empty-tip" style="margin-top: 10px;">{{ isOwner ? '点击右上角按钮创建你的第一个合集' : '暂无公开合集' }}</p>
+              <div v-else-if="!loadingCollections" class="profile-empty-wrap">
+                <div style="display: flex; flex-direction: column; align-items: center; padding: 20px;">
+                  <n-empty :description="isOwner ? '你还没有创建任何合集' : '该用户暂无公开合集'" />
+                  <p class="profile-empty-tip" style="margin-top: 10px;">{{ isOwner ? '点击右上角按钮创建你的第一个合集' : '暂无公开合集' }}</p>
+                </div>
               </div>
-            </div>
+            </PullToRefresh>
           </n-tab-pane>
         </n-tabs>
       </div>
@@ -205,11 +207,12 @@
       @open-admin-suggestions="showAdminSuggestions = true"
     />
     <AdminSuggestionsModal v-model:show="showAdminSuggestions" />
+    <CollectionModal v-model:show="showCollectionModal" @success="loadCollections" />
   </main>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, onActivated, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NEmpty, NInput, NModal, NSpin, NSwitch, NDatePicker, NSelect, NTabs, NTabPane, NTag, NCheckbox, NPopover } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
@@ -218,6 +221,7 @@ import ProfileSearchPanel from '../components/profile/ProfileSearchPanel.vue'
 import AdminSuggestionsModal from '../components/profile/AdminSuggestionsModal.vue'
 import DiaryFeedItem from '../components/DiaryFeedItem.vue'
 import PullToRefresh from '../components/PullToRefresh.vue'
+import CollectionModal from '../components/collection/CollectionModal.vue'
 import { authApi, diaryApi, memoryApi, collectionApi } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useDiaryStore, type Diary } from '../stores/diary'
@@ -260,6 +264,7 @@ const showAdminSuggestions = ref(false)
 const activeTab = ref('diaries')
 const collections = ref<any[]>([])
 const loadingCollections = ref(false)
+const showCollectionModal = ref(false)
 
 const profileUserId = computed(() => Number(route.params.userId))
 const isOwner = computed(() => auth.userId != null && auth.userId === profileUserId.value)
@@ -291,6 +296,15 @@ useInfiniteScroll(sentinel, loadMore, { enabled: hasMore, rootMargin: '300px' })
 
 onMounted(() => {
   void reload()
+})
+
+onActivated(() => {
+  // Return from collection detail page might need refresh
+  if (route.query.refresh && activeTab.value === 'collections') {
+    void loadCollections()
+    // Remove the refresh query parameter without triggering navigation again
+    router.replace({ path: route.path, query: { ...route.query, refresh: undefined } })
+  }
 })
 
 watch(() => route.params.userId, (newId) => {

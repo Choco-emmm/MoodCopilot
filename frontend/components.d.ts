@@ -21,6 +21,7 @@ declare module 'vue' {
     ChatSidebar: typeof import('./src/components/chat/ChatSidebar.vue')['default']
     ChatStreamingItem: typeof import('./src/components/chat/ChatStreamingItem.vue')['default']
     CheckinButton: typeof import('./src/components/CheckinButton.vue')['default']
+    CollectionModal: typeof import('./src/components/collection/CollectionModal.vue')['default']
     DiaryComposer: typeof import('./src/components/DiaryComposer.vue')['default']
     DiaryFeedItem: typeof import('./src/components/DiaryFeedItem.vue')['default']
     GlobalConsolidationModals: typeof import('./src/components/GlobalConsolidationModals.vue')['default']

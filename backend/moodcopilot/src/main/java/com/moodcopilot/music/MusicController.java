@@ -32,6 +32,7 @@ public class MusicController {
         }
         log.info("解析音乐链接 url={} hasText={}", url, text != null && !text.isBlank());
         MusicMeta meta = musicParseService.parse(url, text);
+//        log.info("解析结果: {}", meta);
         if (meta == null) {
             return ApiResponse.error(400, "解析失败，请确认链接有效");
         }

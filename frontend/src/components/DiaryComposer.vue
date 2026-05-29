@@ -49,7 +49,7 @@
         </div>
 
         <div v-else-if="collections.length === 0 && !showCreateForm" style="text-align: center; padding: 24px 0; color: var(--color-text-muted); font-size: 13px;">
-          暂无合集，右上角创建你的第一个合集
+          暂无合集，点击左下角创建你的第一个合集
         </div>
 
         <div v-else class="composer-collection-modal-list">
@@ -242,7 +242,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, shallowRef, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import '@wangeditor/editor/dist/css/style.css'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import type { IDomEditor, IToolbarConfig, IEditorConfig } from '@wangeditor/editor'
@@ -264,6 +264,7 @@ const props = withDefaults(defineProps<{
 
 const store = useDiaryStore()
 const router = useRouter()
+const route = useRoute()
 const isEditMode = computed(() => props.editId != null && props.editId > 0)
 
 const DRAFT_KEY = 'moodcopilot:draft'
@@ -372,6 +373,14 @@ onMounted(() => {
   if (draftNotice.value) {
     updateDraftSavedAt()
   }
+  
+  if (route.query.collectionId) {
+    const id = Number(route.query.collectionId)
+    if (!isNaN(id)) {
+      selectedCollections.value.push(id)
+    }
+  }
+  
   void loadCollections()
 })
 
