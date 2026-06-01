@@ -36,6 +36,59 @@ export const useNotificationStore = defineStore('notification', () => {
   const fallbackPollTimer = ref<number | null>(null)
   const manualClose = ref(false)
 
+  function isInsightUpdateType(type: string | null | undefined) {
+    return type === 'PROFILE_UPDATED' || type === 'MEMORY_UPDATED' || type === 'GRAPH_UPDATED'
+  }
+
+  function createInsightUpdateToast(type: string, message?: string, diff?: any) {
+    if (!window.$notification) return
+
+    const title = type === 'PROFILE_UPDATED'
+      ? '👤 画像资料更新'
+      : type === 'MEMORY_UPDATED'
+        ? '🧠 画像更新'
+        : '🕸️ 图谱更新'
+    const fallbackMessage = type === 'PROFILE_UPDATED'
+      ? '✨ 你的个人资料已更新'
+      : type === 'MEMORY_UPDATED'
+        ? '✨ AI 已更新了关于你的长期记忆'
+        : '🕸️ AI 已提取了新的事件因果关系'
+
+    const nodes: any[] = []
+    const lineStyle = (color: string) => ({
+      style: `color: ${color}; margin-top: 4px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`
+    })
+
+    if (diff) {
+      if (type === 'MEMORY_UPDATED') {
+        diff.added?.forEach((item: any) => nodes.push(h('div', lineStyle('var(--color-success)'), `+ [${item.key}] ${item.value}`)))
+        diff.updated?.forEach((item: any) => nodes.push(h('div', lineStyle('var(--color-warning)'), `~ [${item.key}] ${item.oldValue} ➔ ${item.newValue}`)))
+        diff.deleted?.forEach((item: any) => nodes.push(h('div', { ...lineStyle('var(--color-error)'), style: lineStyle('var(--color-error)').style + ' text-decoration: line-through;' }, `- [${item.key}] ${item.value}`)))
+      } else if (type === 'GRAPH_UPDATED') {
+        diff.added?.forEach((item: any) => nodes.push(h('div', lineStyle('var(--color-success)'), `+ ${item.head} —[${item.relation}]→ ${item.tail}`)))
+        diff.deleted?.forEach((item: any) => nodes.push(h('div', { ...lineStyle('var(--color-error)'), style: lineStyle('var(--color-error)').style + ' text-decoration: line-through;' }, `- ${item.head} —[${item.relation}]→ ${item.tail}`)))
+      }
+    }
+
+    const MAX_DISPLAY_NODES = 3
+    if (nodes.length > MAX_DISPLAY_NODES) {
+      const hiddenCount = nodes.length - MAX_DISPLAY_NODES
+      nodes.splice(MAX_DISPLAY_NODES)
+      nodes.push(h('div', { style: 'color: var(--color-text-muted); margin-top: 8px; font-size: 12px; font-style: italic;' }, `...以及其他 ${hiddenCount} 项变更`))
+    }
+
+    window.$notification.create({
+      title,
+      content: () => h('div', null, [
+        h('div', { style: 'font-weight: bold; margin-bottom: 8px;' }, message || fallbackMessage),
+        ...nodes
+      ]),
+      meta: new Date().toLocaleTimeString(),
+      duration: 12000,
+      keepAliveOnHover: true
+    })
+  }
+
   function clearReconnectTimer() {
     if (reconnectTimer.value == null) return
     window.clearTimeout(reconnectTimer.value)
@@ -127,47 +180,13 @@ export const useNotificationStore = defineStore('notification', () => {
         try {
           const payload = JSON.parse(event.data)
           if (payload?.type === 'NOTIFICATION') {
-            mergeIncomingNotification(payload.data as Notification)
-          } else if (payload?.type === 'MEMORY_UPDATED' || payload?.type === 'GRAPH_UPDATED') {
-            if (window.$notification) {
-              const msg = payload.data?.message || (payload.type === 'MEMORY_UPDATED' ? '✨ AI 已更新了关于你的长期记忆' : '🕸️ AI 已提取了新的事件因果关系')
-              const diff = payload.data?.diff
-
-              const nodes: any[] = []
-              const lineStyle = (color: string) => ({
-                style: `color: ${color}; margin-top: 4px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`
-              })
-
-              if (diff) {
-                if (payload.type === 'MEMORY_UPDATED') {
-                  diff.added?.forEach((item: any) => nodes.push(h('div', lineStyle('var(--color-success)'), `+ [${item.key}] ${item.value}`)))
-                  diff.updated?.forEach((item: any) => nodes.push(h('div', lineStyle('var(--color-warning)'), `~ [${item.key}] ${item.oldValue} ➔ ${item.newValue}`)))
-                  diff.deleted?.forEach((item: any) => nodes.push(h('div', { ...lineStyle('var(--color-error)'), style: lineStyle('var(--color-error)').style + ' text-decoration: line-through;' }, `- [${item.key}] ${item.value}`)))
-                } else if (payload.type === 'GRAPH_UPDATED') {
-                  diff.added?.forEach((item: any) => nodes.push(h('div', lineStyle('var(--color-success)'), `+ ${item.head} —[${item.relation}]→ ${item.tail}`)))
-                  diff.deleted?.forEach((item: any) => nodes.push(h('div', { ...lineStyle('var(--color-error)'), style: lineStyle('var(--color-error)').style + ' text-decoration: line-through;' }, `- ${item.head} —[${item.relation}]→ ${item.tail}`)))
-                }
-              }
-
-              const MAX_DISPLAY_NODES = 3;
-              if (nodes.length > MAX_DISPLAY_NODES) {
-                const hiddenCount = nodes.length - MAX_DISPLAY_NODES;
-                nodes.splice(MAX_DISPLAY_NODES);
-                nodes.push(h('div', { style: 'color: var(--color-text-muted); margin-top: 8px; font-size: 12px; font-style: italic;' }, `...以及其他 ${hiddenCount} 项变更`));
-              }
-
-              window.$notification.create({
-                title: payload.type === 'MEMORY_UPDATED' ? '🧠 画像更新' : '🕸️ 图谱更新',
-                content: () => h('div', null, [
-                  h('div', { style: 'font-weight: bold; margin-bottom: 8px;' }, msg),
-                  ...nodes
-                ]),
-                meta: new Date().toLocaleTimeString(),
-                duration: 12000,
-                keepAliveOnHover: true
-              })
-
+            const notification = payload.data as Notification
+            mergeIncomingNotification(notification)
+            if (isInsightUpdateType(notification?.type) && notification?.isRead === false) {
+              createInsightUpdateToast(notification.type, notification.message)
             }
+          } else if (isInsightUpdateType(payload?.type)) {
+            createInsightUpdateToast(payload.type, payload.data?.message, payload.data?.diff)
           }
         } catch (e) {
           logWarn('ws', '收到无法解析的 WS 消息', event.data, e)

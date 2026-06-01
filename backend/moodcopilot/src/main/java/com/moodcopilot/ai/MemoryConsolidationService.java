@@ -139,6 +139,9 @@ public class MemoryConsolidationService {
     public void applyConsolidation(Long userId, List<MemoryExtractionService.MemoryAttribute> attributes) {
         List<UserProfileMemoryEntity> existing = memoryExtractionService.listUserMemories(userId);
         LocalDateTime now = LocalDateTime.now();
+        Map<String, UserProfileMemoryEntity> existingBySignature = existing.stream()
+                .collect(Collectors.toMap(this::memorySignature, memory -> memory, (left, right) -> left,
+                        LinkedHashMap::new));
 
         transactionOperations.execute(status -> {
             for (UserProfileMemoryEntity old : existing) {
@@ -158,7 +161,10 @@ public class MemoryConsolidationService {
                 entity.setAttributeKey(key);
                 entity.setAttributeValue(val);
                 entity.setIsCore(Boolean.TRUE.equals(attr.isCore()));
-                entity.setUpdateTime(now);
+                UserProfileMemoryEntity matched = existingBySignature
+                        .get(memorySignature(key, val, entity.getIsCore()));
+                entity.setUpdateTime(
+                        matched != null && matched.getUpdateTime() != null ? matched.getUpdateTime() : now);
                 memoryMapper.insert(entity);
             }
             return null;
@@ -181,5 +187,14 @@ public class MemoryConsolidationService {
                     .append(" (isCore=").append(Boolean.TRUE.equals(memory.getIsCore())).append(")\n");
         }
         return sb.toString();
+    }
+
+    private String memorySignature(UserProfileMemoryEntity memory) {
+        return memorySignature(memory.getAttributeKey(), memory.getAttributeValue(),
+                Boolean.TRUE.equals(memory.getIsCore()));
+    }
+
+    private String memorySignature(String key, String value, boolean isCore) {
+        return (key == null ? "" : key.trim()) + "\u0001" + (value == null ? "" : value.trim()) + "\u0001" + isCore;
     }
 }

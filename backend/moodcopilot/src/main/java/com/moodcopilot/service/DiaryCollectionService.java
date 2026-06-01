@@ -37,8 +37,8 @@ public class DiaryCollectionService extends ServiceImpl<DiaryCollectionMapper, D
     private final UserMapper userMapper;
 
     public DiaryCollectionService(DiaryCollectionRelationMapper relationMapper,
-                                DiaryMapper diaryMapper,
-                                UserMapper userMapper) {
+            DiaryMapper diaryMapper,
+            UserMapper userMapper) {
         this.relationMapper = relationMapper;
         this.diaryMapper = diaryMapper;
         this.userMapper = userMapper;
@@ -175,7 +175,7 @@ public class DiaryCollectionService extends ServiceImpl<DiaryCollectionMapper, D
             // 检查是否已存在（避免重复添加）
             LambdaQueryWrapper<DiaryCollectionRelationEntity> queryWrapper = new LambdaQueryWrapper<>();
             queryWrapper.eq(DiaryCollectionRelationEntity::getCollectionId, collectionId)
-                       .eq(DiaryCollectionRelationEntity::getDiaryId, diaryId);
+                    .eq(DiaryCollectionRelationEntity::getDiaryId, diaryId);
 
             long count = relationMapper.selectCount(queryWrapper);
             if (count > 0) {
@@ -213,7 +213,7 @@ public class DiaryCollectionService extends ServiceImpl<DiaryCollectionMapper, D
         // 批量删除关系
         LambdaQueryWrapper<DiaryCollectionRelationEntity> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(DiaryCollectionRelationEntity::getCollectionId, collectionId)
-                   .in(DiaryCollectionRelationEntity::getDiaryId, diaryIds);
+                .in(DiaryCollectionRelationEntity::getDiaryId, diaryIds);
 
         relationMapper.delete(queryWrapper);
     }
@@ -262,7 +262,7 @@ public class DiaryCollectionService extends ServiceImpl<DiaryCollectionMapper, D
         if (!diaryIds.isEmpty()) {
             LambdaQueryWrapper<DiaryCollectionRelationEntity> qw = new LambdaQueryWrapper<>();
             qw.eq(DiaryCollectionRelationEntity::getCollectionId, collectionId)
-              .in(DiaryCollectionRelationEntity::getDiaryId, diaryIds);
+                    .in(DiaryCollectionRelationEntity::getDiaryId, diaryIds);
             java.util.List<DiaryCollectionRelationEntity> relations = relationMapper.selectList(qw);
             for (DiaryCollectionRelationEntity r : relations) {
                 sortOrderMap.put(r.getDiaryId(), r.getSortOrder());
@@ -279,12 +279,13 @@ public class DiaryCollectionService extends ServiceImpl<DiaryCollectionMapper, D
 
             // 权限过滤：如果是查看别人的合集，过滤掉私密日记
             if (currentUser != null && !collection.getUserId().equals(currentUser.getId())
-                && "PRIVATE".equals(diary.getVisibility())) {
+                    && "PRIVATE".equals(diary.getVisibility())) {
                 return null;
             }
 
             Double sortOrder = finalSortOrderMap.get(diary.getId());
-            return CollectionDiaryView.from(diary, null, false, sortOrder);
+            boolean isOwnerView = currentUser != null && collection.getUserId().equals(currentUser.getId());
+            return CollectionDiaryView.from(diary, null, false, sortOrder, isOwnerView);
         });
 
         // 过滤掉因权限问题产生的 null 记录
@@ -323,7 +324,7 @@ public class DiaryCollectionService extends ServiceImpl<DiaryCollectionMapper, D
     public boolean isDiaryInCollection(Long collectionId, Long diaryId) {
         LambdaQueryWrapper<DiaryCollectionRelationEntity> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(DiaryCollectionRelationEntity::getCollectionId, collectionId)
-                   .eq(DiaryCollectionRelationEntity::getDiaryId, diaryId);
+                .eq(DiaryCollectionRelationEntity::getDiaryId, diaryId);
         return relationMapper.selectCount(queryWrapper) > 0;
     }
 

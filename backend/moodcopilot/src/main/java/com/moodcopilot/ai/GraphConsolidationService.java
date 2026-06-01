@@ -16,7 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -124,6 +126,9 @@ public class GraphConsolidationService {
     public void applyConsolidation(Long userId, List<ConsolidatedTriple> newTriples) {
         List<DiaryKnowledgeGraphEntity> existing = graphService.getTriplesForUser(userId);
         LocalDateTime now = LocalDateTime.now();
+        Map<String, DiaryKnowledgeGraphEntity> existingBySignature = existing.stream()
+                .collect(Collectors.toMap(this::tripleSignature, entity -> entity, (left, right) -> left,
+                        LinkedHashMap::new));
 
         // 删除旧的 RAG 向量
         for (DiaryKnowledgeGraphEntity old : existing) {
@@ -143,7 +148,8 @@ public class GraphConsolidationService {
                 entity.setRelation(trimTo(t.relation(), 64));
                 entity.setTailEntity(trimTo(t.tailEntity(), 64));
                 entity.setTailPolarity(t.tailPolarity() != null ? t.tailPolarity() : 0);
-                entity.setCreatedAt(now);
+                DiaryKnowledgeGraphEntity matched = existingBySignature.get(tripleSignature(entity));
+                entity.setCreatedAt(matched != null && matched.getCreatedAt() != null ? matched.getCreatedAt() : now);
                 graphMapper.insert(entity);
             }
             return null;
@@ -178,5 +184,17 @@ public class GraphConsolidationService {
             return trimmed.substring(0, maxLen);
         }
         return trimmed;
+    }
+
+    private String tripleSignature(DiaryKnowledgeGraphEntity entity) {
+        return tripleSignature(entity.getHeadEntity(), entity.getRelation(), entity.getTailEntity(),
+                entity.getTailPolarity());
+    }
+
+    private String tripleSignature(String head, String relation, String tail, Integer tailPolarity) {
+        return (head == null ? "" : head.trim()) + "\u0001"
+                + (relation == null ? "" : relation.trim()) + "\u0001"
+                + (tail == null ? "" : tail.trim()) + "\u0001"
+                + (tailPolarity == null ? 0 : tailPolarity);
     }
 }

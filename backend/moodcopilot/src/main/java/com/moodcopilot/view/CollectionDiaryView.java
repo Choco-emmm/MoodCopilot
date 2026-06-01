@@ -23,30 +23,40 @@ public record CollectionDiaryView(
         MusicMeta musicMeta,
         java.util.List<String> images,
         String analysisStatus,
-        Double sortOrder
-) {
+        Double sortOrder) {
 
     public static CollectionDiaryView from(com.moodcopilot.entity.DiaryEntity diary,
-                                          com.moodcopilot.entity.DiaryAnalysisEntity analysis,
-                                          boolean likedByMe) {
+            com.moodcopilot.entity.DiaryAnalysisEntity analysis,
+            boolean likedByMe) {
         return from(diary, analysis, likedByMe, null);
     }
 
     public static CollectionDiaryView from(com.moodcopilot.entity.DiaryEntity diary,
-                                          com.moodcopilot.entity.DiaryAnalysisEntity analysis,
-                                          boolean likedByMe,
-                                          Double sortOrder) {
+            com.moodcopilot.entity.DiaryAnalysisEntity analysis,
+            boolean likedByMe,
+            Double sortOrder) {
+        return from(diary, analysis, likedByMe, sortOrder, true);
+    }
+
+    public static CollectionDiaryView from(com.moodcopilot.entity.DiaryEntity diary,
+            com.moodcopilot.entity.DiaryAnalysisEntity analysis,
+            boolean likedByMe,
+            Double sortOrder,
+            boolean includePrivateInsights) {
         DiaryAnalysis viewAnalysis = null;
         if (analysis != null) {
-            viewAnalysis = new DiaryAnalysis(
-                    analysis.getMoodLabel(),
-                    analysis.getMoodIntensity(),
-                    analysis.getValence(),
-                    analysis.getArousal(),
-                    analysis.getTopicLabelsJson(),
-                    analysis.getSecondaryMoodsJson() != null ? analysis.getSecondaryMoodsJson() : java.util.List.of(),
-                    analysis.getSummary(),
-                    analysis.getFeedback());
+            if (includePrivateInsights) {
+                viewAnalysis = new DiaryAnalysis(
+                        analysis.getMoodLabel(),
+                        analysis.getMoodIntensity(),
+                        analysis.getValence(),
+                        analysis.getArousal(),
+                        analysis.getTopicLabelsJson(),
+                        analysis.getSecondaryMoodsJson() != null ? analysis.getSecondaryMoodsJson()
+                                : java.util.List.of(),
+                        analysis.getSummary(),
+                        analysis.getFeedback());
+            }
         }
 
         return new CollectionDiaryView(
@@ -63,10 +73,26 @@ public record CollectionDiaryView(
                 diary.getResonanceCount(),
                 likedByMe,
                 Boolean.TRUE.equals(diary.getIsPinned()),
-                diary.getMusicMeta(),
+                sanitizeMusicMeta(diary.getMusicMeta(), includePrivateInsights),
                 diary.getImages(),
                 viewAnalysis != null ? "complete" : null,
-                sortOrder
-        );
+                sortOrder);
+    }
+
+    private static MusicMeta sanitizeMusicMeta(MusicMeta musicMeta, boolean includePrivateInsights) {
+        if (musicMeta == null) {
+            return null;
+        }
+        if (includePrivateInsights) {
+            return musicMeta;
+        }
+        return new MusicMeta(
+                musicMeta.getTitle(),
+                musicMeta.getArtist(),
+                musicMeta.getCoverUrl(),
+                musicMeta.getUserLyric(),
+                musicMeta.getSongUrl(),
+                null,
+                null);
     }
 }

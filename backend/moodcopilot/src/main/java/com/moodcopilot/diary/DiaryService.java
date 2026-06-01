@@ -1596,6 +1596,8 @@ public class DiaryService {
             Map<Long, DiaryAnalysisEntity> analysisMap, Map<Long, UserEntity> authorInfoMap,
             boolean likedByMe, Map<Long, Integer> commentCountMap) {
         DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
+        Long viewerUserId = currentUser().getId();
+        boolean isAuthorView = viewerUserId != null && viewerUserId.equals(diary.getAuthorUserId());
         UserEntity author = authorInfoMap.get(diary.getAuthorUserId());
         String authorName = author != null ? author.getDisplayName() : diary.getAuthorName();
         String authorAvatar = author != null ? normalizeAvatar(author.getAvatar())
@@ -1605,8 +1607,12 @@ public class DiaryService {
         String feedContent = diary.getContent();
         int commentCount = commentCountMap.getOrDefault(diary.getId(), 0);
         return isPublic
-                ? DiaryView.fromPublicFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole,
-                        likedByMe, feedContent, commentCount)
+                ? (isAuthorView
+                        ? DiaryView.fromPublicFeedForAuthor(diary, analysis, authorName, authorAvatar, authorLevel,
+                                authorRole,
+                                likedByMe, feedContent, commentCount)
+                        : DiaryView.fromPublicFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole,
+                                likedByMe, feedContent, commentCount))
                 : DiaryView.fromFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole, likedByMe,
                         feedContent, commentCount);
     }
@@ -1657,10 +1663,16 @@ public class DiaryService {
         }
         Integer authorLevel = author != null ? author.getLevel() : null;
         String authorRole = author != null ? author.getRole() : null;
+        Long viewerUserId = currentUser().getId();
+        boolean isAuthorView = viewerUserId != null && viewerUserId.equals(diary.getAuthorUserId());
         return isPublic
-                ? DiaryView.fromPublic(diary, analysis, comments, authorAvatar, authorName, authorLevel, authorRole,
-                        commentAuthorNames,
-                        likedByMe)
+                ? (isAuthorView
+                        ? DiaryView.fromPublicForAuthor(diary, analysis, comments, authorAvatar, authorName,
+                                authorLevel, authorRole,
+                                commentAuthorNames, likedByMe)
+                        : DiaryView.fromPublic(diary, analysis, comments, authorAvatar, authorName, authorLevel,
+                                authorRole,
+                                commentAuthorNames, likedByMe))
                 : DiaryView.from(diary, analysis, comments, authorAvatar, authorName, authorLevel, authorRole,
                         commentAuthorNames, likedByMe);
     }
