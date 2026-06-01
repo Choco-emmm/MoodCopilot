@@ -2,6 +2,7 @@ package com.moodcopilot.config;
 
 import com.moodcopilot.ai.mq.AiTaskConsumer;
 import com.moodcopilot.ai.mq.AiTaskProducer;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
@@ -23,7 +24,9 @@ import java.util.Collections;
 public class RedisStreamConfig {
     private static final Logger log = LoggerFactory.getLogger(RedisStreamConfig.class);
 
-    @Bean
+    private ThreadPoolTaskExecutor streamExecutor;
+
+    @Bean(destroyMethod = "stop")
     public StreamMessageListenerContainer<String, MapRecord<String, String, String>> streamMessageListenerContainer(
             RedisConnectionFactory factory,
             AiTaskConsumer aiTaskConsumer,
@@ -32,17 +35,18 @@ public class RedisStreamConfig {
         // 确保 stream 和 group 存在
         initStreamAndGroup(redisTemplate);
 
-        // 使用专门的线程池或直接使用默认执行器
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(3);
-        executor.setMaxPoolSize(5);
-        executor.setThreadNamePrefix("Stream-Consumer-");
-        executor.initialize();
+        streamExecutor = new ThreadPoolTaskExecutor();
+        streamExecutor.setCorePoolSize(3);
+        streamExecutor.setMaxPoolSize(5);
+        streamExecutor.setThreadNamePrefix("Stream-Consumer-");
+        streamExecutor.setWaitForTasksToCompleteOnShutdown(true);
+        streamExecutor.setAwaitTerminationSeconds(10);
+        streamExecutor.initialize();
 
         StreamMessageListenerContainerOptions<String, MapRecord<String, String, String>> options =
                 StreamMessageListenerContainerOptions.builder()
                         .batchSize(10)
-                        .executor(executor)
+                        .executor(streamExecutor)
                         .pollTimeout(Duration.ofSeconds(2))
                         .build();
 
@@ -58,6 +62,14 @@ public class RedisStreamConfig {
 
         container.start();
         return container;
+    }
+
+    @PreDestroy
+    public void cleanup() {
+        log.info("正在停止 Stream 消费者线程池...");
+        if (streamExecutor != null) {
+            streamExecutor.shutdown();
+        }
     }
 
     private void initStreamAndGroup(StringRedisTemplate redisTemplate) {
