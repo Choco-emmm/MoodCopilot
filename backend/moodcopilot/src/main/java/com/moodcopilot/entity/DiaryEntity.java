@@ -27,42 +27,112 @@ public class DiaryEntity {
     private MusicMeta musicMeta;
     @TableField(typeHandler = JacksonTypeHandler.class)
     private java.util.List<String> images;
+    @TableField(value = "image_meta", typeHandler = JacksonTypeHandler.class)
+    private java.util.List<DiaryImageMeta> imageMeta;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public Long getAuthorUserId() { return authorUserId; }
-    public void setAuthorUserId(Long authorUserId) { this.authorUserId = authorUserId; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    public String getAuthorName() { return authorName; }
-    public void setAuthorName(String authorName) { this.authorName = authorName; }
+    public Long getAuthorUserId() {
+        return authorUserId;
+    }
 
-    public String getContent() { return content; }
-    public void setContent(String content) { this.content = content; }
+    public void setAuthorUserId(Long authorUserId) {
+        this.authorUserId = authorUserId;
+    }
 
-    public String getVisibility() { return visibility; }
-    public void setVisibility(String visibility) { this.visibility = visibility; }
+    public String getAuthorName() {
+        return authorName;
+    }
 
-    public Integer getResonanceCount() { return resonanceCount; }
-    public void setResonanceCount(Integer resonanceCount) { this.resonanceCount = resonanceCount; }
+    public void setAuthorName(String authorName) {
+        this.authorName = authorName;
+    }
 
-    public Boolean getIsPinned() { return isPinned; }
-    public void setIsPinned(Boolean isPinned) { this.isPinned = isPinned; }
+    public String getContent() {
+        return content;
+    }
 
-    public MusicMeta getMusicMeta() { return musicMeta; }
-    public void setMusicMeta(MusicMeta musicMeta) { this.musicMeta = musicMeta; }
+    public void setContent(String content) {
+        this.content = content;
+    }
 
-    public java.util.List<String> getImages() { return images; }
-    public void setImages(java.util.List<String> images) { this.images = images; }
+    public String getVisibility() {
+        return visibility;
+    }
 
-    public Boolean getIsDeleted() { return isDeleted; }
-    public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }
+    public void setVisibility(String visibility) {
+        this.visibility = visibility;
+    }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Integer getResonanceCount() {
+        return resonanceCount;
+    }
 
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public void setResonanceCount(Integer resonanceCount) {
+        this.resonanceCount = resonanceCount;
+    }
+
+    public Boolean getIsPinned() {
+        return isPinned;
+    }
+
+    public void setIsPinned(Boolean isPinned) {
+        this.isPinned = isPinned;
+    }
+
+    public MusicMeta getMusicMeta() {
+        return musicMeta;
+    }
+
+    public void setMusicMeta(MusicMeta musicMeta) {
+        this.musicMeta = musicMeta;
+    }
+
+    public java.util.List<String> getImages() {
+        return images;
+    }
+
+    public void setImages(java.util.List<String> images) {
+        this.images = images;
+    }
+
+    public java.util.List<DiaryImageMeta> getImageMeta() {
+        return imageMeta;
+    }
+
+    public void setImageMeta(java.util.List<DiaryImageMeta> imageMeta) {
+        this.imageMeta = imageMeta;
+    }
+
+    public Boolean getIsDeleted() {
+        return isDeleted;
+    }
+
+    public void setIsDeleted(Boolean isDeleted) {
+        this.isDeleted = isDeleted;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 }

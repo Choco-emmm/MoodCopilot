@@ -8,7 +8,7 @@
         <p class="panel-desc">这是 MoodCopilot 从你的日常记录中提取的长期画像。不再是冰冷的表格，而是由点滴细节拼凑出的、一个更懂你的数字记忆库。</p>
       </div>
 
-      <n-tabs type="line" justify-content="center" size="large" style="margin-top: 20px;" display-directive="show">
+      <n-tabs v-model:value="activeTab" type="line" justify-content="center" size="large" style="margin-top: 20px;" display-directive="show">
         <n-tab-pane name="profile" tab="长期画像">
           <MemoryProfileView />
         </n-tab-pane>
@@ -22,10 +22,40 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { NTabs, NTabPane } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import MemoryProfileView from '../components/memory/MemoryProfileView.vue'
 import MemoryGraphView from '../components/memory/MemoryGraphView.vue'
+
+type MemoryTab = 'profile' | 'graph'
+
+const route = useRoute()
+const router = useRouter()
+
+function toTab(value: unknown): MemoryTab {
+  return value === 'graph' ? 'graph' : 'profile'
+}
+
+const activeTab = ref<MemoryTab>(toTab(route.query.tab))
+
+watch(
+  () => route.query.tab,
+  (tab) => {
+    const next = toTab(tab)
+    if (next !== activeTab.value) {
+      activeTab.value = next
+    }
+  },
+)
+
+watch(activeTab, (tab) => {
+  const nextQuery = { ...route.query, tab }
+  if (route.query.tab !== tab) {
+    router.replace({ query: nextQuery })
+  }
+})
 </script>
 
 <style scoped>

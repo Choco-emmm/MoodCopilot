@@ -3,6 +3,7 @@ package com.moodcopilot.auth;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.mapper.UserMapper;
+import com.moodcopilot.notification.NotificationService;
 import com.moodcopilot.security.JwtTokenProvider;
 import cloud.tianai.captcha.application.ImageCaptchaApplication;
 import cloud.tianai.captcha.spring.plugins.secondary.SecondaryVerificationApplication;
@@ -62,22 +63,26 @@ public class AuthService {
     private final JavaMailSender javaMailSender;
     private final StringRedisTemplate stringRedisTemplate;
     private final ImageCaptchaApplication imageCaptchaApplication;
+    private final NotificationService notificationService;
     private final boolean captchaEnabled;
 
     @Autowired
     public AuthService(UserMapper userMapper, JwtTokenProvider jwtTokenProvider,
             PasswordEncoder passwordEncoder, JavaMailSender javaMailSender,
             StringRedisTemplate stringRedisTemplate, ImageCaptchaApplication imageCaptchaApplication,
+            NotificationService notificationService,
             @Value("${spring.mail.username}") String mailFrom,
             @Value("${captcha.secondary.enabled:false}") boolean captchaEnabled) {
         this(userMapper, jwtTokenProvider, passwordEncoder, Path.of("uploads"),
-                javaMailSender, stringRedisTemplate, imageCaptchaApplication, mailFrom, captchaEnabled);
+                javaMailSender, stringRedisTemplate, imageCaptchaApplication, notificationService, mailFrom,
+                captchaEnabled);
     }
 
     AuthService(UserMapper userMapper, JwtTokenProvider jwtTokenProvider,
             PasswordEncoder passwordEncoder, Path uploadRoot,
             JavaMailSender javaMailSender, StringRedisTemplate stringRedisTemplate,
-            ImageCaptchaApplication imageCaptchaApplication, String mailFrom, boolean captchaEnabled) {
+            ImageCaptchaApplication imageCaptchaApplication, NotificationService notificationService,
+            String mailFrom, boolean captchaEnabled) {
         this.userMapper = userMapper;
         this.jwtTokenProvider = jwtTokenProvider;
         this.passwordEncoder = passwordEncoder;
@@ -85,6 +90,7 @@ public class AuthService {
         this.javaMailSender = javaMailSender;
         this.stringRedisTemplate = stringRedisTemplate;
         this.imageCaptchaApplication = imageCaptchaApplication;
+        this.notificationService = notificationService;
         this.captchaEnabled = captchaEnabled;
         this.mailFrom = mailFrom;
     }
@@ -282,7 +288,8 @@ public class AuthService {
         String storedCode = stringRedisTemplate.opsForValue().get(codeKey);
         if (storedCode == null || !storedCode.equals(request.verificationCode().trim())) {
             // log.info("验证码校验失败: email={}, received={}, stored={}", // 包含验证码明文，已注释
-            //         request.email().trim().toLowerCase(), request.verificationCode().trim(), storedCode);
+            // request.email().trim().toLowerCase(), request.verificationCode().trim(),
+            // storedCode);
             log.info("验证码校验失败，storedCodeExists={}", storedCode != null);
             throw new ResponseStatusException(BAD_REQUEST, "验证码无效或已过期");
         }
@@ -368,13 +375,16 @@ public class AuthService {
     }
 
     public boolean isUsernameAvailable(String username) {
-        if (username == null || username.isBlank()) return false;
+        if (username == null || username.isBlank())
+            return false;
         return !userMapper.exists(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getDisplayName, username.trim()));
     }
 
     public boolean isEmailAvailable(String email) {
-        if (email == null || email.isBlank()) return false;
-        return !userMapper.exists(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, email.trim().toLowerCase()));
+        if (email == null || email.isBlank())
+            return false;
+        return !userMapper
+                .exists(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, email.trim().toLowerCase()));
     }
 
     private void recordLoginFailure(String email) {
@@ -403,6 +413,9 @@ public class AuthService {
 
     public AuthResponse updateProfile(Long userId, String displayName, String avatar, String signature) {
         UserEntity user = userMapper.selectById(userId);
+        boolean displayNameChanged = false;
+        boolean avatarChanged = false;
+        boolean signatureChanged = false;
         if (displayName != null && !displayName.isBlank()) {
             String newName = displayName.trim();
             if (!newName.matches("^[a-zA-Z0-9\\u4e00-\\u9fa5_-]{2,20}$")) {
@@ -432,21 +445,43 @@ public class AuthService {
                 user.setNameChangeCount(count + 1);
                 user.setNameChangeWeek(weekKey);
                 user.setDisplayName(newName);
+                displayNameChanged = true;
             }
         }
         if (avatar != null) {
-            user.setAvatar(avatar);
+            String normalizedAvatar = avatar.trim();
+            if (!java.util.Objects.equals(user.getAvatar(), normalizedAvatar)) {
+                user.setAvatar(normalizedAvatar);
+                avatarChanged = true;
+            }
         }
         if (signature != null) {
             String normalizedSignature = signature.trim();
             if (normalizedSignature.length() > 160) {
                 throw new ResponseStatusException(BAD_REQUEST, "个性签名最多 160 字");
             }
-            user.setSignature(normalizedSignature.isBlank() ? null : normalizedSignature);
+            String targetSignature = normalizedSignature.isBlank() ? null : normalizedSignature;
+            if (!java.util.Objects.equals(user.getSignature(), targetSignature)) {
+                user.setSignature(targetSignature);
+                signatureChanged = true;
+            }
         }
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
         evictPublicDiaryCaches();
+
+        boolean profileChanged = displayNameChanged || avatarChanged || signatureChanged;
+        if (profileChanged && !Boolean.FALSE.equals(user.getProfileNotifyEnabled())) {
+            java.util.List<String> changes = new java.util.ArrayList<>();
+            if (displayNameChanged)
+                changes.add("昵称");
+            if (avatarChanged)
+                changes.add("头像");
+            if (signatureChanged)
+                changes.add("签名");
+            String summary = "### 个人资料已更新\n\n已同步更新：" + String.join("、", changes) + "。\n\n点击查看最新个人主页。";
+            notificationService.notifyProfileUpdated(userId, summary);
+        }
         return response(null, user);
     }
 
@@ -612,7 +647,8 @@ public class AuthService {
         return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getEmail(),
                 normalizeAvatar(user.getAvatar()), user.getSignature(), user.getTheme(),
                 user.getLightTheme(), user.getDarkTheme(), user.getThemeMode(),
-                user.getDailyNotifyEnabled(), user.getProfileNotifyEnabled(), role, user.getInviteCode(), user.getInviteQuota(),
+                user.getDailyNotifyEnabled(), user.getProfileNotifyEnabled(), role, user.getInviteCode(),
+                user.getInviteQuota(),
                 user.getExp(), user.getLevel(), user.getProExpireTime(),
                 user.getNameChangeCount(), user.getNameChangeWeek());
     }

@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import { diaryApi } from '../api'
 import type { PaginatedData } from '../api'
+import type { DiaryImageMetaPayload } from '../api/diary'
 import { normalizeResourceUrl } from '../utils/resource'
 import { tryExpToast } from '../utils/toast'
 import { logWarn } from '../utils/logger'
@@ -30,6 +31,7 @@ export interface Diary {
   analysis: DiaryAnalysis | null
   musicMeta?: MusicMeta | null
   images?: string[] | null
+  imageMeta?: DiaryImageMetaPayload[] | null
   analysisStatus?: string | null // "analyzing" | "complete" | "skipped_quota" | "skipped_user"
   createdAt: string
   resonanceCount: number
@@ -78,7 +80,7 @@ export const useDiaryStore = defineStore('diary', () => {
 
   let analysisPollTimer: ReturnType<typeof setInterval> | null = null
   let analysisPollAttempts = 0
-  const ANALYSIS_POLL_MAX_ATTEMPTS = 30
+  const ANALYSIS_POLL_MAX_ATTEMPTS = 60
 
   // ── Helpers ──
 
@@ -142,11 +144,11 @@ export const useDiaryStore = defineStore('diary', () => {
 
   // ── Create / Update / Delete ──
 
-  async function createDiary(content: string, visibility: string, musicMeta?: MusicMeta, analyze = true, images?: string[]) {
+  async function createDiary(content: string, visibility: string, musicMeta?: MusicMeta, analyze = true, images?: string[], imageMeta?: DiaryImageMetaPayload[]) {
     saving.value = true
     errorMessage.value = null
     try {
-      const res = await diaryApi.create({ content, visibility, musicMeta, images, analyze })
+      const res = await diaryApi.create({ content, visibility, musicMeta, images, imageMeta, analyze })
       const diary = normalize(res.data.data)
       activeDiary.value = diary
 
@@ -182,11 +184,11 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
-  async function updateDiary(id: number, content: string, visibility: string, musicMeta?: MusicMeta, images?: string[], analyze = true) {
+  async function updateDiary(id: number, content: string, visibility: string, musicMeta?: MusicMeta, images?: string[], analyze = true, imageMeta?: DiaryImageMetaPayload[]) {
     saving.value = true
     errorMessage.value = null
     try {
-      const res = await diaryApi.update(id, { content, visibility, musicMeta, images, analyze })
+      const res = await diaryApi.update(id, { content, visibility, musicMeta, images, imageMeta, analyze })
       const updated = normalize(res.data.data)
 
       if (updated.analysisStatus === 'skipped_quota') {
@@ -338,8 +340,8 @@ export const useDiaryStore = defineStore('diary', () => {
     resonatingKeys.add(diaryId)
 
     const target = localTarget || myDiaries.value.find(d => d.id === diaryId) ||
-                   publicDiaries.value.find(d => d.id === diaryId) ||
-                   (activeDiary.value?.id === diaryId ? activeDiary.value : null)
+      publicDiaries.value.find(d => d.id === diaryId) ||
+      (activeDiary.value?.id === diaryId ? activeDiary.value : null)
 
     let originalLikedByMe = false
     let originalCount = 0

@@ -8,6 +8,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -30,6 +31,9 @@ public class OssService {
     private final String accessKey;
     private final String secretKey;
     private final HttpClient httpClient;
+    private static final DateTimeFormatter OSS_HTTP_DATE_FORMATTER = DateTimeFormatter
+            .ofPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US)
+            .withZone(ZoneId.of("GMT"));
 
     public OssService(
             @Value("${oss.endpoint}") String endpoint,
@@ -64,14 +68,12 @@ public class OssService {
         }
         String objectKey = "images/temp/" + UUID.randomUUID() + ext;
         String contentType = file.getContentType();
-        if (contentType == null) contentType = "image/jpeg";
+        if (contentType == null)
+            contentType = "image/jpeg";
 
         try {
             byte[] data = file.getBytes();
-            String date = DateTimeFormatter.RFC_1123_DATE_TIME
-                    .withZone(ZoneId.of("GMT"))
-                    .withLocale(Locale.US)
-                    .format(Instant.now());
+            String date = ossHttpDateNow();
 
             String canonicalString = "PUT\n\n" + contentType + "\n" + date + "\n/" + bucket + "/" + objectKey;
             String signature = sign(canonicalString);
@@ -105,10 +107,14 @@ public class OssService {
 
     private String sign(String canonicalString) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA1");
-        SecretKeySpec keySpec = new SecretKeySpec(secretKey.getBytes(), "HmacSHA1");
+        SecretKeySpec keySpec = new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), "HmacSHA1");
         mac.init(keySpec);
-        byte[] signed = mac.doFinal(canonicalString.getBytes());
+        byte[] signed = mac.doFinal(canonicalString.getBytes(StandardCharsets.UTF_8));
         return Base64.getEncoder().encodeToString(signed);
+    }
+
+    private String ossHttpDateNow() {
+        return OSS_HTTP_DATE_FORMATTER.format(Instant.now());
     }
 
     /**
@@ -146,13 +152,16 @@ public class OssService {
     }
 
     /**
-     * 从 OSS URL 提取 object key。例如 https://bucket.endpoint/temp/uuid.jpg → temp/uuid.jpg
+     * 从 OSS URL 提取 object key。例如 https://bucket.endpoint/temp/uuid.jpg →
+     * temp/uuid.jpg
      */
     public String extractObjectKey(String imageUrl) {
-        if (imageUrl == null || imageUrl.isBlank()) return null;
+        if (imageUrl == null || imageUrl.isBlank())
+            return null;
         String host = bucket + "." + endpoint;
         int idx = imageUrl.indexOf(host);
-        if (idx < 0) return null;
+        if (idx < 0)
+            return null;
         String path = imageUrl.substring(idx + host.length());
         return path.startsWith("/") ? path.substring(1) : path;
     }
@@ -175,13 +184,11 @@ public class OssService {
         String host = bucket + "." + endpoint;
 
         try {
-            String date = DateTimeFormatter.RFC_1123_DATE_TIME
-                    .withZone(ZoneId.of("GMT"))
-                    .withLocale(Locale.US)
-                    .format(Instant.now());
+            String date = ossHttpDateNow();
 
             String copySource = "/" + bucket + "/" + tempKey;
-            String canonicalString = "PUT\n\n\n" + date + "\nx-oss-copy-source:" + copySource + "\n/" + bucket + "/" + imagesKey;
+            String canonicalString = "PUT\n\n\n" + date + "\nx-oss-copy-source:" + copySource + "\n/" + bucket + "/"
+                    + imagesKey;
             String signature = sign(canonicalString);
             String auth = "OSS " + accessKey + ":" + signature;
 
@@ -215,12 +222,10 @@ public class OssService {
      */
     public void deleteImage(String imageUrl) {
         String objectKey = extractObjectKey(imageUrl);
-        if (objectKey == null) return;
+        if (objectKey == null)
+            return;
         try {
-            String date = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME
-                    .withZone(java.time.ZoneId.of("GMT"))
-                    .withLocale(java.util.Locale.US)
-                    .format(java.time.Instant.now());
+            String date = ossHttpDateNow();
             String canonicalString = "DELETE\n\n\n" + date + "\n/" + bucket + "/" + objectKey;
             String auth = "OSS " + accessKey + ":" + sign(canonicalString);
 
@@ -245,7 +250,8 @@ public class OssService {
 
     /** 批量删除 OSS 图片 */
     public void deleteImages(java.util.List<String> imageUrls) {
-        if (imageUrls == null) return;
+        if (imageUrls == null)
+            return;
         for (String url : imageUrls) {
             deleteImage(url);
         }
@@ -253,14 +259,17 @@ public class OssService {
 
     /**
      * 生成访问私有 OSS 文件的预签名 URL。
-     * @param imageUrl 原始对象 URL
+     * 
+     * @param imageUrl      原始对象 URL
      * @param expireSeconds 有效期（秒）
      * @return 预签名 URL，如果配置缺失则返回原 URL
      */
     public String generatePresignedUrl(String imageUrl, long expireSeconds) {
-        if (!isConfigured()) return imageUrl;
+        if (!isConfigured())
+            return imageUrl;
         String objectKey = extractObjectKey(imageUrl);
-        if (objectKey == null) return imageUrl;
+        if (objectKey == null)
+            return imageUrl;
 
         try {
             String host = bucket + "." + endpoint;
@@ -268,7 +277,8 @@ public class OssService {
             String canonicalString = "GET\n\n\n" + expires + "\n/" + bucket + "/" + objectKey;
             String signature = sign(canonicalString);
             String encodedSig = java.net.URLEncoder.encode(signature, java.nio.charset.StandardCharsets.UTF_8);
-            return "https://" + host + "/" + objectKey + "?OSSAccessKeyId=" + accessKey + "&Expires=" + expires + "&Signature=" + encodedSig;
+            return "https://" + host + "/" + objectKey + "?OSSAccessKeyId=" + accessKey + "&Expires=" + expires
+                    + "&Signature=" + encodedSig;
         } catch (Exception e) {
             log.warn("OSS 生成预签名 URL 失败 url={}: {}", imageUrl, e.getMessage());
             return imageUrl;

@@ -15,6 +15,7 @@ import com.moodcopilot.follow.FollowService;
 import com.moodcopilot.entity.DiaryCommentEntity;
 import com.moodcopilot.entity.DiaryEntity;
 import com.moodcopilot.entity.DiaryHideEntity;
+import com.moodcopilot.entity.DiaryImageMeta;
 import com.moodcopilot.entity.MusicMeta;
 import com.moodcopilot.entity.DiaryRecommendationExposureEntity;
 import com.moodcopilot.entity.DiaryResonanceEntity;
@@ -188,6 +189,7 @@ public class DiaryService {
         diary.setVisibility(visibility.name());
         diary.setMusicMeta(request.musicMeta());
         diary.setImages(promoteImages(request.images()));
+        diary.setImageMeta(normalizeImageMeta(request.imageMeta(), diary.getImages()));
         diary.setResonanceCount(0);
         diary.setIsDeleted(false);
         diary.setCreatedAt(LocalDateTime.now());
@@ -205,7 +207,8 @@ public class DiaryService {
         ragMemoryService.indexDiary(user.getId(), diary.getId(),
                 diary.getContent(), diary.getMusicMeta());
 
-        return DiaryView.from(diary, null, List.of(), normalizeAvatar(user.getAvatar()), user.getDisplayName(), user.getLevel(), user.getRole(), Map.of(),
+        return DiaryView.from(diary, null, List.of(), normalizeAvatar(user.getAvatar()), user.getDisplayName(),
+                user.getLevel(), user.getRole(), Map.of(),
                 false);
     }
 
@@ -232,6 +235,7 @@ public class DiaryService {
 
         String oldContent = diary.getContent() == null ? "" : diary.getContent();
         String oldVisibility = diary.getVisibility();
+        List<String> oldImages = diary.getImages() == null ? List.of() : new ArrayList<>(diary.getImages());
         String filteredContent = ContentFilter.filter(normalizedContent);
         boolean contentChanged = !oldContent.equals(filteredContent);
         boolean visibilityChanged = !visibility.name().equals(oldVisibility);
@@ -245,7 +249,19 @@ public class DiaryService {
                 diary.setMusicMeta(request.musicMeta());
             }
             if (request.images() != null) {
-                diary.setImages(promoteImages(request.images()));
+                List<String> promotedImages = promoteImages(request.images());
+                diary.setImages(promotedImages);
+
+                if (request.imageMeta() != null) {
+                    diary.setImageMeta(normalizeImageMeta(request.imageMeta(), promotedImages));
+                } else if (areSameImageList(oldImages, promotedImages)) {
+                    // 编辑正文等场景不应覆写已有图片压缩元数据。
+                    diary.setImageMeta(diary.getImageMeta());
+                } else {
+                    diary.setImageMeta(normalizeImageMeta(null, promotedImages));
+                }
+            } else if (request.imageMeta() != null) {
+                diary.setImageMeta(normalizeImageMeta(request.imageMeta(), diary.getImages()));
             }
             diaryMapper.updateById(diary);
         });
@@ -263,12 +279,12 @@ public class DiaryService {
             } else {
                 try {
                     rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
-                    
+
                     // 删除旧的分析结果，防止前端在轮询时错误获取到旧数据
                     transactionTemplate.executeWithoutResult(status -> {
                         diaryAnalysisMapper.deleteById(diaryId);
                     });
-                    
+
                     log.info("日记内容已修改，提交后台重新执行 AI 分析，diaryId={}", diaryId);
                     aiTaskProducer.submitDiaryAnalysisTask(diaryId, user.getId());
                     analysisStatus = "analyzing";
@@ -311,18 +327,23 @@ public class DiaryService {
         String content = diary.getContent();
         MusicMeta musicMeta = diary.getMusicMeta();
         java.util.List<String> images = diary.getImages();
-        
+        java.util.List<DiaryImageMeta> imageMeta = diary.getImageMeta();
+
+        logImageCompressionSummary(diaryId, imageMeta, images);
+
         // 补充音乐氛围（异步解析可能尚未完成，从缓存或同步补全）
         if (musicMeta != null && musicMeta.getSongUrl() != null &&
-            (musicMeta.getMoodTags() == null || musicMeta.getThemeSummary() == null)) {
+                (musicMeta.getMoodTags() == null || musicMeta.getThemeSummary() == null)) {
             String md5Hex = org.springframework.util.DigestUtils.md5DigestAsHex(musicMeta.getSongUrl().getBytes());
             String cacheKey = "music:meta:" + md5Hex;
             try {
                 String cached = redisTemplate.opsForValue().get(cacheKey);
                 if (cached != null) {
                     MusicMeta cachedMeta = objectMapper.readValue(cached, MusicMeta.class);
-                    if (cachedMeta.getMoodTags() != null) musicMeta.setMoodTags(cachedMeta.getMoodTags());
-                    if (cachedMeta.getThemeSummary() != null) musicMeta.setThemeSummary(cachedMeta.getThemeSummary());
+                    if (cachedMeta.getMoodTags() != null)
+                        musicMeta.setMoodTags(cachedMeta.getMoodTags());
+                    if (cachedMeta.getThemeSummary() != null)
+                        musicMeta.setThemeSummary(cachedMeta.getThemeSummary());
                     log.info("已从 Redis 补全音乐氛围");
                 }
             } catch (Exception e) {
@@ -332,7 +353,8 @@ public class DiaryService {
             boolean needsSync = musicMeta.getMoodTags() == null || musicMeta.getThemeSummary() == null;
             if (needsSync) {
                 try {
-                    List<String> lyrics = musicParseService.suggestLyrics(musicMeta.getTitle(), musicMeta.getArtist(), musicMeta.getSongUrl());
+                    List<String> lyrics = musicParseService.suggestLyrics(musicMeta.getTitle(), musicMeta.getArtist(),
+                            musicMeta.getSongUrl());
                     String lyricsStr;
                     if (!lyrics.isEmpty()) {
                         lyricsStr = String.join("\n", lyrics);
@@ -340,7 +362,8 @@ public class DiaryService {
                         lyricsStr = "（歌词未获取到，请根据歌曲名和歌手推测）";
                         log.info("歌词获取为空，使用歌名兜底分析");
                     }
-                    var result = aiAnalysisService.analyzeMusicSync(musicMeta.getTitle(), musicMeta.getArtist(), lyricsStr);
+                    var result = aiAnalysisService.analyzeMusicSync(musicMeta.getTitle(), musicMeta.getArtist(),
+                            lyricsStr);
                     musicMeta.setMoodTags(result.getLeft());
                     musicMeta.setThemeSummary(result.getRight());
                     log.info("同步补全音乐氛围成功");
@@ -358,7 +381,7 @@ public class DiaryService {
         log.info("开始同步执行日记 AI 分析，diaryId={}，userId={}，contentLength={}，hasMusic={}，hasImages={}", diaryId, userId,
                 content == null ? 0 : content.length(), musicMeta != null, images != null && !images.isEmpty());
         try {
-            String imageDescriptions = visionService.describeImages(images);
+            String imageDescriptions = visionService.describeImages(images, imageMeta);
             DiaryAnalysis analysis = aiAnalysisService.analyze(userId, content, musicMeta, imageDescriptions);
 
             DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
@@ -389,13 +412,14 @@ public class DiaryService {
             Thread.startVirtualThread(() -> {
                 try {
                     // 先请求大模型，如果失败也不影响旧数据
-                    java.util.List<AiAnalysisService.KnowledgeTriple> triples = aiAnalysisService.extractKnowledgeGraph(content, musicMeta, imageDescriptions);
+                    java.util.List<AiAnalysisService.KnowledgeTriple> triples = aiAnalysisService
+                            .extractKnowledgeGraph(content, musicMeta, imageDescriptions);
 
                     // 获取旧数据
-                    java.util.List<com.moodcopilot.entity.DiaryKnowledgeGraphEntity> oldTriples = diaryKnowledgeGraphMapper.selectList(
-                            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
-                                    .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId)
-                    );
+                    java.util.List<com.moodcopilot.entity.DiaryKnowledgeGraphEntity> oldTriples = diaryKnowledgeGraphMapper
+                            .selectList(
+                                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
+                                            .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId));
 
                     // 开启事务进行数据库级替换
                     java.util.List<com.moodcopilot.entity.DiaryKnowledgeGraphEntity> newEntities = new java.util.ArrayList<>();
@@ -403,8 +427,7 @@ public class DiaryService {
                         if (!oldTriples.isEmpty()) {
                             diaryKnowledgeGraphMapper.delete(
                                     new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
-                                            .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId)
-                            );
+                                            .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId));
                         }
                         if (!triples.isEmpty()) {
                             for (AiAnalysisService.KnowledgeTriple triple : triples) {
@@ -428,26 +451,32 @@ public class DiaryService {
                         ragMemoryService.deleteKnowledgeGraph(old.getId());
                     }
                     for (com.moodcopilot.entity.DiaryKnowledgeGraphEntity entity : newEntities) {
-                        ragMemoryService.indexKnowledgeGraph(userId, diaryId, entity.getId(), entity.getHeadEntity(), entity.getRelation(), entity.getTailEntity());
+                        ragMemoryService.indexKnowledgeGraph(userId, diaryId, entity.getId(), entity.getHeadEntity(),
+                                entity.getRelation(), entity.getTailEntity());
                     }
 
                     // 比较新旧三元组，看看是否有差异
                     List<Map<String, String>> diffAdded = new java.util.ArrayList<>();
                     List<Map<String, String>> diffDeleted = new java.util.ArrayList<>();
-                    Set<String> oldSet = oldTriples.stream().map(t -> t.getHeadEntity() + "|" + t.getRelation() + "|" + t.getTailEntity()).collect(java.util.stream.Collectors.toSet());
-                    Set<String> newSet = triples.stream().map(t -> t.head() + "|" + t.relation() + "|" + t.tail()).collect(java.util.stream.Collectors.toSet());
+                    Set<String> oldSet = oldTriples.stream()
+                            .map(t -> t.getHeadEntity() + "|" + t.getRelation() + "|" + t.getTailEntity())
+                            .collect(java.util.stream.Collectors.toSet());
+                    Set<String> newSet = triples.stream().map(t -> t.head() + "|" + t.relation() + "|" + t.tail())
+                            .collect(java.util.stream.Collectors.toSet());
 
                     for (com.moodcopilot.entity.DiaryKnowledgeGraphEntity oldT : oldTriples) {
                         String key = oldT.getHeadEntity() + "|" + oldT.getRelation() + "|" + oldT.getTailEntity();
                         if (!newSet.contains(key)) {
-                            diffDeleted.add(java.util.Map.of("head", oldT.getHeadEntity(), "relation", oldT.getRelation(), "tail", oldT.getTailEntity()));
+                            diffDeleted.add(java.util.Map.of("head", oldT.getHeadEntity(), "relation",
+                                    oldT.getRelation(), "tail", oldT.getTailEntity()));
                         }
                     }
 
                     for (AiAnalysisService.KnowledgeTriple newT : triples) {
                         String key = newT.head() + "|" + newT.relation() + "|" + newT.tail();
                         if (!oldSet.contains(key)) {
-                            diffAdded.add(java.util.Map.of("head", newT.head(), "relation", newT.relation(), "tail", newT.tail()));
+                            diffAdded.add(java.util.Map.of("head", newT.head(), "relation", newT.relation(), "tail",
+                                    newT.tail()));
                         }
                     }
 
@@ -456,8 +485,7 @@ public class DiaryService {
                         log.info("日记知识图谱提取完成，diaryId={}，共 {} 条三元组", diaryId, triples.size());
                         java.util.Map<String, Object> payload = java.util.Map.of(
                                 "message", "🕸️ AI 已提取了新的事件因果关系",
-                                "diff", java.util.Map.of("added", diffAdded, "deleted", diffDeleted)
-                        );
+                                "diff", java.util.Map.of("added", diffAdded, "deleted", diffDeleted));
                         notificationService.notifyGlobalEvent(userId, "GRAPH_UPDATED", payload);
                     } else if (!oldTriples.isEmpty()) {
                         log.info("日记知识图谱已被清空或无变化，diaryId={}", diaryId);
@@ -479,7 +507,8 @@ public class DiaryService {
             if (diary != null && "PUBLIC".equals(diary.getVisibility())) {
                 evictPublicDiaryCaches();
             }
-            log.info("日记分析后续任务已触发，diaryId={}，userId={}，动作=publishEvent+extractMemory+markReportsStale", diaryId, userId);
+            log.info("日记分析后续任务已触发，diaryId={}，userId={}，动作=publishEvent+extractMemory+markReportsStale", diaryId,
+                    userId);
         } catch (Exception e) {
             log.error("日记 AI 分析异步任务失败，diaryId={}，userId={}，错误信息={}", diaryId, userId, e.getMessage(), e);
         }
@@ -500,7 +529,7 @@ public class DiaryService {
     }
 
     public Page<DiaryView> searchDiaries(String keyword, LocalDate startDate, LocalDate endDate,
-                                          String visibility, int page, int size) {
+            String visibility, int page, int size) {
         int cappedPage = Math.max(1, page);
         int cappedSize = Math.min(50, Math.max(1, size));
         LambdaQueryWrapper<DiaryEntity> query = new LambdaQueryWrapper<DiaryEntity>()
@@ -590,7 +619,8 @@ public class DiaryService {
         List<DiarySearchResult.DiarySummary> diaries = diaryMapper.selectList(query).stream()
                 .map(diary -> {
                     StringBuilder prefixSb = new StringBuilder();
-                    if (diary.getMusicMeta() != null && diary.getMusicMeta().getTitle() != null && !diary.getMusicMeta().getTitle().isBlank()) {
+                    if (diary.getMusicMeta() != null && diary.getMusicMeta().getTitle() != null
+                            && !diary.getMusicMeta().getTitle().isBlank()) {
                         prefixSb.append("[分享音乐：").append(diary.getMusicMeta().getTitle());
                         if (diary.getMusicMeta().getArtist() != null && !diary.getMusicMeta().getArtist().isBlank()) {
                             prefixSb.append(" - ").append(diary.getMusicMeta().getArtist());
@@ -736,7 +766,8 @@ public class DiaryService {
         Long userId = currentUser().getId();
         String cacheKey = "public:diaries:%d:%d".formatted(cappedPage, cappedSize);
 
-        Page<DiaryView> result = diaryCacheService.getCachedPage(cacheKey, () -> queryPublicDiaries(cappedPage, cappedSize));
+        Page<DiaryView> result = diaryCacheService.getCachedPage(cacheKey,
+                () -> queryPublicDiaries(cappedPage, cappedSize));
         return populateLikedByMe(filterHiddenViews(result, userId), userId);
     }
 
@@ -802,7 +833,8 @@ public class DiaryService {
         int cappedSize = Math.min(50, Math.max(1, size));
         String cacheKey = "following:%d:%d:%d".formatted(userId, cappedPage, cappedSize);
 
-        Page<DiaryView> result = diaryCacheService.getCachedPage(cacheKey, () -> queryFollowingDiaries(userId, cappedPage, cappedSize));
+        Page<DiaryView> result = diaryCacheService.getCachedPage(cacheKey,
+                () -> queryFollowingDiaries(userId, cappedPage, cappedSize));
         return populateLikedByMe(result, userId);
     }
 
@@ -916,7 +948,9 @@ public class DiaryService {
                 diaries.stream().map(DiaryEntity::getId).toList());
 
         for (DiaryEntity diary : diaries) {
-            contents.add(new AiAnalysisService.DiaryEntryContext(diary.getCreatedAt().toLocalDate().format(DateTimeFormatter.ofPattern("MM-dd")), diary.getContent()));
+            contents.add(new AiAnalysisService.DiaryEntryContext(
+                    diary.getCreatedAt().toLocalDate().format(DateTimeFormatter.ofPattern("MM-dd")),
+                    diary.getContent()));
             DiaryAnalysisEntity analysisEntity = analysisMap.get(diary.getId());
             if (analysisEntity != null) {
                 DiaryAnalysis analysis = new DiaryAnalysis(
@@ -934,8 +968,10 @@ public class DiaryService {
                         diary.getCreatedAt().toLocalDate(),
                         analysis.moodLabel(),
                         analysis.moodIntensity(),
-                        analysis.valence() != null ? analysis.valence() : AiAnalysisService.estimateValence(analysis.moodLabel(), analysis.moodIntensity()),
-                        analysis.arousal() != null ? analysis.arousal() : AiAnalysisService.estimateArousal(analysis.moodLabel(), analysis.moodIntensity()),
+                        analysis.valence() != null ? analysis.valence()
+                                : AiAnalysisService.estimateValence(analysis.moodLabel(), analysis.moodIntensity()),
+                        analysis.arousal() != null ? analysis.arousal()
+                                : AiAnalysisService.estimateArousal(analysis.moodLabel(), analysis.moodIntensity()),
                         List.of(diary.getId()),
                         snippet(diary.getContent())));
                 for (String topic : analysis.topicLabels()) {
@@ -1080,7 +1116,9 @@ public class DiaryService {
                 diaries.stream().map(DiaryEntity::getId).toList());
 
         for (DiaryEntity diary : diaries) {
-            contents.add(new AiAnalysisService.DiaryEntryContext(diary.getCreatedAt().toLocalDate().format(DateTimeFormatter.ofPattern("MM-dd")), diary.getContent()));
+            contents.add(new AiAnalysisService.DiaryEntryContext(
+                    diary.getCreatedAt().toLocalDate().format(DateTimeFormatter.ofPattern("MM-dd")),
+                    diary.getContent()));
             DiaryAnalysisEntity analysisEntity = analysisMap.get(diary.getId());
             if (analysisEntity != null) {
                 DiaryAnalysis analysis = new DiaryAnalysis(
@@ -1098,8 +1136,10 @@ public class DiaryService {
                         diary.getCreatedAt().toLocalDate(),
                         analysis.moodLabel(),
                         analysis.moodIntensity(),
-                        analysis.valence() != null ? analysis.valence() : AiAnalysisService.estimateValence(analysis.moodLabel(), analysis.moodIntensity()),
-                        analysis.arousal() != null ? analysis.arousal() : AiAnalysisService.estimateArousal(analysis.moodLabel(), analysis.moodIntensity()),
+                        analysis.valence() != null ? analysis.valence()
+                                : AiAnalysisService.estimateValence(analysis.moodLabel(), analysis.moodIntensity()),
+                        analysis.arousal() != null ? analysis.arousal()
+                                : AiAnalysisService.estimateArousal(analysis.moodLabel(), analysis.moodIntensity()),
                         List.of(diary.getId()),
                         snippet(diary.getContent())));
                 for (String topic : analysis.topicLabels()) {
@@ -1268,15 +1308,19 @@ public class DiaryService {
     }
 
     private WeeklyReportView patchValenceArousal(WeeklyReportView report) {
-        if (report == null || report.dailyMoods() == null || report.dailyMoods().isEmpty()) return report;
+        if (report == null || report.dailyMoods() == null || report.dailyMoods().isEmpty())
+            return report;
         boolean needsPatch = report.dailyMoods().stream()
                 .anyMatch(m -> m.valence() == null || m.arousal() == null);
-        if (!needsPatch) return report;
+        if (!needsPatch)
+            return report;
         List<WeeklyReportView.DailyMood> patched = report.dailyMoods().stream()
                 .map(m -> new WeeklyReportView.DailyMood(
                         m.date(), m.moodLabel(), m.moodIntensity(),
-                        m.valence() != null ? m.valence() : AiAnalysisService.estimateValence(m.moodLabel(), m.moodIntensity()),
-                        m.arousal() != null ? m.arousal() : AiAnalysisService.estimateArousal(m.moodLabel(), m.moodIntensity()),
+                        m.valence() != null ? m.valence()
+                                : AiAnalysisService.estimateValence(m.moodLabel(), m.moodIntensity()),
+                        m.arousal() != null ? m.arousal()
+                                : AiAnalysisService.estimateArousal(m.moodLabel(), m.moodIntensity()),
                         m.diaryIds(), m.contentSnippet()))
                 .toList();
         return new WeeklyReportView(
@@ -1561,15 +1605,18 @@ public class DiaryService {
         String feedContent = diary.getContent();
         int commentCount = commentCountMap.getOrDefault(diary.getId(), 0);
         return isPublic
-                ? DiaryView.fromPublicFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole, likedByMe, feedContent, commentCount)
-                : DiaryView.fromFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole, likedByMe, feedContent, commentCount);
+                ? DiaryView.fromPublicFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole,
+                        likedByMe, feedContent, commentCount)
+                : DiaryView.fromFeed(diary, analysis, authorName, authorAvatar, authorLevel, authorRole, likedByMe,
+                        feedContent, commentCount);
     }
 
     private DiaryView buildDiaryView(DiaryEntity diary, boolean isPublic) {
         DiaryAnalysisEntity analysis = findAnalysis(diary.getId());
         List<DiaryCommentEntity> comments = findComments(diary.getId());
         boolean likedByMe = Boolean.TRUE.equals(
-                redisTemplate.opsForSet().isMember("resonance:" + diary.getId(), String.valueOf(currentUser().getId())));
+                redisTemplate.opsForSet().isMember("resonance:" + diary.getId(),
+                        String.valueOf(currentUser().getId())));
         return buildDiaryView(diary, isPublic,
                 analysis != null ? Map.of(diary.getId(), analysis) : Map.of(),
                 Map.of(diary.getId(), comments),
@@ -1611,9 +1658,11 @@ public class DiaryService {
         Integer authorLevel = author != null ? author.getLevel() : null;
         String authorRole = author != null ? author.getRole() : null;
         return isPublic
-                ? DiaryView.fromPublic(diary, analysis, comments, authorAvatar, authorName, authorLevel, authorRole, commentAuthorNames,
+                ? DiaryView.fromPublic(diary, analysis, comments, authorAvatar, authorName, authorLevel, authorRole,
+                        commentAuthorNames,
                         likedByMe)
-                : DiaryView.from(diary, analysis, comments, authorAvatar, authorName, authorLevel, authorRole, commentAuthorNames, likedByMe);
+                : DiaryView.from(diary, analysis, comments, authorAvatar, authorName, authorLevel, authorRole,
+                        commentAuthorNames, likedByMe);
     }
 
     private Set<Long> batchLoadLikedDiaryIds(List<Long> diaryIds) {
@@ -1650,7 +1699,8 @@ public class DiaryService {
     }
 
     private Map<Long, Integer> batchLoadCommentCounts(List<Long> diaryIds) {
-        if (diaryIds.isEmpty()) return Map.of();
+        if (diaryIds.isEmpty())
+            return Map.of();
         List<DiaryCommentEntity> all = diaryCommentMapper.selectList(
                 new LambdaQueryWrapper<DiaryCommentEntity>()
                         .in(DiaryCommentEntity::getDiaryId, diaryIds));
@@ -1784,27 +1834,25 @@ public class DiaryService {
         // 级联删除合集关联记录
         diaryCollectionRelationMapper.delete(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryCollectionRelationEntity>()
-                        .eq(com.moodcopilot.entity.DiaryCollectionRelationEntity::getDiaryId, diaryId)
-        );
+                        .eq(com.moodcopilot.entity.DiaryCollectionRelationEntity::getDiaryId, diaryId));
 
         markReportsStale(diary.getAuthorUserId());
         if ("PUBLIC".equals(diary.getVisibility())) {
             evictPublicDiaryCaches();
         }
-        
+
         // Clean up knowledge graph
-        java.util.List<com.moodcopilot.entity.DiaryKnowledgeGraphEntity> oldTriples = diaryKnowledgeGraphMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
-                        .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId)
-        );
+        java.util.List<com.moodcopilot.entity.DiaryKnowledgeGraphEntity> oldTriples = diaryKnowledgeGraphMapper
+                .selectList(
+                        new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
+                                .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId));
         for (com.moodcopilot.entity.DiaryKnowledgeGraphEntity old : oldTriples) {
             ragMemoryService.deleteKnowledgeGraph(old.getId());
         }
         if (!oldTriples.isEmpty()) {
             diaryKnowledgeGraphMapper.delete(
                     new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
-                            .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId)
-            );
+                            .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId));
         }
 
         ragMemoryService.deleteDiaryEmbedding(diaryId);
@@ -1965,7 +2013,8 @@ public class DiaryService {
         Map<Long, DiaryAnalysisEntity> analysisMap = batchLoadAnalyses(
                 recent.stream().map(DiaryEntity::getId).toList());
         for (DiaryEntity d : recent) {
-            contents.add(new AiAnalysisService.DiaryEntryContext(d.getCreatedAt().toLocalDate().format(DateTimeFormatter.ofPattern("MM-dd")), d.getContent()));
+            contents.add(new AiAnalysisService.DiaryEntryContext(
+                    d.getCreatedAt().toLocalDate().format(DateTimeFormatter.ofPattern("MM-dd")), d.getContent()));
             DiaryAnalysisEntity a = analysisMap.get(d.getId());
             if (a != null)
                 analyses.add(new DiaryAnalysis(a.getMoodLabel(), a.getMoodIntensity(),
@@ -2139,7 +2188,8 @@ public class DiaryService {
     }
 
     private List<String> promoteImages(List<String> imageUrls) {
-        if (imageUrls == null || imageUrls.isEmpty()) return imageUrls;
+        if (imageUrls == null || imageUrls.isEmpty())
+            return imageUrls;
         List<String> promoted = new ArrayList<>();
         for (String url : imageUrls) {
             try {
@@ -2150,12 +2200,204 @@ public class DiaryService {
             }
         }
         return promoted;
+
+    }
+
+    private List<DiaryImageMeta> normalizeImageMeta(List<DiaryImageMeta> imageMetaList, List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            return null;
+        }
+
+        java.util.Map<String, DiaryImageMeta> sourceByUrl = new java.util.LinkedHashMap<>();
+        java.util.Map<String, DiaryImageMeta> sourceByObjectKey = new java.util.LinkedHashMap<>();
+        java.util.List<DiaryImageMeta> sourceInOrder = new java.util.ArrayList<>();
+        if (imageMetaList != null) {
+            for (DiaryImageMeta source : imageMetaList) {
+                if (source == null || source.getUrl() == null)
+                    continue;
+                String url = source.getUrl().trim();
+                if (url.isEmpty())
+                    continue;
+                sourceByUrl.put(url, source);
+                String objectKey = extractImageObjectKey(url);
+                if (objectKey != null && !objectKey.isEmpty() && !sourceByObjectKey.containsKey(objectKey)) {
+                    sourceByObjectKey.put(objectKey, source);
+                }
+                sourceInOrder.add(source);
+            }
+        }
+
+        List<DiaryImageMeta> normalized = new java.util.ArrayList<>();
+        int position = 0;
+        for (String url : imageUrls) {
+            if (url == null || url.isBlank())
+                continue;
+            DiaryImageMeta src = sourceByUrl.get(url.trim());
+            if (src == null) {
+                String objectKey = extractImageObjectKey(url);
+                if (objectKey != null && !objectKey.isEmpty()) {
+                    src = sourceByObjectKey.get(objectKey);
+                }
+            }
+            if (src == null && position < sourceInOrder.size()) {
+                // 保底按顺序兜底，避免 URL 转正后完全丢失通道信息。
+                src = sourceInOrder.get(position);
+            }
+            DiaryImageMeta item = new DiaryImageMeta();
+            // 隐私保护：库中不保存可直接回溯用户图片的 URL，仅保留压缩观测指标。
+            item.setUrl(null);
+            item.setChannel(normalizeChannel(src != null ? src.getChannel() : null));
+            item.setOrigWidth(clampInt(src != null ? src.getOrigWidth() : null, 1, 20000));
+            item.setOrigHeight(clampInt(src != null ? src.getOrigHeight() : null, 1, 20000));
+            item.setCompressedWidth(clampInt(src != null ? src.getCompressedWidth() : null, 1, 20000));
+            item.setCompressedHeight(clampInt(src != null ? src.getCompressedHeight() : null, 1, 20000));
+            item.setOrigSize(clampLong(src != null ? src.getOrigSize() : null, 1L, 1024L * 1024L * 1024L));
+            item.setCompressedSize(clampLong(src != null ? src.getCompressedSize() : null, 1L, 1024L * 1024L * 1024L));
+            item.setQuality(clampDouble(src != null ? src.getQuality() : null, 0.0, 1.0));
+            item.setMime(safeTrim(src != null ? src.getMime() : null, 64));
+            normalized.add(item);
+            position++;
+        }
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private String extractImageObjectKey(String url) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        String trimmed = url.trim();
+        int queryIndex = trimmed.indexOf('?');
+        if (queryIndex >= 0) {
+            trimmed = trimmed.substring(0, queryIndex);
+        }
+        int hashIndex = trimmed.indexOf('#');
+        if (hashIndex >= 0) {
+            trimmed = trimmed.substring(0, hashIndex);
+        }
+        int slash = trimmed.lastIndexOf('/');
+        if (slash < 0 || slash == trimmed.length() - 1) {
+            return trimmed;
+        }
+        return trimmed.substring(slash + 1);
+    }
+
+    private void logImageCompressionSummary(long diaryId, List<DiaryImageMeta> imageMeta, List<String> images) {
+        int imageCount = images == null ? 0 : images.size();
+        if (imageMeta == null || imageMeta.isEmpty()) {
+            log.info("图片压缩信息缺失 diaryId={} imageCount={}（可能是 legacy 图片或前端尚未上送 imageMeta）", diaryId, imageCount);
+            return;
+        }
+
+        long totalOrig = 0L;
+        long totalCompressed = 0L;
+        int normalCount = 0;
+        int textCount = 0;
+        int legacyCount = 0;
+
+        for (DiaryImageMeta item : imageMeta) {
+            if (item == null)
+                continue;
+            String channel = item.getChannel();
+            if ("normal".equals(channel)) {
+                normalCount++;
+            } else if ("text".equals(channel)) {
+                textCount++;
+            } else {
+                legacyCount++;
+            }
+            if (item.getOrigSize() != null && item.getOrigSize() > 0) {
+                totalOrig += item.getOrigSize();
+            }
+            if (item.getCompressedSize() != null && item.getCompressedSize() > 0) {
+                totalCompressed += item.getCompressedSize();
+            }
+        }
+
+        double savedRatio = totalOrig > 0
+                ? ((double) (totalOrig - totalCompressed) / (double) totalOrig) * 100.0
+                : 0.0;
+
+        log.info(
+                "图片压缩统计 diaryId={} imageCount={} metaCount={} channels(normal/text/legacy)={}/{}/{} orig={}KB compressed={}KB saved={}%%",
+                diaryId,
+                imageCount,
+                imageMeta.size(),
+                normalCount,
+                textCount,
+                legacyCount,
+                totalOrig / 1024,
+                totalCompressed / 1024,
+                String.format(java.util.Locale.ROOT, "%.1f", savedRatio));
+    }
+
+    private String normalizeChannel(String channel) {
+        if (channel == null)
+            return "legacy";
+        String normalized = channel.trim().toLowerCase();
+        return switch (normalized) {
+            case "text", "normal", "legacy" -> normalized;
+            default -> "legacy";
+        };
+    }
+
+    private Integer clampInt(Integer value, int min, int max) {
+        if (value == null)
+            return null;
+        if (value < min)
+            return min;
+        return Math.min(value, max);
+    }
+
+    private Long clampLong(Long value, long min, long max) {
+        if (value == null)
+            return null;
+        if (value < min)
+            return min;
+        return Math.min(value, max);
+    }
+
+    private Double clampDouble(Double value, double min, double max) {
+        if (value == null)
+            return null;
+        if (value < min)
+            return min;
+        return Math.min(value, max);
+    }
+
+    private String safeTrim(String value, int maxLen) {
+        if (value == null)
+            return null;
+        String trimmed = value.trim();
+        if (trimmed.isEmpty())
+            return null;
+        return trimmed.length() > maxLen ? trimmed.substring(0, maxLen) : trimmed;
+    }
+
+    private boolean areSameImageList(List<String> a, List<String> b) {
+        if (a == null || a.isEmpty()) {
+            return b == null || b.isEmpty();
+        }
+        if (b == null || b.isEmpty()) {
+            return false;
+        }
+        if (a.size() != b.size()) {
+            return false;
+        }
+        for (int i = 0; i < a.size(); i++) {
+            String left = a.get(i) == null ? "" : a.get(i).trim();
+            String right = b.get(i) == null ? "" : b.get(i).trim();
+            if (!left.equals(right)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String buildMemoryContext(long userId) {
         try {
             List<UserProfileMemoryEntity> memories = memoryExtractionService.listUserMemories(userId);
-            if (memories == null || memories.isEmpty()) return "";
+            if (memories == null || memories.isEmpty())
+                return "";
             StringBuilder sb = new StringBuilder();
             for (UserProfileMemoryEntity m : memories) {
                 sb.append(m.getAttributeKey()).append(": ").append(m.getAttributeValue()).append("; ");

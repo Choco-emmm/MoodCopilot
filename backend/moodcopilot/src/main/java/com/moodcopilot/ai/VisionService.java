@@ -1,6 +1,7 @@
 package com.moodcopilot.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moodcopilot.entity.DiaryImageMeta;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,8 +10,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import com.moodcopilot.oss.OssService;
 import org.springframework.context.annotation.Lazy;
 
@@ -24,6 +28,9 @@ import org.springframework.context.annotation.Lazy;
  */
 @Service
 public class VisionService {
+
+    private record VisionImageTask(int index, String imageUrl, String channel) {
+    }
 
     private static final Logger log = LoggerFactory.getLogger(VisionService.class);
 
@@ -63,19 +70,39 @@ public class VisionService {
      * 当 enableOcr=true 时，先尝试 OCR 提取文字，再将文字注入常规模型 prompt。
      */
     public String describeImages(List<String> imageUrls) {
-        if (imageUrls == null || imageUrls.isEmpty()) return "";
+        return describeImages(imageUrls, null);
+    }
+
+    public String describeImages(List<String> imageUrls, List<DiaryImageMeta> imageMeta) {
+        if (imageUrls == null || imageUrls.isEmpty())
+            return "";
         if (!isConfigured()) {
             log.warn("VLM 未配置（VISION_API_KEY 为空），跳过 {} 张图片的描述", imageUrls.size());
             return "";
         }
-        log.info("VLM 开始描述 {} 张图片 model={} ocrModel={} enableOcr={}", imageUrls.size(), model, ocrModel, enableOcr);
+        List<VisionImageTask> tasks = buildImageTasks(imageUrls, imageMeta);
+        long textCount = tasks.stream().filter(task -> "text".equals(task.channel())).count();
+        long nonTextCount = tasks.size() - textCount;
+        log.info("VLM 开始描述 {} 张图片 model={} ocrModel={} enableOcr={} textImages={} otherImages={}", imageUrls.size(),
+                model, ocrModel, enableOcr, textCount, nonTextCount);
+
         List<String> parts = new ArrayList<>();
-        for (int i = 0; i < imageUrls.size(); i++) {
-            String accessibleUrl = ossService != null ? ossService.getAccessibleUrl(imageUrls.get(i)) : imageUrls.get(i);
-            String desc = describeWithOcrRouting(accessibleUrl, i + 1);
-            if (!desc.isBlank()) {
-                parts.add("图片" + (i + 1) + ": " + desc);
-            }
+        try (ExecutorService executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            List<CompletableFuture<Map.Entry<Integer, String>>> futures = tasks.stream()
+                    .map(task -> CompletableFuture.supplyAsync(() -> {
+                        String accessibleUrl = ossService != null ? ossService.getAccessibleUrl(task.imageUrl())
+                                : task.imageUrl();
+                        String desc = describeWithOcrRouting(accessibleUrl, task.index(), task.channel());
+                        return Map.entry(task.index(), desc);
+                    }, executor))
+                    .toList();
+
+            futures.stream()
+                    .map(CompletableFuture::join)
+                    .sorted(Comparator.comparingInt(Map.Entry::getKey))
+                    .map(Map.Entry::getValue)
+                    .filter(desc -> desc != null && !desc.isBlank())
+                    .forEach(parts::add);
         }
         String result = parts.isEmpty() ? "" : String.join("; ", parts);
         if (!result.isBlank()) {
@@ -89,10 +116,11 @@ public class VisionService {
      * OCR 阶段专注提取文字，常规模型阶段只描述画面视觉。
      * 返回时 OCR 文字和视觉描述用标签分隔，方便下游分析模型区分处理。
      */
-    private String describeWithOcrRouting(String imageUrl, int index) {
+    private String describeWithOcrRouting(String imageUrl, int index, String channel) {
         // 尝试 OCR 提取文字
         String extractedText = "";
-        if (enableOcr) {
+        boolean shouldUseOcr = enableOcr && "text".equals(channel);
+        if (shouldUseOcr) {
             extractedText = analyzeWithOcr(imageUrl, index);
         }
 
@@ -103,13 +131,30 @@ public class VisionService {
 
         // OCR 文字和视觉描述用标签分隔
         if (!extractedText.isBlank() && !visualDesc.isBlank()) {
-            log.info("VLM OCR+视觉双通道完成 index={} ocrLen={} visualLen={}", index, extractedText.length(), visualDesc.length());
+            log.info("VLM OCR+视觉双通道完成 index={} ocrLen={} visualLen={}", index, extractedText.length(),
+                    visualDesc.length());
             return "[视觉] " + visualDesc + " [OCR文字] " + extractedText;
         } else if (!visualDesc.isBlank()) {
             return visualDesc;
         } else {
             return "";
         }
+    }
+
+    private List<VisionImageTask> buildImageTasks(List<String> imageUrls, List<DiaryImageMeta> imageMeta) {
+        List<VisionImageTask> tasks = new ArrayList<>();
+        for (int i = 0; i < imageUrls.size(); i++) {
+            String url = imageUrls.get(i);
+            String channel = "legacy";
+            if (imageMeta != null && i < imageMeta.size() && imageMeta.get(i) != null) {
+                String raw = imageMeta.get(i).getChannel();
+                if (raw != null && !raw.isBlank()) {
+                    channel = raw.trim().toLowerCase();
+                }
+            }
+            tasks.add(new VisionImageTask(i + 1, url, channel));
+        }
+        return tasks;
     }
 
     /**
@@ -120,18 +165,16 @@ public class VisionService {
         try {
             String finalUrl = fetchImageAsBase64Uri(imageUrl);
             String prompt = "请直接提取并输出这张图片中所有可见的文字内容（包括手写文字、印刷文字、屏幕文字）。" +
-                            "只输出原文，不要添加任何解释、评价或描述。如果图片中没有文字，请输出「无文字」。";
+                    "只输出原文，不要添加任何解释、评价或描述。如果图片中没有文字，请输出「无文字」。";
 
             Map<String, Object> userMsg = Map.of("role", "user", "content", List.of(
                     Map.of("type", "text", "text", prompt),
-                    Map.of("type", "image_url", "image_url", Map.of("url", finalUrl))
-            ));
+                    Map.of("type", "image_url", "image_url", Map.of("url", finalUrl))));
             Map<String, Object> body = Map.of(
                     "model", ocrModel,
                     "messages", List.of(userMsg),
                     "max_tokens", 200,
-                    "temperature", 0.01
-            );
+                    "temperature", 0.01);
 
             String response = restClient.post()
                     .uri(apiUrl)
@@ -141,17 +184,21 @@ public class VisionService {
                     .retrieve()
                     .body(String.class);
 
-            if (response == null || response.isBlank()) return "";
+            if (response == null || response.isBlank())
+                return "";
             @SuppressWarnings("unchecked")
             Map<String, Object> parsed = objectMapper.readValue(response, Map.class);
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> choices = (List<Map<String, Object>>) parsed.get("choices");
-            if (choices == null || choices.isEmpty()) return "";
+            if (choices == null || choices.isEmpty())
+                return "";
             @SuppressWarnings("unchecked")
             Map<String, Object> msg = (Map<String, Object>) choices.get(0).get("message");
-            if (msg == null) return "";
+            if (msg == null)
+                return "";
             String content = (String) msg.get("content");
-            if (content == null) return "";
+            if (content == null)
+                return "";
 
             content = content.trim();
             // OCR 模型返回"无文字"视为空
@@ -169,20 +216,19 @@ public class VisionService {
     /**
      * 通用 VLM 调用
      */
-    private String callVisionModel(String modelName, String imageUrl, String prompt, int maxTokens, double temperature, String logTag) {
+    private String callVisionModel(String modelName, String imageUrl, String prompt, int maxTokens, double temperature,
+            String logTag) {
         try {
             String finalUrl = fetchImageAsBase64Uri(imageUrl);
 
             Map<String, Object> userMsg = Map.of("role", "user", "content", List.of(
                     Map.of("type", "text", "text", prompt),
-                    Map.of("type", "image_url", "image_url", Map.of("url", finalUrl))
-            ));
+                    Map.of("type", "image_url", "image_url", Map.of("url", finalUrl))));
             Map<String, Object> body = Map.of(
                     "model", modelName,
                     "messages", List.of(userMsg),
                     "max_tokens", maxTokens,
-                    "temperature", temperature
-            );
+                    "temperature", temperature);
 
             String response = restClient.post()
                     .uri(apiUrl)
@@ -192,15 +238,18 @@ public class VisionService {
                     .retrieve()
                     .body(String.class);
 
-            if (response == null || response.isBlank()) return "";
+            if (response == null || response.isBlank())
+                return "";
             @SuppressWarnings("unchecked")
             Map<String, Object> parsed = objectMapper.readValue(response, Map.class);
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> choices = (List<Map<String, Object>>) parsed.get("choices");
-            if (choices == null || choices.isEmpty()) return "";
+            if (choices == null || choices.isEmpty())
+                return "";
             @SuppressWarnings("unchecked")
             Map<String, Object> msg = (Map<String, Object>) choices.get(0).get("message");
-            if (msg == null) return "";
+            if (msg == null)
+                return "";
             String content = (String) msg.get("content");
             return content != null ? content.trim() : "";
         } catch (Exception e) {
@@ -213,15 +262,18 @@ public class VisionService {
      * 针对性提问分析多张图片，返回合并的文本。单张失败静默跳过。
      */
     public String analyzeImageDetails(List<String> imageUrls, String targetedPrompt) {
-        if (imageUrls == null || imageUrls.isEmpty()) return "该日记没有附带图片";
+        if (imageUrls == null || imageUrls.isEmpty())
+            return "该日记没有附带图片";
         if (!isConfigured()) {
             log.warn("VLM 未配置（VISION_API_KEY 为空），跳过 {} 张图片的深度分析", imageUrls.size());
             return "系统后台视觉服务未配置，无法分析图片";
         }
-        log.info("VLM 开始深度分析 {} 张图片 model={} promptLength={}", imageUrls.size(), model, targetedPrompt != null ? targetedPrompt.length() : 0);
+        log.info("VLM 开始深度分析 {} 张图片 model={} promptLength={}", imageUrls.size(), model,
+                targetedPrompt != null ? targetedPrompt.length() : 0);
         List<String> parts = new ArrayList<>();
         for (int i = 0; i < imageUrls.size(); i++) {
-            String accessibleUrl = ossService != null ? ossService.getAccessibleUrl(imageUrls.get(i)) : imageUrls.get(i);
+            String accessibleUrl = ossService != null ? ossService.getAccessibleUrl(imageUrls.get(i))
+                    : imageUrls.get(i);
             String desc = callVisionModel(model, accessibleUrl, targetedPrompt, 300, 0.5, "深度分析");
             if (!desc.isBlank()) {
                 parts.add("图片" + (i + 1) + ": " + desc);
@@ -235,7 +287,8 @@ public class VisionService {
     }
 
     private String fetchImageAsBase64Uri(String imageUrl) {
-        if (imageUrl == null || imageUrl.startsWith("data:")) return imageUrl;
+        if (imageUrl == null || imageUrl.startsWith("data:"))
+            return imageUrl;
         try {
             byte[] bytes = restClient.get()
                     .uri(java.net.URI.create(imageUrl))

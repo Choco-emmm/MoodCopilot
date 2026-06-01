@@ -2,7 +2,10 @@ package com.moodcopilot.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.UserProfileMemoryEntity;
+import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.mapper.UserProfileMemoryMapper;
+import com.moodcopilot.mapper.UserMapper;
+import com.moodcopilot.notification.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -27,7 +30,7 @@ public class MemoryConsolidationService {
             由于这些记忆是长期增量提取的，里面可能包含许多语义重复、维度重叠的属性（例如“工作压力”、“近期焦虑”、“长期压力源：工作”等互相交织的条目），甚至包含了一些早已过时的短期情绪记录。
 
             你的任务是将它们合并、去重、提纯，输出一份高度精简、维度清晰且立体的【心理与行为画像】。
-            
+
             【整理规则】
             1. 合并同类项但保留细节：将描述同一维度或同一事物的多个条目合并为一个更全面、准确的条目。合并时**绝不能丢失关键细节**，尤其是具体的引发事件、特定人物或特定感受。
             2. 剔除噪声与瞬时状态：坚决删除那些明显是一次性事件、瞬时情绪或已经过时的状态（例如“今天中午吃了火锅”、“昨天因为下雨很烦”）。我们只保留【跨时间成立的长期特征】。
@@ -55,14 +58,18 @@ public class MemoryConsolidationService {
     private final ObjectMapper objectMapper;
     private final TransactionOperations transactionOperations;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
+    private final NotificationService notificationService;
+    private final UserMapper userMapper;
 
     public MemoryConsolidationService(@Qualifier("analysisChatClient") ChatClient chatClient,
-                                      UserProfileMemoryMapper memoryMapper,
-                                      MemoryExtractionService memoryExtractionService,
-                                      RagMemoryService ragMemoryService,
-                                      ObjectMapper objectMapper,
-                                      TransactionOperations transactionOperations,
-                                      org.springframework.data.redis.core.StringRedisTemplate redisTemplate) {
+            UserProfileMemoryMapper memoryMapper,
+            MemoryExtractionService memoryExtractionService,
+            RagMemoryService ragMemoryService,
+            ObjectMapper objectMapper,
+            TransactionOperations transactionOperations,
+            org.springframework.data.redis.core.StringRedisTemplate redisTemplate,
+            NotificationService notificationService,
+            UserMapper userMapper) {
         this.chatClient = chatClient;
         this.memoryMapper = memoryMapper;
         this.memoryExtractionService = memoryExtractionService;
@@ -70,6 +77,8 @@ public class MemoryConsolidationService {
         this.objectMapper = objectMapper;
         this.transactionOperations = transactionOperations;
         this.redisTemplate = redisTemplate;
+        this.notificationService = notificationService;
+        this.userMapper = userMapper;
     }
 
     public List<MemoryExtractionService.MemoryAttribute> previewConsolidation(Long userId) {
@@ -81,7 +90,8 @@ public class MemoryConsolidationService {
             redisTemplate.expire(redisKey, java.time.Duration.ofDays(1));
         }
         if (count != null && count > 2) {
-            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行2次个人画像整理");
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行2次个人画像整理");
         }
 
         List<UserProfileMemoryEntity> existing = memoryExtractionService.listUserMemories(userId);
@@ -104,7 +114,8 @@ public class MemoryConsolidationService {
             if (cleanedJson.isEmpty()) {
                 throw new RuntimeException("AI 未返回有效的 JSON");
             }
-            MemoryExtractionService.MemoryExtractionResponse response = objectMapper.readValue(cleanedJson, MemoryExtractionService.MemoryExtractionResponse.class);
+            MemoryExtractionService.MemoryExtractionResponse response = objectMapper.readValue(cleanedJson,
+                    MemoryExtractionService.MemoryExtractionResponse.class);
             List<MemoryExtractionService.MemoryAttribute> attributes = response.attributes();
 
             if (attributes == null || attributes.isEmpty()) {
@@ -138,9 +149,11 @@ public class MemoryConsolidationService {
                 UserProfileMemoryEntity entity = new UserProfileMemoryEntity();
                 entity.setUserId(userId);
                 String key = attr.attributeKey().trim();
-                if (key.length() > 64) key = key.substring(0, 64);
+                if (key.length() > 64)
+                    key = key.substring(0, 64);
                 String val = attr.attributeValue().trim();
-                if (val.length() > 500) val = val.substring(0, 500);
+                if (val.length() > 500)
+                    val = val.substring(0, 500);
 
                 entity.setAttributeKey(key);
                 entity.setAttributeValue(val);
@@ -153,6 +166,11 @@ public class MemoryConsolidationService {
 
         List<UserProfileMemoryEntity> latest = memoryExtractionService.listUserMemories(userId);
         ragMemoryService.indexUserProfile(userId, latest);
+        UserEntity user = userMapper.selectById(userId);
+        if (user != null && !Boolean.FALSE.equals(user.getProfileNotifyEnabled())) {
+            String summary = "### 长期画像已更新\n\n本次共保留 **" + latest.size() + "** 条稳定画像特征。\n\n点击查看画像详情。";
+            notificationService.notifyMemoryUpdated(userId, summary);
+        }
     }
 
     private String buildConsolidationPrompt(List<UserProfileMemoryEntity> existing) {

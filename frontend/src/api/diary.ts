@@ -1,8 +1,21 @@
 import { api } from './core'
 
+export interface DiaryImageMetaPayload {
+  url: string
+  channel: 'normal' | 'text' | 'legacy'
+  origWidth?: number
+  origHeight?: number
+  compressedWidth?: number
+  compressedHeight?: number
+  origSize?: number
+  compressedSize?: number
+  quality?: number
+  mime?: string
+}
+
 export const diaryApi = {
-  create: (data: { content: string; visibility: string; musicMeta?: any; images?: string[]; analyze?: boolean }) => api.post('/diaries', data),
-  update: (id: number, data: { content: string; visibility: string; isPinned?: boolean; musicMeta?: any; images?: string[]; analyze?: boolean }) => api.put(`/diaries/${id}`, data),
+  create: (data: { content: string; visibility: string; musicMeta?: any; images?: string[]; imageMeta?: DiaryImageMetaPayload[]; analyze?: boolean }) => api.post('/diaries', data),
+  update: (id: number, data: { content: string; visibility: string; isPinned?: boolean; musicMeta?: any; images?: string[]; imageMeta?: DiaryImageMetaPayload[]; analyze?: boolean }) => api.put(`/diaries/${id}`, data),
   mine: (page = 1, size = 20) => api.get('/diaries/mine', { params: { page, size } }),
   byUser: (userId: number, page = 1, size = 20) => api.get(`/diaries/user/${userId}`, { params: { page, size } }),
   public: (page = 1, size = 20) => api.get('/diaries/public', { params: { page, size } }),

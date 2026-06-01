@@ -67,7 +67,6 @@ public class NotificationService {
                         .set(NotificationEntity::getReadAt, LocalDateTime.now()));
     }
 
-
     public void notifyComment(UserEntity actor, Long diaryId, Long recipientUserId, Long commentId, String snippet) {
         try {
             NotificationEntity n = new NotificationEntity();
@@ -87,7 +86,8 @@ public class NotificationService {
         }
     }
 
-    public void notifyCommentReply(UserEntity actor, Long diaryId, Long recipientUserId, Long commentId, String snippet) {
+    public void notifyCommentReply(UserEntity actor, Long diaryId, Long recipientUserId, Long commentId,
+            String snippet) {
         try {
             NotificationEntity n = new NotificationEntity();
             n.setRecipientUserId(recipientUserId);
@@ -202,6 +202,57 @@ public class NotificationService {
             notificationWebSocketHandler.pushGlobalEvent(recipientUserId, type, data);
         } catch (Exception e) {
             log.warn("Failed to push global event notification", e);
+        }
+    }
+
+    public void notifyProfileUpdated(Long recipientUserId, String summaryMarkdown) {
+        try {
+            NotificationEntity n = new NotificationEntity();
+            n.setRecipientUserId(recipientUserId);
+            n.setActorUserId(null);
+            n.setType("PROFILE_UPDATED");
+            n.setMessage(summaryMarkdown);
+            n.setIsMarkdown(true);
+            n.setIsRead(false);
+            n.setCreatedAt(LocalDateTime.now());
+            notificationMapper.insert(n);
+            notificationWebSocketHandler.pushNotification(recipientUserId, n);
+        } catch (Exception e) {
+            log.warn("Failed to create profile update notification", e);
+        }
+    }
+
+    public void notifyMemoryUpdated(Long recipientUserId, String summaryMarkdown) {
+        try {
+            NotificationEntity n = new NotificationEntity();
+            n.setRecipientUserId(recipientUserId);
+            n.setActorUserId(null);
+            n.setType("MEMORY_UPDATED");
+            n.setMessage(summaryMarkdown);
+            n.setIsMarkdown(true);
+            n.setIsRead(false);
+            n.setCreatedAt(LocalDateTime.now());
+            notificationMapper.insert(n);
+            notificationWebSocketHandler.pushNotification(recipientUserId, n);
+        } catch (Exception e) {
+            log.warn("Failed to create memory update notification", e);
+        }
+    }
+
+    public void notifyGraphUpdated(Long recipientUserId, String summaryMarkdown) {
+        try {
+            NotificationEntity n = new NotificationEntity();
+            n.setRecipientUserId(recipientUserId);
+            n.setActorUserId(null);
+            n.setType("GRAPH_UPDATED");
+            n.setMessage(summaryMarkdown);
+            n.setIsMarkdown(true);
+            n.setIsRead(false);
+            n.setCreatedAt(LocalDateTime.now());
+            notificationMapper.insert(n);
+            notificationWebSocketHandler.pushNotification(recipientUserId, n);
+        } catch (Exception e) {
+            log.warn("Failed to create graph update notification", e);
         }
     }
 }

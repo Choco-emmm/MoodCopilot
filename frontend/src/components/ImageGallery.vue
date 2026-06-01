@@ -296,6 +296,23 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
     border-right: none;
   }
 
+  .image-lightbox {
+    padding: 14px;
+    align-items: center;
+  }
+
+  .image-lightbox img {
+    max-width: 92vw;
+    max-height: 88vh;
+    border-radius: 6px;
+  }
+
+  .image-lightbox-close {
+    top: 10px;
+    right: 12px;
+    font-size: 30px;
+  }
+
   .lightbox-arrow {
     width: 36px;
     height: 36px;

@@ -100,6 +100,18 @@ function handleNotifClick(item: Notification) {
   if (!item.isRead) {
     void notif.markRead(item.id).catch(() => {})
   }
+  if (item.type === 'PROFILE_UPDATED') {
+    router.push(`/profile/${item.recipientUserId}`)
+    return
+  }
+  if (item.type === 'MEMORY_UPDATED') {
+    router.push({ path: '/ai-memory', query: { tab: 'profile' } })
+    return
+  }
+  if (item.type === 'GRAPH_UPDATED') {
+    router.push({ path: '/ai-memory', query: { tab: 'graph' } })
+    return
+  }
   if (item.type === 'SYSTEM' && !item.diaryId) {
     router.push('/')
     return

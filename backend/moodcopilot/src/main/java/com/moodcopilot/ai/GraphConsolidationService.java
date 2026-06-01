@@ -3,8 +3,11 @@ package com.moodcopilot.ai;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.DiaryKnowledgeGraphEntity;
+import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.graph.GraphService;
+import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.mapper.DiaryKnowledgeGraphMapper;
+import com.moodcopilot.notification.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -26,13 +29,13 @@ public class GraphConsolidationService {
             由于是分多次提取的，其中可能包含重复的因果链、纯事件流水账、或者可以被概括的琐碎关联。
 
             你的任务是将这些关联进行合并、去重和提纯，剔除没有情绪深度的连结，输出一份高度精简、结构清晰的全新图谱。
-            
+
             【整理规则】
             1. 情绪导向：图谱的终极目的是分析“触发源”到“用户内心感受/情绪状态”的联系。如果原三元组只是纯客观事实或行为流水账（如“去操场->看到人”、“朋友->挂贴吧”），请直接删除，不予保留。
             2. 规范实体命名并合并同类项：将相似的触发源或情绪统一命名。例如将“晚上熬夜”、“熬夜工作”统一合并为“熬夜”；将“稍微有点心烦”、“暴躁”合并归类为更核心的情绪词如“烦躁”。
             3. 实体提纯：确保 head 节点是精炼的触发源（如某个人物、某个具体场景、某类事件），tail 节点是具体的情绪或心理状态（如“焦虑”、“内耗”、“释怀”）。坚决剔除毫无关联或纯粹记录他人情绪的节点。
             4. 压缩与精炼路径：如果存在“触发事件A -> 行为B”，以及“行为B -> 情绪C”，可将其合并为“触发事件A -> 情绪C”。避免图谱过度冗长。
-            
+
             【严格格式要求】
             只输出合法 JSON，**绝不要**输出 markdown 格式代码块（不要有 ```json 标签），**绝不要**有任何多余解释或开头语。
             JSON 格式必须是：
@@ -51,14 +54,18 @@ public class GraphConsolidationService {
     private final TransactionOperations transactionOperations;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
     private final RagMemoryService ragMemoryService;
+    private final NotificationService notificationService;
+    private final UserMapper userMapper;
 
     public GraphConsolidationService(@Qualifier("analysisChatClient") ChatClient chatClient,
-                                     DiaryKnowledgeGraphMapper graphMapper,
-                                     GraphService graphService,
-                                     ObjectMapper objectMapper,
-                                     TransactionOperations transactionOperations,
-                                     org.springframework.data.redis.core.StringRedisTemplate redisTemplate,
-                                     RagMemoryService ragMemoryService) {
+            DiaryKnowledgeGraphMapper graphMapper,
+            GraphService graphService,
+            ObjectMapper objectMapper,
+            TransactionOperations transactionOperations,
+            org.springframework.data.redis.core.StringRedisTemplate redisTemplate,
+            RagMemoryService ragMemoryService,
+            NotificationService notificationService,
+            UserMapper userMapper) {
         this.chatClient = chatClient;
         this.graphMapper = graphMapper;
         this.graphService = graphService;
@@ -66,13 +73,18 @@ public class GraphConsolidationService {
         this.transactionOperations = transactionOperations;
         this.redisTemplate = redisTemplate;
         this.ragMemoryService = ragMemoryService;
+        this.notificationService = notificationService;
+        this.userMapper = userMapper;
     }
 
-    public record ConsolidatedGraphResponse(@JsonProperty("triples") List<ConsolidatedTriple> triples) {}
+    public record ConsolidatedGraphResponse(@JsonProperty("triples") List<ConsolidatedTriple> triples) {
+    }
+
     public record ConsolidatedTriple(@JsonProperty("headEntity") String headEntity,
-                                     @JsonProperty("relation") String relation,
-                                     @JsonProperty("tailEntity") String tailEntity,
-                                     @JsonProperty("tailPolarity") Integer tailPolarity) {}
+            @JsonProperty("relation") String relation,
+            @JsonProperty("tailEntity") String tailEntity,
+            @JsonProperty("tailPolarity") Integer tailPolarity) {
+    }
 
     public List<ConsolidatedTriple> previewConsolidation(Long userId) {
         // Rate limit logic
@@ -83,7 +95,8 @@ public class GraphConsolidationService {
             redisTemplate.expire(redisKey, java.time.Duration.ofDays(1));
         }
         if (count != null && count > 2) {
-            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行2次关系图谱整理");
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行2次关系图谱整理");
         }
 
         List<DiaryKnowledgeGraphEntity> existing = graphService.getTriplesForUser(userId);
@@ -142,16 +155,24 @@ public class GraphConsolidationService {
             ragMemoryService.indexKnowledgeGraph(userId, entity.getDiaryId(), entity.getId(),
                     entity.getHeadEntity(), entity.getRelation(), entity.getTailEntity());
         }
+
+        UserEntity user = userMapper.selectById(userId);
+        if (user != null && !Boolean.FALSE.equals(user.getProfileNotifyEnabled())) {
+            String summary = "### 关系图谱已更新\n\n本次共整理 **" + latest.size() + "** 条关系链路。\n\n点击查看图谱详情。";
+            notificationService.notifyGraphUpdated(userId, summary);
+        }
     }
 
     private String buildPrompt(List<DiaryKnowledgeGraphEntity> existing) {
         return "现有图谱三元组：\n" + existing.stream()
-                .map(t -> t.getHeadEntity() + " --(" + t.getRelation() + ")--> " + t.getTailEntity() + " [极性:" + (t.getTailPolarity() == null ? 0 : t.getTailPolarity()) + "]")
+                .map(t -> t.getHeadEntity() + " --(" + t.getRelation() + ")--> " + t.getTailEntity() + " [极性:"
+                        + (t.getTailPolarity() == null ? 0 : t.getTailPolarity()) + "]")
                 .collect(Collectors.joining("\n"));
     }
 
     private String trimTo(String val, int maxLen) {
-        if (val == null) return "未知";
+        if (val == null)
+            return "未知";
         String trimmed = val.trim();
         if (trimmed.length() > maxLen) {
             return trimmed.substring(0, maxLen);
