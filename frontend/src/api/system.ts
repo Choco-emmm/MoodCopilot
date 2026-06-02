@@ -13,9 +13,17 @@ export const imageApi = {
     api.post('/images/upload-policy', null, { params: { ext } }),
   uploadDirect: async (file: File): Promise<string> => {
     const ext = file.name.includes('.') ? file.name.substring(file.name.lastIndexOf('.')) : '.jpg'
-    const policyRes = await imageApi.uploadPolicy(ext)
+
+    let policyRes
+    try {
+      policyRes = await imageApi.uploadPolicy(ext)
+    } catch (e: any) {
+      const detail = e?.response?.data?.message || e?.message || '未知错误'
+      throw new Error(`获取上传策略失败: ${detail}`)
+    }
+
     const policy = policyRes.data?.data
-    if (!policy) throw new Error('获取上传策略失败')
+    if (!policy) throw new Error('获取上传策略失败: 服务器返回数据异常')
 
     const fd = new FormData()
     fd.append('OSSAccessKeyId', policy.accessId)
@@ -25,8 +33,22 @@ export const imageApi = {
     fd.append('success_action_status', '200')
     fd.append('file', file)
 
-    const ossRes = await fetch(policy.host, { method: 'POST', body: fd })
-    if (!ossRes.ok) throw new Error('图片上传失败')
+    let ossRes
+    try {
+      ossRes = await fetch(policy.host, { method: 'POST', body: fd })
+    } catch (e: any) {
+      console.error('[OSS Upload] fetch 失败', e)
+      if (e?.message?.includes('Failed to fetch') || e?.name === 'TypeError') {
+        throw new Error('OSS 上传网络异常，请检查网络或稍后重试')
+      }
+      throw new Error(`OSS 上传失败: ${e?.message || '网络错误'}`)
+    }
+
+    if (!ossRes.ok) {
+      const body = await ossRes.text().catch(() => '')
+      console.error(`[OSS Upload] HTTP ${ossRes.status}: ${body}`)
+      throw new Error(`OSS 上传失败 (${ossRes.status})`)
+    }
     return policy.url
   },
 }

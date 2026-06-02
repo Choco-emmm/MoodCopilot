@@ -525,7 +525,13 @@ async function handleImageSelect(e: Event) {
       })
     }
   } catch (e: any) {
-    const msg = e?.response?.data?.message || '图片上传失败，请稍后重试'
+    console.error('[ImageUpload] 上传失败', e)
+    let msg = '图片上传失败，请稍后重试'
+    if (e?.response?.data?.message) {
+      msg = e.response.data.message
+    } else if (e?.message) {
+      msg = e.message
+    }
     window.$message?.error(msg)
   }
   finally {
@@ -855,8 +861,9 @@ async function handleSave() {
     }
 
     selectedCollections.value = []
-  } catch {
-    // error handled by store
+  } catch (e) {
+    console.error('[DiarySave] 保存失败', e)
+    // error message is displayed by store.errorMessage
   }
 }
 </script>

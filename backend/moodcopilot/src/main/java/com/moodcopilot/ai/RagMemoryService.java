@@ -125,7 +125,7 @@ public class RagMemoryService {
         if (text == null || text.isBlank()) {
             return null;
         }
-        
+
         int maxRetries = 3;
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
@@ -146,6 +146,7 @@ public class RagMemoryService {
                 Map<String, Object> parsed = objectMapper.readValue(response, Map.class);
                 List<Map<String, Object>> data = (List<Map<String, Object>>) parsed.get("data");
                 if (data == null || data.isEmpty()) {
+                    log.warn("Embedding 响应 data 为空，response 前 200 字符: {}", response.length() > 200 ? response.substring(0, 200) : response);
                     return null;
                 }
                 List<Number> raw = (List<Number>) data.get(0).get("embedding");
@@ -158,17 +159,41 @@ public class RagMemoryService {
                 }
                 log.info("Embedding 生成成功，dimension={}", embedding.length);
                 return embedding;
-            } catch (Exception e) {
+            } catch (org.springframework.web.client.HttpClientErrorException e) {
+                // 4xx: 客户端错误（认证失败、模型不存在等），重试无意义
+                log.error("Embedding API 客户端错误 ({} {})，不再重试: {}",
+                        e.getStatusCode().value(), e.getStatusText(), e.getResponseBodyAsString());
+                return null;
+            } catch (org.springframework.web.client.HttpServerErrorException e) {
+                // 5xx: 服务端错误，可能是临时故障，指数退避后重试
+                String body = e.getResponseBodyAsString();
                 if (attempt < maxRetries) {
-                    log.warn("Embedding 生成失败，准备重试 (尝试 {}/{}): {}", attempt, maxRetries, e.getMessage());
+                    long delayMs = (long) (Math.pow(2, attempt) * 1000 + Math.random() * 1000);
+                    log.warn("Embedding API 服务端错误 ({} {})，{}ms 后重试 (尝试 {}/{}): {}",
+                            e.getStatusCode().value(), e.getStatusText(), delayMs, attempt, maxRetries, body);
                     try {
-                        Thread.sleep(1000L * attempt); // 等待 1s, 2s...
+                        Thread.sleep(delayMs);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         break;
                     }
                 } else {
-                    log.error("Embedding 生成彻底失败 (已尝试 {} 次): {}", maxRetries, e.getMessage());
+                    log.error("Embedding API 服务端错误，已重试 {} 次仍失败 ({} {}): {}",
+                            maxRetries, e.getStatusCode().value(), e.getStatusText(), body);
+                }
+            } catch (Exception e) {
+                // 网络/IO 异常，可能是临时网络问题
+                if (attempt < maxRetries) {
+                    long delayMs = (long) (Math.pow(2, attempt) * 1000 + Math.random() * 1000);
+                    log.warn("Embedding 网络异常，{}ms 后重试 (尝试 {}/{}): {}", delayMs, attempt, maxRetries, e.getMessage());
+                    try {
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                } else {
+                    log.error("Embedding 网络异常，已重试 {} 次仍失败: {}", maxRetries, e.getMessage());
                 }
             }
         }
