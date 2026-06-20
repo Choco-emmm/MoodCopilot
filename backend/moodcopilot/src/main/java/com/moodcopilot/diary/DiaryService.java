@@ -186,7 +186,7 @@ public class DiaryService {
         diary.setAuthorUserId(user.getId());
         diary.setAuthorName(user.getDisplayName());
         diary.setContent(content);
-        if (ContentFilter.hasBannedWords(content)) {
+        if (visibility == DiaryVisibility.PUBLIC && ContentFilter.hasBannedWords(content)) {
             diary.setVisibility("BANNED");
         } else {
             diary.setVisibility(visibility.name());
@@ -240,7 +240,7 @@ public class DiaryService {
         String oldContent = diary.getContent() == null ? "" : diary.getContent();
         String oldVisibility = diary.getVisibility();
         List<String> oldImages = diary.getImages() == null ? List.of() : new ArrayList<>(diary.getImages());
-        boolean hasBannedWords = ContentFilter.hasBannedWords(normalizedContent);
+        boolean hasBannedWords = visibility == DiaryVisibility.PUBLIC && ContentFilter.hasBannedWords(normalizedContent);
         String finalVisibility = hasBannedWords ? "BANNED" : visibility.name();
         boolean contentChanged = !oldContent.equals(normalizedContent);
         boolean visibilityChanged = !finalVisibility.equals(oldVisibility);
