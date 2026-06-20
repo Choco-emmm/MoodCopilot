@@ -4250,33 +4250,33 @@ h3 {
   }
 }
 
-/* ── cyber-purple · 紫曜星河 (暗夜紫 + 星光紫主色 + 霓虹粉点缀) ── */
+/* ── cyber-purple · 紫曜星河 (静谧星河：深藏青 + 柔雾蓝字 + 宋体) ── */
 [data-theme="cyber-purple"] {
   color-scheme: dark;
-  --color-primary: #a385e0;
-  --color-primary-hover: #bc9cff;
-  --color-primary-light: #2c2040;
-  --color-accent: #e0608c;
-  --color-accent-light: #ff85b3;
-  --color-accent-bg: #361824;
-  --color-bg: #15121c;
-  --color-surface: #231f2d;
-  --color-surface-hover: #302a3d;
-  --color-surface-soft: #2a2436;
-  --color-on-primary: #15121c;
-  --color-text: #eae6f2;
-  --color-text-secondary: #a39cb3;
-  --color-text-muted: #756e85;
-  --color-text-light: #524b61;
-  --color-border: #3d364d;
-  --color-border-strong: #544b69;
-  --color-disabled: #3d364d;
-  --color-error: #ef4444;
-  --color-warning: #f59e0b;
-  --color-success: #10b981;
-  --color-info: #3b82f6;
-  --color-overlay: rgba(21, 18, 28, 0.75);
-  --color-backdrop: rgba(21, 18, 28, 0.4);
+  --color-primary: #8592bd;
+  --color-primary-hover: #9ca7d6;
+  --color-primary-light: #20273b;
+  --color-accent: #c4a1b0;
+  --color-accent-light: #d6b8c4;
+  --color-accent-bg: #2d2633;
+  --color-bg: #212638;
+  --color-surface: #2b334d;
+  --color-surface-hover: #353e5e;
+  --color-surface-soft: #303954;
+  --color-on-primary: #212638;
+  --color-text: #c8d2e8;
+  --color-text-secondary: #9aa7c7;
+  --color-text-muted: #717d9e;
+  --color-text-light: #525e7d;
+  --color-border: #444f6e;
+  --color-border-strong: #5c688c;
+  --color-disabled: #3d4661;
+  --color-error: #cc6c78;
+  --color-warning: #cf9c51;
+  --color-success: #679e81;
+  --color-info: #5d81b3;
+  --color-overlay: rgba(33, 38, 56, 0.75);
+  --color-backdrop: rgba(33, 38, 56, 0.4);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
@@ -4285,8 +4285,8 @@ h3 {
     --color-surface-hover: color-mix(in oklab, var(--color-primary) 10%, var(--color-surface));
     --color-surface-soft: color-mix(in oklab, var(--color-primary) 5%, var(--color-surface));
     --color-primary-light: color-mix(in oklab, var(--color-primary) 20%, var(--color-bg));
-    --color-border: color-mix(in oklab, var(--color-primary) 15%, #332d40);
-    --color-border-strong: color-mix(in oklab, var(--color-primary) 25%, #443c55);
+    --color-border: color-mix(in oklab, var(--color-primary) 15%, #3d4661);
+    --color-border-strong: color-mix(in oklab, var(--color-primary) 25%, #4f5b7a);
   }
 }
 

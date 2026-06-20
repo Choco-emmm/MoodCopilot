@@ -49,6 +49,6 @@ export const themeOptions: ThemeOption[] = [
   { value: 'abyss-blue',     label: '深渊海蓝', primary: '#4a8b9e', accent: '#c49a3e', bg: '#0f172a', surface: '#1e293b', dark: true },
   { value: 'midnight-pine',  label: '暮夜松林', primary: '#5b8a72', accent: '#c27c6b', bg: '#121a16', surface: '#1e2b24', dark: true },
   { value: 'mocha-night',    label: '浓醇摩卡', primary: '#d4a373', accent: '#b86054', bg: '#1a1614', surface: '#29231f', dark: true },
-  { value: 'cyber-purple',   label: '紫曜星河', primary: '#a385e0', accent: '#e0608c', bg: '#15121c', surface: '#231f2d', dark: true },
+  { value: 'cyber-purple',   label: '紫曜星河', primary: '#8592bd', accent: '#c4a1b0', bg: '#212638', surface: '#2b334d', dark: true },
   { value: 'firefly-forest', label: '萤火之森', primary: '#6bb38a', accent: '#dce87d', bg: '#0d1411', surface: '#16241d', dark: true },
 ];
