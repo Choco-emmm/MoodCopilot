@@ -8,7 +8,8 @@ const DEFAULT_ALLOWED_TAGS = [
     'p', 'br', 'strong', 'em', 'b', 'i', 'u',
     'ul', 'ol', 'li', 'blockquote', 'code', 'pre',
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a',
-    'details', 'summary', 'div', 'span'
+    'details', 'summary', 'div', 'span',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td'
 ]
 
 const DEFAULT_ALLOWED_ATTR = ['href', 'target', 'rel', 'class', 'open']
@@ -77,14 +78,13 @@ export function renderSafeMarkdown(
  * 在 marked 解析之前，将不被白名单支持的 Markdown 语法转义为纯文本，
  * 避免 DOMPurify 事后删除标签后残留乱码。
  *
- * 处理：表格（pipe table）、图片、原始 HTML 标签。
+ * 处理：图片、原始 HTML 标签。
  * 保留：粗体、斜体、列表、链接、引用、标题等简单 Markdown。
  */
 function preprocessComplexMarkdown(text: string): string {
     let result = text
 
-    // ── 1. 表格：将 pipe table 的分隔符转义，表格内容原样保留 ──
-    result = escapeTableSyntax(result)
+    // ── 1. 表格：已移除转义，由 marked 原生解析并被 DOMPurify 允许 ──
 
     // ── 2. 图片：![alt](url) → [图片: alt] ──
     result = result.replace(/!\[([^\]]*)\]\([^)]+\)/g, (_m, alt) => {
@@ -97,53 +97,6 @@ function preprocessComplexMarkdown(text: string): string {
     })
 
     return result
-}
-
-/**
- * 检测并转义 Markdown 表格语法。
- * 识别连续的 pipe-delimited 行（含分隔行 |---|），将 | 转义为 &#124;。
- */
-function escapeTableSyntax(text: string): string {
-    const lines = text.split('\n')
-    const tableRows: number[] = []
-
-    // 第一遍：标记哪些行属于表格
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim()
-        // 表格行：以 | 开头结尾，或包含 | 分隔符，且不是引用/代码
-        const isPipeRow = /^\|.+\|$/.test(line) || /^\|.+/.test(line)
-        // 分隔行：|----|----| 或 |:---|:---:|---|
-        const isSeparator = /^\|[\s:-]+\|/.test(line) && /-{3,}/.test(line)
-
-        if (isPipeRow || isSeparator) {
-            tableRows.push(i)
-        } else if (tableRows.length > 0) {
-            // 遇到非表格行，且之前没有形成完整表格（缺分隔行），清除标记
-            const hasSeparator = tableRows.some(idx => {
-                const l = lines[idx].trim()
-                return /^\|[\s:-]+\|/.test(l) && /-{3,}/.test(l)
-            })
-            if (!hasSeparator) {
-                tableRows.length = 0
-            }
-        }
-    }
-
-    // 最后检查：没有分隔行的不是表格
-    if (tableRows.length === 0) return text
-    const hasSeparator = tableRows.some(idx => {
-        const l = lines[idx].trim()
-        return /^\|[\s:-]+\|/.test(l) && /-{3,}/.test(l)
-    })
-    if (!hasSeparator) return text
-
-    // 第二遍：转义表格行中的 |
-    const result = [...lines]
-    for (const idx of tableRows) {
-        result[idx] = result[idx].replace(/\|/g, '&#124;')
-    }
-
-    return result.join('\n')
 }
 
 /**
@@ -169,4 +122,3 @@ export function formatLegacyContent(text: string): string {
     }
     return renderSafeMarkdown(text)
 }
-
