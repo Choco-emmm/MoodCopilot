@@ -4835,6 +4835,28 @@ h3 {
 .md-content h3 { font-size: 1.15em; }
 .md-content h4 { font-size: 1.05em; }
 
+/* 表格样式 */
+.md-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  overflow-x: auto;
+  display: block;
+}
+.md-content th,
+.md-content td {
+  border: 1px solid var(--color-border);
+  padding: 0.6em 1em;
+  text-align: left;
+}
+.md-content th {
+  background-color: color-mix(in oklab, var(--color-surface-dim) 50%, transparent);
+  font-weight: 600;
+}
+.md-content tr:nth-child(even) {
+  background-color: color-mix(in oklab, var(--color-surface-dim) 30%, transparent);
+}
+
 /* 行内代码与代码块 */
 .md-content code {
   background-color: color-mix(in oklab, var(--color-text) 8%, transparent);
