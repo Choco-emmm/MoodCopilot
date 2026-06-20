@@ -2126,8 +2126,12 @@ public class DiaryService {
             throw new ResponseStatusException(BAD_REQUEST, "请先写下今天的情绪");
         }
         String normalized = content.trim();
-        if (normalized.length() > 3000) {
+        String plainText = normalized.replaceAll("<[^>]*>", "");
+        if (plainText.length() > 3000) {
             throw new ResponseStatusException(BAD_REQUEST, "日记内容不能超过 3000 字");
+        }
+        if (normalized.length() > 20000) {
+            throw new ResponseStatusException(BAD_REQUEST, "日记格式过于复杂，总长度超限");
         }
         return normalized;
     }
