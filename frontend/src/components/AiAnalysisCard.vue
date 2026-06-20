@@ -6,8 +6,8 @@
         <span v-else class="avatar">{{ diary.authorName.charAt(0) }}</span>
         <span class="author-name">{{ diary.authorName }}</span>
         <span class="diary-time">{{ formatTime(diary.createdAt) }}</span>
-        <n-tag :type="diary.visibility === 'PUBLIC' ? 'success' : 'default'" round size="small">
-          {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
+        <n-tag :type="diary.visibility === 'BANNED' ? 'error' : (diary.visibility === 'PUBLIC' ? 'success' : 'default')" round size="small">
+          {{ diary.visibility === 'BANNED' ? '屏蔽中' : (diary.visibility === 'PUBLIC' ? '公开' : '私密') }}
         </n-tag>
       </div>
       <div class="diary-content md-content" v-html="renderMd(diary.content)"></div>

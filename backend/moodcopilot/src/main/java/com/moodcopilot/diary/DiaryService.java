@@ -185,8 +185,12 @@ public class DiaryService {
         UserEntity user = currentUser();
         diary.setAuthorUserId(user.getId());
         diary.setAuthorName(user.getDisplayName());
-        diary.setContent(ContentFilter.filter(content));
-        diary.setVisibility(visibility.name());
+        diary.setContent(content);
+        if (ContentFilter.hasBannedWords(content)) {
+            diary.setVisibility("BANNED");
+        } else {
+            diary.setVisibility(visibility.name());
+        }
         diary.setMusicMeta(request.musicMeta());
         diary.setImages(promoteImages(request.images()));
         diary.setImageMeta(normalizeImageMeta(request.imageMeta(), diary.getImages()));
@@ -236,14 +240,15 @@ public class DiaryService {
         String oldContent = diary.getContent() == null ? "" : diary.getContent();
         String oldVisibility = diary.getVisibility();
         List<String> oldImages = diary.getImages() == null ? List.of() : new ArrayList<>(diary.getImages());
-        String filteredContent = ContentFilter.filter(normalizedContent);
-        boolean contentChanged = !oldContent.equals(filteredContent);
-        boolean visibilityChanged = !visibility.name().equals(oldVisibility);
+        boolean hasBannedWords = ContentFilter.hasBannedWords(normalizedContent);
+        String finalVisibility = hasBannedWords ? "BANNED" : visibility.name();
+        boolean contentChanged = !oldContent.equals(normalizedContent);
+        boolean visibilityChanged = !finalVisibility.equals(oldVisibility);
 
         // DB 写入放在编程式事务内，确保原子性且不扩散到 LLM 调用
         transactionTemplate.executeWithoutResult(status -> {
-            diary.setContent(filteredContent);
-            diary.setVisibility(visibility.name());
+            diary.setContent(normalizedContent);
+            diary.setVisibility(finalVisibility);
             diary.setUpdatedAt(LocalDateTime.now());
             if (request.musicMeta() != null) {
                 diary.setMusicMeta(request.musicMeta());
@@ -271,7 +276,7 @@ public class DiaryService {
         if (contentChanged) {
             log.info("日记内容已更新，触发画像重建，diaryId={}，userId={}", diaryId, user.getId());
             ragMemoryService.indexDiary(user.getId(), diaryId,
-                    filteredContent, diary.getMusicMeta());
+                    normalizedContent, diary.getMusicMeta());
 
             if (!request.isAnalyze()) {
                 analysisStatus = "skipped_user";

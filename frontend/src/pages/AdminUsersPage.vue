@@ -294,10 +294,12 @@ async function loadUsers() {
   try {
     const res = await adminApi.users(searchKeyword.value, sortBy.value, pageNum.value, pageSize)
     const data = res.data.data
-    users.value = (data.items ?? []).map((u: any) => ({
-      ...u,
-      avatar: normalizeResourceUrl(u.avatar)
-    }))
+    users.value = (data.items ?? [])
+      .filter((u: any) => u.role !== 'ADMIN')
+      .map((u: any) => ({
+        ...u,
+        avatar: normalizeResourceUrl(u.avatar)
+      }))
     total.value = data.total ?? 0
   } catch (e: any) {
     message.error('加载用户失败')

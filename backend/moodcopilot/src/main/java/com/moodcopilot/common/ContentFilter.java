@@ -14,13 +14,20 @@ public class ContentFilter {
     private static final Pattern CLEAN = Pattern.compile("[\\s\\p{P}]+");
 
     public static String filter(String text) {
-        if (text == null || text.isBlank()) return text;
+        if (hasBannedWords(text)) {
+            return "[内容违规，已被过滤]";
+        }
+        return text;
+    }
+
+    public static boolean hasBannedWords(String text) {
+        if (text == null || text.isBlank()) return false;
         String cleaned = CLEAN.matcher(text).replaceAll("");
         for (String word : BLOCKED) {
             if (cleaned.contains(word)) {
-                return "[内容违规，已被过滤]";
+                return true;
             }
         }
-        return text;
+        return false;
     }
 }

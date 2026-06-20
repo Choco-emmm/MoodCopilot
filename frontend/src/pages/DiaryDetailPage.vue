@@ -10,8 +10,8 @@
             <span v-else class="avatar">{{ diary.authorName.charAt(0) }}</span>
             <n-button text class="author-name-link" @click="openAuthorProfile">{{ diary.authorName }}</n-button>
             <span class="diary-time">{{ formatTime(diary.createdAt) }}</span>
-            <n-tag :type="diary.visibility === 'PUBLIC' ? 'success' : 'default'" round size="small">
-              {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
+            <n-tag :type="diary.visibility === 'BANNED' ? 'error' : (diary.visibility === 'PUBLIC' ? 'success' : 'default')" round size="small">
+              {{ diary.visibility === 'BANNED' ? '屏蔽中' : (diary.visibility === 'PUBLIC' ? '公开' : '私密') }}
             </n-tag>
             <n-button v-if="isOwner" size="tiny" text @click="router.push('/write?edit=' + diary.id)">编辑</n-button>
             <n-button v-if="!isOwner" size="tiny" text @click="reportDiary">举报</n-button>

@@ -4,6 +4,8 @@ import { isUsableToken, clearAuthStorage } from '../utils/auth'
 
 export const api = axios.create({ baseURL: '/api' })
 
+let isRedirectingToLogin = false;
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (isUsableToken(token)) {
@@ -26,21 +28,19 @@ api.interceptors.response.use(
     if (status === 401 && !isQuotaRequest) {
       clearAuthStorage()
 
-      if (window.$message) {
-        window.$message.error('登录状态已失效，请重新登录')
-      }
-
       const path = window.location.pathname
       if (path !== '/login' && path !== '/register') {
-        import('../stores/auth').then(({ useAuthStore }) => {
-          useAuthStore().logout()
-        }).catch(() => {})
-
-        import('../router').then(({ default: router }) => {
-          router.push('/login')
-        }).catch(() => {
-          window.location.replace('/login')
-        })
+        if (!isRedirectingToLogin) {
+          isRedirectingToLogin = true
+          
+          if (window.$message) {
+            window.$message.error('登录状态已失效，请重新登录')
+          }
+          
+          setTimeout(() => {
+            window.location.href = '/login'
+          }, 1000)
+        }
       }
     }
     return Promise.reject(error)

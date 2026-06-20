@@ -1402,6 +1402,11 @@ async function handleSave() {
   line-height: 1.55 !important;
 }
 
+.composer-editor :deep(.w-e-text-container [data-slate-editor] *) {
+  color: inherit !important;
+  background-color: transparent !important;
+}
+
 .composer-editor :deep(.w-e-text-container [data-slate-editor] p) {
   margin: 0.1em 0 !important;
 }

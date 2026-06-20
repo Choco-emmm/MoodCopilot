@@ -37,9 +37,9 @@
         <span v-if="diary.authorLevel" class="feed-badge feed-badge-level">Lv.{{ diary.authorLevel }}</span>
         <span
           v-if="showVisibilityBadge && diary.visibility"
-          :class="['feed-badge', diary.visibility === 'PUBLIC' ? 'feed-badge-public' : 'feed-badge-private']"
+          :class="['feed-badge', diary.visibility === 'BANNED' ? 'feed-badge-banned' : (diary.visibility === 'PUBLIC' ? 'feed-badge-public' : 'feed-badge-private')]"
         >
-          {{ diary.visibility === 'PUBLIC' ? '公开' : '私密' }}
+          {{ diary.visibility === 'BANNED' ? '屏蔽中' : (diary.visibility === 'PUBLIC' ? '公开' : '私密') }}
         </span>
         <button
           v-if="diary.authorUserId !== auth.userId && !hideFollowBtn"
@@ -450,7 +450,8 @@ function getAvatarStyle(name: string) {
 .feed-badge-admin { color: var(--color-error); background: color-mix(in oklab, var(--color-error) 12%, transparent); }
 .feed-badge-level { color: var(--color-primary); background: color-mix(in oklab, var(--color-primary) 12%, transparent); }
 .feed-badge-public { color: var(--color-success); background: color-mix(in oklab, var(--color-success) 12%, transparent); }
-.feed-badge-private { color: var(--color-text-muted); background: color-mix(in oklab, var(--color-text-muted) 12%, transparent); }
+.feed-badge-private { color: var(--color-text-secondary); background: var(--color-surface-hover); }
+.feed-badge-banned { color: var(--color-error); background: color-mix(in oklab, var(--color-error) 15%, transparent); }
 
 /* 关注按钮 */
 .feed-follow {
