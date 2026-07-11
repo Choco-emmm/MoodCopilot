@@ -144,6 +144,11 @@ export const useAuthStore = defineStore('auth', () => {
     await authApi.changePassword({ oldPassword, newPassword, confirmNewPassword, verificationCode })
   }
 
+  async function resetPassword(email: string, verificationCode: string, newPassword: string, confirmNewPassword: string) {
+    const res = await authApi.resetPassword({ email, verificationCode, newPassword, confirmNewPassword })
+    applyAuthData(res.data.data)
+  }
+
   function logout() {
     token.value = null
     userId.value = null
@@ -170,6 +175,6 @@ export const useAuthStore = defineStore('auth', () => {
     signature,
     theme, lightTheme, darkTheme, themeMode,
     dailyNotifyEnabled, profileNotifyEnabled, role, exp, level, proExpireTime, nameChangeCount, nameChangeWeek, maxWeeklyNameChanges, remainingNameChanges, isPro, isAuthenticated, isAdmin,
-    fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout, sendCode, sendPasswordChangeCode, changePassword
+    fetchProfile, updateProfile, uploadAvatar, updateSettings, login, register, logout, sendCode, sendPasswordChangeCode, changePassword, resetPassword
   }
 })

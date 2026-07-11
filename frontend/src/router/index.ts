@@ -28,6 +28,11 @@ const router = createRouter({
       component: () => import('../pages/RegisterPage.vue'),
     },
     {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: () => import('../pages/ResetPasswordPage.vue'),
+    },
+    {
       path: '/chat',
       name: 'chat',
       component: () => import('../pages/ChatPage.vue'),

@@ -132,7 +132,11 @@ public class AuthService {
             log.info("邮件发送成功");
         } catch (Exception e) {
             log.error("邮件发送失败: email={}", normalizedEmail, e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "邮件发送失败");
+            String errorMsg = e.getMessage() != null ? e.getMessage() : "";
+            if (errorMsg.contains("550") || errorMsg.contains("non-existent") || errorMsg.contains("User not found")) {
+                throw new ResponseStatusException(BAD_REQUEST, "收件人邮箱不存在，请检查邮箱地址");
+            }
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "邮件发送失败，请稍后重试");
         }
 
         stringRedisTemplate.opsForValue().set(codeKey, code, Duration.ofMinutes(5));
@@ -209,6 +213,82 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
+    }
+
+    public void sendResetPasswordCode(String email) {
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "邮箱不能为空");
+        }
+        String normalizedEmail = email.trim().toLowerCase();
+
+        if (!userMapper.exists(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, normalizedEmail))) {
+            throw new ResponseStatusException(BAD_REQUEST, "该邮箱未注册");
+        }
+
+        String codeKey = "email:reset:code:" + normalizedEmail;
+        String limitKey = "email:reset:limit:" + normalizedEmail;
+
+        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(limitKey))) {
+            throw new ResponseStatusException(BAD_REQUEST, "发送验证码太频繁，请 60 秒后再试");
+        }
+
+        String code = String.format("%06d", secureRandom.nextInt(1_000_000));
+        try {
+            sendCodeEmail(normalizedEmail, code, "MoodCopilot 找回密码验证码", "你正在尝试重置账户密码，验证码如下：");
+            log.info("找回密码验证码邮件发送成功: email={}", normalizedEmail);
+        } catch (Exception e) {
+            log.error("找回密码验证码邮件发送失败: email={}", normalizedEmail, e);
+            String errorMsg = e.getMessage() != null ? e.getMessage() : "";
+            if (errorMsg.contains("550") || errorMsg.contains("non-existent") || errorMsg.contains("User not found")) {
+                throw new ResponseStatusException(BAD_REQUEST, "收件人邮箱不存在，请检查邮箱地址");
+            }
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "邮件发送失败，请稍后重试");
+        }
+
+        stringRedisTemplate.opsForValue().set(codeKey, code, Duration.ofMinutes(5));
+        stringRedisTemplate.opsForValue().set(limitKey, "1", Duration.ofSeconds(60));
+    }
+
+    public AuthResponse resetPassword(ResetPasswordRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "请求参数不能为空");
+        }
+        if (request.email() == null || request.email().isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "邮箱不能为空");
+        }
+        if (request.newPassword() == null || request.newPassword().length() < 6) {
+            throw new ResponseStatusException(BAD_REQUEST, "新密码至少6位");
+        }
+        if (request.confirmNewPassword() == null || request.confirmNewPassword().isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "请再次输入新密码");
+        }
+        if (!request.newPassword().equals(request.confirmNewPassword())) {
+            throw new ResponseStatusException(BAD_REQUEST, "两次输入的新密码不一致");
+        }
+        if (request.verificationCode() == null || request.verificationCode().isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "验证码不能为空");
+        }
+
+        String normalizedEmail = request.email().trim().toLowerCase();
+        
+        UserEntity user = userMapper.selectOne(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, normalizedEmail));
+        if (user == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "该邮箱未注册");
+        }
+
+        String codeKey = "email:reset:code:" + normalizedEmail;
+        String storedCode = stringRedisTemplate.opsForValue().get(codeKey);
+        if (storedCode == null || !storedCode.equals(request.verificationCode().trim())) {
+            throw new ResponseStatusException(BAD_REQUEST, "验证码无效或已过期");
+        }
+
+        stringRedisTemplate.delete(codeKey);
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(user);
+        
+        String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail());
+        return response(token, user);
     }
 
     private void sendCodeEmail(String normalizedEmail, String code, String subject, String introLine) throws Exception {

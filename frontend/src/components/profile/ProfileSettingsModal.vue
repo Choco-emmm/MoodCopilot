@@ -185,11 +185,19 @@
           <div v-if="showPasswordChange" class="password-panel">
             <p class="settings-desc">修改密码前会向当前账号邮箱发送验证码，验证通过后才会生效。</p>
             <n-input
+              v-if="!forgotOldPasswordMode"
               v-model:value="oldPassword"
               type="password"
               placeholder="输入当前密码"
               show-password-on="click"
             />
+            <div v-if="!forgotOldPasswordMode" style="text-align: right; margin-top: -6px; margin-bottom: 6px;">
+              <a href="javascript:void(0)" @click="forgotOldPasswordMode = true" style="color: var(--color-primary); font-size: 13px; text-decoration: none;">忘记原密码？</a>
+            </div>
+            <div v-if="forgotOldPasswordMode" style="text-align: right; margin-bottom: 6px;">
+              <span style="font-size: 13px; color: var(--color-text-secondary); margin-right: 8px;">将通过注册邮箱验证找回密码</span>
+              <a href="javascript:void(0)" @click="forgotOldPasswordMode = false" style="color: var(--color-primary); font-size: 13px; text-decoration: none;">想起原密码了</a>
+            </div>
             <n-input
               v-model:value="newPassword"
               type="password"
@@ -221,7 +229,7 @@
               type="primary"
               block
               :loading="changingPassword"
-              :disabled="!oldPassword || newPassword.length < 6 || newPassword !== confirmNewPassword || !passwordVerificationCode"
+              :disabled="(!forgotOldPasswordMode && !oldPassword) || newPassword.length < 6 || newPassword !== confirmNewPassword || !passwordVerificationCode"
               @click="submitPasswordChange"
             >
               确认修改密码
@@ -369,6 +377,7 @@ const oldPassword = ref('')
 const newPassword = ref('')
 const confirmNewPassword = ref('')
 const passwordVerificationCode = ref('')
+const forgotOldPasswordMode = ref(false)
 const sendingPasswordCode = ref(false)
 const changingPassword = ref(false)
 const passwordCodeCountdown = ref(0)
@@ -739,7 +748,12 @@ async function sendPasswordCode() {
   passwordMsg.value = ''
   sendingPasswordCode.value = true
   try {
-    await auth.sendPasswordChangeCode()
+    if (forgotOldPasswordMode.value) {
+      if (!auth.email) throw new Error('未获取到当前账号邮箱，请重试')
+      await authApi.sendResetPasswordCode(auth.email)
+    } else {
+      await auth.sendPasswordChangeCode()
+    }
     passwordCodeCountdown.value = 60
     if (passwordCodeTimer != null) {
       window.clearInterval(passwordCodeTimer)
@@ -760,7 +774,7 @@ async function sendPasswordCode() {
 }
 
 async function submitPasswordChange() {
-  if (!oldPassword.value.trim()) {
+  if (!forgotOldPasswordMode.value && !oldPassword.value.trim()) {
     passwordMsg.value = '请输入当前密码'
     return
   }
@@ -784,17 +798,30 @@ async function submitPasswordChange() {
   changingPassword.value = true
   passwordMsg.value = ''
   try {
-    await auth.changePassword(
-      oldPassword.value.trim(),
-      newPassword.value.trim(),
-      confirmNewPassword.value.trim(),
-      passwordVerificationCode.value.trim(),
-    )
+    if (forgotOldPasswordMode.value) {
+      if (!auth.email) throw new Error('未获取到当前账号邮箱，请重试')
+      await auth.resetPassword(
+        auth.email,
+        passwordVerificationCode.value.trim(),
+        newPassword.value.trim(),
+        confirmNewPassword.value.trim()
+      )
+    } else {
+      await auth.changePassword(
+        oldPassword.value.trim(),
+        newPassword.value.trim(),
+        confirmNewPassword.value.trim(),
+        passwordVerificationCode.value.trim(),
+      )
+    }
+    
     emit('update:show', false)
     oldPassword.value = ''
     newPassword.value = ''
     confirmNewPassword.value = ''
     passwordVerificationCode.value = ''
+    forgotOldPasswordMode.value = false
+    
     auth.logout()
     await router.push('/login')
   } catch (e: any) {

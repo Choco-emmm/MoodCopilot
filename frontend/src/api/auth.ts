@@ -8,6 +8,9 @@ export const authApi = {
   register: (data: { displayName: string; email: string; password: string; verificationCode: string; captchaToken?: string }) =>
     api.post('/auth/register', data),
   login: (data: { email: string; password: string; captchaToken?: string }) => api.post('/auth/login', data),
+  sendResetPasswordCode: (email: string) => api.post('/auth/reset-password/send-code', { email }),
+  resetPassword: (data: { email: string; verificationCode: string; newPassword: string; confirmNewPassword: string }) =>
+    api.post('/auth/reset-password', data),
   changePassword: (data: { oldPassword: string; newPassword: string; confirmNewPassword: string; verificationCode: string }) =>
     api.post('/auth/change-password', data),
   me: () => api.get('/auth/me'),

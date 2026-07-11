@@ -73,8 +73,9 @@ spring:
         model: ${RAG_EMBEDDING_MODEL:BAAI/bge-m3}
         dimension: 1024
   mail:
+    protocol: ${MAIL_PROTOCOL:smtp}
     host: ${MAIL_HOST:smtp.qq.com}
-    port: ${MAIL_PORT:465}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:your-email@qq.com}
     password: ${MAIL_PASSWORD:your-smtp-auth-code}
     default-encoding: UTF-8
@@ -83,10 +84,13 @@ spring:
         smtp:
           auth: true
           starttls:
-            enable: false
-          socketFactory:
-            class: javax.net.ssl.SSLSocketFactory
-            port: 465
+            enable: true
+            required: true
+          ssl:
+            trust: "*"
+          timeout: 15000
+          connectiontimeout: 15000
+          writetimeout: 15000
   jackson:
     time-zone: Asia/Shanghai
 jwt:

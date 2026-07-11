@@ -37,6 +37,10 @@
               阅读并同意隐私声明，知晓 AI 仅供参考。
             </n-checkbox>
           </n-form-item>
+
+          <div style="text-align: right; margin-bottom: 12px; margin-top: -12px;">
+            <router-link to="/reset-password" class="auth-link" style="font-size: 13px;">忘记密码？</router-link>
+          </div>
           
           <n-button type="primary" block :loading="loading" @click="handleLoginClick" class="auth-btn">登录</n-button>
         </n-form>

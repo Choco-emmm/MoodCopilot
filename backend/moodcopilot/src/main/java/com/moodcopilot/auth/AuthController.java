@@ -52,6 +52,21 @@ public class AuthController {
         return ApiResponse.ok(null);
     }
 
+    @PostMapping("/reset-password/send-code")
+    public ApiResponse<Void> sendResetPasswordCode(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "邮箱不能为空");
+        }
+        authService.sendResetPasswordCode(email);
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/reset-password")
+    public ApiResponse<AuthResponse> resetPassword(@RequestBody ResetPasswordRequest request) {
+        return ApiResponse.ok(authService.resetPassword(request));
+    }
+
     @PostMapping("/register")
     public ApiResponse<AuthResponse> register(@RequestBody RegisterRequest request) {
         return ApiResponse.ok(authService.register(request));
