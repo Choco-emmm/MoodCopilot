@@ -53,11 +53,10 @@ public class GraphService {
     }
 
     public List<DiaryKnowledgeGraphEntity> getTriplesForUser(Long userId) {
-        List<DiaryKnowledgeGraphEntity> consolidated = getConsolidatedTriplesForUser(userId);
-        if (!consolidated.isEmpty()) {
-            return consolidated;
-        }
-        return getRawTriplesForUser(userId);
+        List<DiaryKnowledgeGraphEntity> all = new ArrayList<>();
+        all.addAll(getConsolidatedTriplesForUser(userId));
+        all.addAll(getRawTriplesForUser(userId));
+        return all;
     }
 
     public List<DiaryKnowledgeGraphEntity> getRawTriplesForUser(Long userId) {

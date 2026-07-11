@@ -38,10 +38,12 @@
             </n-checkbox>
           </n-form-item>
           
-          <div id="captcha-box"></div>
-          
           <n-button type="primary" block :loading="loading" @click="handleLoginClick" class="auth-btn">登录</n-button>
         </n-form>
+
+        <n-modal v-model:show="showCaptchaModal" :mask-closable="false">
+          <div id="captcha-box"></div>
+        </n-modal>
 
         <div class="auth-footer">
           还没有账号？
@@ -53,9 +55,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { NForm, NFormItem, NInput, NButton, NCheckbox, NAlert, type FormInst } from 'naive-ui'
+import { NForm, NFormItem, NInput, NButton, NCheckbox, NAlert, NModal, type FormInst } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
 
 declare global {
@@ -69,6 +71,7 @@ const auth = useAuthStore()
 const loading = ref(false)
 const errorMsg = ref<string | null>(null)
 const formRef = ref<FormInst | null>(null)
+const showCaptchaModal = ref(false)
 
 const form = reactive({ email: '', password: '', agreed: false })
 const rules = {
@@ -90,12 +93,15 @@ async function handleLoginClick() {
   errorMsg.value = null
 
   if ((window as any).TAC) {
+    showCaptchaModal.value = true;
+    await nextTick();
     const config = {
       requestCaptchaDataUrl: "/api/auth/captcha/gen",
       validCaptchaUrl: "/api/auth/captcha/check",
       bindEl: "#captcha-box",
       validSuccess: (res: any, c: any, tac: any) => {
         tac.destroyWindow();
+        showCaptchaModal.value = false;
         let token = res.data;
         if (typeof res.data === 'object' && res.data.token) {
           token = res.data.token;
@@ -107,12 +113,14 @@ async function handleLoginClick() {
       },
       btnCloseFun: (el: any, tac: any) => {
         tac.destroyWindow();
+        showCaptchaModal.value = false;
       }
     };
     try {
       new (window as any).TAC(config).init();
     } catch (e) {
       console.error("初始化验证码失败", e);
+      showCaptchaModal.value = false;
       doLogin('');
     }
   } else {
@@ -135,23 +143,15 @@ async function doLogin(captchaToken: string) {
 
 <style scoped>
 #captcha-box {
-  width: 100%;
   display: flex;
   justify-content: center;
+  align-items: center;
 }
-@media (max-width: 380px) {
-  #captcha-box {
-    transform: scale(0.9);
-    transform-origin: center top;
-    margin-bottom: -30px;
-  }
-}
-@media (max-width: 330px) {
-  #captcha-box {
-    transform: scale(0.8);
-    transform-origin: center top;
-    margin-bottom: -60px;
-  }
+:deep(#tianai-captcha-parent) {
+  max-width: 100% !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
 }
 .privacy-disclaimer {
   display: flex;
