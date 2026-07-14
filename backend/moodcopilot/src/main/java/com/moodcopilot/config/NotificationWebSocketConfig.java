@@ -23,6 +23,6 @@ public class NotificationWebSocketConfig implements WebSocketConfigurer {
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(notificationWebSocketHandler, "/ws/notifications")
-                .setAllowedOriginPatterns(allowedOrigins.split(","));
+                .setAllowedOriginPatterns("*");
     }
 }

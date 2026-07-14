@@ -77,6 +77,7 @@ public class SecurityConfig {
                                 "/api/health",
                                 "/api/auth/register",
                                 "/api/auth/login",
+                                "/api/auth/wx-login",
                                 "/api/auth/send-code",
                                 "/api/auth/captcha/**",
                                 "/api/uploads/**",

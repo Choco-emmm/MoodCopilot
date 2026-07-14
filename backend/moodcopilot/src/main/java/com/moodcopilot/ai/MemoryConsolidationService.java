@@ -84,14 +84,14 @@ public class MemoryConsolidationService {
     public List<MemoryExtractionService.MemoryAttribute> previewConsolidation(Long userId) {
         // Rate limit logic
         String today = java.time.LocalDate.now().toString();
-        String redisKey = "memory:consolidate:count:" + userId + ":" + today;
+        String redisKey = "memory:consolidate:counter:" + userId + ":" + today;
         Long count = redisTemplate.opsForValue().increment(redisKey);
         if (count != null && count == 1) {
             redisTemplate.expire(redisKey, java.time.Duration.ofDays(1));
         }
-        if (count != null && count > 2) {
+        if (count != null && count > 20) {
             throw new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行2次个人画像整理");
+                    org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行20次个人画像整理");
         }
 
         List<UserProfileMemoryEntity> existing = memoryExtractionService.listUserMemories(userId);

@@ -18,4 +18,7 @@ public interface UserMapper extends BaseMapper<UserEntity> {
 
     @org.apache.ibatis.annotations.Update("UPDATE users SET last_active_time = #{lastActiveTime} WHERE id = #{id}")
     int updateLastActiveTime(@org.apache.ibatis.annotations.Param("id") Long id, @org.apache.ibatis.annotations.Param("lastActiveTime") java.time.LocalDateTime lastActiveTime);
+
+    @Select("SELECT * FROM users WHERE wx_open_id = #{wxOpenId} LIMIT 1")
+    UserEntity findByWxOpenId(@org.apache.ibatis.annotations.Param("wxOpenId") String wxOpenId);
 }

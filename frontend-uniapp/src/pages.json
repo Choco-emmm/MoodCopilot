@@ -1,0 +1,147 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "我的日记本",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/analysis/analysis",
+			"style": {
+				"navigationBarTitleText": "洞察",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black",
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/chat/chat",
+			"style": {
+				"navigationBarTitleText": "陪伴",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/write/write",
+			"style": {
+				"navigationBarTitleText": "写日记",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/profile/profile",
+			"style": {
+				"navigationBarTitleText": "我的",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/detail/detail",
+			"style": {
+				"navigationBarTitleText": "日记详情",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/notifications/notifications",
+			"style": {
+				"navigationBarTitleText": "消息中心",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/collections/collections",
+			"style": {
+				"navigationBarTitleText": "我的合集",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/growth/growth",
+			"style": {
+				"navigationBarTitleText": "成长中心",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/feedback/feedback",
+			"style": {
+				"navigationBarTitleText": "意见反馈",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/search/search",
+			"style": {
+				"navigationBarTitleText": "搜索日记",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/settings/settings",
+			"style": {
+				"navigationBarTitleText": "个人设置",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/summaries/summaries",
+			"style": {
+				"navigationBarTitleText": "情绪报告",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "MoodCopilot",
+		"navigationBarBackgroundColor": "#F6F2EA",
+		"backgroundColor": "#F6F2EA"
+	},
+	"tabBar": {
+		"custom": true,
+		"color": "#999999",
+		"selectedColor": "#4a7c62",
+		"backgroundColor": "#F6F2EA",
+		"borderStyle": "black",
+		"list": [
+			{
+				"pagePath": "pages/index/index",
+				"text": "日记",
+				"iconPath": "static/tabs/diary.png",
+				"selectedIconPath": "static/tabs/diary-active.png"
+			},
+			{
+				"pagePath": "pages/analysis/analysis",
+				"text": "洞察",
+				"iconPath": "static/tabs/analysis.png",
+				"selectedIconPath": "static/tabs/analysis-active.png"
+			},
+			{
+				"pagePath": "pages/chat/chat",
+				"text": "陪伴",
+				"iconPath": "static/tabs/chat.png",
+				"selectedIconPath": "static/tabs/chat-active.png"
+			},
+			{
+				"pagePath": "pages/profile/profile",
+				"text": "我的",
+				"iconPath": "static/tabs/profile.png",
+				"selectedIconPath": "static/tabs/profile-active.png"
+			}
+		]
+	}
+}

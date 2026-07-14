@@ -12,8 +12,11 @@ public class UserEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String displayName;
+    private String nickname;
     private String email;
     private String passwordHash;
+    private String wxOpenId;
+    private String wxUnionId;
     private Integer status;
     private String role;
     private Boolean isVip;
@@ -53,6 +56,14 @@ public class UserEntity {
         this.displayName = displayName;
     }
 
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
     public String getEmail() {
         return email;
     }
@@ -67,6 +78,22 @@ public class UserEntity {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public String getWxOpenId() {
+        return wxOpenId;
+    }
+
+    public void setWxOpenId(String wxOpenId) {
+        this.wxOpenId = wxOpenId;
+    }
+
+    public String getWxUnionId() {
+        return wxUnionId;
+    }
+
+    public void setWxUnionId(String wxUnionId) {
+        this.wxUnionId = wxUnionId;
     }
 
     public Integer getStatus() {

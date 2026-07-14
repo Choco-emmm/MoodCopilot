@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import com.moodcopilot.auth.dto.WechatLoginRequest;
 
 import java.util.Map;
 
@@ -62,6 +63,24 @@ public class AuthController {
         return ApiResponse.ok(null);
     }
 
+    @PostMapping("/bind-email/send-code")
+    public ApiResponse<Void> sendBindEmailCode(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "邮箱不能为空");
+        }
+        authService.sendBindEmailCode(email);
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/bind-email")
+    public ApiResponse<String> bindEmail(@AuthenticationPrincipal UserEntity user, @RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        String code = body.get("code");
+        String newToken = authService.bindEmail(requireUser(user).getId(), email, code);
+        return ApiResponse.ok(newToken);
+    }
+
     @PostMapping("/reset-password")
     public ApiResponse<AuthResponse> resetPassword(@RequestBody ResetPasswordRequest request) {
         return ApiResponse.ok(authService.resetPassword(request));
@@ -75,6 +94,11 @@ public class AuthController {
     @PostMapping("/login")
     public ApiResponse<AuthResponse> login(@RequestBody LoginRequest request) {
         return ApiResponse.ok(authService.login(request));
+    }
+
+    @PostMapping("/wx-login")
+    public ApiResponse<AuthResponse> wxLogin(@RequestBody WechatLoginRequest request) {
+        return ApiResponse.ok(authService.wxLogin(request.code()));
     }
 
     @GetMapping("/check-username")
@@ -103,9 +127,10 @@ public class AuthController {
     public ApiResponse<AuthResponse> updateProfile(@AuthenticationPrincipal UserEntity user,
             @RequestBody Map<String, String> body) {
         String displayName = body.get("displayName");
+        String nickname = body.get("nickname");
         String avatar = body.get("avatar");
         String signature = body.get("signature");
-        return ApiResponse.ok(authService.updateProfile(requireUser(user).getId(), displayName, avatar, signature));
+        return ApiResponse.ok(authService.updateProfile(requireUser(user).getId(), displayName, nickname, avatar, signature));
     }
 
     @PostMapping("/avatar")

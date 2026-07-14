@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -43,6 +44,13 @@ public class GlobalExceptionHandler {
         String sizeStr = maxSize >= 0 ? (maxSize / 1024 / 1024) + "MB" : "限制";
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(ApiResponse.error(413, "文件过大，单次上传不能超过 " + sizeStr));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiResponse<Void> handleNoResourceFoundException(NoResourceFoundException e) {
+        log.warn("请求路径不存在: {}", e.getResourcePath());
+        return ApiResponse.error(404, "接口不存在");
     }
 
     @ExceptionHandler(Exception.class)

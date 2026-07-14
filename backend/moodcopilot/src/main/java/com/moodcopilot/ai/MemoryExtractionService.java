@@ -633,6 +633,8 @@ public class MemoryExtractionService {
                 userId, insertedCount, updatedCount, deletedCount,
                 existing.size() + insertedCount - deletedCount);
 
+        // 移除常驻通知，因为后续会触发 notifyGlobalEvent 弹窗通知
+
         // 异步索引最新画像到 RAG 向量库
         List<UserProfileMemoryEntity> latest = listUserMemories(userId);
         if (!latest.isEmpty()) {

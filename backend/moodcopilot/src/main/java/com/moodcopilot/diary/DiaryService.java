@@ -184,7 +184,7 @@ public class DiaryService {
         DiaryEntity diary = new DiaryEntity();
         UserEntity user = currentUser();
         diary.setAuthorUserId(user.getId());
-        diary.setAuthorName(user.getDisplayName());
+        diary.setAuthorName(user.getNickname() != null ? user.getNickname() : user.getDisplayName());
         diary.setContent(content);
         if (visibility == DiaryVisibility.PUBLIC && ContentFilter.hasBannedWords(content)) {
             diary.setVisibility("BANNED");
@@ -211,7 +211,7 @@ public class DiaryService {
         ragMemoryService.indexDiary(user.getId(), diary.getId(),
                 diary.getContent(), diary.getMusicMeta());
 
-        return DiaryView.from(diary, null, List.of(), normalizeAvatar(user.getAvatar()), user.getDisplayName(),
+        return DiaryView.from(diary, null, List.of(), normalizeAvatar(user.getAvatar()), user.getNickname() != null ? user.getNickname() : user.getDisplayName(),
                 user.getLevel(), user.getRole(), Map.of(),
                 false);
     }
@@ -1027,7 +1027,7 @@ public class DiaryService {
                 insights,
                 suggestions,
                 followUpPrompt,
-                LocalDateTime.now(),
+                aiSummary != null ? LocalDateTime.now() : null,
                 false);
     }
 
@@ -1195,7 +1195,7 @@ public class DiaryService {
                 insights,
                 suggestions,
                 followUpPrompt,
-                LocalDateTime.now(),
+                aiSummary != null ? LocalDateTime.now() : null,
                 false);
     }
 
@@ -1470,7 +1470,7 @@ public class DiaryService {
         comment.setParentCommentId(request.parentCommentId());
         comment.setRootCommentId(resolveRootId(diaryId, request.parentCommentId()));
         comment.setAuthorUserId(commenter.getId());
-        comment.setAuthorName(commenter.getDisplayName());
+        comment.setAuthorName(commenter.getNickname() != null ? commenter.getNickname() : commenter.getDisplayName());
         comment.setContent(ContentFilter.filter(content));
         comment.setIsDeleted(false);
         comment.setCreatedAt(LocalDateTime.now());
@@ -1604,7 +1604,7 @@ public class DiaryService {
         Long viewerUserId = currentUser().getId();
         boolean isAuthorView = viewerUserId != null && viewerUserId.equals(diary.getAuthorUserId());
         UserEntity author = authorInfoMap.get(diary.getAuthorUserId());
-        String authorName = author != null ? author.getDisplayName() : diary.getAuthorName();
+        String authorName = author != null ? (author.getNickname() != null ? author.getNickname() : author.getDisplayName()) : diary.getAuthorName();
         String authorAvatar = author != null ? normalizeAvatar(author.getAvatar())
                 : resolveAuthorAvatar(diary.getAuthorUserId());
         Integer authorLevel = author != null ? author.getLevel() : null;
@@ -1656,7 +1656,7 @@ public class DiaryService {
         DiaryAnalysisEntity analysis = analysisMap.get(diary.getId());
         List<DiaryCommentEntity> comments = commentMap.getOrDefault(diary.getId(), List.of());
         UserEntity author = authorInfoMap.get(diary.getAuthorUserId());
-        String authorName = author != null ? author.getDisplayName() : diary.getAuthorName();
+        String authorName = author != null ? (author.getNickname() != null ? author.getNickname() : author.getDisplayName()) : diary.getAuthorName();
         String authorAvatar = author != null
                 ? normalizeAvatar(author.getAvatar())
                 : resolveAuthorAvatar(diary.getAuthorUserId());
@@ -1664,7 +1664,7 @@ public class DiaryService {
         for (DiaryCommentEntity c : comments) {
             UserEntity cu = authorInfoMap.get(c.getAuthorUserId());
             commentAuthorNames.put(c.getAuthorUserId(),
-                    cu != null ? cu.getDisplayName() : c.getAuthorName());
+                    cu != null ? (cu.getNickname() != null ? cu.getNickname() : cu.getDisplayName()) : c.getAuthorName());
         }
         Integer authorLevel = author != null ? author.getLevel() : null;
         String authorRole = author != null ? author.getRole() : null;

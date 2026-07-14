@@ -43,6 +43,9 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
 import javax.imageio.stream.ImageOutputStream;
+import java.util.Map;
+import java.util.UUID;
+import org.springframework.web.client.RestTemplate;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
@@ -66,23 +69,35 @@ public class AuthService {
     private final NotificationService notificationService;
     private final boolean captchaEnabled;
 
+    private static final int LOGIN_MAX_ATTEMPTS = 5;
+    private static final int LOGIN_LOCK_MINUTES = 15;
+    private static final String LOGIN_FAIL_PREFIX = "login:fail:";
+    private static final String LOGIN_LOCK_PREFIX = "login:locked:";
+    private final SecureRandom secureRandom = new SecureRandom();
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+    private final String mailFrom;
+    private final String wxAppId;
+    private final String wxAppSecret;
+
     @Autowired
     public AuthService(UserMapper userMapper, JwtTokenProvider jwtTokenProvider,
             PasswordEncoder passwordEncoder, JavaMailSender javaMailSender,
             StringRedisTemplate stringRedisTemplate, ImageCaptchaApplication imageCaptchaApplication,
             NotificationService notificationService,
             @Value("${spring.mail.username}") String mailFrom,
-            @Value("${captcha.secondary.enabled:false}") boolean captchaEnabled) {
+            @Value("${captcha.secondary.enabled:false}") boolean captchaEnabled,
+            @Value("${moodcopilot.wechat.miniapp.app-id:}") String wxAppId,
+            @Value("${moodcopilot.wechat.miniapp.app-secret:}") String wxAppSecret) {
         this(userMapper, jwtTokenProvider, passwordEncoder, Path.of("uploads"),
                 javaMailSender, stringRedisTemplate, imageCaptchaApplication, notificationService, mailFrom,
-                captchaEnabled);
+                captchaEnabled, wxAppId, wxAppSecret);
     }
 
     AuthService(UserMapper userMapper, JwtTokenProvider jwtTokenProvider,
             PasswordEncoder passwordEncoder, Path uploadRoot,
             JavaMailSender javaMailSender, StringRedisTemplate stringRedisTemplate,
             ImageCaptchaApplication imageCaptchaApplication, NotificationService notificationService,
-            String mailFrom, boolean captchaEnabled) {
+            String mailFrom, boolean captchaEnabled, String wxAppId, String wxAppSecret) {
         this.userMapper = userMapper;
         this.jwtTokenProvider = jwtTokenProvider;
         this.passwordEncoder = passwordEncoder;
@@ -93,15 +108,9 @@ public class AuthService {
         this.notificationService = notificationService;
         this.captchaEnabled = captchaEnabled;
         this.mailFrom = mailFrom;
+        this.wxAppId = wxAppId;
+        this.wxAppSecret = wxAppSecret;
     }
-
-    private static final int LOGIN_MAX_ATTEMPTS = 5;
-    private static final int LOGIN_LOCK_MINUTES = 15;
-    private static final String LOGIN_FAIL_PREFIX = "login:fail:";
-    private static final String LOGIN_LOCK_PREFIX = "login:locked:";
-    private final SecureRandom secureRandom = new SecureRandom();
-    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
-    private final String mailFrom;
 
     public void sendVerificationCode(String email) {
         log.info("发送验证码请求");
@@ -213,6 +222,76 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
+    }
+
+    public void sendBindEmailCode(String newEmail) {
+        if (newEmail == null || newEmail.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "邮箱不能为空");
+        }
+        String normalizedEmail = newEmail.trim().toLowerCase();
+
+        boolean exists = userMapper.exists(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, normalizedEmail));
+        if (exists) {
+            log.info("该邮箱已被注册，绑定时将触发账号合并: email={}", normalizedEmail);
+        }
+
+        String codeKey = "email:bind:code:" + normalizedEmail;
+        String limitKey = "email:bind:limit:" + normalizedEmail;
+
+        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(limitKey))) {
+            throw new ResponseStatusException(BAD_REQUEST, "发送验证码太频繁，请 60 秒后再试");
+        }
+
+        String code = String.format("%06d", secureRandom.nextInt(1_000_000));
+        try {
+            sendCodeEmail(normalizedEmail, code, "MoodCopilot 绑定邮箱验证码", "你正在绑定新邮箱，验证码如下：");
+            log.info("绑定邮箱验证码发送成功: email={}", normalizedEmail);
+        } catch (Exception e) {
+            log.error("绑定邮箱验证码发送失败: email={}", normalizedEmail, e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "邮件发送失败");
+        }
+
+        stringRedisTemplate.opsForValue().set(codeKey, code, Duration.ofMinutes(5));
+        stringRedisTemplate.opsForValue().set(limitKey, "1", Duration.ofSeconds(60));
+    }
+
+    public String bindEmail(Long currentUserId, String email, String code) {
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "邮箱不能为空");
+        }
+        if (code == null || code.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "验证码不能为空");
+        }
+
+        String normalizedEmail = email.trim().toLowerCase();
+        String codeKey = "email:bind:code:" + normalizedEmail;
+        String storedCode = stringRedisTemplate.opsForValue().get(codeKey);
+
+        if (storedCode == null || !storedCode.equals(code.trim())) {
+            throw new ResponseStatusException(BAD_REQUEST, "验证码无效或已过期");
+        }
+
+        stringRedisTemplate.delete(codeKey);
+
+        UserEntity targetUser = userMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, normalizedEmail));
+        if (targetUser != null) {
+            if (targetUser.getId().equals(currentUserId)) {
+                return null;
+            }
+            // Account merge
+            com.moodcopilot.service.AccountMergeService accountMergeService = org.springframework.web.context.support.WebApplicationContextUtils.getRequiredWebApplicationContext(
+                ((org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes()).getRequest().getServletContext()
+            ).getBean(com.moodcopilot.service.AccountMergeService.class);
+            
+            accountMergeService.mergeAccounts(currentUserId, targetUser.getId());
+            return jwtTokenProvider.generateToken(targetUser.getId(), targetUser.getEmail());
+        } else {
+            UserEntity currentUser = userMapper.selectById(currentUserId);
+            currentUser.setEmail(normalizedEmail);
+            currentUser.setUpdatedAt(LocalDateTime.now());
+            userMapper.updateById(currentUser);
+            return null;
+        }
     }
 
     public void sendResetPasswordCode(String email) {
@@ -338,10 +417,11 @@ public class AuthService {
     @org.springframework.transaction.annotation.Transactional
     public AuthResponse register(RegisterRequest request) {
         if (request.displayName() == null || request.displayName().isBlank()) {
-            throw new ResponseStatusException(BAD_REQUEST, "用户名不能为空");
+            throw new ResponseStatusException(BAD_REQUEST, "账号ID不能为空");
         }
-        if (!request.displayName().trim().matches("^[a-zA-Z0-9\\u4e00-\\u9fa5_-]{2,20}$")) {
-            throw new ResponseStatusException(BAD_REQUEST, "用户名需为 2-20 位中英文、数字、下划线或横线");
+        String newName = request.displayName().trim();
+        if (!newName.matches("^[a-zA-Z0-9_-]{4,20}$")) {
+            throw new ResponseStatusException(BAD_REQUEST, "账号ID需为 4-20 位字母、数字、下划线或横线");
         }
         if (request.email() == null || !request.email().contains("@")) {
             throw new ResponseStatusException(BAD_REQUEST, "邮箱格式不正确");
@@ -390,6 +470,7 @@ public class AuthService {
 
         UserEntity user = new UserEntity();
         user.setDisplayName(request.displayName().trim());
+        user.setNickname(request.displayName().trim());
         user.setEmail(request.email().trim().toLowerCase());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setStatus(1);
@@ -398,6 +479,56 @@ public class AuthService {
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.insert(user);
 
+        String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail());
+        return response(token, user);
+    }
+
+    public AuthResponse wxLogin(String code) {
+        if (code == null || code.isBlank()) {
+            throw new ResponseStatusException(BAD_REQUEST, "微信登录 code 不能为空");
+        }
+        
+        String url = "https://api.weixin.qq.com/sns/jscode2session?appid=" + wxAppId +
+                "&secret=" + wxAppSecret + "&js_code=" + code + "&grant_type=authorization_code";
+                
+        RestTemplate restTemplate = new RestTemplate();
+        Map response;
+        try {
+            String jsonResponse = restTemplate.getForObject(url, String.class);
+            response = new com.fasterxml.jackson.databind.ObjectMapper().readValue(jsonResponse, Map.class);
+        } catch (Exception e) {
+            log.error("微信登录请求失败", e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "微信登录请求失败");
+        }
+        
+        if (response == null || (response.containsKey("errcode") && ((Number) response.get("errcode")).intValue() != 0)) {
+            log.error("微信登录失败: {}", response);
+            throw new ResponseStatusException(BAD_REQUEST, "微信登录失败: " + (response != null ? response.get("errmsg") : "未知错误"));
+        }
+        
+        String openid = (String) response.get("openid");
+        if (openid == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "无法获取 openid");
+        }
+        
+        UserEntity user = userMapper.findByWxOpenId(openid);
+        if (user == null) {
+            user = new UserEntity();
+            user.setWxOpenId(openid);
+            String wxId = "wx_" + UUID.randomUUID().toString().substring(0, 8);
+            user.setDisplayName(wxId);
+            user.setNickname("微信用户_" + UUID.randomUUID().toString().substring(0, 6));
+            user.setEmail(UUID.randomUUID().toString() + "@wx.com");
+            user.setPasswordHash("");
+            user.setStatus(1);
+            user.setRole("USER");
+            user.setCreatedAt(LocalDateTime.now());
+            user.setUpdatedAt(LocalDateTime.now());
+            userMapper.insert(user);
+        } else if (user.getStatus() != null && user.getStatus() == 0) {
+            throw new ResponseStatusException(FORBIDDEN, "您的账号已被封禁，无法登录");
+        }
+        
         String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail());
         return response(token, user);
     }
@@ -491,15 +622,16 @@ public class AuthService {
 
     private static final int MAX_WEEKLY_NAME_CHANGES = 3;
 
-    public AuthResponse updateProfile(Long userId, String displayName, String avatar, String signature) {
+    public AuthResponse updateProfile(Long userId, String displayName, String nickname, String avatar, String signature) {
         UserEntity user = userMapper.selectById(userId);
         boolean displayNameChanged = false;
+        boolean nicknameChanged = false;
         boolean avatarChanged = false;
         boolean signatureChanged = false;
         if (displayName != null && !displayName.isBlank()) {
             String newName = displayName.trim();
-            if (!newName.matches("^[a-zA-Z0-9\\u4e00-\\u9fa5_-]{2,20}$")) {
-                throw new ResponseStatusException(BAD_REQUEST, "用户名需为 2-20 位中英文、数字、下划线或横线");
+            if (!newName.matches("^[a-zA-Z0-9_-]{4,20}$")) {
+                throw new ResponseStatusException(BAD_REQUEST, "账号ID需为 4-20 位字母、数字、下划线或横线");
             }
             if (!newName.equals(user.getDisplayName())) {
                 // 唯一性检查
@@ -526,6 +658,16 @@ public class AuthService {
                 user.setNameChangeWeek(weekKey);
                 user.setDisplayName(newName);
                 displayNameChanged = true;
+            }
+        }
+        if (nickname != null && !nickname.isBlank()) {
+            String newNickname = nickname.trim();
+            if (newNickname.length() < 1 || newNickname.length() > 30) {
+                throw new ResponseStatusException(BAD_REQUEST, "昵称长度需为 1-30 个字符");
+            }
+            if (!newNickname.equals(user.getNickname())) {
+                user.setNickname(newNickname);
+                nicknameChanged = true;
             }
         }
         if (avatar != null) {
@@ -724,7 +866,7 @@ public class AuthService {
 
     private AuthResponse response(String token, UserEntity user) {
         String role = user.getRole() == null || user.getRole().isBlank() ? "USER" : user.getRole();
-        return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getEmail(),
+        return new AuthResponse(token, user.getId(), user.getDisplayName(), user.getNickname(), user.getEmail(),
                 normalizeAvatar(user.getAvatar()), user.getSignature(), user.getTheme(),
                 user.getLightTheme(), user.getDarkTheme(), user.getThemeMode(),
                 user.getDailyNotifyEnabled(), user.getProfileNotifyEnabled(), role, user.getInviteCode(),
