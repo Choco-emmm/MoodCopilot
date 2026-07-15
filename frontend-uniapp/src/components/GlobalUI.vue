@@ -68,7 +68,10 @@ const updateNav = () => {
 onMounted(() => {
   updateNav();
   if (props.tabIndex !== undefined) {
-    uni.hideTabBar({ animation: false });
+    uni.hideTabBar({
+      animation: false,
+      fail: () => {}
+    });
   }
 });
 

@@ -4,39 +4,26 @@ import { connectWebSocket, disconnectWebSocket } from "@/utils/socket";
 import { currentTheme } from "@/stores/theme";
 import { watch } from "vue";
 
-const updateTabBarStyle = (theme: any) => {
-  try {
-    uni.setTabBarStyle({
-      selectedColor: theme.primary,
-      backgroundColor: theme.bg,
-      borderStyle: "black"
-    });
-  } catch (e) {
-    console.warn("Failed to set tab bar style", e);
-  }
-};
 
 onLaunch(() => {
   console.log("App Launch");
   connectWebSocket();
   setTimeout(() => {
-    updateTabBarStyle(currentTheme.value);
+    // Theme initialization if needed
   }, 100);
 });
 
 onShow(() => {
   console.log("App Show");
   connectWebSocket();
-  updateTabBarStyle(currentTheme.value);
+
 });
 
 onHide(() => {
   console.log("App Hide");
 });
 
-watch(currentTheme, (newTheme) => {
-  updateTabBarStyle(newTheme);
-});
+
 </script>
 <style>
 /* App global styles */

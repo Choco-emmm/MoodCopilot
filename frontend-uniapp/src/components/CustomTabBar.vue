@@ -15,8 +15,13 @@
             :src="item.iconPath" 
             mode="aspectFit"
           />
-          <!-- Inline SVG for active state to use theme color -->
-          <view v-else class="tab-icon active-icon" v-html="getActiveSvg(item.svg, currentTheme.primary)"></view>
+          <!-- Active SVG as Data URI for WeChat compatibility -->
+          <image 
+            v-else
+            class="tab-icon active-icon" 
+            :src="getActiveSvg(item.svg, currentTheme.primary)" 
+            mode="aspectFit"
+          />
         </view>
         <text 
           class="tab-text" 
@@ -37,7 +42,8 @@ const props = defineProps<{
 }>();
 
 const getActiveSvg = (svgRaw: string, color: string) => {
-  return svgRaw.replace(/currentColor/g, color);
+  const coloredSvg = svgRaw.replace(/currentColor/g, color);
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(coloredSvg)}`;
 };
 
 const list = [
