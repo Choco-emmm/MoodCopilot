@@ -134,7 +134,7 @@ const openCollection = (id: number) => {
 .page-title {
   font-size: 40rpx;
   font-weight: bold;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .create-btn {
@@ -166,7 +166,7 @@ const openCollection = (id: number) => {
 .col-name {
   font-size: 32rpx;
   font-weight: 600;
-  color: #20201d;
+  color: var(--theme-text-primary);
   margin-bottom: 8rpx;
 }
 
@@ -246,7 +246,7 @@ const openCollection = (id: number) => {
 
 .cancel-btn {
   background-color: #f0f0f0;
-  color: #333;
+  color: var(--theme-text-primary);
 }
 
 .confirm-btn {

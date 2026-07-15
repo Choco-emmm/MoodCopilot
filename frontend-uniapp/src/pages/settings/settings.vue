@@ -222,7 +222,7 @@ const saveSettings = async () => {
 .page-title {
   font-size: 48rpx;
   font-weight: bold;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .form-container {
@@ -255,7 +255,7 @@ const saveSettings = async () => {
 
 .email-text {
   font-size: 28rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
   margin-right: 16rpx;
 }
 
@@ -266,14 +266,14 @@ const saveSettings = async () => {
 .label {
   width: 160rpx;
   font-size: 32rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
   font-weight: 500;
 }
 
 .input-field, .textarea-field {
   flex: 1;
   font-size: 30rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
   text-align: right;
 }
 
@@ -299,7 +299,7 @@ const saveSettings = async () => {
 }
 
 .code-btn[disabled] {
-  color: #999;
+  color: var(--theme-text-placeholder);
   background-color: #e0ddd6;
 }
 
@@ -351,7 +351,7 @@ const saveSettings = async () => {
 
 .modal-content {
   width: 85%;
-  background-color: #fff;
+  background-color: var(--theme-surface);
   border-radius: 24rpx;
   padding: 40rpx;
   box-shadow: 0 16rpx 40rpx rgba(0, 0, 0, 0.1);
@@ -361,7 +361,7 @@ const saveSettings = async () => {
 .modal-title {
   font-size: 36rpx;
   font-weight: bold;
-  color: #20201d;
+  color: var(--theme-text-primary);
   margin-bottom: 32rpx;
   display: block;
   text-align: center;
@@ -414,7 +414,7 @@ const saveSettings = async () => {
 
 .cancel-btn {
   background-color: #f0f0f0;
-  color: #666;
+  color: var(--theme-text-secondary);
 }
 
 .confirm-btn {

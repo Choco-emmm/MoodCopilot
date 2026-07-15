@@ -319,7 +319,7 @@ const goToCollection = (colId: number) => {
 
 .diary-text {
   font-size: 32rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
   line-height: 1.8;
   margin-bottom: 32rpx;
   display: block;
@@ -343,7 +343,7 @@ const goToCollection = (colId: number) => {
 
 .tag-label {
   font-size: 24rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
 }
 
 .collection-tag {
@@ -406,7 +406,7 @@ const goToCollection = (colId: number) => {
 .letter-title {
   font-family: "Noto Serif SC", "Songti SC", "STSong", "KaiTi", serif;
   font-size: 36rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
   font-weight: 700;
   letter-spacing: 4rpx;
 }
@@ -462,7 +462,7 @@ const goToCollection = (colId: number) => {
 .letter-body {
   font-family: "Noto Serif SC", "Songti SC", "STSong", "KaiTi", serif;
   font-size: 32rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
   line-height: 2;
 }
 
@@ -575,7 +575,7 @@ const goToCollection = (colId: number) => {
 
 .col-name {
   font-size: 32rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .add-btn {
@@ -594,7 +594,7 @@ const goToCollection = (colId: number) => {
 .cancel-btn {
   width: 100%;
   background-color: #f0f0f0;
-  color: #333;
+  color: var(--theme-text-primary);
   border-radius: 999rpx;
   font-size: 28rpx;
 }

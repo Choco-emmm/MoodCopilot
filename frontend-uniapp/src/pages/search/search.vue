@@ -186,7 +186,7 @@ const formatDate = (isoStr: string) => {
 .search-input {
   flex: 1;
   font-size: 28rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .clear-btn {
@@ -238,13 +238,13 @@ const formatDate = (isoStr: string) => {
 .author-name {
   font-size: 30rpx;
   font-weight: 700;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .author-level {
   font-size: 20rpx;
-  background-color: #eee;
-  color: #666;
+  background-color: var(--theme-border);
+  color: var(--theme-text-secondary);
   padding: 2rpx 12rpx;
   border-radius: 2rpx;
   font-weight: bold;
@@ -282,7 +282,7 @@ const formatDate = (isoStr: string) => {
 .diary-content {
   font-size: 28rpx;
   line-height: 1.6;
-  color: #20201d;
+  color: var(--theme-text-primary);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;

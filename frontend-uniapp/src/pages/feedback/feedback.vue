@@ -74,7 +74,7 @@ const submitFeedback = async () => {
 .page-title {
   font-size: 48rpx;
   font-weight: bold;
-  color: #20201d;
+  color: var(--theme-text-primary);
   display: block;
   margin-bottom: 16rpx;
 }
@@ -98,7 +98,7 @@ const submitFeedback = async () => {
   height: 300rpx;
   font-size: 30rpx;
   line-height: 1.6;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .word-count {

@@ -29,7 +29,7 @@ onHide(() => {
 /* App global styles */
 page {
   background-color: var(--theme-bg);
-  color: #20201d;
+  color: var(--theme-text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", STHeiti, "Microsoft Yahei", Tahoma, Simsun, sans-serif;
   font-size: 28rpx;
   line-height: 1.6;

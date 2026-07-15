@@ -134,7 +134,7 @@ const handleTaskAction = async (task: any) => {
 .page-title {
   font-size: 40rpx;
   font-weight: bold;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .card {
@@ -187,7 +187,7 @@ const handleTaskAction = async (task: any) => {
 .section-title {
   font-size: 32rpx;
   font-weight: 600;
-  color: #20201d;
+  color: var(--theme-text-primary);
   margin-bottom: 24rpx;
   display: block;
 }
@@ -217,7 +217,7 @@ const handleTaskAction = async (task: any) => {
 .task-name {
   font-size: 30rpx;
   font-weight: 500;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .task-desc {
@@ -249,6 +249,6 @@ const handleTaskAction = async (task: any) => {
 
 .action-btn.completed {
   background-color: #e0e0e0;
-  color: #999;
+  color: var(--theme-text-placeholder);
 }
 </style>

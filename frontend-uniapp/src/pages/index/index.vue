@@ -332,7 +332,7 @@ const previewImage = (current: string, urls: string[]) => {
   display: flex;
   align-items: center;
   font-size: 28rpx;
-  color: #4a7c62;
+  color: var(--theme-primary);
   font-weight: 500;
   gap: 8rpx;
 }
@@ -341,12 +341,12 @@ const previewImage = (current: string, urls: string[]) => {
   width: 32rpx;
   height: 32rpx;
   border-radius: 50%;
-  border: 1px solid #ddd;
+  border: 1px solid var(--theme-border);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 20rpx;
-  color: #ccc;
+  color: var(--theme-text-placeholder);
 }
 
 .action-icon {
@@ -358,7 +358,7 @@ const previewImage = (current: string, urls: string[]) => {
   width: 64rpx;
   height: 64rpx;
   border-radius: 50%;
-  border: 2px solid #fff;
+  border: 2px solid var(--theme-surface);
   box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.1);
 }
 
@@ -391,7 +391,7 @@ const previewImage = (current: string, urls: string[]) => {
 
 .tab-item {
   font-size: 32rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
   font-weight: 500;
   position: relative;
   padding-bottom: 8rpx;
@@ -399,7 +399,7 @@ const previewImage = (current: string, urls: string[]) => {
 }
 
 .tab-item.active {
-  color: #20201d;
+  color: var(--theme-text-primary);
   font-size: 34rpx;
   font-weight: 700;
 }
@@ -516,7 +516,7 @@ const previewImage = (current: string, urls: string[]) => {
 }
 
 .login-sheet {
-  background-color: #fff;
+  background-color: var(--theme-surface);
   border-top-left-radius: 48rpx;
   border-top-right-radius: 48rpx;
   padding: 64rpx 48rpx;
@@ -532,14 +532,14 @@ const previewImage = (current: string, urls: string[]) => {
   display: block;
   font-size: 44rpx;
   font-weight: 800;
-  color: #20201d;
+  color: var(--theme-text-primary);
   margin-bottom: 16rpx;
 }
 
 .login-sheet-desc {
   display: block;
   font-size: 28rpx;
-  color: #666;
+  color: var(--theme-text-secondary);
 }
 
 .wx-login-btn {
@@ -559,7 +559,7 @@ const previewImage = (current: string, urls: string[]) => {
 .cancel-login {
   text-align: center;
   font-size: 28rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
   padding: 16rpx;
 }
 
@@ -578,7 +578,7 @@ const previewImage = (current: string, urls: string[]) => {
 }
 
 .chat-banner {
-  background-color: #ffffff;
+  background-color: var(--theme-surface);
   border-radius: 16rpx;
   padding: 32rpx;
   display: flex;
@@ -587,7 +587,7 @@ const previewImage = (current: string, urls: string[]) => {
 }
 
 .banner-tag {
-  color: #a33f3f;
+  color: var(--theme-accent);
   font-weight: bold;
   font-size: 26rpx;
   margin-right: 16rpx;
@@ -601,11 +601,11 @@ const previewImage = (current: string, urls: string[]) => {
 .chat-banner-text {
   flex: 1;
   font-size: 30rpx;
-  color: #666;
+  color: var(--theme-text-secondary);
 }
 
 .chat-banner-arrow {
-  color: #999;
+  color: var(--theme-text-placeholder);
 }
 
 .feed-container {
@@ -627,7 +627,7 @@ const previewImage = (current: string, urls: string[]) => {
 
 .refresh-btn {
   font-size: 28rpx;
-  color: #666;
+  color: var(--theme-text-secondary);
 }
 
 /* Diary List */
@@ -663,7 +663,7 @@ const previewImage = (current: string, urls: string[]) => {
 
 .date-time {
   font-size: 26rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
   margin-left: 24rpx;
 }
 
@@ -697,13 +697,13 @@ const previewImage = (current: string, urls: string[]) => {
 .author-name {
   font-size: 30rpx;
   font-weight: 700;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .author-level {
   font-size: 20rpx;
-  background-color: #eee;
-  color: #666;
+  background-color: var(--theme-border);
+  color: var(--theme-text-secondary);
   padding: 2rpx 12rpx;
   border-radius: 2rpx;
   font-weight: bold;
@@ -718,13 +718,13 @@ const previewImage = (current: string, urls: string[]) => {
 
 .diary-date {
   font-size: 24rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
 }
 
 .visibility-tag {
   font-size: 20rpx;
-  color: #4a7c62;
-  background-color: rgba(74, 124, 98, 0.1);
+  color: var(--theme-primary);
+  background-color: rgba(var(--theme-primary-rgb), 0.1);
   padding: 4rpx 12rpx;
   border-radius: 4rpx;
   font-weight: bold;
@@ -732,7 +732,7 @@ const previewImage = (current: string, urls: string[]) => {
 
 .diary-content {
   font-size: 30rpx;
-  color: #333;
+  color: var(--theme-text-primary);
   line-height: 1.6;
   display: -webkit-box;
   -webkit-box-orient: vertical;

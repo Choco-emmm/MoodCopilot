@@ -487,7 +487,7 @@ const fetchQuota = async () => {
 .avatar {
   margin-bottom: 24rpx;
   padding: 8rpx;
-  background: #fff;
+  background: var(--theme-surface);
   border-radius: 50%;
   box-shadow: 0 8rpx 24rpx rgba(0,0,0,0.06);
 }
@@ -496,7 +496,7 @@ const fetchQuota = async () => {
   width: 140rpx;
   height: 140rpx;
   border-radius: 50%;
-  background-color: #eee;
+  background-color: var(--theme-border);
 }
 
 .user-detail {
@@ -507,20 +507,20 @@ const fetchQuota = async () => {
 
 .account-id {
   font-size: 26rpx;
-  color: #666;
+  color: var(--theme-text-secondary);
   margin-top: 8rpx;
 }
 
 .nickname {
   font-size: 40rpx;
   font-weight: 800;
-  color: #20201d;
+  color: var(--theme-text-primary);
   margin-bottom: 8rpx;
 }
 
 .level-text {
   font-size: 24rpx;
-  color: #666;
+  color: var(--theme-text-secondary);
   background-color: rgba(0,0,0,0.05);
   padding: 4rpx 16rpx;
   border-radius: 999rpx;
@@ -545,7 +545,7 @@ const fetchQuota = async () => {
 .section-title {
   font-family: "Noto Serif SC", "Songti SC", "STSong", "KaiTi", serif;
   font-size: 32rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
   font-weight: 600;
   margin-bottom: 24rpx;
   display: block;
@@ -577,7 +577,7 @@ const fetchQuota = async () => {
 
 .quota-label {
   font-size: 28rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .quota-value {
@@ -667,7 +667,7 @@ const fetchQuota = async () => {
 
 .modal-content {
   width: 85%;
-  background-color: #fff;
+  background-color: var(--theme-surface);
   border-radius: 24rpx;
   padding: 40rpx;
   box-shadow: 0 16rpx 40rpx rgba(0, 0, 0, 0.1);
@@ -677,7 +677,7 @@ const fetchQuota = async () => {
 .modal-title {
   font-size: 34rpx;
   font-weight: bold;
-  color: #20201d;
+  color: var(--theme-text-primary);
   margin-bottom: 32rpx;
   text-align: center;
   display: block;
@@ -698,7 +698,7 @@ const fetchQuota = async () => {
 
 .edit-label {
   font-size: 26rpx;
-  color: #666;
+  color: var(--theme-text-secondary);
   margin-bottom: 16rpx;
   align-self: flex-start;
 }
@@ -720,7 +720,7 @@ const fetchQuota = async () => {
   width: 140rpx;
   height: 140rpx;
   border-radius: 50%;
-  background-color: #eee;
+  background-color: var(--theme-border);
 }
 
 .edit-input {
@@ -743,7 +743,7 @@ const fetchQuota = async () => {
 .cancel-btn {
   flex: 1;
   background-color: #f0f0f0;
-  color: #666;
+  color: var(--theme-text-secondary);
   font-size: 30rpx;
   border-radius: 40rpx;
   margin: 0;
@@ -780,18 +780,18 @@ const fetchQuota = async () => {
 .quota-modal-title {
   font-size: 36rpx;
   font-weight: 600;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .quota-modal-close {
   font-size: 40rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
   padding: 10rpx;
 }
 
 .quota-modal-subtitle {
   font-size: 28rpx;
-  color: #666;
+  color: var(--theme-text-secondary);
   margin-bottom: 24rpx;
 }
 
@@ -818,7 +818,7 @@ const fetchQuota = async () => {
 
 .quota-th .quota-td {
   font-weight: 600;
-  color: #666;
+  color: var(--theme-text-secondary);
   font-size: 24rpx;
   padding: 24rpx 16rpx;
 }
@@ -828,12 +828,12 @@ const fetchQuota = async () => {
   text-align: center;
   padding: 24rpx 16rpx;
   font-size: 24rpx;
-  color: #333;
+  color: var(--theme-text-primary);
 }
 
 .quota-unit {
   font-size: 20rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
 }
 
 .quota-modal-desc {
@@ -858,7 +858,7 @@ const fetchQuota = async () => {
 
 .desc-text {
   font-size: 24rpx;
-  color: #666;
+  color: var(--theme-text-secondary);
   line-height: 1.6;
 }
 
@@ -870,7 +870,7 @@ const fetchQuota = async () => {
 .quota-modal-footer {
   text-align: center;
   font-size: 22rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
 }
 
 .quota-header {
@@ -882,7 +882,7 @@ const fetchQuota = async () => {
 .quota-header-title {
   font-size: 28rpx;
   font-weight: 600;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 .quota-header-link {
   font-size: 24rpx;
@@ -919,13 +919,13 @@ const fetchQuota = async () => {
   padding: 16rpx 0;
   border-radius: 4rpx;
   transition: all 0.2s;
-  color: #666;
+  color: var(--theme-text-secondary);
 }
 
 .mode-item.active {
-  background: #fff;
+  background: var(--theme-surface);
   box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
-  color: var(--theme-primary, #333);
+  color: var(--theme-primary, var(--theme-text-primary));
   font-weight: bold;
 }
 
@@ -967,12 +967,12 @@ const fetchQuota = async () => {
 .theme-section-label {
   font-size: 28rpx;
   font-weight: 600;
-  color: var(--color-text-primary, #333);
+  color: var(--color-text-primary, var(--theme-text-primary));
   margin-bottom: 24rpx;
 }
 .theme-category-title {
   font-size: 24rpx;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary, var(--theme-text-secondary));
   margin-bottom: 16rpx;
 }
 
@@ -1066,7 +1066,7 @@ const fetchQuota = async () => {
 
 .theme-name {
   font-size: 22rpx;
-  color: var(--color-text-secondary, #666);
+  color: var(--color-text-secondary, var(--theme-text-secondary));
   white-space: nowrap;
 }
 </style>

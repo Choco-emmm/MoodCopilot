@@ -272,7 +272,7 @@ const previewImage = (current: string) => {
 .composer-title {
   font-family: "Noto Serif SC", "Songti SC", "STSong", "KaiTi", serif;
   font-size: 64rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
   font-weight: 700;
   letter-spacing: 2rpx;
   margin-bottom: 16rpx;
@@ -300,7 +300,7 @@ const previewImage = (current: string) => {
 }
 .toggle-text {
   font-size: 28rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
   font-weight: 500;
   margin-left: 8rpx;
 }
@@ -326,7 +326,7 @@ const previewImage = (current: string) => {
 /* Editor */
 .composer-editor {
   flex: 1;
-  background-color: #fff;
+  background-color: var(--theme-surface);
   border-radius: 24rpx;
   padding: 40rpx;
   box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.04);
@@ -338,7 +338,7 @@ const previewImage = (current: string) => {
   min-height: 400rpx;
   font-size: 32rpx;
   line-height: 1.8;
-  color: #20201d;
+  color: var(--theme-text-primary);
   background-color: transparent;
   padding: 0;
 }

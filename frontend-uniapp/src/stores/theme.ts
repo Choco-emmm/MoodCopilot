@@ -37,7 +37,14 @@ export const currentTheme = computed<ThemeOption>(() => {
 
 export const themeStyle = computed(() => {
   const theme = currentTheme.value;
-  return `--theme-primary: ${theme.primary}; --theme-primary-rgb: ${hexToRgb(theme.primary)}; --theme-accent: ${theme.accent}; --theme-bg: ${theme.bg}; --theme-surface: ${theme.surface};`;
+  const isDark = theme.dark || false;
+  
+  const textPrimary = isDark ? 'rgba(255, 255, 255, 0.9)' : '#20201d';
+  const textSecondary = isDark ? 'rgba(255, 255, 255, 0.6)' : '#666666';
+  const textPlaceholder = isDark ? 'rgba(255, 255, 255, 0.3)' : '#999999';
+  const borderCol = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+
+  return `--theme-primary: ${theme.primary}; --theme-primary-rgb: ${hexToRgb(theme.primary)}; --theme-accent: ${theme.accent}; --theme-bg: ${theme.bg}; --theme-surface: ${theme.surface}; --theme-text-primary: ${textPrimary}; --theme-text-secondary: ${textSecondary}; --theme-text-placeholder: ${textPlaceholder}; --theme-border: ${borderCol};`;
 });
 
 export const setThemeMode = (mode: 'light' | 'dark' | 'auto') => {

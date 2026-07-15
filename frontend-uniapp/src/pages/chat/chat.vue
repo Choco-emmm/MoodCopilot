@@ -447,7 +447,7 @@ const scrollToBottom = (target?: 'waiting') => {
 }
 
 .topic-btn {
-  background-color: #fff;
+  background-color: var(--theme-surface);
   border-radius: 16rpx;
   padding: 24rpx;
   margin-bottom: 24rpx;
@@ -524,8 +524,8 @@ const scrollToBottom = (target?: 'waiting') => {
   word-break: break-all;
 }
 .ai-bubble {
-  background-color: #fff;
-  color: #333;
+  background-color: var(--theme-surface);
+  color: var(--theme-text-primary);
   box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.03);
   border-top-left-radius: 0;
 }
@@ -570,7 +570,7 @@ const scrollToBottom = (target?: 'waiting') => {
   left: 0;
   width: 100vw;
   box-sizing: border-box;
-  background-color: #fff;
+  background-color: var(--theme-surface);
   border-top: 1px solid rgba(var(--theme-primary-rgb), 0.1);
   z-index: 100;
 }
@@ -593,7 +593,7 @@ const scrollToBottom = (target?: 'waiting') => {
 .quote-text {
   flex: 1;
   font-size: 24rpx;
-  color: #666;
+  color: var(--theme-text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -606,7 +606,7 @@ const scrollToBottom = (target?: 'waiting') => {
   justify-content: center;
   align-items: center;
   font-size: 36rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
   border-radius: 50%;
   background: rgba(0,0,0,0.05);
 }
@@ -707,7 +707,7 @@ const scrollToBottom = (target?: 'waiting') => {
 .drawer-title {
   font-size: 36rpx;
   font-weight: bold;
-  color: #20201d;
+  color: var(--theme-text-primary);
   font-family: "Noto Serif SC", serif;
 }
 .new-chat-btn {
@@ -739,7 +739,7 @@ const scrollToBottom = (target?: 'waiting') => {
 }
 .conv-title {
   font-size: 30rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -747,7 +747,7 @@ const scrollToBottom = (target?: 'waiting') => {
 }
 .conv-date {
   font-size: 22rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
 }
 
 /* 日记引用面板 */
@@ -792,12 +792,12 @@ const scrollToBottom = (target?: 'waiting') => {
 .sheet-title {
   font-size: 32rpx;
   font-weight: bold;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .sheet-close {
   font-size: 40rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
   padding: 10rpx;
 }
 
@@ -811,12 +811,12 @@ const scrollToBottom = (target?: 'waiting') => {
 .sheet-loading, .sheet-empty {
   text-align: center;
   padding: 80rpx 0;
-  color: #999;
+  color: var(--theme-text-placeholder);
   font-size: 28rpx;
 }
 
 .sheet-diary-item {
-  background-color: #fff;
+  background-color: var(--theme-surface);
   border-radius: 20rpx;
   padding: 32rpx;
   margin-bottom: 24rpx;

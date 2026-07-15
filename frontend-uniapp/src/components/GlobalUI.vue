@@ -139,7 +139,7 @@ const viewDetails = () => {
 .popup-title {
   font-size: 28rpx;
   font-weight: 600;
-  color: #20201d;
+  color: var(--theme-text-primary);
   margin-bottom: 4rpx;
 }
 
@@ -217,7 +217,7 @@ const viewDetails = () => {
 .modal-title {
   font-size: 36rpx;
   font-weight: 600;
-  color: #20201d;
+  color: var(--theme-text-primary);
   margin-bottom: 16rpx;
 }
 

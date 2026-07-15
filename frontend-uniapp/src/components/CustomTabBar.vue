@@ -25,7 +25,7 @@
         </view>
         <text 
           class="tab-text" 
-          :style="{ color: current === index ? currentTheme.primary : '#999999', fontWeight: current === index ? 'bold' : 'normal' }"
+          :style="{ color: current === index ? currentTheme.primary : 'var(--theme-text-placeholder)', fontWeight: current === index ? 'bold' : 'normal' }"
         >
           {{ item.text }}
         </text>

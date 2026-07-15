@@ -475,7 +475,7 @@ const deleteTriple = (id: number) => {
 .title {
   font-family: "Noto Serif SC", "Songti SC", "STSong", "KaiTi", serif;
   font-size: 64rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
   font-weight: 700;
   display: block;
   margin-bottom: 16rpx;
@@ -495,7 +495,7 @@ const deleteTriple = (id: number) => {
 .section-title {
   font-family: "Noto Serif SC", "Songti SC", "STSong", "KaiTi", serif;
   font-size: 40rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
   font-weight: 700;
   margin-bottom: 12rpx;
   display: block;
@@ -631,7 +631,7 @@ const deleteTriple = (id: number) => {
   text-align: right;
   font-size: 26rpx;
   font-weight: 600;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .stat-quadrant {
@@ -649,7 +649,7 @@ const deleteTriple = (id: number) => {
 .block-title {
   font-size: 30rpx;
   font-weight: 600;
-  color: #20201d;
+  color: var(--theme-text-primary);
   margin-bottom: 16rpx;
   display: block;
 }
@@ -730,7 +730,7 @@ const deleteTriple = (id: number) => {
 .memory-value {
   font-family: "Noto Serif SC", serif;
   font-size: 28rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
   line-height: 1.6;
   text-align: center;
   display: block;
@@ -908,7 +908,7 @@ const deleteTriple = (id: number) => {
 
 .modal-content {
   width: 85%;
-  background-color: #fff;
+  background-color: var(--theme-surface);
   border-radius: 24rpx;
   padding: 40rpx;
   box-shadow: 0 16rpx 40rpx rgba(0, 0, 0, 0.1);
@@ -918,7 +918,7 @@ const deleteTriple = (id: number) => {
 .modal-title {
   font-size: 34rpx;
   font-weight: bold;
-  color: #20201d;
+  color: var(--theme-text-primary);
   margin-bottom: 24rpx;
   text-align: center;
   display: block;
@@ -959,7 +959,7 @@ const deleteTriple = (id: number) => {
 .cancel-btn {
   flex: 1;
   background-color: #f0f0f0;
-  color: #666;
+  color: var(--theme-text-secondary);
   font-size: 30rpx;
   border-radius: 40rpx;
   margin: 0;

@@ -185,7 +185,7 @@ const openSummary = (summary: any) => {
 .page-title {
   font-size: 40rpx;
   font-weight: bold;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .create-btn {
@@ -205,7 +205,7 @@ const openSummary = (summary: any) => {
 .loading-state, .empty-state {
   text-align: center;
   padding: 100rpx 0;
-  color: #999;
+  color: var(--theme-text-placeholder);
   font-size: 28rpx;
 }
 
@@ -232,7 +232,7 @@ const openSummary = (summary: any) => {
 
 .col-name {
   font-size: 32rpx;
-  color: #20201d;
+  color: var(--theme-text-primary);
   font-weight: 500;
 }
 
@@ -243,7 +243,7 @@ const openSummary = (summary: any) => {
 
 .col-date {
   font-size: 24rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
 }
 
 /* Modal styles */
@@ -270,7 +270,7 @@ const openSummary = (summary: any) => {
 .modal-title {
   font-size: 36rpx;
   font-weight: bold;
-  color: #20201d;
+  color: var(--theme-text-primary);
   margin-bottom: 32rpx;
   display: block;
   text-align: center;
@@ -285,7 +285,7 @@ const openSummary = (summary: any) => {
 .date-picker-row .label {
   width: 160rpx;
   font-size: 28rpx;
-  color: #666;
+  color: var(--theme-text-secondary);
 }
 
 .picker-value {
@@ -294,7 +294,7 @@ const openSummary = (summary: any) => {
   padding: 16rpx 24rpx;
   border-radius: 4rpx;
   font-size: 28rpx;
-  color: #333;
+  color: var(--theme-text-primary);
 }
 
 .modal-actions {
@@ -314,7 +314,7 @@ const openSummary = (summary: any) => {
 
 .cancel-btn {
   background-color: #f5f5f5;
-  color: #666;
+  color: var(--theme-text-secondary);
 }
 
 .confirm-btn {
@@ -340,14 +340,14 @@ const openSummary = (summary: any) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 2px solid #20201d;
+  border-bottom: 2px solid var(--theme-text-primary);
   padding-bottom: 20rpx;
   margin-bottom: 24rpx;
 }
 
 .close-btn {
   font-size: 40rpx;
-  color: #999;
+  color: var(--theme-text-placeholder);
   padding: 10rpx;
 }
 
@@ -363,7 +363,7 @@ const openSummary = (summary: any) => {
 .section-title {
   font-size: 32rpx;
   font-weight: bold;
-  color: #20201d;
+  color: var(--theme-text-primary);
   margin-bottom: 16rpx;
   display: block;
   font-family: "Noto Serif SC", serif;

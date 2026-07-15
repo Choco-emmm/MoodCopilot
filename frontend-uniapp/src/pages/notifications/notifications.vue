@@ -175,7 +175,7 @@ const formatTime = (dateStr: string) => {
 .notif-title {
   font-size: 30rpx;
   font-weight: 600;
-  color: #20201d;
+  color: var(--theme-text-primary);
 }
 
 .notif-time {
