@@ -53,7 +53,7 @@ const updateThemeStyle = () => {
 
 watch(currentTheme, () => {
   updateThemeStyle();
-}, { immediate: true });
+}, { immediate: true, flush: 'sync' });
 
 export const setThemeMode = (mode: 'light' | 'dark' | 'auto') => {
   themeMode.value = mode;
