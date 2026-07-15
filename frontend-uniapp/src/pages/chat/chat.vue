@@ -429,7 +429,7 @@ const scrollToBottom = (target?: 'waiting') => {
 .system-message {
   text-align: center;
   font-size: 24rpx;
-  color: #a09d98;
+  color: var(--theme-text-secondary);
   margin: 40rpx 0;
 }
 
@@ -550,7 +550,7 @@ const scrollToBottom = (target?: 'waiting') => {
 .dot {
   font-size: 36rpx;
   line-height: 1;
-  color: #99a;
+  color: var(--theme-text-placeholder);
   animation: typing 1.4s infinite;
 }
 .dot:nth-child(2) { animation-delay: 0.2s; }
@@ -622,11 +622,12 @@ const scrollToBottom = (target?: 'waiting') => {
 .chat-input {
   flex: 1;
   height: 80rpx;
-  background-color: #F6F2EA;
+  background-color: var(--theme-bg);
   border-radius: 40rpx;
   padding: 0 32rpx;
   font-size: 30rpx;
-  color: #2c3e34;
+  color: var(--theme-text-primary);
+  border: 1px solid rgba(var(--theme-primary-rgb), 0.1);
 }
 .send-btn {
   background-color: var(--theme-primary);
@@ -652,13 +653,13 @@ const scrollToBottom = (target?: 'waiting') => {
   justify-content: space-between;
   align-items: center;
   padding: 20rpx 40rpx;
-  background-color: rgba(255, 255, 255, 0.5);
+  background-color: rgba(var(--theme-surface-rgb, 255, 255, 255), 0.5);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(var(--theme-primary-rgb), 0.1);
 }
 .current-session-title {
   font-size: 28rpx;
-  color: #7d7870;
+  color: var(--theme-text-primary);
   font-weight: 500;
 }
 .history-btn {
