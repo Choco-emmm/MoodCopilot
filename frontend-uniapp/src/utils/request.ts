@@ -4,13 +4,30 @@ export interface Result<T = any> {
   data: T;
 }
 
-export const BASE_URL = 'http://localhost:18080';
+// 自动根据开发环境/生产环境切换域名
+export const BASE_URL = import.meta.env.DEV 
+  ? 'http://localhost:18080' 
+  : 'https://api.yourdomain.com'; // TODO: 替换为实际上线的域名
 
 export const getFullUrl = (url: string | undefined | null): string => {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
   if (url.startsWith('/api') || url.startsWith('/uploads')) return BASE_URL + url;
   return url;
+};
+
+// 统一的错误与未授权处理逻辑
+const handleResponseError = (statusCode: number, dataMessage?: string, defaultMsg: string = '请求失败') => {
+  if (statusCode === 401) {
+    uni.removeStorageSync('token');
+    uni.showToast({ title: '请先登录', icon: 'none' });
+    uni.$emit('unauthorized');
+    return new Error('Unauthorized');
+  } else {
+    const msg = dataMessage || defaultMsg;
+    uni.showToast({ title: msg, icon: 'none' });
+    return new Error(msg);
+  }
 };
 
 export const request = <T = any>(
@@ -21,7 +38,7 @@ export const request = <T = any>(
 ): Promise<Result<T>> => {
   return new Promise((resolve, reject) => {
     const token = uni.getStorageSync('token');
-    const customHeader = {
+    const customHeader: any = {
       ...header,
       'Content-Type': 'application/json',
     };
@@ -39,27 +56,12 @@ export const request = <T = any>(
           const result = res.data as Result<T>;
           if (result.code === 0) result.code = 200;
           resolve(result);
-        } else if (res.statusCode === 401) {
-          uni.removeStorageSync('token');
-          uni.showToast({
-            title: '请先登录',
-            icon: 'none',
-          });
-          uni.$emit('unauthorized');
-          reject(new Error('Unauthorized'));
         } else {
-          uni.showToast({
-            title: res.data?.message || '请求失败',
-            icon: 'none',
-          });
-          reject(new Error(res.data?.message || '请求失败'));
+          reject(handleResponseError(res.statusCode, res.data?.message));
         }
       },
       fail: (err) => {
-        uni.showToast({
-          title: '网络错误，请稍后重试',
-          icon: 'none',
-        });
+        uni.showToast({ title: '网络错误，请稍后重试', icon: 'none' });
         reject(err);
       },
     });
@@ -104,15 +106,8 @@ export const upload = <T = any>(url: string, filePath: string, name: string = 'f
           } catch (e) {
             reject(new Error('Parse error'));
           }
-        } else if (res.statusCode === 401) {
-          uni.removeStorageSync('token');
-          uni.showToast({ title: '请先登录', icon: 'none' });
-          // Option: Redirect to profile here if needed, or emit an event
-          uni.$emit('unauthorized');
-          reject(new Error('Unauthorized'));
         } else {
-          uni.showToast({ title: '上传失败', icon: 'none' });
-          reject(new Error('上传失败'));
+          reject(handleResponseError(res.statusCode, undefined, '上传失败'));
         }
       },
       fail: (err) => {

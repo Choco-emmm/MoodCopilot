@@ -1,5 +1,5 @@
 <template>
-  <view class="composer" :style="themeStyle">
+  <view class="composer" :style="globalThemeStyle">
     <GlobalUI />
     <!-- Header -->
     <view class="composer-header">
@@ -86,17 +86,14 @@
 import { ref, computed } from 'vue';
 import { post, upload, get, request } from '@/utils/request';
 import { showModal } from '@/stores/globalUI';
-import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
-import { onLoad, onShow } from '@dcloudio/uni-app';
+
+import { onLoad } from '@dcloudio/uni-app';
 
 const content = ref('');
 
-const localThemeStyle = ref(themeStyle.value);
 
-onShow(() => {
-  localThemeStyle.value = themeStyle.value;
-  syncNavigationBarColor();
-});
+
+
 const isSubmitting = ref(false);
 const analyze = ref(true);
 const isPublic = ref(false);

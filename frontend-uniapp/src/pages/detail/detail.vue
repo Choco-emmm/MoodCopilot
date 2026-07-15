@@ -1,5 +1,5 @@
 <template>
-  <view class="detail-page" :style="themeStyle">
+  <view class="detail-page" :style="globalThemeStyle">
     <GlobalUI />
     <view v-if="loading" class="loading-state">
       <text>加载中...</text>
@@ -128,9 +128,9 @@
 
 <script setup lang="ts">
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
+
 import { ref, computed } from 'vue';
-import { onLoad, onShow } from '@dcloudio/uni-app';
+import { onLoad } from '@dcloudio/uni-app';
 import { get, post, request } from '@/utils/request';
 import { currentUser, fetchCurrentUser } from '@/stores/user';
 
@@ -263,9 +263,6 @@ const goToCollection = (colId: number) => {
   uni.navigateTo({ url: `/pages/collections/collections?id=${colId}` });
 };
 
-onShow(() => {
-  syncNavigationBarColor();
-});
 </script>
 
 <style scoped>

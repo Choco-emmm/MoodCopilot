@@ -1,5 +1,5 @@
 <template>
-  <view class="settings-page" :style="themeStyle">
+  <view class="settings-page" :style="globalThemeStyle">
     <GlobalUI />
     <view class="header">
       <text class="page-title">个人设置</text>
@@ -36,12 +36,11 @@
 </template>
 
 <script setup lang="ts">
-import { onShow } from '@dcloudio/uni-app';
-import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
+
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { get, post, upload, getFullUrl } from '@/utils/request';
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle, themeOptions, defaultLightTheme, defaultDarkTheme } from '@/stores/theme';
+import { themeOptions, defaultLightTheme, defaultDarkTheme } from '@/stores/theme';
 
 const loading = ref(true);
 const isSubmitting = ref(false);
@@ -207,9 +206,6 @@ const saveSettings = async () => {
   }
 };
 
-onShow(() => {
-  syncNavigationBarColor();
-});
 </script>
 
 <style scoped>

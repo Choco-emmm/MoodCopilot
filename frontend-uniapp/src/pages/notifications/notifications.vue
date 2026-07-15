@@ -1,5 +1,5 @@
 <template>
-  <view class="notifications-page" :style="themeStyle">
+  <view class="notifications-page" :style="globalThemeStyle">
     <GlobalUI />
     <view v-if="loading" class="loading-state">
       <text>加载中...</text>
@@ -25,9 +25,9 @@
 </template>
 
 <script setup lang="ts">
-import { onShow } from '@dcloudio/uni-app';
+
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
+
 import { ref, onMounted, onUnmounted } from 'vue';
 import { get, put } from '@/utils/request';
 
@@ -106,9 +106,6 @@ const formatTime = (dateStr: string) => {
   return `${date.getMonth() + 1}月${date.getDate()}日`;
 };
 
-onShow(() => {
-  syncNavigationBarColor();
-});
 </script>
 
 <style scoped>

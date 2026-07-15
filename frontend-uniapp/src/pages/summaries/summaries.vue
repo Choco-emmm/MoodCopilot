@@ -1,5 +1,5 @@
 <template>
-  <view class="summaries-page" :style="themeStyle">
+  <view class="summaries-page" :style="globalThemeStyle">
     <GlobalUI />
     <view class="header">
       <text class="page-title">我的报告</text>
@@ -100,9 +100,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { get, post } from '@/utils/request';
-import { onLoad, onShow } from '@dcloudio/uni-app';
+import { onLoad } from '@dcloudio/uni-app';
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
+
 
 const summaries = ref<any[]>([]);
 const loading = ref(false);
@@ -166,9 +166,6 @@ const openSummary = (summary: any) => {
   selectedSummary.value = summary;
 };
 
-onShow(() => {
-  syncNavigationBarColor();
-});
 </script>
 
 <style scoped>

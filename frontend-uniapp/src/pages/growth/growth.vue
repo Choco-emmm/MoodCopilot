@@ -1,5 +1,5 @@
 <template>
-  <view class="growth-page" :style="themeStyle">
+  <view class="growth-page" :style="globalThemeStyle">
     <GlobalUI />
     <view class="header">
       <view class="level-badge">Lv.{{ status?.level || 1 }}</view>
@@ -45,9 +45,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { get, post } from '@/utils/request';
-import { onLoad, onShow } from '@dcloudio/uni-app';
+import { onLoad } from '@dcloudio/uni-app';
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
+
 
 const status = ref<any>(null);
 const tasks = ref<any[]>([]);
@@ -107,9 +107,6 @@ const handleTaskAction = async (task: any) => {
   }
 };
 
-onShow(() => {
-  syncNavigationBarColor();
-});
 </script>
 
 <style scoped>

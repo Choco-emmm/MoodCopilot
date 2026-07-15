@@ -1,5 +1,5 @@
 <template>
-  <view class="collections-page" :style="themeStyle">
+  <view class="collections-page" :style="globalThemeStyle">
     <GlobalUI />
     <view class="header">
       <text class="page-title">我的合集</text>
@@ -47,9 +47,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { get, post } from '@/utils/request';
-import { onLoad, onShow } from '@dcloudio/uni-app';
+import { onLoad } from '@dcloudio/uni-app';
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
+
 
 const collections = ref<any[]>([]);
 const loading = ref(false);
@@ -116,9 +116,6 @@ const openCollection = (id: number) => {
   uni.showToast({ title: '即将支持查看合集内容', icon: 'none' });
 };
 
-onShow(() => {
-  syncNavigationBarColor();
-});
 </script>
 
 <style scoped>

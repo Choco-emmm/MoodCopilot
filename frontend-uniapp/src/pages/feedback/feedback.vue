@@ -1,5 +1,5 @@
 <template>
-  <view class="feedback-page" :style="themeStyle">
+  <view class="feedback-page" :style="globalThemeStyle">
     <GlobalUI />
     <view class="header">
       <text class="page-title">意见反馈</text>
@@ -28,11 +28,11 @@
 </template>
 
 <script setup lang="ts">
-import { onShow } from '@dcloudio/uni-app';
+
 import { ref } from 'vue';
 import { post } from '@/utils/request';
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
+
 
 const content = ref('');
 const isSubmitting = ref(false);
@@ -58,9 +58,6 @@ const submitFeedback = async () => {
   }
 };
 
-onShow(() => {
-  syncNavigationBarColor();
-});
 </script>
 
 <style scoped>
