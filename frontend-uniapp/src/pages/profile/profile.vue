@@ -229,7 +229,7 @@
 
 <script setup lang="ts">
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle, themeOptions, currentTheme, themeMode, defaultLightTheme, defaultDarkTheme, setThemeMode, setSpecificTheme } from '@/stores/theme';
+import { themeStyle, syncNavigationBarColor, themeOptions, currentTheme, themeMode, defaultLightTheme, defaultDarkTheme, setThemeMode, setSpecificTheme } from '@/stores/theme';
 import { ref, computed, onMounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { get, post, upload, getFullUrl } from '@/utils/request';
@@ -239,6 +239,7 @@ const localThemeStyle = ref(themeStyle.value);
 
 onShow(() => {
   localThemeStyle.value = themeStyle.value;
+  syncNavigationBarColor();
 });
 
 uni.$on('themeChanged', () => {

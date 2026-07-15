@@ -235,7 +235,7 @@
 
 <script setup lang="ts">
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle } from '@/stores/theme';
+import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
 import { ref, onMounted } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { get, post, put, del } from '@/utils/request';
@@ -245,6 +245,7 @@ const localThemeStyle = ref(themeStyle.value);
 
 onShow(() => {
   localThemeStyle.value = themeStyle.value;
+  syncNavigationBarColor();
 });
 
 uni.$on('themeChanged', () => {

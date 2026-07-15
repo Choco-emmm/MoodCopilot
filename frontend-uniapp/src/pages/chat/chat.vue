@@ -162,13 +162,14 @@ import { ref, onMounted, nextTick, computed } from 'vue';
 import { get, post, del, getFullUrl } from '@/utils/request';
 import { parseMarkdown } from '@/utils/markdown';
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle } from '@/stores/theme';
+import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
 import { onShow } from '@dcloudio/uni-app';
 
 const localThemeStyle = ref(themeStyle.value);
 
 onShow(() => {
   localThemeStyle.value = themeStyle.value;
+  syncNavigationBarColor();
   const pendingQuote = uni.getStorageSync('pendingQuote');
   if (pendingQuote) {
     selectedQuote.value = { text: pendingQuote };

@@ -61,6 +61,18 @@ export const setThemeMode = (mode: 'light' | 'dark' | 'auto') => {
   uni.$emit('themeChanged');
 };
 
+export const syncNavigationBarColor = () => {
+  try {
+    uni.setNavigationBarColor({
+      frontColor: currentTheme.value.dark ? '#ffffff' : '#000000',
+      backgroundColor: currentTheme.value.bg,
+      animation: { duration: 200, timingFunc: 'easeInOut' }
+    });
+  } catch (e) {
+    // Ignore
+  }
+};
+
 export const setSpecificTheme = (themeValue: string, isDarkTheme: boolean) => {
   if (isDarkTheme) {
     defaultDarkTheme.value = themeValue;

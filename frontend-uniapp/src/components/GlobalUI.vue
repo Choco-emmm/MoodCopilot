@@ -40,6 +40,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import { popups, currentModal, removePopup, closeModal } from '@/stores/globalUI';
 import { currentTheme } from '@/stores/theme';
 import CustomTabBar from './CustomTabBar.vue';
@@ -64,6 +65,10 @@ const updateNav = () => {
     // Ignore on unsupported platforms
   }
 };
+
+onShow(() => {
+  updateNav();
+});
 
 onMounted(() => {
   updateNav();

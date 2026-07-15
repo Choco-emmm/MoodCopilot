@@ -109,7 +109,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { get, post, del, getFullUrl } from '@/utils/request';
 import { onPullDownRefresh, onShow, onReachBottom } from '@dcloudio/uni-app';
-import { themeStyle } from '@/stores/theme';
+import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
 import GlobalUI from '@/components/GlobalUI.vue';
 
 const localThemeStyle = ref(themeStyle.value);
@@ -126,6 +126,7 @@ const showLoginPopup = ref(false);
 
 onShow(() => {
   localThemeStyle.value = themeStyle.value;
+  syncNavigationBarColor();
 });
 
 onMounted(() => {
