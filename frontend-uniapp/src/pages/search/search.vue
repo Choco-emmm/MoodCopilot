@@ -63,10 +63,11 @@
 </template>
 
 <script setup lang="ts">
+import { onShow } from '@dcloudio/uni-app';
 import { ref, onMounted } from 'vue';
 import { get, getFullUrl } from '@/utils/request';
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle } from '@/stores/theme';
+import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
 
 const keyword = ref('');
 const results = ref<any[]>([]);
@@ -150,6 +151,10 @@ const formatDate = (isoStr: string) => {
   const date = new Date(isoStr);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 };
+
+onShow(() => {
+  syncNavigationBarColor();
+});
 </script>
 
 <style scoped>

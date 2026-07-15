@@ -28,10 +28,11 @@
 </template>
 
 <script setup lang="ts">
+import { onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 import { post } from '@/utils/request';
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle } from '@/stores/theme';
+import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
 
 const content = ref('');
 const isSubmitting = ref(false);
@@ -56,6 +57,10 @@ const submitFeedback = async () => {
     isSubmitting.value = false;
   }
 };
+
+onShow(() => {
+  syncNavigationBarColor();
+});
 </script>
 
 <style scoped>

@@ -128,9 +128,9 @@
 
 <script setup lang="ts">
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle } from '@/stores/theme';
+import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
 import { ref, computed } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import { get, post, request } from '@/utils/request';
 import { currentUser, fetchCurrentUser } from '@/stores/user';
 
@@ -262,6 +262,10 @@ const previewImage = (current: string, urls: string[]) => {
 const goToCollection = (colId: number) => {
   uni.navigateTo({ url: `/pages/collections/collections?id=${colId}` });
 };
+
+onShow(() => {
+  syncNavigationBarColor();
+});
 </script>
 
 <style scoped>

@@ -25,8 +25,9 @@
 </template>
 
 <script setup lang="ts">
+import { onShow } from '@dcloudio/uni-app';
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle } from '@/stores/theme';
+import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
 import { ref, onMounted, onUnmounted } from 'vue';
 import { get, put } from '@/utils/request';
 
@@ -104,6 +105,10 @@ const formatTime = (dateStr: string) => {
   if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
   return `${date.getMonth() + 1}月${date.getDate()}日`;
 };
+
+onShow(() => {
+  syncNavigationBarColor();
+});
 </script>
 
 <style scoped>

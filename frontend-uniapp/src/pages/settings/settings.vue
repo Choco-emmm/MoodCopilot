@@ -36,6 +36,8 @@
 </template>
 
 <script setup lang="ts">
+import { onShow } from '@dcloudio/uni-app';
+import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { get, post, upload, getFullUrl } from '@/utils/request';
 import GlobalUI from '@/components/GlobalUI.vue';
@@ -204,6 +206,10 @@ const saveSettings = async () => {
     uni.hideLoading();
   }
 };
+
+onShow(() => {
+  syncNavigationBarColor();
+});
 </script>
 
 <style scoped>

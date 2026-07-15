@@ -45,9 +45,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { get, post } from '@/utils/request';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle } from '@/stores/theme';
+import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
 
 const status = ref<any>(null);
 const tasks = ref<any[]>([]);
@@ -106,6 +106,10 @@ const handleTaskAction = async (task: any) => {
     uni.navigateTo({ url: '/pages/chat/chat' });
   }
 };
+
+onShow(() => {
+  syncNavigationBarColor();
+});
 </script>
 
 <style scoped>

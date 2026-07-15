@@ -47,9 +47,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { get, post } from '@/utils/request';
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle } from '@/stores/theme';
+import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
 
 const collections = ref<any[]>([]);
 const loading = ref(false);
@@ -115,6 +115,10 @@ const createCollection = async () => {
 const openCollection = (id: number) => {
   uni.showToast({ title: '即将支持查看合集内容', icon: 'none' });
 };
+
+onShow(() => {
+  syncNavigationBarColor();
+});
 </script>
 
 <style scoped>
