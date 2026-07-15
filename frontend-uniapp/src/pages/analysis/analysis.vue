@@ -1,5 +1,5 @@
 <template>
-  <scroll-view scroll-y class="analysis-page" :style="themeStyle">
+  <scroll-view scroll-y class="analysis-page" :style="localThemeStyle">
     <GlobalUI :tabIndex="1" />
     <view class="header">
       <text class="title">洞察 Insights</text>
@@ -237,9 +237,19 @@
 import GlobalUI from '@/components/GlobalUI.vue';
 import { themeStyle } from '@/stores/theme';
 import { ref, onMounted } from 'vue';
-import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { get, post, put, del } from '@/utils/request';
 import { parseMarkdown } from '@/utils/markdown';
+
+const localThemeStyle = ref(themeStyle.value);
+
+onShow(() => {
+  localThemeStyle.value = themeStyle.value;
+});
+
+uni.$on('themeChanged', () => {
+  localThemeStyle.value = themeStyle.value;
+});
 
 const loadingReport = ref(false);
 const weeklyReport = ref<any>(null);

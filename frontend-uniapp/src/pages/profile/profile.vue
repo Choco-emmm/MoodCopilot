@@ -1,5 +1,5 @@
 <template>
-  <view class="profile-page" :style="themeStyle">
+  <view class="profile-page" :style="localThemeStyle">
     <GlobalUI :tabIndex="3" />
     <view class="header clean-bg">
       <view class="user-info fade-in">
@@ -229,10 +229,21 @@
 
 <script setup lang="ts">
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeStyle, themeOptions, themeMode, defaultLightTheme, defaultDarkTheme, setThemeMode, setSpecificTheme } from '@/stores/theme';
+import { themeStyle, themeOptions, currentTheme, themeMode, defaultLightTheme, defaultDarkTheme, setThemeMode, setSpecificTheme } from '@/stores/theme';
 import { ref, computed, onMounted } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import { get, post, upload, getFullUrl } from '@/utils/request';
 import { connectWebSocket, disconnectWebSocket } from '@/utils/socket';
+
+const localThemeStyle = ref(themeStyle.value);
+
+onShow(() => {
+  localThemeStyle.value = themeStyle.value;
+});
+
+uni.$on('themeChanged', () => {
+  localThemeStyle.value = themeStyle.value;
+});
 
 const showQuotaModal = ref(false);
 

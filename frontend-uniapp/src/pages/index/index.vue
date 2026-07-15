@@ -1,5 +1,5 @@
 <template>
-  <view class="container" :style="themeStyle">
+  <view class="container" :style="localThemeStyle">
     <GlobalUI :tabIndex="0" />
     <!-- Header Area -->
     <view class="header" :style="{ paddingTop: (statusBarHeight + 10) + 'px' }">
@@ -109,9 +109,10 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { get, post, del, getFullUrl } from '@/utils/request';
 import { onPullDownRefresh, onShow, onReachBottom } from '@dcloudio/uni-app';
-import GlobalUI from '@/components/GlobalUI.vue';
 import { themeStyle } from '@/stores/theme';
+import GlobalUI from '@/components/GlobalUI.vue';
 
+const localThemeStyle = ref(themeStyle.value);
 const isLoggedIn = ref(false);
 const diaries = ref<any[]>([]);
 const page = ref(1);
@@ -122,6 +123,10 @@ const isRefreshing = ref(false);
 const unreadCount = ref(0);
 const statusBarHeight = ref(uni.getSystemInfoSync().statusBarHeight || 20);
 const showLoginPopup = ref(false);
+
+onShow(() => {
+  localThemeStyle.value = themeStyle.value;
+});
 
 onMounted(() => {
   checkLoginStatus();

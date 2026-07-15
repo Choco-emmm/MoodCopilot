@@ -1,5 +1,5 @@
 <template>
-  <view class="chat-page" :style="themeStyle">
+  <view class="chat-page" :style="localThemeStyle">
     <GlobalUI :tabIndex="2" />
     <scroll-view 
       class="chat-scroll" 
@@ -164,6 +164,21 @@ import { parseMarkdown } from '@/utils/markdown';
 import GlobalUI from '@/components/GlobalUI.vue';
 import { themeStyle } from '@/stores/theme';
 import { onShow } from '@dcloudio/uni-app';
+
+const localThemeStyle = ref(themeStyle.value);
+
+onShow(() => {
+  localThemeStyle.value = themeStyle.value;
+  const pendingQuote = uni.getStorageSync('pendingQuote');
+  if (pendingQuote) {
+    selectedQuote.value = { text: pendingQuote };
+    uni.removeStorageSync('pendingQuote');
+  }
+});
+
+uni.$on('themeChanged', () => {
+  localThemeStyle.value = themeStyle.value;
+});
 
 interface Message {
   role: 'user' | 'assistant';
