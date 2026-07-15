@@ -81,7 +81,8 @@
             <rich-text class="message-text" :nodes="parseMarkdown(formatMessage(msg.content))"></rich-text>
           </view>
           <view v-if="msg.role === 'user'" class="avatar user-avatar">
-            <image :src="getFullUrl(userInfo?.avatar) || `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23999999'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E`" class="avatar-img" mode="aspectFill" />
+            <image v-if="userInfo?.avatar" :src="getFullUrl(userInfo.avatar)" class="avatar-img" mode="aspectFill" />
+            <text v-else style="font-size: 28rpx;">我</text>
           </view>
         </view>
 
@@ -493,7 +494,7 @@ const scrollToBottom = (target?: 'waiting') => {
 .message-row {
   display: flex;
   margin-bottom: 32rpx;
-  align-items: flex-end;
+  align-items: flex-start;
 }
 
 .message-left {
@@ -850,7 +851,7 @@ const scrollToBottom = (target?: 'waiting') => {
 
 .sheet-diary-content {
   font-size: 28rpx;
-  color: #4a4a46;
+  color: var(--theme-text-secondary);
   line-height: 1.5;
   display: -webkit-box;
   -webkit-box-orient: vertical;

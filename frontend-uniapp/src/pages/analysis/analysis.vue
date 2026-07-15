@@ -495,7 +495,7 @@ const deleteTriple = (id: number) => {
 
 .subtitle {
   font-size: 26rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   line-height: 1.6;
 }
 
@@ -514,7 +514,7 @@ const deleteTriple = (id: number) => {
 
 .section-desc {
   font-size: 24rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   margin-bottom: 32rpx;
   display: block;
 }
@@ -523,7 +523,7 @@ const deleteTriple = (id: number) => {
   background-color: var(--theme-surface);
   border-radius: 20rpx;
   padding: 40rpx;
-  box-shadow: 0 8rpx 32rpx rgba(32, 32, 29, 0.04);
+  box-shadow: 0 8rpx 32rpx rgba(0,0,0,0.1);
   border: 1px solid rgba(var(--theme-primary-rgb), 0.1);
 }
 
@@ -533,14 +533,14 @@ const deleteTriple = (id: number) => {
 }
 
 .empty-text {
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   font-size: 28rpx;
 }
 
 .loading-state {
   text-align: center;
   padding: 60rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   font-size: 28rpx;
 }
 
@@ -568,7 +568,7 @@ const deleteTriple = (id: number) => {
 
 .report-count {
   font-size: 26rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
 }
 
 .generate-box {
@@ -581,7 +581,7 @@ const deleteTriple = (id: number) => {
 
 .generate-desc {
   font-size: 26rpx;
-  color: #4a4a46;
+  color: var(--theme-text-secondary);
   margin-bottom: 24rpx;
   display: block;
 }
@@ -612,13 +612,13 @@ const deleteTriple = (id: number) => {
 .stat-label {
   width: 120rpx;
   font-size: 26rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
 }
 
 .progress-bar {
   flex: 1;
   height: 12rpx;
-  background-color: rgba(32, 32, 29, 0.08);
+  background-color: var(--theme-border);
   border-radius: 6rpx;
   margin: 0 24rpx;
   overflow: hidden;
@@ -667,7 +667,7 @@ const deleteTriple = (id: number) => {
 
 .block-content {
   font-size: 28rpx;
-  color: #4a4a46;
+  color: var(--theme-text-secondary);
   line-height: 1.8;
   text-align: justify;
 }
@@ -722,7 +722,7 @@ const deleteTriple = (id: number) => {
 
 .memory-key {
   font-size: 22rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   display: block;
   text-align: center;
   margin-top: 12rpx;
@@ -766,7 +766,7 @@ const deleteTriple = (id: number) => {
   background-color: var(--theme-surface);
   border-radius: 20rpx;
   padding: 40rpx;
-  box-shadow: 0 8rpx 32rpx rgba(32, 32, 29, 0.04);
+  box-shadow: 0 8rpx 32rpx rgba(0,0,0,0.1);
 }
 
 .graph-link {
@@ -839,7 +839,7 @@ const deleteTriple = (id: number) => {
 
 .edit-label {
   font-size: 26rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   margin-bottom: 12rpx;
   display: block;
 }
@@ -889,7 +889,7 @@ const deleteTriple = (id: number) => {
 
 .edge-text {
   font-size: 22rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   background-color: var(--theme-surface);
   padding: 0 8rpx;
   z-index: 2;
@@ -957,7 +957,7 @@ const deleteTriple = (id: number) => {
 
 .preview-value {
   font-size: 28rpx;
-  color: #4a4a46;
+  color: var(--theme-text-secondary);
 }
 
 .modal-actions {

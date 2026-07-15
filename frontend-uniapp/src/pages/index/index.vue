@@ -706,13 +706,10 @@ const previewImage = (current: string, urls: string[]) => {
   color: var(--theme-text-primary);
 }
 
-.author-level {
-  font-size: 20rpx;
-  background-color: var(--theme-border);
-  color: var(--theme-text-secondary);
-  padding: 2rpx 12rpx;
-  border-radius: 2rpx;
-  font-weight: bold;
+.badge-level {
+  font-size: 22rpx;
+  color: var(--theme-text-placeholder);
+  margin-left: 8rpx;
 }
 
 .diary-meta {
