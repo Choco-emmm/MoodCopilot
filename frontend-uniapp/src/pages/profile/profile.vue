@@ -24,7 +24,7 @@
       <view class="card quota-card glass-card smooth-shadow" v-if="quotaInfo" @click="showQuotaModal = true">
         <view class="quota-header">
           <text class="quota-header-title">当前配额</text>
-          <text class="quota-header-link">查看配额表 &gt;</text>
+          <text class="quota-header-link">查看配额表 ></text>
         </view>
         <view class="quota-item">
           <text class="quota-label">当前经验值</text>
