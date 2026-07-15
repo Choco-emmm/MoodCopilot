@@ -607,6 +607,12 @@ const fetchQuota = async () => {
   transition: transform 0.2s ease;
 }
 
+.action-text {
+  font-size: 32rpx;
+  color: var(--theme-text-primary);
+  font-weight: 600;
+}
+
 .hover-scale:active {
   transform: scale(0.98);
 }

@@ -86,10 +86,17 @@
 import { ref, computed } from 'vue';
 import { post, upload, get, request } from '@/utils/request';
 import { showModal } from '@/stores/globalUI';
-import { themeStyle } from '@/stores/theme';
-import { onLoad } from '@dcloudio/uni-app';
+import { themeStyle, syncNavigationBarColor } from '@/stores/theme';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 
 const content = ref('');
+
+const localThemeStyle = ref(themeStyle.value);
+
+onShow(() => {
+  localThemeStyle.value = themeStyle.value;
+  syncNavigationBarColor();
+});
 const isSubmitting = ref(false);
 const analyze = ref(true);
 const isPublic = ref(false);
@@ -279,7 +286,7 @@ const previewImage = (current: string) => {
 }
 .composer-subtitle {
   font-size: 26rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   line-height: 1.6;
 }
 
@@ -457,5 +464,15 @@ const previewImage = (current: string) => {
   background-color: #ccc;
   box-shadow: none;
   opacity: 0.6;
+}
+
+.music-input {
+  flex: 1;
+  color: var(--theme-text-primary);
+  background-color: var(--theme-surface);
+  border: 1px solid rgba(var(--theme-primary-rgb), 0.1);
+  border-radius: 8rpx;
+  padding: 16rpx 24rpx;
+  font-size: 28rpx;
 }
 </style>

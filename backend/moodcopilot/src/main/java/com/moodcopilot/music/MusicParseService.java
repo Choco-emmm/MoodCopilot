@@ -376,9 +376,9 @@ public class MusicParseService {
 
     private String extractCoverUrl(String html) {
         Matcher m = OG_IMAGE_PATTERN.matcher(html);
-        if (m.find()) return m.group(1).trim();
+        if (m.find()) return m.group(1).trim().replace("http://", "https://");
         m = OG_IMAGE_PATTERN_REV.matcher(html);
-        if (m.find()) return m.group(1).trim();
+        if (m.find()) return m.group(1).trim().replace("http://", "https://");
         return null;
     }
 
