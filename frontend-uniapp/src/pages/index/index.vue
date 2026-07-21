@@ -52,14 +52,14 @@
               <text class="date-time">{{ String(new Date(diary.createdAt).getHours()).padStart(2, '0') }}:{{ String(new Date(diary.createdAt).getMinutes()).padStart(2, '0') }}</text>
             </view>
             <view class="diary-author-info">
-              <image :src="getFullUrl(diary.authorAvatar) || `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23999999'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E`" class="author-avatar" mode="aspectFill" />
+              <image :src="getFullUrl(diary.authorAvatar) || `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzk5OTk5OSI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==`" class="author-avatar" mode="aspectFill" />
               <view class="author-details">
                 <text class="author-name">{{ diary.authorName || '微信用户' }}</text>
                 <text class="author-badge badge-admin" v-if="diary.authorRole === 'ADMIN'">管理员</text>
                 <text class="author-badge badge-level">Lv.{{ diary.authorLevel || 1 }}</text>
               </view>
             </view>
-            <text class="diary-content">{{ diary.content }}</text>
+            <text class="diary-content">{{ extractPlainText(diary.content) }}</text>
           
           <view v-if="diary.images && diary.images.length > 0" class="diary-images">
             <image 
@@ -111,6 +111,7 @@ import { get, post, del, getFullUrl } from '@/utils/request';
 import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app';
 
 import GlobalUI from '@/components/GlobalUI.vue';
+import { extractPlainText } from '@/utils/markdown';
 
 
 const isLoggedIn = ref(false);
@@ -139,6 +140,15 @@ onMounted(() => {
 onUnmounted(() => {
   uni.$off('refreshFeed');
   uni.$off('notificationsRead');
+});
+
+onReachBottom(() => {
+  loadMore();
+});
+
+onPullDownRefresh(() => {
+  onRefresh();
+  setTimeout(() => uni.stopPullDownRefresh(), 1000);
 });
 
 const checkLoginStatus = () => {
@@ -321,7 +331,7 @@ const previewImage = (current: string, urls: string[]) => {
   font-size: 48rpx;
   font-weight: 800;
   letter-spacing: 2rpx;
-  color: var(--primary-color);
+  color: var(--theme-text-primary);
 }
 
 .header-actions {

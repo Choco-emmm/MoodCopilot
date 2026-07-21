@@ -2,9 +2,9 @@
   <view class="profile-page" :style="globalThemeStyle">
     <GlobalUI :tabIndex="3" />
     <view class="header clean-bg">
-      <view class="user-info fade-in">
+      <view class="user-info fade-in" @click="isLoggedIn && openEditProfile()">
         <view class="avatar">
-          <image :src="getFullUrl(userInfo?.avatar) || `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23999999'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E`" class="avatar-icon" mode="aspectFill" />
+          <image :src="userAvatarUrl" class="avatar-icon" mode="aspectFill" />
         </view>
         <view class="user-detail">
           <view style="display: flex; align-items: center; gap: 12rpx;">
@@ -24,7 +24,7 @@
       <view class="card quota-card glass-card smooth-shadow" v-if="quotaInfo" @click="showQuotaModal = true">
         <view class="quota-header">
           <text class="quota-header-title">当前配额</text>
-          <text class="quota-header-link">查看配额表 ></text>
+          <text class="quota-header-link">查看配额表 ❯</text>
         </view>
         <view class="quota-item">
           <text class="quota-label">当前经验值</text>
@@ -267,6 +267,10 @@ const isLoggedIn = ref(false);
 const quotaInfo = ref<any>(null);
 const userInfo = ref<any>(null);
 
+const userAvatarUrl = computed(() => {
+  return getFullUrl(userInfo.value?.avatar) || `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzk5OTk5OSI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==`;
+});
+
 const showEditProfileModal = ref(false);
 const editForm = ref({
   displayName: '',
@@ -375,6 +379,7 @@ const checkLoginStatus = () => {
   } else {
     isLoggedIn.value = false;
     quotaInfo.value = null;
+    userInfo.value = null;
   }
 };
 
@@ -419,12 +424,10 @@ const handleWechatLogin = () => {
             fetchUserInfo();
             uni.$emit('refreshFeed'); // Refresh home feed
             
-            // Auto-open profile edit if default user
-            if (result.data.user && result.data.user.nickname && result.data.user.nickname.startsWith('微信用户')) {
-              setTimeout(() => {
-                openEditProfile();
-              }, 600);
-            }
+            // Always open profile edit upon explicit login for user confirmation
+            setTimeout(() => {
+              openEditProfile();
+            }, 600);
           } else {
             uni.showToast({ title: '登录失败', icon: 'none' });
           }
@@ -443,6 +446,7 @@ const handleLogout = () => {
   uni.removeStorageSync('userInfo');
   isLoggedIn.value = false;
   quotaInfo.value = null;
+  userInfo.value = null;
   disconnectWebSocket(); // Disconnect WS on logout
   uni.$emit('refreshFeed');
   uni.showToast({ title: '已退出', icon: 'none' });

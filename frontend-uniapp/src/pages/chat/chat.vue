@@ -150,7 +150,7 @@
             @click="selectDiaryForQuote(diary)"
           >
             <text class="sheet-diary-date">{{ formatDate(diary.createdAt) }}</text>
-            <text class="sheet-diary-content">{{ diary.content }}</text>
+            <text class="sheet-diary-content">{{ extractPlainText(diary.content) }}</text>
           </view>
         </scroll-view>
       </view>
@@ -160,8 +160,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed } from 'vue';
-import { get, post, del, getFullUrl } from '@/utils/request';
-import { parseMarkdown } from '@/utils/markdown';
+import { get, post, getFullUrl } from '@/utils/request';
+import { parseMarkdown, extractPlainText } from '@/utils/markdown';
 import GlobalUI from '@/components/GlobalUI.vue';
 
 import { onShow } from '@dcloudio/uni-app';

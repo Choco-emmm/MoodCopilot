@@ -2304,6 +2304,9 @@ public class DiaryService {
 
     private void logImageCompressionSummary(long diaryId, List<DiaryImageMeta> imageMeta, List<String> images) {
         int imageCount = images == null ? 0 : images.size();
+        if (imageCount == 0) {
+            return;
+        }
         if (imageMeta == null || imageMeta.isEmpty()) {
             log.info("图片压缩信息缺失 diaryId={} imageCount={}（可能是 legacy 图片或前端尚未上送 imageMeta）", diaryId, imageCount);
             return;

@@ -23,7 +23,7 @@
             </view>
           </view>
         </view>
-        <text class="diary-text">{{ diary.content }}</text>
+        <rich-text class="diary-text" :nodes="formatDiaryContent(diary.content)"></rich-text>
         
         <view v-if="diary.images && diary.images.length > 0" class="diary-images">
           <image 
@@ -132,6 +132,7 @@ import GlobalUI from '@/components/GlobalUI.vue';
 import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { get, post, request } from '@/utils/request';
+import { formatDiaryContent } from '@/utils/markdown';
 import { currentUser, fetchCurrentUser } from '@/stores/user';
 
 const loading = ref(true);
@@ -387,13 +388,13 @@ const goToCollection = (colId: number) => {
 
 .ai-desc {
   font-size: 28rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
 }
 
 .letter-card {
-  background-color: #f0ebd8; /* Envelope color */
-  border: 1px solid rgba(32, 32, 29, 0.1);
-  box-shadow: inset 0 0 40rpx rgba(255, 255, 255, 0.5), 0 8rpx 24rpx rgba(32, 32, 29, 0.05);
+  background-color: var(--theme-surface);
+  border: 1px solid rgba(var(--theme-primary-rgb), 0.2);
+  box-shadow: inset 0 0 20rpx rgba(var(--theme-primary-rgb), 0.05);
   position: relative;
 }
 
@@ -435,14 +436,14 @@ const goToCollection = (colId: number) => {
 
 .intensity-label {
   font-size: 26rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   margin-right: 16rpx;
 }
 
 .bar-bg {
   flex: 1;
   height: 12rpx;
-  background-color: rgba(32, 32, 29, 0.1);
+  background-color: var(--theme-border);
   border-radius: 6rpx;
   margin-right: 16rpx;
   overflow: hidden;

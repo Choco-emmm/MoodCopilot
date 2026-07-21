@@ -21,6 +21,7 @@
       <view v-if="loading" class="loading-state">搜索中...</view>
       
       <view v-else-if="results.length > 0" class="diary-list">
+
         <view 
           class="diary-card smooth-shadow hover-scale fade-in" 
           v-for="diary in results" 
@@ -28,18 +29,19 @@
           @click="goToDetail(diary.id)"
         >
           <view class="diary-author-info">
-            <image :src="getFullUrl(diary.authorAvatar) || `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23999999'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E`" class="author-avatar" mode="aspectFill" />
+            <image :src="getFullUrl(diary.authorAvatar) || `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzk5OTk5OSI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==`" class="author-avatar" mode="aspectFill" />
             <view class="author-details">
               <text class="author-name">{{ diary.authorName || '微信用户' }}</text>
               <text class="author-level">Lv.{{ diary.authorLevel || 1 }}</text>
             </view>
           </view>
           <view class="diary-meta">
+
             <text class="diary-time">{{ formatDate(diary.createdAt) }}</text>
             <view v-if="diary.musicMeta" class="music-tag">🎵 {{ diary.musicMeta.title }}</view>
           </view>
           <text class="diary-content" :class="{ 'has-images': diary.images && diary.images.length > 0 }">
-            {{ diary.content }}
+            {{ extractPlainText(diary.content) }}
           </text>
           <view class="diary-images" v-if="diary.images && diary.images.length > 0">
             <image 
@@ -63,14 +65,6 @@
 </template>
 
 <script setup lang="ts">
-
-import { ref, onMounted } from 'vue';
-import { get, getFullUrl } from '@/utils/request';
-import GlobalUI from '@/components/GlobalUI.vue';
-
-
-const keyword = ref('');
-const results = ref<any[]>([]);
 const loading = ref(false);
 const searched = ref(false);
 

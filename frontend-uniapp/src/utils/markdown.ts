@@ -11,3 +11,31 @@ export const parseMarkdown = (text: string) => {
     .replace(/\n/g, '<br/>');
   return html;
 };
+
+export const unescapeHtml = (text: string) => {
+  if (!text) return '';
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+};
+
+export const formatDiaryContent = (text: string) => {
+  if (!text) return '';
+  let unescaped = unescapeHtml(text);
+  if (unescaped.includes('<p>') || unescaped.includes('<div') || unescaped.includes('<br') || unescaped.includes('<h')) {
+    unescaped = unescaped.replace(/<p>/gi, '<p style="margin: 0 0 16px 0; line-height: 1.8;">');
+    unescaped = unescaped.replace(/<img /gi, '<img style="max-width: 100%; border-radius: 8px;" ');
+    return unescaped;
+  }
+  return unescaped.replace(/\n/g, '<br/>');
+};
+
+export const extractPlainText = (text: string) => {
+  if (!text) return '';
+  let unescaped = unescapeHtml(text);
+  return unescaped.replace(/<[^>]+>/g, '').replace(/\n/g, ' ').trim();
+};

@@ -806,15 +806,26 @@ const deleteTriple = (id: number) => {
 /* Edit Styles */
 .item-actions {
   position: absolute;
-  top: 10rpx;
-  right: 16rpx;
+  top: -20rpx;
+  right: -16rpx;
   z-index: 2;
+  background-color: var(--theme-surface);
+  border-radius: 50%;
+  width: 44rpx;
+  height: 44rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.15);
+  border: 1px solid var(--theme-border);
 }
 
 .del-btn {
-  font-size: 36rpx;
-  color: #c4c0b8;
-  padding: 10rpx;
+  font-size: 32rpx;
+  color: var(--theme-text-placeholder);
+  padding: 0;
+  line-height: 1;
+  margin-top: -4rpx;
 }
 
 .edit-form {
