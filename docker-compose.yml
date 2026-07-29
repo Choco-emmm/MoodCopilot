@@ -76,6 +76,8 @@ services:
       MAIL_PORT: ${MAIL_PORT:-465}
       MAIL_USERNAME: ${MAIL_USERNAME:-your-email@qq.com}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-your-smtp-auth-code}
+      WX_APP_ID: ${WX_APP_ID}
+      WX_APP_SECRET: ${WX_APP_SECRET}
     deploy:
       resources:
         limits:
