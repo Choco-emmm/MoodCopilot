@@ -95,10 +95,14 @@ services:
 
   frontend:
     image: nginx:alpine
+    container_name: moodcopilot-icp-shell
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./icp-shell:/usr/share/nginx/html:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
     restart: unless-stopped
 
 volumes:
