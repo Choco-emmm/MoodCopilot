@@ -75,6 +75,7 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(
                                 "/api/health",
+                                "/api/vthread/**",
                                 "/api/auth/register",
                                 "/api/auth/login",
                                 "/api/auth/wx-login",

@@ -94,15 +94,12 @@ services:
         condition: service_healthy
 
   frontend:
-    build: ./frontend
+    image: nginx:alpine
     ports:
       - "80:80"
+    volumes:
+      - ./icp-shell:/usr/share/nginx/html:ro
     restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    depends_on:
-      backend:
-        condition: service_healthy
 
 volumes:
   mysql_data:

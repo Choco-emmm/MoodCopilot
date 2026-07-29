@@ -527,9 +527,10 @@ public class ChatService {
             log.info("Agent Loop 递归 depth={}，messages 数量={}", depth, messages.size());
         }
 
+
         return Flux.defer(() -> {
             List<DeepSeekStreamEvent.ToolCallReady> toolCalls = new ArrayList<>();
-
+            //返回的是最底层的flux对象，随时可以开始subscribe订阅，得到最顶层flux对应的工人，然后就可以按调用链执行onNext(T t)和onComplete()方法了
             return deepSeekClient.streamReasoner(messages, tools)
                     .doOnNext(event -> {
                         if (event instanceof DeepSeekStreamEvent.ToolCallReady tool) {
