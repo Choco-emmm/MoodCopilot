@@ -107,6 +107,15 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
     restart: unless-stopped
 
+  web:
+    build: ./frontend
+    container_name: moodcopilot-web
+    expose:
+      - "3000"
+    restart: unless-stopped
+    depends_on:
+      - backend
+
 volumes:
   mysql_data:
   uploads_data:
