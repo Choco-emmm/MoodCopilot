@@ -80,6 +80,8 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/wx-login",
                                 "/api/auth/send-code",
+                                "/api/auth/reset-password/send-code",
+                                "/api/auth/reset-password",
                                 "/api/auth/captcha/**",
                                 "/api/announcements/active",
                                 "/api/uploads/**",
