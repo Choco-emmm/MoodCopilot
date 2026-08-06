@@ -3,10 +3,16 @@ import { onLaunch, onShow, onHide } from "@dcloudio/uni-app";
 import { connectWebSocket, disconnectWebSocket } from "@/utils/socket";
 import { currentTheme } from "@/stores/theme";
 import { watch } from "vue";
+import { get } from '@/utils/request';
+import { loadActiveAnnouncement, setAnnouncementUserId } from '@/stores/announcement';
+import { restoreLoggedInUser, showLoginWithoutContinuation } from '@/stores/login';
 
 
 onLaunch(() => {
   console.log("App Launch");
+  restoreLoggedInUser();
+  void loadActiveAnnouncement();
+  void restoreAnnouncementUser();
   connectWebSocket();
   setTimeout(() => {
     // Theme initialization if needed
@@ -21,7 +27,26 @@ onShow(() => {
 
 onHide(() => {
   console.log("App Hide");
+  disconnectWebSocket();
 });
+
+uni.$on('unauthorized', () => {
+  showLoginWithoutContinuation();
+});
+
+async function restoreAnnouncementUser() {
+  if (!uni.getStorageSync('token')) return;
+  try {
+    const response = await get<{ userId?: number }>('/api/auth/me');
+    const userId = response.data?.userId;
+    if (response.code === 200 && userId) {
+      uni.setStorageSync('loginUserId', userId);
+      setAnnouncementUserId(userId);
+    }
+  } catch (error) {
+    console.warn('恢复公告用户标识失败', error);
+  }
+}
 
 
 </script>

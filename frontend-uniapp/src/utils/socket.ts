@@ -1,18 +1,17 @@
-import { post } from './request';
+import { post, BASE_URL } from './request';
 
-// We use the same baseUrl extraction as request.ts
-const BASE_URL = 'http://localhost:18080';
-const WS_BASE_URL = BASE_URL.replace('http', 'ws') + '/ws/notifications';
+const WS_BASE_URL = BASE_URL.replace(/^http/i, 'ws') + '/ws/notifications';
 
 let socketTask: any = null;
 let isConnected = false;
 let reconnectTimer: any = null;
-
 let isConnecting = false;
+let disconnectRequested = false;
 
 export const connectWebSocket = async () => {
   const token = uni.getStorageSync('token');
   if (isConnected || !token || socketTask || isConnecting) return;
+  disconnectRequested = false;
   isConnecting = true;
 
   try {
@@ -27,6 +26,7 @@ export const connectWebSocket = async () => {
         },
         fail: () => {
           console.error('WebSocket connection failed');
+          socketTask = null;
           scheduleReconnect();
         }
       });
@@ -63,6 +63,7 @@ export const connectWebSocket = async () => {
         isConnected = false;
         socketTask = null;
         stopHeartbeat();
+        scheduleReconnect();
       });
     }
   } catch (e) {
@@ -87,10 +88,9 @@ const handleWebSocketMessage = (payload: any) => {
     showModal('日记分析已完成', payload.data?.message || '你的日记有了新的 AI 解读，快来看看吧！', payload.data?.diaryId);
     uni.$emit('refreshFeed');
     uni.$emit('refreshAnalysis');
-  } else if (type === 'COMMENT') {
-    uni.showToast({ title: '收到新评论', icon: 'none' });
-  } else if (type === 'RESONANCE') {
-    uni.showToast({ title: '收到共鸣', icon: 'none' });
+  } else if (['COMMENT', 'RESONANCE', 'FOLLOW'].includes(type)) {
+    // 小程序是私密日记工具，不向用户暴露网页端的社交事件。
+    return;
   } else {
     // Other notifications
     uni.$emit('refreshNotifications');
@@ -118,7 +118,7 @@ const stopHeartbeat = () => {
 };
 
 const scheduleReconnect = () => {
-  if (reconnectTimer || !uni.getStorageSync('token')) return;
+  if (disconnectRequested || reconnectTimer || !uni.getStorageSync('token')) return;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     connectWebSocket();
@@ -126,16 +126,14 @@ const scheduleReconnect = () => {
 };
 
 export const disconnectWebSocket = () => {
-  if (socketTask) {
-    socketTask.close({
-      success: () => {
-        socketTask = null;
-        isConnected = false;
-        if (reconnectTimer) {
-          clearTimeout(reconnectTimer);
-          reconnectTimer = null;
-        }
-      }
-    });
+  disconnectRequested = true;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
   }
+  stopHeartbeat();
+  isConnected = false;
+  const currentTask = socketTask;
+  socketTask = null;
+  currentTask?.close();
 };

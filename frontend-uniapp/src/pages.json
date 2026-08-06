@@ -65,6 +65,14 @@
 			}
 		},
 		{
+			"path": "pages/collections/detail",
+			"style": {
+				"navigationBarTitleText": "合集详情",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
 			"path": "pages/growth/growth",
 			"style": {
 				"navigationBarTitleText": "成长中心",

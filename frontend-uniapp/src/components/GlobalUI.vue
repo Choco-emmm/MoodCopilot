@@ -1,5 +1,7 @@
 <template>
   <view class="global-ui">
+    <GlobalAnnouncement />
+    <GlobalLoginSheet />
     <!-- Top Right Popups (Memory / Graph) -->
     <view class="popups-container">
       <view 
@@ -44,6 +46,9 @@ import { onShow } from '@dcloudio/uni-app';
 import { popups, currentModal, removePopup, closeModal } from '@/stores/globalUI';
 import { currentTheme } from '@/stores/theme';
 import CustomTabBar from './CustomTabBar.vue';
+import GlobalAnnouncement from './GlobalAnnouncement.vue';
+import GlobalLoginSheet from './GlobalLoginSheet.vue';
+import { hasLoginToken, requireLogin } from '@/stores/login';
 
 const props = defineProps<{
   tabIndex?: number
@@ -78,6 +83,7 @@ onMounted(() => {
       fail: () => {}
     });
   }
+  ensurePrivateRouteLogin();
 });
 
 watch(currentTheme, () => {
@@ -93,6 +99,30 @@ const viewDetails = () => {
   }
   closeModal();
 };
+
+function ensurePrivateRouteLogin() {
+  const page = getCurrentPages().slice(-1)[0] as {
+    route?: string;
+    options?: Record<string, string | number | boolean | undefined>;
+    $page?: { fullPath?: string };
+  } | undefined;
+  const route = page?.route || '';
+  if (!route || route === 'pages/index/index' || hasLoginToken()) return;
+
+  requireLogin(() => {
+    const query = Object.entries(page?.options || {})
+      .filter(([, value]) => value !== undefined)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+      .join('&');
+    const rawUrl = page?.$page?.fullPath || `${route}${query ? `?${query}` : ''}`;
+    const url = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
+    if (['/pages/analysis/analysis', '/pages/chat/chat', '/pages/profile/profile'].includes(url)) {
+      uni.switchTab({ url });
+    } else {
+      uni.reLaunch({ url });
+    }
+  });
+}
 </script>
 
 <style scoped>

@@ -1,0 +1,45 @@
+# MoodCopilot Agent Guide
+
+## 产品边界
+
+- `frontend/` 是网页端，包含完整社区能力。
+- `frontend-uniapp/` 是微信小程序，定位为私密的日记、AI 陪伴与个人成长工具。
+- 小程序**不提供**广场、关注、用户主页、评论、点赞/共鸣、举报或其他公开社交入口。
+- 不要因为网页端存在这些页面或后端已有相应接口，就在小程序添加路由、入口、互动按钮或推送跳转。
+
+## 功能对齐原则
+
+- 小程序应与网页端保持一致的是非社交的个人能力：日记创建、编辑、删除、图片与音乐、AI 分析、聊天、记忆与图谱、报告、合集、成长、通知、设置和个人资料。
+- 功能对齐不等于照搬网页布局。小程序优先保证单手操作、列表滚动、低首屏开销和明确的页面层级。
+- 新增或调整小程序页面时，延续现有主题变量（`--theme-*`）、`GlobalUI`、自定义 tabBar 与安全区处理；不要引入另一套颜色、字体或导航体系。
+- 合集是私密内容组织能力，不应改造成公开内容或社交收藏功能。
+
+## 后端协作规则
+
+- 实现前先检查 `backend/moodcopilot` 的 Controller、DTO/View 和网页端 API 调用，确认接口、权限和返回结构。
+- 如果所需的非社交能力没有接口、接口权限不符合小程序场景，或返回契约无法满足页面需求，先向用户说明问题和建议，未经确认不要修改后端以猜测产品需求。
+- 小程序请求统一使用 `frontend-uniapp/src/utils/request.ts`，不要在页面中硬编码 API 或 WebSocket 域名。
+- API 地址由 `VITE_API_BASE_URL` 控制。微信小程序（包括微信开发者工具的开发构建）默认请求 `https://moodcopilot.top`，通过该站点的反向代理访问后端；不要为小程序调试给 Docker backend 新增宿主机 `ports` 映射。仅 H5 本地开发可默认使用 `http://localhost:18080`。WebSocket 必须从该基地址派生。
+- 微信小程序 AppID 必须维护在 `frontend-uniapp/src/manifest.json` 的顶层 `appid` 和 `mp-weixin.appid`，不要只在 `dist/**/project.config.json` 或微信开发者工具中临时修改，否则下次构建会回退为游客项目。
+
+## 已知实现约束
+
+- tabBar 页面只能通过 `uni.switchTab` 打开，不能使用 `uni.navigateTo`。
+- 聊天页进入时应复用最近会话；新建会话必须防重复提交。
+- 日记创建后的 AI 分析以服务端 `analysisStatus` 为准。`skipped_quota` 不是“分析中”；不要再用页面轮询与全局 WebSocket 同时弹完成提示。
+- WebSocket 需在异常和连接初始化失败时重连；应用进入后台时主动断开，并禁止该主动断开触发自动重连。
+- 通知按用户实际点击的单条标记为已读；不要在离开页面时把全部通知自动标为已读。
+
+## 修改与验证
+
+- 当前工作区可能包含用户未提交的改动。不要回退、覆盖或格式化与任务无关的文件。
+- 完成小程序改动至少执行：
+
+  ```powershell
+  npm.cmd run type-check
+  npm.cmd run build:mp-weixin
+  git diff --check -- frontend-uniapp
+  ```
+
+- 如需验证后端，可在 WSL 的 `D:\Code\MoodCopilot` 对应目录运行 `docker compose ps`，并从 backend 容器请求 `http://localhost:18080/api/health`。
+- 构建通过不代表微信端交互通过。涉及登录、上传、tabBar 跳转、通知、WebSocket、图片预览或安全区的改动，需在微信开发者工具或真机补充验证。

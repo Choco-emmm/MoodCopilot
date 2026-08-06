@@ -1,603 +1,293 @@
 <template>
   <view class="detail-page" :style="globalThemeStyle">
     <GlobalUI />
-    <view v-if="loading" class="loading-state">
-      <text>加载中...</text>
-    </view>
-    <view v-else-if="diary" class="detail-container fade-in">
-      <!-- Diary Header & Content -->
-      <view class="diary-paper">
-        <view class="diary-header">
-          <view class="header-left">
-            <text class="diary-date">{{ formatDate(diary.createdAt) }}</text>
-            <view v-if="diary.analysis && diary.analysis.moodLabel" class="diary-mood">
-              <text class="diary-mood-text">{{ diary.analysis.moodLabel }}</text>
+
+    <view v-if="loading" class="loading-state">正在打开日记...</view>
+
+    <scroll-view v-else-if="diary" scroll-y class="detail-scroll" :show-scrollbar="false">
+      <view class="detail-content">
+        <view class="diary-entry">
+          <view class="entry-meta">
+            <view>
+              <text class="entry-date">{{ formatDate(diary.createdAt) }}</text>
+              <text class="entry-time">{{ timeOf(diary.createdAt) }}</text>
+            </view>
+            <view class="entry-meta-right">
+              <text v-if="moodLabel" class="mood-tag">{{ moodLabel }}</text>
+              <view v-if="isOwner" class="manage-button" @click="openOwnerActions">
+                <text class="manage-icon">•••</text>
+                <text>管理</text>
+              </view>
             </view>
           </view>
-          <view class="diary-actions" v-if="currentUser && currentUser.id === diary.authorUserId">
-            <view class="action-btn edit-btn hover-scale" @click="editDiary">
-              <text>编辑</text>
+
+          <rich-text class="diary-text" :nodes="formatDiaryContent(diary.content)" />
+
+          <view v-if="diary.images?.length" class="diary-images">
+            <image
+              v-for="(image, index) in diary.images"
+              :key="`${diary.id}-${index}`"
+              :src="image"
+              mode="aspectFill"
+              class="diary-image"
+              @click="previewImage(image, diary.images)"
+            />
+          </view>
+
+          <MusicCard v-if="diary.musicMeta" :music-meta="diary.musicMeta" label="这一刻在听" class="entry-music" />
+
+          <view v-if="parentCollections.length" class="collection-row">
+            <text class="collection-label">收录于</text>
+            <view
+              v-for="collection in parentCollections"
+              :key="collection.id"
+              class="collection-chip"
+              @click="goToCollection(collection.id)"
+            >
+              <text>{{ collection.name }}</text>
+              <text class="chip-arrow">›</text>
             </view>
-            <view class="action-btn delete-btn hover-scale" @click="deleteDiary">
-              <text>删除</text>
-            </view>
           </view>
-        </view>
-        <rich-text class="diary-text" :nodes="formatDiaryContent(diary.content)"></rich-text>
-        
-        <view v-if="diary.images && diary.images.length > 0" class="diary-images">
-          <image 
-            v-for="(img, idx) in diary.images" 
-            :key="idx" 
-            :src="img" 
-            mode="widthFix" 
-            class="diary-img-full preview-img"
-            @click.stop="previewImage(img, diary.images)"
-          />
         </view>
 
-        <!-- Tags and Collections -->
-        <view class="diary-footer-tags" v-if="parentCollections.length > 0">
-          <text class="tag-label">收录于:</text>
-          <text 
-            v-for="col in parentCollections" 
-            :key="col.id" 
-            class="collection-tag hover-scale" 
-            @click="goToCollection(col.id)"
-          >
-            📁 {{ col.name }}
-          </text>
+        <view v-if="diary.analysisStatus === 'analyzing'" class="analysis-card analysis-pending">
+          <text class="analysis-kicker">AI 正在阅读这篇记录</text>
+          <text class="analysis-copy">分析完成后会出现在这里。</text>
         </view>
-      </view>
-
-      <!-- AI Analysis Section -->
-      <view class="ai-section" v-if="diary.analysisStatus === 'analyzing'">
-        <view class="ai-card analyzing">
-          <text class="ai-title">🤖 AI 正在深入分析你的情绪...</text>
-          <text class="ai-desc">通常需?10-30 秒，稍后回来查看吧。</text>
+        <view v-else-if="diary.analysis?.summary" class="analysis-card">
+          <view class="analysis-title-row">
+            <text class="analysis-kicker">这一天的回声</text>
+            <text v-if="diary.analysis.moodIntensity" class="analysis-score">{{ diary.analysis.moodIntensity }}/10</text>
+          </view>
+          <view v-if="topicLabels.length" class="topic-list">
+            <text v-for="tag in topicLabels" :key="tag" class="topic-tag">{{ tag }}</text>
+          </view>
+          <text class="analysis-copy">{{ diary.analysis.feedback || diary.analysis.summary }}</text>
         </view>
-      </view>
-      <view class="ai-section" v-else-if="diary.analysis && diary.analysis.summary">
-        <view class="ai-card letter-card">
-          <view class="letter-header">
-            <text class="letter-title">来自 MoodCopilot 的信</text>
-          </view>
-          
-          <view class="tags-container" v-if="topicLabels.length > 0">
-            <text v-for="tag in topicLabels" :key="tag" class="topic-tag"># {{ tag }}</text>
-          </view>
 
-          <view class="intensity-bar" v-if="diary.analysis.moodIntensity > 0">
-            <text class="intensity-label">情绪强度</text>
-            <view class="bar-bg">
-              <view class="bar-fill" :style="{ width: (diary.analysis.moodIntensity * 10) + '%' }"></view>
-            </view>
-            <text class="intensity-val">{{ diary.analysis.moodIntensity }}/10</text>
+        <view class="entry-actions">
+          <view class="chat-action" @click="quoteToChat">
+            <text class="chat-action-icon">✦</text>
+            <text>和 AI 聊聊这篇日记</text>
+            <text class="chat-action-arrow">›</text>
           </view>
-
-          <view class="letter-body">
-            <text class="letter-text">{{ diary.analysis.feedback || diary.analysis.summary }}</text>
+          <view class="collection-action" @click="showCollectionModal = true">
+            <text>加入合集</text>
+            <text class="chat-action-arrow">›</text>
           </view>
         </view>
       </view>
-      <view class="ai-section" v-else-if="diary.analysisStatus === 'skipped_user' || diary.analysisStatus === 'skipped_quota'">
-        <view class="ai-card skipped">
-          <text class="ai-desc">本篇日记未生成✨ AI 深度分析。</text>
-        </view>
-      </view>
-    </view>
-    <!-- Bottom Action Bar -->
-    <view v-if="diary" class="bottom-action-bar fade-in">
-      <view class="action-item hover-scale" @click="quoteToChat">
-        <text class="action-icon">🔮</text>
-        <text class="action-text">跟 AI 聊这篇</text>
-      </view>
-      <view class="action-item hover-scale" @click="showCollectionModal = true">
-        <text class="action-icon">📁</text>
-        <text class="action-text">加入合集</text>
-      </view>
-    </view>
+    </scroll-view>
 
-    <!-- Collection Modal -->
-    <view class="modal-overlay" v-if="showCollectionModal" @click="showCollectionModal = false">
-      <view class="modal-content" @click.stop>
-        <text class="modal-title">加入合集</text>
-        
-        <scroll-view scroll-y class="collection-list">
-          <view v-if="myCollections.length === 0" class="empty-state">
-            暂无合集，请先在“我的”页面创建
-          </view>
-          <view 
-            v-for="col in myCollections" 
-            :key="col.id" 
-            class="collection-item"
-            @click="addToCollection(col.id)"
-          >
-            <text class="col-name">{{ col.name }}</text>
-            <text class="add-btn">加入</text>
+    <view v-else class="missing-state">这篇日记暂时无法打开</view>
+
+    <view v-if="showCollectionModal" class="modal-overlay" @click="showCollectionModal = false">
+      <view class="collection-sheet" @click.stop>
+        <view class="sheet-handle" />
+        <view class="sheet-header">
+          <text class="sheet-title">加入合集</text>
+          <text class="sheet-close" @click="showCollectionModal = false">×</text>
+        </view>
+        <scroll-view scroll-y class="collection-list" :show-scrollbar="false">
+          <text v-if="myCollections.length === 0" class="collection-empty">还没有创建合集</text>
+          <view v-for="collection in myCollections" :key="collection.id" class="collection-item" @click="addToCollection(collection.id)">
+            <text>{{ collection.name }}</text>
+            <text class="collection-add">加入</text>
           </view>
         </scroll-view>
-        
-        <view class="modal-actions">
-          <button class="cancel-btn" @click="showCollectionModal = false">取消</button>
-        </view>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import GlobalUI from '@/components/GlobalUI.vue';
+import { computed, ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import GlobalUI from '@/components/GlobalUI.vue'
+import MusicCard from '@/components/MusicCard.vue'
+import { get, post, request } from '@/utils/request'
+import { formatDiaryContent } from '@/utils/markdown'
+import { currentUser, fetchCurrentUser } from '@/stores/user'
 
-import { ref, computed } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
-import { get, post, request } from '@/utils/request';
-import { formatDiaryContent } from '@/utils/markdown';
-import { currentUser, fetchCurrentUser } from '@/stores/user';
+const loading = ref(true)
+const diary = ref<any>(null)
+const showCollectionModal = ref(false)
+const myCollections = ref<any[]>([])
+const parentCollections = ref<any[]>([])
 
-const loading = ref(true);
-const diary = ref<any>(null);
-
-const showCollectionModal = ref(false);
-const myCollections = ref<any[]>([]);
-const parentCollections = ref<any[]>([]);
+const isOwner = computed(() => Boolean(currentUser.value && diary.value && currentUser.value.userId === diary.value.authorUserId))
+const moodLabel = computed(() => diary.value?.analysis?.moodLabel || '')
+const topicLabels = computed(() => {
+  const labels = diary.value?.analysis?.topicLabelsJson
+  if (!labels) return []
+  try {
+    const parsed = JSON.parse(labels)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+})
 
 onLoad(async (options: any) => {
-  if (!currentUser.value) {
-    await fetchCurrentUser();
-  }
+  if (!currentUser.value) await fetchCurrentUser()
   if (options.id) {
-    fetchDiary(options.id);
-    fetchParentCollections(options.id);
+    void fetchDiary(options.id)
+    void fetchParentCollections(options.id)
+  } else {
+    loading.value = false
   }
-  fetchMyCollections();
-});
+  void fetchMyCollections()
+})
 
-const fetchParentCollections = async (diaryId: number) => {
+async function fetchDiary(id: string | number) {
+  loading.value = true
   try {
-    const res = await get(`/api/collections/by-diary/${diaryId}`);
-    if (res.code === 200) {
-      parentCollections.value = res.data || [];
-    }
-  } catch (e) {
-    console.error('Failed to fetch parent collections', e);
-  }
-};
-
-const fetchMyCollections = async () => {
-  try {
-    const res = await get('/api/collections/mine?page=1&size=50');
-    if (res.code === 200) {
-      myCollections.value = res.data.records || res.data.items || res.data.content || [];
-    }
-  } catch (e) {
-    console.error('Failed to fetch collections', e);
-  }
-};
-
-const addToCollection = async (collectionId: number) => {
-  try {
-    const res = await post(`/api/collections/${collectionId}/diaries`, {
-      diaryIds: [diary.value.id]
-    });
-    if (res.code === 200) {
-      uni.showToast({ title: '已加入合集', icon: 'success' });
-      showCollectionModal.value = false;
-      fetchParentCollections(diary.value.id);
-    } else {
-      uni.showToast({ title: res.message || '操作失败', icon: 'none' });
-    }
-  } catch (e) {
-    uni.showToast({ title: '操作失败', icon: 'none' });
-  }
-};
-
-const fetchDiary = async (id: string | number) => {
-  loading.value = true;
-  try {
-    const res = await get(`/api/diaries/${id}`);
-    if (res.code === 200) {
-      diary.value = res.data;
-    }
-  } catch (e) {
-    console.error(e);
+    const response = await get(`/api/diaries/${id}`)
+    if (response.code === 200) diary.value = response.data
+  } catch (error) {
+    console.error('Failed to fetch diary', error)
   } finally {
-    loading.value = false;
+    loading.value = false
   }
-};
+}
 
-const editDiary = () => {
-  // Navigate to write page in edit mode
-  uni.navigateTo({ url: `/pages/write/write?id=${diary.value.id}&mode=edit` });
-};
+async function fetchParentCollections(diaryId: number) {
+  try {
+    const response = await get(`/api/collections/by-diary/${diaryId}`)
+    if (response.code === 200) parentCollections.value = response.data || []
+  } catch (error) {
+    console.error('Failed to fetch diary collections', error)
+  }
+}
 
-const deleteDiary = () => {
+async function fetchMyCollections() {
+  try {
+    const response = await get('/api/collections/mine?page=1&size=50')
+    if (response.code === 200) myCollections.value = response.data?.records || response.data?.items || response.data?.content || []
+  } catch (error) {
+    console.error('Failed to fetch collections', error)
+  }
+}
+
+async function addToCollection(collectionId: number) {
+  try {
+    const response = await post(`/api/collections/${collectionId}/diaries`, { diaryIds: [diary.value.id] })
+    if (response.code === 200) {
+      uni.showToast({ title: '已加入合集', icon: 'success' })
+      showCollectionModal.value = false
+      void fetchParentCollections(diary.value.id)
+      return
+    }
+    uni.showToast({ title: response.message || '操作失败', icon: 'none' })
+  } catch {
+    uni.showToast({ title: '操作失败', icon: 'none' })
+  }
+}
+
+function openOwnerActions() {
+  uni.showActionSheet({
+    itemList: ['编辑日记', '删除日记'],
+    itemColor: '#365f4c',
+    success: ({ tapIndex }) => {
+      if (tapIndex === 0) {
+        uni.navigateTo({ url: `/pages/write/write?id=${diary.value.id}&mode=edit` })
+        return
+      }
+      confirmDelete()
+    },
+  })
+}
+
+function confirmDelete() {
   uni.showModal({
     title: '删除日记',
-    content: '确定要删除这篇日记吗？此操作不可恢复。',
-    success: async (res) => {
-      if (res.confirm) {
-        try {
-          const result = await request('DELETE', `/api/diaries/${diary.value.id}`);
-          if (result.code === 200) {
-            uni.showToast({ title: '已删除', icon: 'success' });
-            setTimeout(() => {
-              uni.switchTab({ url: '/pages/index/index' });
-            }, 1000);
-          }
-        } catch (e) {
-          uni.showToast({ title: '删除失败', icon: 'none' });
+    content: '删除后无法恢复，确定继续吗？',
+    confirmColor: '#c74d4d',
+    success: async ({ confirm }) => {
+      if (!confirm) return
+      try {
+        const response = await request(`/api/diaries/${diary.value.id}`, 'DELETE')
+        if (response.code === 200) {
+          uni.showToast({ title: '已删除', icon: 'success' })
+          setTimeout(() => uni.navigateBack(), 500)
         }
+      } catch {
+        uni.showToast({ title: '删除失败', icon: 'none' })
       }
-    }
-  });
-};
+    },
+  })
+}
 
-const topicLabels = computed(() => {
-  if (!diary.value || !diary.value.analysis || !diary.value.analysis.topicLabelsJson) return [];
-  try {
-    return JSON.parse(diary.value.analysis.topicLabelsJson);
-  } catch (e) {
-    return [];
-  }
-});
+function formatDate(value: string) {
+  const date = new Date(value)
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
+}
 
-const formatDate = (isoString: string) => {
-  if (!isoString) return '';
-  const date = new Date(isoString);
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-};
+function timeOf(value: string) {
+  const date = new Date(value)
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
 
-const quoteToChat = () => {
-  if (diary.value && diary.value.content) {
-    const textToQuote = `关于我的这篇日记（${formatDate(diary.value.createdAt)}）：\n${diary.value.content}`;
-    uni.setStorageSync('pendingQuote', textToQuote);
-    uni.switchTab({ url: '/pages/chat/chat' });
-  }
-};
+function quoteToChat() {
+  const text = `关于我的这篇日记（${formatDate(diary.value.createdAt)}）：\n${diary.value.content}`
+  uni.setStorageSync('pendingQuote', text)
+  uni.switchTab({ url: '/pages/chat/chat' })
+}
 
-const previewImage = (current: string, urls: string[]) => {
-  uni.previewImage({ current, urls });
-};
+function previewImage(current: string, urls: string[]) {
+  uni.previewImage({ current, urls })
+}
 
-const goToCollection = (colId: number) => {
-  uni.navigateTo({ url: `/pages/collections/collections?id=${colId}` });
-};
-
+function goToCollection(collectionId: number) {
+  uni.navigateTo({ url: `/pages/collections/detail?id=${collectionId}` })
+}
 </script>
 
 <style scoped>
-.detail-page {
-  min-height: 100vh;
-  background-color: var(--theme-bg);
-}
-
-.detail-container {
-  padding: 16rpx;
-  padding-bottom: 120rpx;
-}
-
-.loading-state {
-  text-align: center;
-  padding: 100rpx;
-  color: #7d7870;
-}
-
-.diary-paper {
-  background-color: var(--theme-surface);
-  border-radius: 4rpx;
-  padding: 40rpx 32rpx;
-  min-height: 50vh;
-  box-shadow: 0 12rpx 36rpx rgba(0, 0, 0, 0.03);
-  position: relative;
-  border: 1px solid rgba(0,0,0,0.02);
-}
-
-.diary-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32rpx;
-  border-bottom: 1px dashed rgba(var(--theme-primary-rgb), 0.2);
-  padding-bottom: 24rpx;
-}
-
-.diary-date {
-  font-size: 28rpx;
-  color: #7d7870;
-}
-
-.diary-mood {
-  background-color: rgba(var(--theme-primary-rgb), 0.1);
-  padding: 8rpx 24rpx;
-  border-radius: 9999rpx;
-}
-
-.diary-mood-text {
-  font-size: 26rpx;
-  color: var(--theme-primary);
-  font-weight: 500;
-}
-
-.diary-text {
-  font-size: 32rpx;
-  color: var(--theme-text-primary);
-  line-height: 1.8;
-  margin-bottom: 32rpx;
-  display: block;
-}
-
-.diary-images {
-  display: flex;
-  flex-direction: column;
-  gap: 24rpx;
-}
-
-.diary-footer-tags {
-  margin-top: 32rpx;
-  padding-top: 32rpx;
-  border-top: 1px dashed rgba(0,0,0,0.05);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16rpx;
-  align-items: center;
-}
-
-.tag-label {
-  font-size: 24rpx;
-  color: var(--theme-text-placeholder);
-}
-
-.collection-tag {
-  background-color: rgba(var(--theme-primary-rgb), 0.05);
-  color: var(--theme-primary);
-  padding: 6rpx 20rpx;
-  border-radius: 4rpx;
-  font-size: 24rpx;
-  border: 1px solid rgba(var(--theme-primary-rgb), 0.1);
-}
-
-.preview-img {
-  width: 100%;
-  border-radius: 4rpx;
-  box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.04);
-}
-
-.ai-section {
-  margin-top: 48rpx;
-}
-
-.ai-card {
-  border-radius: 4rpx;
-  padding: 40rpx 32rpx;
-}
-
-.analyzing, .skipped {
-  background-color: rgba(var(--theme-primary-rgb), 0.05);
-  border: 1px dashed rgba(var(--theme-primary-rgb), 0.2);
-  text-align: center;
-}
-
-.ai-title {
-  font-size: 32rpx;
-  color: var(--theme-primary);
-  font-weight: 600;
-  display: block;
-  margin-bottom: 16rpx;
-}
-
-.ai-desc {
-  font-size: 28rpx;
-  color: var(--theme-text-secondary);
-}
-
-.letter-card {
-  background-color: var(--theme-surface);
-  border: 1px solid rgba(var(--theme-primary-rgb), 0.2);
-  box-shadow: inset 0 0 20rpx rgba(var(--theme-primary-rgb), 0.05);
-  position: relative;
-}
-
-.letter-header {
-  border-bottom: 2px solid rgba(var(--theme-primary-rgb), 0.2);
-  padding-bottom: 24rpx;
-  margin-bottom: 32rpx;
-  text-align: center;
-}
-
-.letter-title {
-  font-family: "Noto Serif SC", "Songti SC", "STSong", "KaiTi", serif;
-  font-size: 36rpx;
-  color: var(--theme-text-primary);
-  font-weight: 700;
-  letter-spacing: 4rpx;
-}
-
-.tags-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16rpx;
-  margin-bottom: 32rpx;
-}
-
-.topic-tag {
-  font-size: 24rpx;
-  color: var(--theme-surface);
-  background-color: var(--theme-primary);
-  padding: 6rpx 20rpx;
-  border-radius: 9999rpx;
-}
-
-.intensity-bar {
-  display: flex;
-  align-items: center;
-  margin-bottom: 32rpx;
-}
-
-.intensity-label {
-  font-size: 26rpx;
-  color: var(--theme-text-secondary);
-  margin-right: 16rpx;
-}
-
-.bar-bg {
-  flex: 1;
-  height: 12rpx;
-  background-color: var(--theme-border);
-  border-radius: 6rpx;
-  margin-right: 16rpx;
-  overflow: hidden;
-}
-
-.bar-fill {
-  height: 100%;
-  background-color: var(--theme-primary);
-  border-radius: 6rpx;
-}
-
-.intensity-val {
-  font-size: 26rpx;
-  color: var(--theme-primary);
-  font-weight: 600;
-}
-
-.letter-body {
-  font-family: "Noto Serif SC", "Songti SC", "STSong", "KaiTi", serif;
-  font-size: 32rpx;
-  color: var(--theme-text-primary);
-  line-height: 2;
-}
-
-.letter-text {
-  display: block;
-}
-.header-left {
-  display: flex;
-  align-items: center;
-}
-
-.diary-actions {
-  display: flex;
-  gap: 16rpx;
-}
-
-.action-btn {
-  padding: 16rpx 40rpx;
-  border-radius: 999rpx;
-  font-size: 28rpx;
-  font-weight: 600;
-  border: 2rpx solid transparent;
-  transition: all 0.2s ease;
-}
-
-.edit-btn {
-  background-color: rgba(var(--theme-primary-rgb), 0.08);
-  color: var(--theme-primary);
-  border-color: rgba(var(--theme-primary-rgb), 0.1);
-}
-
-.delete-btn {
-  background-color: rgba(229, 83, 83, 0.08);
-  color: #e55353;
-  border-color: rgba(229, 83, 83, 0.1);
-}
-
-.bottom-action-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 100rpx;
-  background-color: var(--theme-surface);
-  box-shadow: 0 -4rpx 16rpx rgba(32, 32, 29, 0.05);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-.action-item {
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
-  padding: 16rpx 32rpx;
-  border-radius: 999rpx;
-  background-color: rgba(var(--theme-primary-rgb), 0.05);
-}
-
-.action-icon {
-  font-size: 36rpx;
-}
-
-.action-text {
-  font-size: 28rpx;
-  color: var(--theme-primary);
-  font-weight: 500;
-}
-
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-color: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 999;
-}
-
-.modal-content {
-  background-color: var(--theme-surface);
-  width: 80%;
-  border-radius: 24rpx;
-  padding: 40rpx;
-}
-
-.modal-title {
-  font-size: 36rpx;
-  font-weight: bold;
-  margin-bottom: 32rpx;
-  display: block;
-  text-align: center;
-}
-
-.collection-list {
-  max-height: 400rpx;
-  margin-bottom: 32rpx;
-}
-
-.collection-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 24rpx 0;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
-}
-
-.col-name {
-  font-size: 32rpx;
-  color: var(--theme-text-primary);
-}
-
-.add-btn {
-  font-size: 24rpx;
-  color: var(--theme-primary);
-  background-color: rgba(var(--theme-primary-rgb), 0.1);
-  padding: 8rpx 24rpx;
-  border-radius: 8rpx;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: center;
-}
-
-.cancel-btn {
-  width: 100%;
-  background-color: #f0f0f0;
-  color: var(--theme-text-primary);
-  border-radius: 999rpx;
-  font-size: 28rpx;
-}
+.detail-page { min-height: 100vh; background: var(--theme-bg); }
+.detail-scroll { height: 100vh; }
+.detail-content { padding: 32rpx 32rpx calc(54rpx + env(safe-area-inset-bottom)); }
+.loading-state, .missing-state { padding-top: 240rpx; color: var(--theme-text-placeholder); font-size: 27rpx; text-align: center; }
+.diary-entry, .analysis-card { border: 1rpx solid var(--theme-border); border-radius: 8rpx; background: var(--theme-surface); box-shadow: 0 6rpx 18rpx rgba(29, 38, 32, .035); }
+.diary-entry { padding: 34rpx 30rpx 30rpx; }
+.entry-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 16rpx; padding-bottom: 24rpx; border-bottom: 1rpx solid var(--theme-border); }
+.entry-date { display: block; color: var(--theme-text-primary); font-size: 30rpx; font-weight: 650; line-height: 1.3; }
+.entry-time { display: block; margin-top: 7rpx; color: var(--theme-text-placeholder); font-size: 22rpx; }
+.entry-meta-right { display: flex; align-items: center; gap: 12rpx; }
+.mood-tag { padding: 7rpx 14rpx; border-radius: 999rpx; background: rgba(var(--theme-primary-rgb), .09); color: var(--theme-primary); font-size: 22rpx; }
+.manage-button { display: flex; align-items: center; gap: 5rpx; padding: 7rpx 0 7rpx 9rpx; color: var(--theme-text-secondary); font-size: 22rpx; }
+.manage-icon { color: var(--theme-primary); font-size: 26rpx; font-weight: 700; letter-spacing: 1rpx; line-height: .8; }
+.diary-text { display: block; margin-top: 30rpx; color: var(--theme-text-primary); font-size: 31rpx; line-height: 1.86; word-break: break-word; }
+.diary-images { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; margin-top: 28rpx; }
+.diary-image { width: 100%; height: 294rpx; border-radius: 6rpx; background: rgba(var(--theme-primary-rgb), .07); }
+.diary-images .diary-image:only-child { grid-column: span 2; height: 410rpx; }
+.entry-music { margin-top: 28rpx; }
+.collection-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10rpx; margin-top: 26rpx; padding-top: 24rpx; border-top: 1rpx solid var(--theme-border); }
+.collection-label { margin-right: 2rpx; color: var(--theme-text-placeholder); font-size: 22rpx; }
+.collection-chip { display: inline-flex; align-items: center; gap: 5rpx; padding: 8rpx 11rpx; border-radius: 5rpx; background: rgba(var(--theme-primary-rgb), .06); color: var(--theme-primary); font-size: 22rpx; }
+.chip-arrow, .chat-action-arrow { font-size: 30rpx; font-weight: 300; line-height: .7; }
+.analysis-card { margin-top: 20rpx; padding: 28rpx 30rpx; }
+.analysis-pending { border-style: dashed; background: rgba(var(--theme-primary-rgb), .025); }
+.analysis-title-row { display: flex; align-items: center; justify-content: space-between; }
+.analysis-kicker { display: block; color: var(--theme-primary); font-size: 24rpx; font-weight: 650; }
+.analysis-score { color: var(--theme-text-placeholder); font-size: 22rpx; }
+.topic-list { display: flex; flex-wrap: wrap; gap: 8rpx; margin-top: 17rpx; }
+.topic-tag { padding: 5rpx 10rpx; border-radius: 4rpx; background: rgba(var(--theme-primary-rgb), .08); color: var(--theme-primary); font-size: 20rpx; }
+.analysis-copy { display: block; margin-top: 15rpx; color: var(--theme-text-secondary); font-size: 25rpx; line-height: 1.75; white-space: pre-line; }
+.entry-actions { margin-top: 20rpx; border-top: 1rpx solid var(--theme-border); }
+.chat-action, .collection-action { display: flex; align-items: center; padding: 25rpx 8rpx; color: var(--theme-text-primary); font-size: 26rpx; }
+.chat-action { color: var(--theme-primary); font-weight: 600; }
+.chat-action-icon { margin-right: 11rpx; font-size: 28rpx; }
+.chat-action-arrow { margin-left: auto; color: var(--theme-text-placeholder); }
+.collection-action { border-top: 1rpx solid var(--theme-border); }
+.modal-overlay { position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: flex-end; background: rgba(21, 25, 22, .4); z-index: 50; }
+.collection-sheet { width: 100%; max-height: 68vh; padding: 16rpx 32rpx calc(32rpx + env(safe-area-inset-bottom)); border-radius: 12rpx 12rpx 0 0; background: var(--theme-surface); box-sizing: border-box; }
+.sheet-handle { width: 54rpx; height: 6rpx; margin: 0 auto 26rpx; border-radius: 99rpx; background: var(--theme-border); }
+.sheet-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16rpx; }
+.sheet-title { color: var(--theme-text-primary); font-size: 32rpx; font-weight: 650; }
+.sheet-close { width: 48rpx; color: var(--theme-text-secondary); font-size: 42rpx; font-weight: 300; text-align: right; line-height: 1; }
+.collection-list { max-height: 730rpx; }
+.collection-empty { display: block; padding: 54rpx 0; color: var(--theme-text-placeholder); font-size: 25rpx; text-align: center; }
+.collection-item { display: flex; align-items: center; justify-content: space-between; padding: 26rpx 4rpx; border-bottom: 1rpx solid var(--theme-border); color: var(--theme-text-primary); font-size: 27rpx; }
+.collection-add { color: var(--theme-primary); font-size: 23rpx; }
 </style>

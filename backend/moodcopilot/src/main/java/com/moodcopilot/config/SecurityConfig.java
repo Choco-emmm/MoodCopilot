@@ -81,6 +81,7 @@ public class SecurityConfig {
                                 "/api/auth/wx-login",
                                 "/api/auth/send-code",
                                 "/api/auth/captcha/**",
+                                "/api/announcements/active",
                                 "/api/uploads/**",
                                 "/uploads/**",
                                 "/swagger-ui.html",

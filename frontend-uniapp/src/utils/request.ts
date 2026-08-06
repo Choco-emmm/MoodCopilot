@@ -4,10 +4,13 @@ export interface Result<T = any> {
   data: T;
 }
 
-// 自动根据开发环境/生产环境切换域名
-export const BASE_URL = import.meta.env.DEV 
-  ? 'http://localhost:18080' 
-  : 'https://api.yourdomain.com'; // TODO: 替换为实际上线的域名
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+const isWeChatMiniProgram = typeof globalThis !== 'undefined' && 'wx' in globalThis;
+const defaultBaseUrl = import.meta.env.DEV && !isWeChatMiniProgram
+  ? 'http://localhost:18080'
+  : 'https://moodcopilot.top';
+
+export const BASE_URL = (configuredBaseUrl || defaultBaseUrl).replace(/\/+$/, '');
 
 export const getFullUrl = (url: string | undefined | null): string => {
   if (!url) return '';

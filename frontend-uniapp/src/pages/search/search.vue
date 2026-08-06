@@ -65,29 +65,14 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
+import { get, getFullUrl } from '@/utils/request';
+import { extractPlainText } from '@/utils/markdown';
+
 const loading = ref(false);
 const searched = ref(false);
-
-const userInfo = ref<any>(null);
-
-onMounted(() => {
-  fetchUserInfo();
-});
-
-const fetchUserInfo = async () => {
-  try {
-    const res = await get('/api/auth/me');
-    if (res.code === 200 && res.data) {
-      userInfo.value = res.data.user;
-      const quotaRes = await get('/api/user/quota');
-      if (quotaRes.code === 200) {
-        userInfo.value.level = quotaRes.data.level;
-      }
-    }
-  } catch (e) {
-    console.error('Failed to fetch user info', e);
-  }
-};
+const keyword = ref('');
+const results = ref<any[]>([]);
 
 const page = ref(1);
 const size = 20;
@@ -213,9 +198,7 @@ const formatDate = (isoStr: string) => {
 }
 
 .diary-author-info {
-  display: flex;
-  align-items: center;
-  margin-bottom: 12rpx;
+  display: none;
 }
 
 .author-avatar {

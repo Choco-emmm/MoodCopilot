@@ -8,13 +8,16 @@
       :scroll-with-animation="true"
     >
       <view class="sub-header" v-if="conversationId">
-        <text class="current-session-title">陪伴</text>
+        <view class="session-context">
+          <text class="session-label">本次对话</text>
+          <text class="current-session-title">{{ currentConversationTitle }}</text>
+        </view>
         <view class="header-actions">
           <view class="history-btn new-chat-action" @click="createNewChat">
-            <text>＋ 新对话</text>
+            <text class="tool-symbol">+</text>
           </view>
           <view class="history-btn" @click="showDrawer = true">
-            <text>··· 历史</text>
+            <text class="tool-symbol">•••</text>
           </view>
         </view>
       </view>
@@ -47,11 +50,13 @@
           <text>MoodCopilot 正在连接...</text>
         </view>
         <view v-else-if="messages.length === 0" class="welcome-section fade-in">
-          <view class="system-message">
-            <text>你可以随时和我聊聊今天的事。</text>
+          <view class="welcome-mark">
+            <image src="/static/ai_avatar.png" class="welcome-avatar" mode="aspectFill" />
           </view>
+          <text class="welcome-brand">MoodCopilot</text>
+          <text class="welcome-copy">可以聊聊最近的心情，分享你的故事和想法</text>
           <view v-if="welcomeTopics.length > 0" class="welcome-topics">
-            <text class="topics-title">或者试试这些话题：</text>
+            <text class="topics-title">从一句话开始</text>
             <view class="topics-list">
               <view 
                 v-for="(topic, idx) in welcomeTopics" 
@@ -112,12 +117,12 @@
       
       <view class="chat-input-bar">
         <view class="quote-action-btn hover-scale" @click="openDiarySelector">
-          <text class="quote-action-icon">📖</text>
+          <text class="quote-action-icon">+</text>
         </view>
         <input 
           class="chat-input" 
           v-model="inputContent" 
-          placeholder="说点什么..." 
+          placeholder="聊聊你今天的心情..."
           :adjust-position="true"
           :cursor-spacing="20"
           @confirm="sendMessage"
@@ -199,6 +204,10 @@ const showDrawer = ref(false);
 const conversations = ref<any[]>([]);
 const welcomeTopics = ref<string[]>([]);
 const selectedQuote = ref<{text: string} | null>(null);
+const isCreatingConversation = ref(false);
+const currentConversationTitle = computed(() => {
+  return conversations.value.find(conversation => conversation.id === conversationId.value)?.title || '新的对话';
+});
 
 const showDiarySelector = ref(false);
 const recentDiaries = ref<any[]>([]);
@@ -236,8 +245,8 @@ const fetchUserInfo = async () => {
   try {
     const res = await get('/api/auth/me');
     if (res.code === 200 && res.data) {
-      userInfo.value = res.data.user;
-      uni.setStorageSync('userInfo', res.data.user);
+      userInfo.value = res.data.user || res.data;
+      uni.setStorageSync('userInfo', userInfo.value);
     }
   } catch (e) {
     console.error('获取用户信息失败', e);
@@ -297,10 +306,10 @@ const initConversation = async () => {
     const res = await get('/api/chat/conversations');
     if (res.code === 200 && res.data && res.data.length > 0) {
       conversations.value = res.data;
-      // 如果有历史记录，并且是刚进页面，我们可以检查一下。但为了满足“默认是新话题页面”的需求，直接建新对话。
-      createNewChat();
+      conversationId.value = res.data[0].id;
+      loadHistory();
     } else {
-      createNewChat();
+      await createNewChat();
     }
   } catch (e) {
     console.error('初始化会话失败', e);
@@ -330,6 +339,8 @@ const fetchWelcomeTopics = async () => {
 };
 
 const createNewChat = async () => {
+  if (isCreatingConversation.value) return;
+  isCreatingConversation.value = true;
   try {
     const res = await post('/api/chat/conversations', { title: '新对话' });
     if (res.code === 200) {
@@ -345,6 +356,8 @@ const createNewChat = async () => {
     }
   } catch (e) {
     console.error('创建新对话失败', e);
+  } finally {
+    isCreatingConversation.value = false;
   }
 };
 
@@ -858,4 +871,38 @@ const scrollToBottom = (target?: 'waiting') => {
   -webkit-line-clamp: 3;
   overflow: hidden;
 }
+
+/* Conversation surface: editorial welcome state with compact mobile controls. */
+.chat-page { background: var(--theme-bg); }
+.sub-header { min-height: 94rpx; padding: 18rpx 32rpx; border-bottom: 1rpx solid var(--theme-border); background: var(--theme-bg); box-sizing: border-box; }
+.session-context { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.session-label { color: var(--theme-text-placeholder); font-size: 19rpx; }
+.current-session-title { overflow: hidden; margin-top: 4rpx; color: var(--theme-text-primary); font-size: 27rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.header-actions { display: flex; align-items: center; gap: 10rpx; margin-left: 18rpx; }
+.history-btn { display: flex; width: 58rpx; height: 58rpx; align-items: center; justify-content: center; padding: 0; border: 1rpx solid var(--theme-border); border-radius: 6rpx; background: var(--theme-surface); color: var(--theme-primary); box-sizing: border-box; }
+.tool-symbol { font-size: 31rpx; font-weight: 650; line-height: 1; }
+.history-btn:not(.new-chat-action) .tool-symbol { font-size: 24rpx; letter-spacing: 1rpx; }
+.chat-container { min-height: 100%; padding: 30rpx 32rpx 44rpx; box-sizing: border-box; }
+.welcome-section { width: 100%; margin: 32rpx 0 0; padding: 48rpx 28rpx 30rpx; border: 1rpx solid var(--theme-border); border-radius: 10rpx; background: var(--theme-surface); box-sizing: border-box; }
+.welcome-mark { display: flex; width: 86rpx; height: 86rpx; align-items: center; justify-content: center; margin: 0 auto 20rpx; border: 1rpx solid rgba(var(--theme-primary-rgb), .18); border-radius: 50%; background: rgba(var(--theme-primary-rgb), .06); overflow: hidden; }
+.welcome-avatar { width: 72rpx; height: 72rpx; border-radius: 50%; }
+.welcome-brand { display: block; color: var(--theme-primary); font-family: Georgia, "Times New Roman", serif; font-size: 50rpx; font-weight: 500; text-align: center; }
+.welcome-copy { display: block; margin-top: 11rpx; color: var(--theme-text-secondary); font-size: 25rpx; line-height: 1.65; text-align: center; }
+.welcome-section .system-message { display: none; }
+.welcome-topics { width: 100%; max-width: none; margin-top: 38rpx; }
+.topics-title { display: block; margin: 0 0 14rpx; color: var(--theme-text-placeholder); font-size: 21rpx; }
+.topic-btn { position: relative; min-height: 84rpx; margin-bottom: 12rpx; padding: 19rpx 48rpx 19rpx 18rpx; border: 1rpx solid var(--theme-border); border-radius: 7rpx; background: var(--theme-bg); box-shadow: none; box-sizing: border-box; }
+.topic-btn::after { position: absolute; top: 50%; right: 18rpx; color: var(--theme-primary); content: '›'; font-size: 31rpx; font-weight: 300; transform: translateY(-50%); }
+.topic-icon { width: 40rpx; margin-right: 14rpx; font-size: 31rpx; text-align: center; }
+.topic-text { color: var(--theme-text-primary); font-size: 25rpx; line-height: 1.45; }
+.message-row { margin-bottom: 24rpx; }
+.bubble { max-width: 78%; padding: 20rpx 24rpx; border-radius: 8rpx; }
+.ai-bubble { border: 1rpx solid var(--theme-border); box-shadow: none; }
+.user-bubble { border-radius: 8rpx; }
+.chat-bottom-wrapper { border-top: 1rpx solid var(--theme-border); background: var(--theme-surface); }
+.chat-input-bar { gap: 14rpx; padding: 18rpx 26rpx; }
+.quote-action-btn { display: flex; width: 62rpx; height: 62rpx; flex: 0 0 62rpx; align-items: center; justify-content: center; border: 1rpx solid var(--theme-border); border-radius: 6rpx; color: var(--theme-primary); }
+.quote-action-icon { font-size: 34rpx; line-height: 1; }
+.chat-input { height: 64rpx; padding: 0 20rpx; border-radius: 6rpx; background: var(--theme-bg); font-size: 26rpx; }
+.send-btn { height: 64rpx; padding: 0 24rpx; border-radius: 6rpx; font-size: 25rpx; line-height: 64rpx; }
 </style>

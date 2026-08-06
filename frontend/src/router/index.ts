@@ -111,6 +111,12 @@ const router = createRouter({
       component: () => import('../pages/AdminReportsPage.vue'),
       meta: { requiresAuth: true, requiresAdmin: true, keepAlive: true },
     },
+    {
+      path: '/admin/announcements',
+      name: 'admin-announcements',
+      component: () => import('../pages/AdminAnnouncementsPage.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
   ],
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {

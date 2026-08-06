@@ -13,7 +13,7 @@
           <text v-if="isLoggedIn && quotaInfo" class="level-text">Lv.{{ quotaInfo.level }} 用户</text>
         </view>
       </view>
-      <view v-if="!isLoggedIn" class="login-btn hover-scale" @click="handleWechatLogin">
+      <view v-if="!isLoggedIn" class="login-btn hover-scale" @click="showLoginWithoutContinuation">
         登录以体验更多功能
       </view>
     </view>
@@ -234,6 +234,7 @@ import { ref, computed, onMounted } from 'vue';
 
 import { get, post, upload, getFullUrl } from '@/utils/request';
 import { connectWebSocket, disconnectWebSocket } from '@/utils/socket';
+import { showLoginWithoutContinuation } from '@/stores/login';
 
 
 
@@ -361,9 +362,7 @@ const goToSettings = () => {
 
 onMounted(() => {
   checkLoginStatus();
-  uni.$on('unauthorized', () => {
-    handleLogout();
-  });
+  uni.$on('login-success', checkLoginStatus);
   uni.$on('profileUpdated', () => {
     fetchUserInfo();
   });
@@ -381,7 +380,9 @@ const checkLoginStatus = () => {
     quotaInfo.value = null;
     userInfo.value = null;
   }
+  return isLoggedIn.value;
 };
+
 
 const fetchQuotaInfo = async () => {
   if (!isLoggedIn.value) return;
@@ -400,7 +401,7 @@ const fetchUserInfo = async () => {
   try {
     const res = await get('/api/auth/me');
     if (res.code === 200 && res.data) {
-      userInfo.value = res.data.user;
+      userInfo.value = res.data.user || res.data;
     }
   } catch (e) {
     console.error('Failed to fetch user info', e);
@@ -566,10 +567,10 @@ const fetchQuota = async () => {
 
 .card {
   background-color: var(--theme-surface);
-  border-radius: 4rpx;
+  border-radius: 24rpx;
   padding: 32rpx;
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0,0,0,0.05);
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0,0,0,0.02);
 }
 
 .quota-card {

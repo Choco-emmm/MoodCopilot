@@ -2,12 +2,23 @@
   <scroll-view scroll-y class="analysis-page" :style="globalThemeStyle">
     <GlobalUI :tabIndex="1" />
     <view class="header">
-      <text class="title">洞察 Insights</text>
-      <text class="subtitle">✨ AI 为你整理记忆，发现那些被遗忘的情绪角落。</text>
+      <text class="title">洞察</text>
+      <text class="subtitle">把一段时间的报告和重要记忆放在同一个入口。</text>
+      <view class="insight-entry-switch">
+        <view class="insight-entry active">
+          <text class="entry-kicker">当前</text>
+          <text>记忆中心</text>
+        </view>
+        <view class="insight-entry" @click="goToReports">
+          <text class="entry-kicker">按时间回顾</text>
+          <text>情绪报告</text>
+          <text class="entry-arrow">›</text>
+        </view>
+      </view>
     </view>
 
     <!-- 情绪周报 -->
-    <view class="section">
+    <view v-if="showLegacyReports" class="section">
       <text class="section-title">本周情绪报告</text>
       
       <view v-if="loadingReport" class="loading-state">
@@ -85,7 +96,7 @@
     </view>
 
     <!-- 往期月度总结 -->
-    <view class="section">
+    <view v-if="showLegacyReports" class="section">
       <text class="section-title">往期月度总结</text>
       
       <view v-if="loadingSummaries" class="loading-state">
@@ -96,7 +107,7 @@
         <view class="card summary-card" v-for="summary in monthlySummaries" :key="summary.id">
           <text class="summary-title">{{ summary.title }}</text>
           <text class="summary-date">{{ summary.startDate }} 至 {{ summary.endDate }}</text>
-          <text class="block-content">{{ summary.aiSummary }}</text>
+          <rich-text class="block-content" :nodes="parseMarkdown(summary.aiSummary)"></rich-text>
         </view>
       </view>
       
@@ -107,7 +118,10 @@
 
     <!-- 个人记忆 -->
     <view class="section">
-      <text class="section-title">你的专属记忆</text>
+      <view class="section-title-row">
+        <text class="section-title">你的专属记忆</text>
+        <button class="section-action" @click="previewConsolidate" :loading="isConsolidating">整理记忆</button>
+      </view>
       <text class="section-desc">AI 悄悄为你记录下的点点滴滴。</text>
       
       <view v-if="loadingMemory" class="loading-state">
@@ -115,19 +129,21 @@
       </view>
       
       <view v-else-if="memories.length > 0">
-        <view class="memory-waterfall">
-          <view v-for="m in memories" :key="m.id" class="memory-polaroid" @click="openEditMemory(m)">
-            <view class="pin"></view>
-            <view class="item-actions">
+        <view class="memory-list">
+          <view v-for="m in memories" :key="m.id" class="memory-row" @click="openEditMemory(m)">
+            <view class="memory-row-main">
+              <view class="memory-row-head">
+                <text class="memory-key">{{ m.attributeKey }}</text>
+                <text v-if="m.isCore" class="core-badge">核心</text>
+              </view>
+              <text class="memory-value">{{ memoryPreview(m.attributeValue) }}</text>
+            </view>
+            <view class="memory-row-actions">
+              <text class="memory-edit">编辑</text>
               <text class="del-btn" @click.stop="deleteMemory(m.id)">×</text>
             </view>
-            <text class="memory-key">{{ m.attributeKey }}</text>
-            <view class="memory-divider"></view>
-            <text class="memory-value">{{ m.attributeValue }}</text>
-            <text v-if="m.isCore" class="core-badge">★ 核心记忆</text>
           </view>
         </view>
-        <button class="consolidate-btn" @click="previewConsolidate" :loading="isConsolidating">整理与巩固记忆</button>
       </view>
       
       <view v-else class="card empty-card">
@@ -137,7 +153,10 @@
 
     <!-- 关系图谱 -->
     <view class="section">
-      <text class="section-title">羁绊图谱</text>
+      <view class="section-title-row">
+        <text class="section-title">羁绊图谱</text>
+        <button class="section-action" @click="previewGraphConsolidate" :loading="isGraphConsolidating">整理图谱</button>
+      </view>
       <text class="section-desc">在你的世界里，谁是常客？</text>
       
       <view v-if="loadingGraph" class="loading-state">
@@ -200,12 +219,32 @@
           
           <view class="edit-switch-row">
             <text class="edit-label">设为核心记忆</text>
-            <switch :checked="editMemoryForm.isCore" @change="editMemoryForm.isCore = $event.detail.value" color="#d4a373" style="transform: scale(0.8);" />
+            <switch :checked="editMemoryForm.isCore" @change="handleCoreMemoryChange" color="#d4a373" style="transform: scale(0.8);" />
           </view>
         </view>
         <view class="modal-actions">
           <button class="cancel-btn" @click="showEditMemoryModal = false">取消</button>
           <button class="confirm-btn" @click="saveMemory">保存</button>
+        </view>
+      </view>
+    </view>
+
+    <!-- Graph Consolidation Modal -->
+    <view class="modal-overlay" v-if="showGraphConsolidateModal" @click="closeGraphConsolidateModal">
+      <view class="modal-content" @click.stop>
+        <text class="modal-title">图谱整理预览</text>
+        <scroll-view scroll-y class="preview-list">
+          <view v-if="previewGraphTriples.length === 0" class="empty-text">
+            没有需要整理的关联。
+          </view>
+          <view v-else v-for="(t, idx) in previewGraphTriples" :key="idx" class="preview-item">
+            <text class="preview-key">{{ t.headEntity }} -- {{ t.relation }}</text>
+            <text class="preview-value">{{ t.tailEntity }}</text>
+          </view>
+        </scroll-view>
+        <view class="modal-actions">
+          <button class="cancel-btn" @click="closeGraphConsolidateModal" :disabled="isGraphApplying">取消</button>
+          <button class="confirm-btn" @click="applyGraphConsolidate" :loading="isGraphApplying" :disabled="previewGraphTriples.length === 0 || isGraphApplying">确认应用</button>
         </view>
       </view>
     </view>
@@ -252,6 +291,7 @@ uni.$on('themeChanged', () => {
 const loadingReport = ref(false);
 const weeklyReport = ref<any>(null);
 const isGenerating = ref(false);
+const showLegacyReports = false;
 
 const loadingMemory = ref(false);
 const memories = ref<any[]>([]);
@@ -266,11 +306,14 @@ const isConsolidating = ref(false);
 const showConsolidateModal = ref(false);
 const previewMemories = ref<any[]>([]);
 
+const isGraphConsolidating = ref(false);
+const isGraphApplying = ref(false);
+const showGraphConsolidateModal = ref(false);
+const previewGraphTriples = ref<any[]>([]);
+
 const loadAllData = async () => {
-  fetchReport();
   fetchMemory();
   fetchGraph();
-  fetchSummaries();
 };
 
 onMounted(() => {
@@ -279,10 +322,8 @@ onMounted(() => {
 
 onPullDownRefresh(async () => {
   await Promise.all([
-    fetchReport(),
     fetchMemory(),
-    fetchGraph(),
-    fetchSummaries()
+    fetchGraph()
   ]);
   uni.stopPullDownRefresh();
 });
@@ -380,8 +421,61 @@ const applyConsolidate = async () => {
   }
 };
 
+const previewGraphConsolidate = async () => {
+  if (isGraphConsolidating.value) return;
+  isGraphConsolidating.value = true;
+  try {
+    const res = await post('/api/graph/consolidate/preview');
+    if (res.code === 200) {
+      previewGraphTriples.value = res.data || [];
+      showGraphConsolidateModal.value = true;
+    }
+  } catch (e: any) {
+    uni.showToast({ title: e.message || '预览失败', icon: 'none' });
+  } finally {
+    isGraphConsolidating.value = false;
+  }
+};
+
+const memoryPreview = (value: string) => {
+  const compact = String(value || '').replace(/\s+/g, ' ').trim();
+  return compact.length > 76 ? `${compact.slice(0, 76)}...` : compact;
+};
+
+const goToReports = () => {
+  uni.navigateTo({ url: '/pages/summaries/summaries' });
+};
+
+const closeGraphConsolidateModal = () => {
+  if (!isGraphApplying.value) {
+    showGraphConsolidateModal.value = false;
+  }
+};
+
+const applyGraphConsolidate = async () => {
+  if (isGraphApplying.value || previewGraphTriples.value.length === 0) return;
+  isGraphApplying.value = true;
+  try {
+    const triples = previewGraphTriples.value.map((triple) => ({ ...triple }));
+    const res = await post('/api/graph/consolidate/apply', triples);
+    if (res.code === 200) {
+      uni.showToast({ title: '图谱已整理', icon: 'success' });
+      showGraphConsolidateModal.value = false;
+      fetchGraph();
+    }
+  } catch (e) {
+    uni.showToast({ title: '应用失败', icon: 'none' });
+  } finally {
+    isGraphApplying.value = false;
+  }
+};
+
 const showEditMemoryModal = ref(false);
 const editMemoryForm = ref<any>({});
+
+const handleCoreMemoryChange = (event: any) => {
+  editMemoryForm.value.isCore = event.detail.value;
+};
 
 const openEditMemory = (m: any) => {
   editMemoryForm.value = { ...m };
@@ -495,6 +589,64 @@ const deleteTriple = (id: number) => {
   color: var(--theme-text-secondary);
   line-height: 1.6;
 }
+
+.insight-entry-switch {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12rpx;
+  margin-top: 30rpx;
+}
+
+.insight-entry {
+  position: relative;
+  min-height: 106rpx;
+  padding: 19rpx 18rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: 8rpx;
+  background: var(--theme-surface);
+  color: var(--theme-text-primary);
+  font-size: 27rpx;
+  font-weight: 650;
+  box-sizing: border-box;
+}
+
+.insight-entry.active {
+  border-color: rgba(var(--theme-primary-rgb), .32);
+  background: rgba(var(--theme-primary-rgb), .055);
+  color: var(--theme-primary);
+}
+
+.entry-kicker {
+  display: block;
+  margin-bottom: 7rpx;
+  color: var(--theme-text-placeholder);
+  font-size: 19rpx;
+  font-weight: 400;
+}
+
+.entry-arrow {
+  position: absolute;
+  right: 18rpx;
+  bottom: 18rpx;
+  color: var(--theme-primary);
+  font-size: 33rpx;
+  font-weight: 300;
+  line-height: .7;
+}
+
+/* Memory center: a compact list keeps long memories readable without exposing full text. */
+.memory-waterfall { display: none; }
+.memory-list { display: flex; flex-direction: column; gap: 12rpx; }
+.memory-row { display: flex; min-height: 114rpx; align-items: center; gap: 18rpx; padding: 21rpx 20rpx; border: 1rpx solid var(--theme-border); border-radius: 7rpx; background: var(--theme-surface); box-sizing: border-box; }
+.memory-row:active { background: rgba(var(--theme-primary-rgb), .045); }
+.memory-row-main { min-width: 0; flex: 1; }
+.memory-row-head { display: flex; align-items: center; gap: 9rpx; }
+.memory-key { overflow: hidden; color: var(--theme-text-primary); font-size: 25rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.memory-value { display: -webkit-box; overflow: hidden; margin-top: 9rpx; color: var(--theme-text-secondary); font-size: 22rpx; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.core-badge { padding: 3rpx 9rpx; border-radius: 4rpx; background: rgba(var(--theme-primary-rgb), .1); color: var(--theme-primary); font-size: 18rpx; line-height: 1.4; white-space: nowrap; }
+.memory-row-actions { display: flex; align-items: center; gap: 12rpx; }
+.memory-edit { color: var(--theme-primary); font-size: 21rpx; }
+.memory-row-actions .del-btn { position: static; display: flex; width: 38rpx; height: 38rpx; align-items: center; justify-content: center; margin: 0; border: 1rpx solid var(--theme-border); border-radius: 50%; background: transparent; color: var(--theme-text-placeholder); font-size: 27rpx; line-height: 1; box-shadow: none; }
 
 .section {
   margin-bottom: 64rpx;
@@ -683,13 +835,13 @@ const deleteTriple = (id: number) => {
 
 /* Memory Styles */
 .memory-waterfall {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+  column-count: 2;
+  column-gap: 24rpx;
 }
 
 .memory-polaroid {
-  width: 48%;
+  break-inside: avoid;
+  width: 100%;
   background-color: var(--theme-surface);
   padding: 32rpx 24rpx;
   border-radius: 8rpx;
@@ -740,7 +892,9 @@ const deleteTriple = (id: number) => {
   font-size: 28rpx;
   color: var(--theme-text-primary);
   line-height: 1.6;
-  text-align: center;
+  text-align: justify;
+  text-align-last: center;
+  word-break: break-all;
   display: block;
 }
 
@@ -994,5 +1148,49 @@ const deleteTriple = (id: number) => {
   margin: 0;
 }
 .confirm-btn::after { border: none; }
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.section-title-row .section-title {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.section-action {
+  flex: 0 0 auto;
+  min-width: 136rpx;
+  height: 56rpx;
+  margin: 0;
+  padding: 0 16rpx;
+  border: 1rpx solid rgba(var(--theme-primary-rgb), .3);
+  border-radius: 6rpx;
+  background: rgba(var(--theme-primary-rgb), .06);
+  box-sizing: border-box;
+  color: var(--theme-primary);
+  font-size: 22rpx;
+  font-weight: 600;
+  line-height: 54rpx;
+}
+
+.section-action::after { border: none; }
+.section-action:active { background: rgba(var(--theme-primary-rgb), .13); }
+
+/* Keep memory rows compact even though legacy card styles above share class names. */
+.memory-list { display: flex; flex-direction: column; gap: 12rpx; }
+.memory-row { display: flex; min-height: 114rpx; align-items: center; gap: 18rpx; padding: 21rpx 20rpx; border: 1rpx solid var(--theme-border); border-radius: 7rpx; background: var(--theme-surface); box-sizing: border-box; }
+.memory-row:active { background: rgba(var(--theme-primary-rgb), .045); }
+.memory-row-main { min-width: 0; flex: 1; }
+.memory-row-head { display: flex; align-items: center; gap: 9rpx; }
+.memory-key { overflow: hidden; color: var(--theme-text-primary); font-size: 25rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.memory-value { display: -webkit-box; overflow: hidden; margin-top: 9rpx; color: var(--theme-text-secondary); font-size: 22rpx; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.core-badge { padding: 3rpx 9rpx; border-radius: 4rpx; background: rgba(var(--theme-primary-rgb), .1); color: var(--theme-primary); font-size: 18rpx; line-height: 1.4; white-space: nowrap; }
+.memory-row-actions { display: flex; align-items: center; gap: 12rpx; }
+.memory-edit { color: var(--theme-primary); font-size: 21rpx; }
+.memory-row-actions .del-btn { position: static; display: flex; width: 38rpx; height: 38rpx; align-items: center; justify-content: center; margin: 0; border: 1rpx solid var(--theme-border); border-radius: 50%; background: transparent; color: var(--theme-text-placeholder); font-size: 27rpx; line-height: 1; box-shadow: none; }
 </style>
 

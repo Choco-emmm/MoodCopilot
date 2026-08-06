@@ -16,7 +16,7 @@ const hexToRgb = (hex: string) => {
 
 export const themeMode = ref<'light' | 'dark' | 'auto'>(uni.getStorageSync('themeMode') || 'auto');
 export const defaultLightTheme = ref<string>(uni.getStorageSync('defaultLightTheme') || 'green');
-export const defaultDarkTheme = ref<string>(uni.getStorageSync('defaultDarkTheme') || 'dark_green');
+export const defaultDarkTheme = ref<string>(uni.getStorageSync('defaultDarkTheme') || 'minimal-dark');
 export const systemTheme = ref<string>(uni.getSystemInfoSync().theme || 'light');
 
 uni.onThemeChange((res) => {
