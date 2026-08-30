@@ -11,8 +11,6 @@
         <view class="diary-entry">
           <view class="entry-header">
             <view class="author-info">
-              <image class="author-avatar" :src="fullAvatarUrl" mode="aspectFill" />
-              <text class="author-name">{{ authorName }}</text>
               <text class="entry-datetime">{{ formatDateTime(diary.createdAt) }}</text>
               <view v-if="isOwner" class="edit-action" @click="editDiary">
                 <text>编辑</text>
@@ -130,12 +128,6 @@ const diaryMoodColor = computed(() => {
 })
 
 const isOwner = computed(() => Boolean(currentUser.value && diary.value && currentUser.value.userId === diary.value.authorUserId))
-const authorName = computed(() => currentUser.value?.nickname || currentUser.value?.username || '我')
-const fullAvatarUrl = computed(() => {
-  const url = currentUser.value?.avatarUrl || '/static/default_avatar.png'
-  if (url.startsWith('http')) return url
-  return `https://moodcopilot.dpdns.org${url.startsWith('/') ? '' : '/'}${url}`
-})
 
 const moodLabel = computed(() => diary.value?.analysis?.moodLabel || '')
 const topicLabels = computed(() => {
@@ -277,9 +269,7 @@ function goToCollection(collectionId: number) {
 .diary-entry { padding: 34rpx 30rpx 30rpx; }
 .entry-header { display: flex; flex-direction: column; gap: 20rpx; padding-bottom: 24rpx; border-bottom: 1rpx solid var(--theme-border); }
 .author-info { display: flex; align-items: center; gap: 14rpx; flex-wrap: wrap; }
-.author-avatar { width: 56rpx; height: 56rpx; border-radius: 50%; background: #eee; }
-.author-name { color: var(--theme-text-primary); font-size: 28rpx; font-weight: 650; }
-.entry-datetime { color: var(--theme-text-placeholder); font-size: 24rpx; margin-left: 8rpx; }
+.entry-datetime { color: var(--theme-text-primary); font-size: 30rpx; font-weight: 650; }
 .edit-action { margin-left: auto; color: var(--theme-text-secondary); font-size: 24rpx; padding: 10rpx; }
 .entry-quick-actions { display: flex; gap: 24rpx; margin-top: 4rpx; }
 .action-btn { display: flex; align-items: center; gap: 8rpx; font-size: 24rpx; font-weight: 600; padding: 8rpx 0; }
