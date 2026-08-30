@@ -168,24 +168,9 @@ import { ref, onMounted, nextTick, computed } from 'vue';
 import { get, post, getFullUrl } from '@/utils/request';
 import { parseMarkdown, extractPlainText } from '@/utils/markdown';
 import GlobalUI from '@/components/GlobalUI.vue';
+import { hasLoginToken, requireLogin } from '@/stores/login';
 
 import { onShow } from '@dcloudio/uni-app';
-
-
-
-onShow(() => {
-  
-  
-  const pendingQuote = uni.getStorageSync('pendingQuote');
-  if (pendingQuote) {
-    selectedQuote.value = { text: pendingQuote };
-    uni.removeStorageSync('pendingQuote');
-  }
-});
-
-uni.$on('themeChanged', () => {
-  
-});
 
 interface Message {
   role: 'user' | 'assistant';
@@ -212,6 +197,7 @@ const currentConversationTitle = computed(() => {
 const showDiarySelector = ref(false);
 const recentDiaries = ref<any[]>([]);
 const loadingDiaries = ref(false);
+const isLoggedIn = ref(hasLoginToken());
 
 const parseTopic = (topic: string | any) => {
   if (typeof topic === 'string') {
@@ -237,8 +223,12 @@ const formatDate = (isoString: string) => {
 };
 
 onMounted(() => {
-  initConversation();
-  fetchUserInfo();
+  if (isLoggedIn.value) {
+    initConversation();
+    fetchUserInfo();
+  } else {
+    loadingInit.value = false;
+  }
 });
 
 const fetchUserInfo = async () => {
@@ -262,6 +252,10 @@ onShow(() => {
 });
 
 const openDiarySelector = async () => {
+  if (!isLoggedIn.value) {
+    requireLogin();
+    return;
+  }
   showDiarySelector.value = true;
   loadingDiaries.value = true;
   try {
@@ -320,9 +314,10 @@ const initConversation = async () => {
 
 const fetchWelcomeTopics = async () => {
   const defaultTopics = [
-    JSON.stringify({ icon: '🤔', text: '帮我复盘一下今天的情绪' }),
-    JSON.stringify({ icon: '🌱', text: '我最近总是感到有些焦虑，该怎么办？' }),
-    JSON.stringify({ icon: '📅', text: '和我聊聊接下来的计划吧' })
+    JSON.stringify({ icon: '🌟', text: '分析我最近三天的情绪波动' }),
+    JSON.stringify({ icon: '💡', text: '帮我回顾我最近开心的事情' }),
+    JSON.stringify({ icon: '🌿', text: '推荐一些适合我解压的音乐与方式' }),
+    JSON.stringify({ icon: '💬', text: '今天有点累，陪我聊一聊' })
   ];
   
   try {
@@ -376,8 +371,15 @@ const loadHistory = async () => {
   if (!conversationId.value) return;
   try {
     const res = await get(`/api/chat/conversations/${conversationId.value}/history`);
-    if (res.code === 200 && res.data && res.data.messages) {
-      messages.value = res.data.messages || [];
+    if (res.code === 200 && res.data) {
+      let msgs = [];
+      if (Array.isArray(res.data)) {
+        msgs = res.data;
+      } else if (res.data.messages && Array.isArray(res.data.messages)) {
+        msgs = res.data.messages;
+      }
+      
+      messages.value = msgs;
       if (messages.value.length === 0) {
         fetchWelcomeTopics();
       }
@@ -395,7 +397,16 @@ const sendTopic = (topic: string | any) => {
 };
 
 const sendMessage = async () => {
-  if (!inputContent.value.trim() || isWaiting.value || !conversationId.value) return;
+  if (!inputContent.value.trim() || isWaiting.value) return;
+  if (!isLoggedIn.value) {
+    requireLogin(() => {
+      isLoggedIn.value = true;
+      void initConversation();
+      void fetchUserInfo();
+    });
+    return;
+  }
+  if (!conversationId.value) return;
 
   const content = inputContent.value.trim();
   const currentQuote = selectedQuote.value ? selectedQuote.value.text : null;
