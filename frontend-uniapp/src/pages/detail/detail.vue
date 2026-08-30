@@ -17,7 +17,6 @@
               </view>
             </view>
             <view class="entry-quick-actions">
-              <text v-if="moodLabel" class="mood-tag">{{ moodLabel }}</text>
               <view v-if="isOwner" class="action-btn delete-btn" style="margin-left: auto;" @click="confirmDelete">
                 <text class="action-icon">🗑</text>
                 <text>删除日记</text>
@@ -59,13 +58,20 @@
           <text class="analysis-copy">分析完成后会出现在这里。</text>
         </view>
         <view v-else-if="diary.analysis?.summary" class="analysis-card">
-          <view class="analysis-title-row">
-            <text class="analysis-kicker">这一天的回声</text>
-            <text v-if="diary.analysis.moodIntensity" class="analysis-score">{{ diary.analysis.moodIntensity }}/10</text>
+          <text class="analysis-kicker">AI 分析</text>
+          
+          <view class="analysis-mood-header">
+            <text class="analysis-mood-label" :style="diaryMoodColor !== 'transparent' ? { color: diaryMoodColor } : {}">{{ moodLabel || '心情' }}</text>
+            <text v-if="diary.analysis.moodIntensity" class="analysis-mood-intensity"> · 强度 {{ diary.analysis.moodIntensity }}/5</text>
+            <view v-if="topicLabels.length" class="analysis-topic-list">
+              <text v-for="tag in topicLabels" :key="tag" class="topic-tag">{{ tag }}</text>
+            </view>
           </view>
-          <view v-if="topicLabels.length" class="topic-list">
-            <text v-for="tag in topicLabels" :key="tag" class="topic-tag">{{ tag }}</text>
+
+          <view v-if="diary.analysis.moodIntensity" class="mood-meter">
+            <view v-for="step in 5" :key="step" class="meter-step" :class="{ filled: step <= diary.analysis.moodIntensity }" :style="step <= diary.analysis.moodIntensity && diaryMoodColor !== 'transparent' ? { background: diaryMoodColor } : {}"></view>
           </view>
+
           <text class="analysis-copy">{{ diary.analysis.feedback || diary.analysis.summary }}</text>
         </view>
 
@@ -286,14 +292,18 @@ function goToCollection(collectionId: number) {
 .collection-label { margin-right: 2rpx; color: var(--theme-text-placeholder); font-size: 22rpx; }
 .collection-chip { display: inline-flex; align-items: center; gap: 5rpx; padding: 8rpx 11rpx; border-radius: 5rpx; background: rgba(var(--theme-primary-rgb), .06); color: var(--theme-primary); font-size: 22rpx; }
 .chip-arrow, .chat-action-arrow { font-size: 30rpx; font-weight: 300; line-height: .7; }
-.analysis-card { margin-top: 20rpx; padding: 28rpx 30rpx; }
+.analysis-card { margin-top: 20rpx; padding: 32rpx; }
 .analysis-pending { border-style: dashed; background: rgba(var(--theme-primary-rgb), .025); }
-.analysis-title-row { display: flex; align-items: center; justify-content: space-between; }
-.analysis-kicker { display: block; color: var(--theme-primary); font-size: 24rpx; font-weight: 650; }
-.analysis-score { color: var(--theme-text-placeholder); font-size: 22rpx; }
-.topic-list { display: flex; flex-wrap: wrap; gap: 8rpx; margin-top: 17rpx; }
-.topic-tag { padding: 5rpx 10rpx; border-radius: 4rpx; background: rgba(var(--theme-primary-rgb), .08); color: var(--theme-primary); font-size: 20rpx; }
-.analysis-copy { display: block; margin-top: 15rpx; color: var(--theme-text-secondary); font-size: 25rpx; line-height: 1.75; white-space: pre-line; }
+.analysis-kicker { display: block; color: #a86c6c; font-size: 22rpx; font-weight: 650; letter-spacing: 1rpx; margin-bottom: 16rpx; }
+.analysis-mood-header { display: flex; align-items: center; flex-wrap: wrap; margin-bottom: 20rpx; }
+.analysis-mood-label { font-size: 32rpx; font-weight: 650; }
+.analysis-mood-intensity { color: var(--theme-text-secondary); font-size: 28rpx; font-weight: 500; margin-left: 6rpx; }
+.analysis-topic-list { display: flex; flex-wrap: wrap; gap: 8rpx; margin-left: 16rpx; }
+.topic-tag { padding: 4rpx 14rpx; border-radius: 99rpx; border: 1rpx solid rgba(var(--theme-text-primary-rgb), .08); color: var(--theme-text-secondary); font-size: 20rpx; }
+.mood-meter { display: flex; gap: 10rpx; margin-bottom: 30rpx; }
+.meter-step { flex: 1; height: 12rpx; border-radius: 6rpx; background: rgba(var(--theme-text-primary-rgb), .06); }
+.meter-step.filled { background: var(--theme-primary); }
+.analysis-copy { display: block; color: var(--theme-text-primary); font-size: 28rpx; line-height: 1.8; white-space: pre-line; }
 .entry-actions { margin-top: 20rpx; border-top: 1rpx solid var(--theme-border); }
 .chat-action, .collection-action { display: flex; align-items: center; padding: 25rpx 8rpx; color: var(--theme-text-primary); font-size: 26rpx; }
 .chat-action { color: var(--theme-primary); font-weight: 600; }
