@@ -798,17 +798,26 @@ public class AiAnalysisService {
 
     public static Integer estimateValence(String moodLabel, int intensity) {
         if ("平静".equals(moodLabel)) return 10;
+        if ("绝望".equals(moodLabel) || "崩溃".equals(moodLabel)) return -90;
         int base = List.of("喜悦", "期待", "兴奋", "自豪", "轻松", "平静", "感恩", "满足").contains(moodLabel) ? 60 : -60;
         return base + (base > 0 ? (intensity - 3) * 15 : -(intensity - 3) * 15);
     }
 
     public static Integer estimateArousal(String moodLabel, int intensity) {
         if ("平静".equals(moodLabel)) return -10;
+        if ("绝望".equals(moodLabel)) return -50;
+        if ("崩溃".equals(moodLabel)) return 80;
         int base = List.of("喜悦", "期待", "兴奋", "自豪", "烦躁", "愤怒", "焦虑", "害怕").contains(moodLabel) ? 60 : -60;
         return base + (base > 0 ? (intensity - 3) * 15 : -(intensity - 3) * 15);
     }
 
     private String pickMood(String content) {
+        // 极端危机
+        if (containsAny(content, "想死", "死", "不想活", "活不下去", "结束生命", "离开这个世界", "绝望"))
+            return "绝望";
+        if (containsAny(content, "崩溃", "受不了", "要死了", "逼疯", "疯了"))
+            return "崩溃";
+
         // 积极 / 高能量
         if (containsAny(content, "兴奋", "激动", "热血", "雀跃"))
             return "兴奋";
@@ -893,6 +902,7 @@ public class AiAnalysisService {
         // Base intensity determined by mood category
         int base = switch (mood) {
             // High-arousal moods tend to be more intense
+            case "绝望", "崩溃" -> 5;
             case "愤怒", "害怕", "恐慌" -> 3;
             case "焦虑", "兴奋", "委屈", "难过" -> 3;
             case "烦躁", "孤独", "迷茫" -> 2;
@@ -921,7 +931,10 @@ public class AiAnalysisService {
     }
 
     private String summarize(String content) {
-        String compact = content.replaceAll("\\s+", " ");
+        if (content == null) return "";
+        String plainText = content.replaceAll("<[^>]+>", ""); // 剥离 HTML 标签
+        plainText = plainText.replaceAll("&[a-zA-Z0-9#]+;", " "); // 替换 HTML 实体
+        String compact = plainText.replaceAll("\\s+", " ").trim();
         if (compact.length() <= 48)
             return compact;
         return compact.substring(0, 48) + "...";
@@ -930,6 +943,9 @@ public class AiAnalysisService {
     private String feedbackFor(String mood, List<String> topics) {
         String topic = topics.get(0);
         return switch (mood) {
+            // 极度消极
+            case "绝望", "崩溃" -> "看到你写下这些，我感到深深的心疼。请记住你的感受非常重要，如果有需要，随时都可以寻求专业的支持与倾听，不用一个人硬撑。";
+            
             // 积极 / 高能量
             case "喜悦" -> "这份喜悦值得被好好收藏，它是你生活里真实的光亮。";
             case "期待" -> "有所期待本身就是一种温柔的力量，让它慢慢滋养你。";
@@ -947,6 +963,7 @@ public class AiAnalysisService {
             case "愤怒" -> "愤怒背后往往藏着在意，先深呼吸，等情绪降温后再看看它想告诉你什么。";
             case "焦虑" -> "你正在承受一些不确定感，可以先把最小的一步从脑子里拿出来。";
             case "害怕" -> "害怕不是软弱，它是你在面对未知时本能的保护机制。慢慢来，不用逼自己。";
+
 
             // 消极 / 低能量
             case "疲惫" -> "今天已经消耗了你不少能量，休息不是退后，是在保护自己。";
