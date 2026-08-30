@@ -39,12 +39,10 @@
         <view v-if="loading && diaries.length === 0" class="loading-state">正在载入日记...</view>
 
         <view v-else-if="diaries.length" class="diary-list">
-          <view v-for="diary in diaries" :key="diary.id" class="diary-card" @click="goToDetail(diary.id)">
-            <view class="diary-card-head">
-              <view class="diary-day">
-                <text>{{ diaryDayLabel(diary.createdAt) }}</text>
-                <text class="diary-weekday">{{ weekdayOf(diary.createdAt) }}</text>
-              </view>
+          <view v-for="diary in diaries" :key="diary.id" class="diary-item" @click="goToDetail(diary.id)">
+            <view class="diary-item-head">
+              <text class="diary-date-num">{{ dateNumOf(diary.createdAt) }}</text>
+              <text class="diary-date-month">{{ monthOf(diary.createdAt) }}</text>
               <text class="diary-time">{{ timeOf(diary.createdAt) }}</text>
             </view>
 
@@ -299,9 +297,12 @@ function weekdayOf(value: string) {
   return ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][dateFrom(value).getDay()]
 }
 
-function diaryDayLabel(value: string) {
-  const date = dateFrom(value)
-  return `${date.getMonth() + 1}月${date.getDate()}日`
+function dateNumOf(value: string) {
+  return dateFrom(value).getDate()
+}
+
+function monthOf(value: string) {
+  return `${dateFrom(value).getMonth() + 1}月`
 }
 
 function timeOf(value: string) {
@@ -318,18 +319,20 @@ function timeOf(value: string) {
 .page-date { display: block; margin-top: 9rpx; color: var(--theme-text-secondary); font-size: 23rpx; }
 .write-header-button { display: inline-flex; height: 62rpx; align-items: center; gap: 8rpx; margin-top: 26rpx; padding: 0 20rpx; border-radius: 8rpx; background: var(--theme-primary); color: #fff; font-size: 24rpx; font-weight: 600; }
 .write-header-plus { font-size: 31rpx; font-weight: 300; line-height: 1; }
-.diary-filter-trigger { display: flex; align-items: center; justify-content: space-between; margin-top: 16rpx; padding: 17rpx 18rpx; border: 1rpx solid var(--theme-border); border-radius: 7rpx; background: var(--theme-surface); }
+.diary-filter-trigger { display: flex; align-items: center; justify-content: space-between; margin-top: 16rpx; padding: 17rpx 18rpx; border-radius: 7rpx; background: rgba(var(--theme-primary-rgb), 0.04); }
 .filter-trigger-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .filter-trigger-title { color: var(--theme-text-primary); font-size: 24rpx; font-weight: 650; }
 .filter-trigger-summary { overflow: hidden; margin-top: 5rpx; color: var(--theme-text-placeholder); font-size: 20rpx; text-overflow: ellipsis; white-space: nowrap; }
 .filter-trigger-icon { color: var(--theme-primary); font-size: 39rpx; line-height: .8; }
 .diary-scroll { flex: 1; min-height: 0; padding: 0 32rpx calc(130rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
-.diary-list { display: flex; flex-direction: column; gap: 18rpx; }
-.diary-card { padding: 28rpx; border: 1rpx solid var(--theme-border); border-radius: 8rpx; background: var(--theme-surface); box-shadow: 0 5rpx 16rpx rgba(28, 32, 29, .035); }
-.diary-card:active { transform: scale(.99); opacity: .9; }
-.diary-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18rpx; }
-.diary-day { display: flex; align-items: baseline; gap: 10rpx; color: var(--theme-text-primary); font-size: 26rpx; font-weight: 650; }
-.diary-weekday, .diary-time { color: var(--theme-text-placeholder); font-size: 22rpx; font-weight: 400; }
+.diary-list { display: flex; flex-direction: column; gap: 0; }
+.diary-item { padding: 40rpx 0; border-bottom: 1rpx dashed var(--theme-border); }
+.diary-item:last-child { border-bottom: none; }
+.diary-item:active { opacity: .7; }
+.diary-item-head { display: flex; align-items: baseline; margin-bottom: 24rpx; }
+.diary-date-num { color: var(--theme-primary); font-size: 56rpx; font-weight: 300; font-family: "Noto Serif SC", "Songti SC", serif; margin-right: 8rpx; line-height: 1; }
+.diary-date-month { color: var(--theme-primary); font-size: 28rpx; font-weight: 500; font-family: "Noto Serif SC", "Songti SC", serif; margin-right: 18rpx; }
+.diary-time { color: var(--theme-text-placeholder); font-size: 24rpx; font-weight: 400; }
 .diary-content { display: -webkit-box; overflow: hidden; color: var(--theme-text-primary); font-size: 28rpx; line-height: 1.68; word-break: break-word; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
 .diary-images { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10rpx; margin-top: 22rpx; }
 .diary-image { width: 100%; height: 176rpx; border-radius: 6rpx; background: rgba(var(--theme-primary-rgb), .08); }
