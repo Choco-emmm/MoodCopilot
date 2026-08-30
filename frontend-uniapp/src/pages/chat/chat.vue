@@ -230,8 +230,16 @@ const checkPendingQuote = () => {
   }
 };
 
+uni.$on('setPendingQuote', (text: string) => {
+  if (text) {
+    selectedQuote.value = { text };
+    uni.removeStorageSync('pendingQuote');
+  }
+});
+
 onMounted(() => {
   checkPendingQuote();
+  setTimeout(checkPendingQuote, 100);
   if (isLoggedIn.value) {
     initConversation();
     fetchUserInfo();
@@ -254,6 +262,7 @@ const fetchUserInfo = async () => {
 
 onShow(() => {
   checkPendingQuote();
+  setTimeout(checkPendingQuote, 100);
 });
 
 const openDiarySelector = async () => {

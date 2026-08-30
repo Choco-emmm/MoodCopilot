@@ -283,10 +283,17 @@ function formatDateTime(value: string) {
 }
 
 function quoteToChat() {
-  const plain = extractPlainText(diary.value.content) || '一段没有文字的记录'
-  const text = `关于我的这篇日记（${formatDateTime(diary.value.createdAt)}）：\n${plain}`
+  const plain = extractPlainText(diary.value?.content || '') || '一段没有文字的记录'
+  const dateStr = diary.value?.createdAt ? formatDateTime(diary.value.createdAt) : ''
+  const text = `关于我的这篇日记（${dateStr}）：\n${plain}`
   uni.setStorageSync('pendingQuote', text)
-  uni.switchTab({ url: '/pages/chat/chat' })
+  uni.$emit('setPendingQuote', text)
+  uni.switchTab({
+    url: '/pages/chat/chat',
+    success: () => {
+      uni.$emit('setPendingQuote', text)
+    }
+  })
 }
 
 function previewImage(current: string, urls: string[]) {
