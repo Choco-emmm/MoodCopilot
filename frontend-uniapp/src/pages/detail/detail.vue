@@ -121,7 +121,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import GlobalUI from '@/components/GlobalUI.vue'
 import MusicCard from '@/components/MusicCard.vue'
 import { get, post, request } from '@/utils/request'
-import { formatDiaryContent } from '@/utils/markdown'
+import { formatDiaryContent, extractPlainText } from '@/utils/markdown'
 import { currentUser, fetchCurrentUser } from '@/stores/user'
 import { moodColor } from '@/utils/mood'
 
@@ -283,7 +283,8 @@ function formatDateTime(value: string) {
 }
 
 function quoteToChat() {
-  const text = `关于我的这篇日记（${formatDateTime(diary.value.createdAt)}）：\n${diary.value.content}`
+  const plain = extractPlainText(diary.value.content) || '一段没有文字的记录'
+  const text = `关于我的这篇日记（${formatDateTime(diary.value.createdAt)}）：\n${plain}`
   uni.setStorageSync('pendingQuote', text)
   uni.switchTab({ url: '/pages/chat/chat' })
 }

@@ -271,7 +271,8 @@ const openDiarySelector = async () => {
 };
 
 const selectDiaryForQuote = (diary: any) => {
-  selectedQuote.value = { text: diary.content };
+  const plain = extractPlainText(diary.content) || '一段没有文字的记录';
+  selectedQuote.value = { text: plain };
   showDiarySelector.value = false;
 };
 
