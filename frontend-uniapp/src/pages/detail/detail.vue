@@ -7,7 +7,7 @@
     <scroll-view v-else-if="diary" scroll-y class="detail-scroll" :show-scrollbar="false">
       <view class="detail-content">
         <view class="diary-entry">
-          <view class="mood-glow" :style="diaryMoodColor !== 'transparent' ? { background: `radial-gradient(circle 500rpx at top right, ${diaryMoodColor}, transparent 80%)` } : { display: 'none' }" />
+          <view class="mood-glow" :style="diaryMoodColor !== 'transparent' ? { background: `radial-gradient(circle 900rpx at top right, ${diaryMoodColor}, transparent 75%)` } : { display: 'none' }" />
 
           <view class="entry-header">
             <view class="author-info">
@@ -304,7 +304,7 @@ function goToCollection(collectionId: number) {
 .loading-state, .missing-state { padding-top: 240rpx; color: var(--theme-text-placeholder); font-size: 27rpx; text-align: center; }
 .diary-entry, .analysis-card { border: 1rpx solid var(--theme-border); border-radius: 8rpx; background: var(--theme-surface); box-shadow: 0 6rpx 18rpx rgba(29, 38, 32, .035); }
 .diary-entry { position: relative; overflow: hidden; padding: 34rpx 30rpx 30rpx; }
-.mood-glow { position: absolute; top: 0; left: 0; right: 0; height: 480rpx; opacity: 0.22; pointer-events: none; z-index: 0; }
+.mood-glow { position: absolute; top: 0; left: 0; right: 0; height: 850rpx; opacity: 0.32; pointer-events: none; z-index: 0; }
 .entry-header, .diary-text, .diary-images, .entry-music, .collection-row { position: relative; z-index: 1; }
 .entry-header { display: flex; flex-direction: column; gap: 20rpx; padding-bottom: 24rpx; border-bottom: 1rpx solid var(--theme-border); }
 .author-info { display: flex; align-items: center; gap: 14rpx; flex-wrap: wrap; }
