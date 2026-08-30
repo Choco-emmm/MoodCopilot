@@ -2,13 +2,13 @@
   <view class="detail-page" :style="globalThemeStyle">
     <GlobalUI />
 
-    <view class="mood-glow" :style="diaryMoodColor !== 'transparent' ? { background: `radial-gradient(circle 600rpx at top right, ${diaryMoodColor}, transparent 80%)` } : { display: 'none' }" />
-
     <view v-if="loading" class="loading-state">正在打开日记...</view>
 
     <scroll-view v-else-if="diary" scroll-y class="detail-scroll" :show-scrollbar="false">
       <view class="detail-content">
         <view class="diary-entry">
+          <view class="mood-glow" :style="diaryMoodColor !== 'transparent' ? { background: `radial-gradient(circle 500rpx at top right, ${diaryMoodColor}, transparent 80%)` } : { display: 'none' }" />
+
           <view class="entry-header">
             <view class="author-info">
               <text class="entry-datetime">{{ formatDateTime(diary.createdAt) }}</text>
@@ -63,13 +63,18 @@
           <view class="analysis-mood-header">
             <text class="analysis-mood-label" :style="diaryMoodColor !== 'transparent' ? { color: diaryMoodColor } : {}">{{ moodLabel || '心情' }}</text>
             <text v-if="diary.analysis.moodIntensity" class="analysis-mood-intensity"> · 强度 {{ diary.analysis.moodIntensity }}/5</text>
-            <view v-if="topicLabels.length" class="analysis-topic-list">
-              <text v-for="tag in topicLabels" :key="tag" class="topic-tag">{{ tag }}</text>
+            <text class="mood-guide-icon" @click="showGuide">ⓘ</text>
+            
+            <view v-if="secondaryMoods.length" class="secondary-moods">
+              <text v-for="m in secondaryMoods" :key="m" class="secondary-mood-tag">{{ m }}</text>
+            </view>
+            <view v-else-if="topicLabels.length" class="secondary-moods">
+              <text v-for="tag in topicLabels" :key="tag" class="secondary-mood-tag">{{ tag }}</text>
             </view>
           </view>
 
           <view v-if="diary.analysis.moodIntensity" class="mood-meter">
-            <view v-for="step in 5" :key="step" class="meter-step" :class="{ filled: step <= diary.analysis.moodIntensity }" :style="step <= diary.analysis.moodIntensity && diaryMoodColor !== 'transparent' ? { background: diaryMoodColor } : {}"></view>
+            <view v-for="step in 5" :key="step" class="meter-step" :class="{ filled: step <= diary.analysis.moodIntensity }" />
           </view>
 
           <text class="analysis-copy">{{ diary.analysis.feedback || diary.analysis.summary }}</text>
@@ -136,9 +141,27 @@ const diaryMoodColor = computed(() => {
 const isOwner = computed(() => Boolean(currentUser.value && diary.value && currentUser.value.userId === diary.value.authorUserId))
 
 const moodLabel = computed(() => diary.value?.analysis?.moodLabel || '')
+const secondaryMoods = computed(() => {
+  const a = diary.value?.analysis
+  if (!a) return []
+  const raw = a.secondaryMoods || a.secondaryMoodsJson
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : [raw]
+    } catch {
+      return [raw]
+    }
+  }
+  return []
+})
+
 const topicLabels = computed(() => {
-  const labels = diary.value?.analysis?.topicLabelsJson
+  const labels = diary.value?.analysis?.topicLabelsJson || diary.value?.analysis?.topicLabels
   if (!labels) return []
+  if (Array.isArray(labels)) return labels
   try {
     const parsed = JSON.parse(labels)
     return Array.isArray(parsed) ? parsed : []
@@ -146,6 +169,15 @@ const topicLabels = computed(() => {
     return []
   }
 })
+
+function showGuide() {
+  uni.showModal({
+    title: '情绪强度指南',
+    content: '1: 极其轻微，一闪而过\n2: 背景情绪，细细感知才注意\n3: 清晰的情感，影响当前注意力\n4: 强烈情感，驱动身体或行为反应\n5: 几乎失控，难以独自承受',
+    showCancel: false,
+    confirmText: '我知道了'
+  })
+}
 
 onLoad(async (options: any) => {
   if (!currentUser.value) await fetchCurrentUser()
@@ -266,13 +298,14 @@ function goToCollection(collectionId: number) {
 </script>
 
 <style scoped>
-.detail-page { min-height: 100vh; background: var(--theme-bg); position: relative; }
-.mood-glow { position: absolute; top: 0; left: 0; right: 0; height: 600rpx; opacity: 0.2; pointer-events: none; z-index: 0; }
-.detail-scroll { height: 100vh; position: relative; z-index: 1; }
+.detail-page { min-height: 100vh; background: var(--theme-bg); }
+.detail-scroll { height: 100vh; }
 .detail-content { padding: 32rpx 32rpx calc(54rpx + env(safe-area-inset-bottom)); }
 .loading-state, .missing-state { padding-top: 240rpx; color: var(--theme-text-placeholder); font-size: 27rpx; text-align: center; }
 .diary-entry, .analysis-card { border: 1rpx solid var(--theme-border); border-radius: 8rpx; background: var(--theme-surface); box-shadow: 0 6rpx 18rpx rgba(29, 38, 32, .035); }
-.diary-entry { padding: 34rpx 30rpx 30rpx; }
+.diary-entry { position: relative; overflow: hidden; padding: 34rpx 30rpx 30rpx; }
+.mood-glow { position: absolute; top: 0; left: 0; right: 0; height: 480rpx; opacity: 0.22; pointer-events: none; z-index: 0; }
+.entry-header, .diary-text, .diary-images, .entry-music, .collection-row { position: relative; z-index: 1; }
 .entry-header { display: flex; flex-direction: column; gap: 20rpx; padding-bottom: 24rpx; border-bottom: 1rpx solid var(--theme-border); }
 .author-info { display: flex; align-items: center; gap: 14rpx; flex-wrap: wrap; }
 .entry-datetime { color: var(--theme-text-primary); font-size: 30rpx; font-weight: 650; }
@@ -298,11 +331,12 @@ function goToCollection(collectionId: number) {
 .analysis-mood-header { display: flex; align-items: center; flex-wrap: wrap; margin-bottom: 20rpx; }
 .analysis-mood-label { font-size: 32rpx; font-weight: 650; }
 .analysis-mood-intensity { color: var(--theme-text-secondary); font-size: 28rpx; font-weight: 500; margin-left: 6rpx; }
-.analysis-topic-list { display: flex; flex-wrap: wrap; gap: 8rpx; margin-left: 16rpx; }
-.topic-tag { padding: 4rpx 14rpx; border-radius: 99rpx; border: 1rpx solid rgba(var(--theme-text-primary-rgb), .08); color: var(--theme-text-secondary); font-size: 20rpx; }
-.mood-meter { display: flex; gap: 10rpx; margin-bottom: 30rpx; }
-.meter-step { flex: 1; height: 12rpx; border-radius: 6rpx; background: rgba(var(--theme-text-primary-rgb), .06); }
-.meter-step.filled { background: var(--theme-primary); }
+.mood-guide-icon { display: inline-flex; align-items: center; justify-content: center; width: 32rpx; height: 32rpx; margin-left: 10rpx; font-size: 20rpx; color: var(--theme-text-placeholder); border: 1rpx solid var(--theme-border); border-radius: 50%; line-height: 1; }
+.secondary-moods { display: inline-flex; gap: 10rpx; margin-left: 14rpx; align-items: center; }
+.secondary-mood-tag { font-size: 22rpx; padding: 2rpx 14rpx; border-radius: 999rpx; border: 1rpx solid var(--theme-border); color: var(--theme-text-secondary); background: transparent; }
+.mood-meter { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10rpx; margin-bottom: 30rpx; }
+.meter-step { height: 12rpx; border-radius: 999rpx; background: var(--theme-border); }
+.meter-step.filled { background: linear-gradient(90deg, var(--theme-primary, #4a7c62), var(--theme-accent, #d9827a)); }
 .analysis-copy { display: block; color: var(--theme-text-primary); font-size: 28rpx; line-height: 1.8; white-space: pre-line; }
 .entry-actions { margin-top: 20rpx; border-top: 1rpx solid var(--theme-border); }
 .chat-action, .collection-action { display: flex; align-items: center; padding: 25rpx 8rpx; color: var(--theme-text-primary); font-size: 26rpx; }
