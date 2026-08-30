@@ -7,16 +7,21 @@
     <scroll-view v-else-if="diary" scroll-y class="detail-scroll" :show-scrollbar="false">
       <view class="detail-content">
         <view class="diary-entry">
-          <view class="entry-meta">
-            <view>
-              <text class="entry-date">{{ formatDate(diary.createdAt) }}</text>
-              <text class="entry-time">{{ timeOf(diary.createdAt) }}</text>
+          <view class="entry-header">
+            <view class="author-info">
+              <image class="author-avatar" :src="fullAvatarUrl" mode="aspectFill" />
+              <text class="author-name">{{ authorName }}</text>
+              <text class="entry-datetime">{{ formatDateTime(diary.createdAt) }}</text>
+              <text class="privacy-tag">私密</text>
+              <view v-if="isOwner" class="edit-action" @click="editDiary">
+                <text>编辑</text>
+              </view>
             </view>
-            <view class="entry-meta-right">
+            <view class="entry-quick-actions">
               <text v-if="moodLabel" class="mood-tag">{{ moodLabel }}</text>
-              <view v-if="isOwner" class="manage-button" @click="openOwnerActions">
-                <text class="manage-icon">•••</text>
-                <text>管理</text>
+              <view v-if="isOwner" class="action-btn delete-btn" style="margin-left: auto;" @click="confirmDelete">
+                <text class="action-icon">🗑</text>
+                <text>删除日记</text>
               </view>
             </view>
           </view>
@@ -116,6 +121,13 @@ const myCollections = ref<any[]>([])
 const parentCollections = ref<any[]>([])
 
 const isOwner = computed(() => Boolean(currentUser.value && diary.value && currentUser.value.userId === diary.value.authorUserId))
+const authorName = computed(() => currentUser.value?.nickname || currentUser.value?.username || '我')
+const fullAvatarUrl = computed(() => {
+  const url = currentUser.value?.avatarUrl || '/static/default_avatar.png'
+  if (url.startsWith('http')) return url
+  return `https://moodcopilot.dpdns.org${url.startsWith('/') ? '' : '/'}${url}`
+})
+
 const moodLabel = computed(() => diary.value?.analysis?.moodLabel || '')
 const topicLabels = computed(() => {
   const labels = diary.value?.analysis?.topicLabelsJson
@@ -218,18 +230,21 @@ function confirmDelete() {
   })
 }
 
-function formatDate(value: string) {
-  const date = new Date(value)
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
+function editDiary() {
+  uni.navigateTo({ url: `/pages/write/write?id=${diary.value.id}&mode=edit` })
 }
 
-function timeOf(value: string) {
+function formatDateTime(value: string) {
   const date = new Date(value)
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${month}/${day} ${hours}:${minutes}`
 }
 
 function quoteToChat() {
-  const text = `关于我的这篇日记（${formatDate(diary.value.createdAt)}）：\n${diary.value.content}`
+  const text = `关于我的这篇日记（${formatDateTime(diary.value.createdAt)}）：\n${diary.value.content}`
   uni.setStorageSync('pendingQuote', text)
   uni.switchTab({ url: '/pages/chat/chat' })
 }
@@ -250,13 +265,19 @@ function goToCollection(collectionId: number) {
 .loading-state, .missing-state { padding-top: 240rpx; color: var(--theme-text-placeholder); font-size: 27rpx; text-align: center; }
 .diary-entry, .analysis-card { border: 1rpx solid var(--theme-border); border-radius: 8rpx; background: var(--theme-surface); box-shadow: 0 6rpx 18rpx rgba(29, 38, 32, .035); }
 .diary-entry { padding: 34rpx 30rpx 30rpx; }
-.entry-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 16rpx; padding-bottom: 24rpx; border-bottom: 1rpx solid var(--theme-border); }
-.entry-date { display: block; color: var(--theme-text-primary); font-size: 30rpx; font-weight: 650; line-height: 1.3; }
-.entry-time { display: block; margin-top: 7rpx; color: var(--theme-text-placeholder); font-size: 22rpx; }
-.entry-meta-right { display: flex; align-items: center; gap: 12rpx; }
-.mood-tag { padding: 7rpx 14rpx; border-radius: 999rpx; background: rgba(var(--theme-primary-rgb), .09); color: var(--theme-primary); font-size: 22rpx; }
-.manage-button { display: flex; align-items: center; gap: 5rpx; padding: 7rpx 0 7rpx 9rpx; color: var(--theme-text-secondary); font-size: 22rpx; }
-.manage-icon { color: var(--theme-primary); font-size: 26rpx; font-weight: 700; letter-spacing: 1rpx; line-height: .8; }
+.entry-header { display: flex; flex-direction: column; gap: 20rpx; padding-bottom: 24rpx; border-bottom: 1rpx solid var(--theme-border); }
+.author-info { display: flex; align-items: center; gap: 14rpx; flex-wrap: wrap; }
+.author-avatar { width: 56rpx; height: 56rpx; border-radius: 50%; background: #eee; }
+.author-name { color: var(--theme-text-primary); font-size: 28rpx; font-weight: 650; }
+.entry-datetime { color: var(--theme-text-placeholder); font-size: 24rpx; margin-left: 8rpx; }
+.privacy-tag { padding: 4rpx 12rpx; border-radius: 6rpx; background: rgba(var(--theme-text-primary-rgb), 0.05); color: var(--theme-text-secondary); font-size: 20rpx; margin-left: 4rpx; }
+.edit-action { margin-left: auto; color: var(--theme-text-secondary); font-size: 24rpx; padding: 10rpx; }
+.entry-quick-actions { display: flex; gap: 24rpx; margin-top: 4rpx; }
+.action-btn { display: flex; align-items: center; gap: 8rpx; font-size: 24rpx; font-weight: 600; padding: 8rpx 0; }
+.action-icon { font-size: 28rpx; }
+.delete-btn { color: #d65c5c; }
+.delete-btn .action-icon { color: #d65c5c; }
+.mood-tag { padding: 7rpx 14rpx; border-radius: 999rpx; background: rgba(var(--theme-primary-rgb), .09); color: var(--theme-primary); font-size: 22rpx; margin-bottom: 10rpx; display: inline-block; }
 .diary-text { display: block; margin-top: 30rpx; color: var(--theme-text-primary); font-size: 31rpx; line-height: 1.86; word-break: break-word; }
 .diary-images { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; margin-top: 28rpx; }
 .diary-image { width: 100%; height: 294rpx; border-radius: 6rpx; background: rgba(var(--theme-primary-rgb), .07); }

@@ -93,7 +93,7 @@ spring:
     time-zone: Asia/Shanghai
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 86400000
+  expiration: 2592000000
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:https://moodcopilot.dpdns.org,http://localhost:5173,http://localhost:5174}
 captcha:
