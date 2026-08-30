@@ -2,6 +2,8 @@
   <view class="detail-page" :style="globalThemeStyle">
     <GlobalUI />
 
+    <view class="mood-glow" :style="diaryMoodColor !== 'transparent' ? { background: `radial-gradient(circle 600rpx at top right, ${diaryMoodColor}, transparent 80%)` } : { display: 'none' }" />
+
     <view v-if="loading" class="loading-state">正在打开日记...</view>
 
     <scroll-view v-else-if="diary" scroll-y class="detail-scroll" :show-scrollbar="false">
@@ -112,12 +114,20 @@ import MusicCard from '@/components/MusicCard.vue'
 import { get, post, request } from '@/utils/request'
 import { formatDiaryContent } from '@/utils/markdown'
 import { currentUser, fetchCurrentUser } from '@/stores/user'
+import { moodColor } from '@/utils/mood'
 
 const loading = ref(true)
 const diary = ref<any>(null)
 const showCollectionModal = ref(false)
 const myCollections = ref<any[]>([])
 const parentCollections = ref<any[]>([])
+
+const diaryMoodColor = computed(() => {
+  if (diary.value?.analysis && isOwner.value) {
+    return moodColor(diary.value.analysis.moodLabel, diary.value.analysis.valence, diary.value.analysis.arousal)
+  }
+  return 'transparent'
+})
 
 const isOwner = computed(() => Boolean(currentUser.value && diary.value && currentUser.value.userId === diary.value.authorUserId))
 const authorName = computed(() => currentUser.value?.nickname || currentUser.value?.username || '我')
@@ -258,8 +268,9 @@ function goToCollection(collectionId: number) {
 </script>
 
 <style scoped>
-.detail-page { min-height: 100vh; background: var(--theme-bg); }
-.detail-scroll { height: 100vh; }
+.detail-page { min-height: 100vh; background: var(--theme-bg); position: relative; }
+.mood-glow { position: absolute; top: 0; left: 0; right: 0; height: 600rpx; opacity: 0.2; pointer-events: none; z-index: 0; }
+.detail-scroll { height: 100vh; position: relative; z-index: 1; }
 .detail-content { padding: 32rpx 32rpx calc(54rpx + env(safe-area-inset-bottom)); }
 .loading-state, .missing-state { padding-top: 240rpx; color: var(--theme-text-placeholder); font-size: 27rpx; text-align: center; }
 .diary-entry, .analysis-card { border: 1rpx solid var(--theme-border); border-radius: 8rpx; background: var(--theme-surface); box-shadow: 0 6rpx 18rpx rgba(29, 38, 32, .035); }
