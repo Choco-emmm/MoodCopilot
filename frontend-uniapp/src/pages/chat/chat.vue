@@ -111,7 +111,7 @@
       <!-- 引用预览 -->
       <view v-if="selectedQuote" class="quote-preview-bar fade-in">
         <text class="quote-icon">❝</text>
-        <text class="quote-text">{{ selectedQuote.text }}</text>
+        <text class="quote-text">{{ cleanQuoteText(selectedQuote.text) }}</text>
         <view class="quote-close" @click="clearQuote">×</view>
       </view>
       
@@ -222,17 +222,22 @@ const formatDate = (isoString: string) => {
   return `${date.getMonth() + 1}-${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 };
 
+const cleanQuoteText = (text: string) => {
+  if (!text) return '';
+  return extractPlainText(text);
+};
+
 const checkPendingQuote = () => {
   const pendingQuote = uni.getStorageSync('pendingQuote');
   if (pendingQuote) {
-    selectedQuote.value = { text: pendingQuote };
+    selectedQuote.value = { text: cleanQuoteText(pendingQuote) };
     uni.removeStorageSync('pendingQuote');
   }
 };
 
 uni.$on('setPendingQuote', (text: string) => {
   if (text) {
-    selectedQuote.value = { text };
+    selectedQuote.value = { text: cleanQuoteText(text) };
     uni.removeStorageSync('pendingQuote');
   }
 });
