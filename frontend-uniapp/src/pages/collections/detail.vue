@@ -11,7 +11,7 @@
       <view v-else class="diary-list">
         <view v-for="diary in diaries" :key="diary.id" class="diary-item" @click="openDiary(diary.id)">
           <text class="diary-date">{{ formatDate(diary.createdAt) }}</text>
-          <text class="diary-content">{{ diary.content }}</text>
+          <text class="diary-content">{{ extractPlainText(diary.content) || '一段没有文字的记录' }}</text>
         </view>
         <text v-if="loadingMore" class="list-status">正在加载...</text>
         <text v-else-if="!hasMore" class="list-status">已经到底了</text>
@@ -26,6 +26,7 @@ import { ref } from 'vue';
 import { get } from '@/utils/request';
 import { onLoad } from '@dcloudio/uni-app';
 import GlobalUI from '@/components/GlobalUI.vue';
+import { extractPlainText } from '@/utils/markdown';
 
 const collection = ref<any>(null);
 const diaries = ref<any[]>([]);
