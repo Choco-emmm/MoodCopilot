@@ -222,7 +222,16 @@ const formatDate = (isoString: string) => {
   return `${date.getMonth() + 1}-${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 };
 
+const checkPendingQuote = () => {
+  const pendingQuote = uni.getStorageSync('pendingQuote');
+  if (pendingQuote) {
+    selectedQuote.value = { text: pendingQuote };
+    uni.removeStorageSync('pendingQuote');
+  }
+};
+
 onMounted(() => {
+  checkPendingQuote();
   if (isLoggedIn.value) {
     initConversation();
     fetchUserInfo();
@@ -244,11 +253,7 @@ const fetchUserInfo = async () => {
 };
 
 onShow(() => {
-  const pendingQuote = uni.getStorageSync('pendingQuote');
-  if (pendingQuote) {
-    selectedQuote.value = { text: pendingQuote };
-    uni.removeStorageSync('pendingQuote');
-  }
+  checkPendingQuote();
 });
 
 const openDiarySelector = async () => {
