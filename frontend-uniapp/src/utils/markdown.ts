@@ -1,8 +1,28 @@
+/**
+ * Escape HTML special characters to prevent XSS.
+ * Must be called BEFORE applying markdown transformations,
+ * so that user-supplied HTML becomes inert entities while
+ * the markdown-generated tags (<strong>, <em>, <br/>) remain active.
+ */
+const escapeHtml = (text: string): string => {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
+
 export const parseMarkdown = (text: string) => {
   if (!text) return '';
   let html = text
-    // Remove <think> tags (already done in chat.vue, but safe here)
+    // Remove <think> tags (AI thinking blocks, safe to strip before escaping)
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    // Escape HTML to prevent XSS — any user/AI-supplied HTML becomes inert
+    ;
+  html = escapeHtml(html);
+  // Now apply markdown transformations (these add safe, known tags)
+  html = html
     // Bold
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     // Italic
@@ -36,6 +56,15 @@ export const formatDiaryContent = (text: string) => {
 
 export const extractPlainText = (text: string) => {
   if (!text) return '';
-  let unescaped = unescapeHtml(text);
-  return unescaped.replace(/<[^>]+>/g, '').replace(/\n/g, ' ').trim();
+  let str = text;
+  for (let i = 0; i < 3; i++) {
+    if (str.includes('&lt;') || str.includes('&gt;') || str.includes('&amp;') || str.includes('&quot;') || str.includes('&#39;') || str.includes('&nbsp;')) {
+      str = unescapeHtml(str);
+    } else {
+      break;
+    }
+  }
+  str = str.replace(/<[^>]+>/g, '');
+  str = str.replace(/&[a-zA-Z0-9#]+;/g, ' ');
+  return str.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
 };
