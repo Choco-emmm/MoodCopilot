@@ -12,7 +12,6 @@
               <image class="author-avatar" :src="fullAvatarUrl" mode="aspectFill" />
               <text class="author-name">{{ authorName }}</text>
               <text class="entry-datetime">{{ formatDateTime(diary.createdAt) }}</text>
-              <text class="privacy-tag">私密</text>
               <view v-if="isOwner" class="edit-action" @click="editDiary">
                 <text>编辑</text>
               </view>
@@ -270,7 +269,6 @@ function goToCollection(collectionId: number) {
 .author-avatar { width: 56rpx; height: 56rpx; border-radius: 50%; background: #eee; }
 .author-name { color: var(--theme-text-primary); font-size: 28rpx; font-weight: 650; }
 .entry-datetime { color: var(--theme-text-placeholder); font-size: 24rpx; margin-left: 8rpx; }
-.privacy-tag { padding: 4rpx 12rpx; border-radius: 6rpx; background: rgba(var(--theme-text-primary-rgb), 0.05); color: var(--theme-text-secondary); font-size: 20rpx; margin-left: 4rpx; }
 .edit-action { margin-left: auto; color: var(--theme-text-secondary); font-size: 24rpx; padding: 10rpx; }
 .entry-quick-actions { display: flex; gap: 24rpx; margin-top: 4rpx; }
 .action-btn { display: flex; align-items: center; gap: 8rpx; font-size: 24rpx; font-weight: 600; padding: 8rpx 0; }
