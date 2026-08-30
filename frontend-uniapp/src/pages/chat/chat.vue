@@ -109,9 +109,9 @@
     <!-- 底部输入框区域 -->
     <view class="chat-bottom-wrapper">
       <!-- 引用预览 -->
-      <view v-if="selectedQuote" class="quote-preview-bar fade-in">
+      <view v-if="activeQuote" class="quote-preview-bar fade-in">
         <text class="quote-icon">❝</text>
-        <text class="quote-text">{{ cleanQuoteText(selectedQuote.text) }}</text>
+        <text class="quote-text">{{ activeQuote }}</text>
         <view class="quote-close" @click="clearQuote">×</view>
       </view>
       
@@ -169,6 +169,7 @@ import { get, post, getFullUrl } from '@/utils/request';
 import { parseMarkdown, extractPlainText } from '@/utils/markdown';
 import GlobalUI from '@/components/GlobalUI.vue';
 import { hasLoginToken, requireLogin } from '@/stores/login';
+import { activeQuote, setQuote, clearQuote } from '@/stores/quote';
 
 import { onShow } from '@dcloudio/uni-app';
 
@@ -188,7 +189,6 @@ const scrollToMessage = ref('');
 const showDrawer = ref(false);
 const conversations = ref<any[]>([]);
 const welcomeTopics = ref<string[]>([]);
-const selectedQuote = ref<{text: string} | null>(null);
 const isCreatingConversation = ref(false);
 const currentConversationTitle = computed(() => {
   return conversations.value.find(conversation => conversation.id === conversationId.value)?.title || '新的对话';
@@ -222,29 +222,7 @@ const formatDate = (isoString: string) => {
   return `${date.getMonth() + 1}-${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 };
 
-const cleanQuoteText = (text: string) => {
-  if (!text) return '';
-  return extractPlainText(text);
-};
-
-const checkPendingQuote = () => {
-  const pendingQuote = uni.getStorageSync('pendingQuote');
-  if (pendingQuote) {
-    selectedQuote.value = { text: cleanQuoteText(pendingQuote) };
-    uni.removeStorageSync('pendingQuote');
-  }
-};
-
-uni.$on('setPendingQuote', (text: string) => {
-  if (text) {
-    selectedQuote.value = { text: cleanQuoteText(text) };
-    uni.removeStorageSync('pendingQuote');
-  }
-});
-
 onMounted(() => {
-  checkPendingQuote();
-  setTimeout(checkPendingQuote, 100);
   if (isLoggedIn.value) {
     initConversation();
     fetchUserInfo();
@@ -264,11 +242,6 @@ const fetchUserInfo = async () => {
     console.error('获取用户信息失败', e);
   }
 };
-
-onShow(() => {
-  checkPendingQuote();
-  setTimeout(checkPendingQuote, 100);
-});
 
 const openDiarySelector = async () => {
   if (!isLoggedIn.value) {
@@ -290,13 +263,8 @@ const openDiarySelector = async () => {
 };
 
 const selectDiaryForQuote = (diary: any) => {
-  const plain = extractPlainText(diary.content) || '一段没有文字的记录';
-  selectedQuote.value = { text: plain };
+  setQuote(diary.content || '一段没有文字的记录');
   showDiarySelector.value = false;
-};
-
-const clearQuote = () => {
-  selectedQuote.value = null;
 };
 
 const handleLongPress = (msg: Message) => {
@@ -304,7 +272,7 @@ const handleLongPress = (msg: Message) => {
     itemList: ['引用', '复制'],
     success: (res) => {
       if (res.tapIndex === 0) {
-        selectedQuote.value = { text: msg.content };
+        setQuote(msg.content);
       } else if (res.tapIndex === 1) {
         uni.setClipboardData({
           data: msg.content,
@@ -429,11 +397,11 @@ const sendMessage = async () => {
   if (!conversationId.value) return;
 
   const content = inputContent.value.trim();
-  const currentQuote = selectedQuote.value ? selectedQuote.value.text : null;
+  const currentQuote = activeQuote.value;
   
   messages.value.push({ role: 'user', content });
   inputContent.value = '';
-  selectedQuote.value = null;
+  clearQuote();
   isWaiting.value = true;
   scrollToBottom('waiting');
 

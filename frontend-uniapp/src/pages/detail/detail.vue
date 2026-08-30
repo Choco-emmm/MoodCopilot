@@ -124,6 +124,7 @@ import { get, post, request } from '@/utils/request'
 import { formatDiaryContent, extractPlainText } from '@/utils/markdown'
 import { currentUser, fetchCurrentUser } from '@/stores/user'
 import { moodColor } from '@/utils/mood'
+import { setQuote } from '@/stores/quote'
 
 const loading = ref(true)
 const diary = ref<any>(null)
@@ -286,14 +287,8 @@ function quoteToChat() {
   const plain = extractPlainText(diary.value?.content || '') || '一段没有文字的记录'
   const dateStr = diary.value?.createdAt ? formatDateTime(diary.value.createdAt) : ''
   const text = `关于我的这篇日记（${dateStr}）：\n${plain}`
-  uni.setStorageSync('pendingQuote', text)
-  uni.$emit('setPendingQuote', text)
-  uni.switchTab({
-    url: '/pages/chat/chat',
-    success: () => {
-      uni.$emit('setPendingQuote', text)
-    }
-  })
+  setQuote(text)
+  uni.switchTab({ url: '/pages/chat/chat' })
 }
 
 function previewImage(current: string, urls: string[]) {
