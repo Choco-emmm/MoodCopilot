@@ -412,7 +412,8 @@ public class DiaryService {
             log.info("日记 AI 分析已落库，diaryId={}", diaryId);
 
             eventPublisher.publishEvent(new DiaryAnalysisCompletedEvent(
-                    this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels()));
+                    this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels(),
+                    content, analysis.summary(), analysis.feedback(), analysis.valence(), analysis.arousal()));
 
             Thread.startVirtualThread(() -> {
                 try {

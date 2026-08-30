@@ -527,6 +527,69 @@ public class AiAnalysisService {
         }
     }
 
+    public String generateUrgentComfort(Long userId, String diaryContent, String moodLabel, int moodIntensity,
+            String summary, String feedback, boolean isCrisis) {
+        StringBuilder userPrompt = new StringBuilder();
+        if (userId != null) {
+            try {
+                String coreMemory = memoryExtractionService.buildCoreUserMemoryPrompt(userId);
+                if (coreMemory != null && !coreMemory.isBlank()) {
+                    userPrompt.append("【用户长期画像】\n").append(coreMemory).append("\n\n");
+                }
+            } catch (Exception e) {
+                log.warn("Failed to get core memory for urgent comfort: {}", e.getMessage());
+            }
+        }
+        userPrompt.append("【用户刚写下的日记】\n").append(diaryContent != null && !diaryContent.isBlank() ? diaryContent : "（用户未输入正文）").append("\n\n");
+        userPrompt.append("【日记情绪分析】\n主要情绪：").append(moodLabel != null ? moodLabel : "未知").append("，情绪强度：").append(moodIntensity).append("/5\n");
+        if (summary != null && !summary.isBlank()) {
+            userPrompt.append("AI摘要：").append(summary).append("\n");
+        }
+        if (feedback != null && !feedback.isBlank()) {
+            userPrompt.append("AI初步反馈：").append(feedback).append("\n");
+        }
+
+        String systemPrompt = """
+                你是一个极具共情力、温柔、坚定而专业的心理陪伴助手（MoodCopilot）。
+                用户刚刚写下了一篇透露出极其沉重、痛苦、无助或危机情绪的日记。
+                请根据用户的日记内容和背景，为用户写一段发自肺腑的、温暖且具有力量的陪伴关怀寄语（150-280字）。
+
+                核心原则：
+                1. 深度看见与接纳：精准体会用户在日记中所经历的具体痛苦、委屈或困境，用真诚温暖的语气告诉他「我看见了你的不容易，此时此刻我就在这里陪着你」；
+                2. 绝不说教与否定：严禁使用空洞的“加油”、“看开点”、“明天会更好”、“一切都会过去的”等廉价安慰，也不要给复杂宏大的行动建议；
+                3. 给予安全的托底感：让用户感到他的所有脆弱与眼泪都是被允许的，不用勉强自己立刻坚强；
+                4. 自然真诚：使用自然的分段和温和的语气，排版舒适。
+                """;
+
+        try {
+            String comfort = analysisChatClient.prompt()
+                    .system(systemPrompt)
+                    .user(userPrompt.toString())
+                    .call()
+                    .content();
+
+            StringBuilder result = new StringBuilder();
+            result.append(comfort.trim());
+
+            if (isCrisis) {
+                result.append("\n\n---\n\n💙 **如果你现在感到非常痛苦、难以支撑，请记得还有人在乎你，随时可以寻求专业的倾听与支持：**\n")
+                        .append("• **全国希望24小时生命危机干预热线**：`400-161-9995`\n")
+                        .append("• **北京心理危机研究与干预中心**：`010-82951332`\n")
+                        .append("• **共青团青少年心理援助热线**：`12355`\n")
+                        .append("• **全国妇联妇女儿童心理服务热线**：`12338`\n\n")
+                        .append("*无论发生什么，你的感受都是重要的，请多给自己一点时间。*");
+            }
+            return result.toString();
+        } catch (Exception e) {
+            log.error("Failed to generate AI urgent comfort: {}", e.getMessage());
+            String fallback = "看见你刚才写下的日记，能感受到你现在正在经历一段非常不容易的时刻。请允许自己先停下来喘口气，不用逼自己立刻好起来。我就在这里陪着你。";
+            if (isCrisis) {
+                fallback += "\n\n---\n\n💙 **如果你此刻感到难以支撑，请随时拨打免费心理支持热线：**\n• 全国心理危机干预热线：`400-161-9995`\n• 青少年倾听热线：`12355`";
+            }
+            return fallback;
+        }
+    }
+
     // ── User chat context ──
 
     public String generateUserContext(String previousContext, String diaryContent, DiaryAnalysis analysis) {

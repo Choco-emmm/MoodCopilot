@@ -9,8 +9,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
       MYSQL_DATABASE: mood_copilot_db
-    expose:
-      - "3306"
+    ports:
+      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     deploy:
@@ -32,8 +32,8 @@ services:
 
   redis:
     image: redis/redis-stack-server:latest
-    expose:
-      - "6379"
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
     deploy:
@@ -49,6 +49,7 @@ services:
       retries: 5
 
   backend:
+    image: ghcr.io/${REGISTRY_OWNER:-choco-emmm}/moodcopilot-backend:${IMAGE_TAG:-latest}
     build: ./backend/moodcopilot
     expose:
       - "18080"
@@ -108,6 +109,7 @@ services:
     restart: unless-stopped
 
   web:
+    image: ghcr.io/${REGISTRY_OWNER:-choco-emmm}/moodcopilot-frontend:${IMAGE_TAG:-latest}
     build: ./frontend
     container_name: moodcopilot-web
     expose:
