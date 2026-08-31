@@ -1,12 +1,26 @@
 import { post, BASE_URL } from './request';
+import { showPopup, showModal } from './../stores/globalUI';
 
 const WS_BASE_URL = BASE_URL.replace(/^http/i, 'ws') + '/ws/notifications';
 
 let socketTask: any = null;
 let isConnected = false;
 let reconnectTimer: any = null;
+let heartbeatTimer: any = null;
+let heartbeatTimeoutTimer: any = null;
 let isConnecting = false;
 let disconnectRequested = false;
+
+// Exponential backoff reconnect
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 10;
+const INITIAL_RECONNECT_DELAY = 5000;
+const MAX_RECONNECT_DELAY = 60000;
+
+// Heartbeat pong tracking
+let lastPongTime = 0;
+const HEARTBEAT_INTERVAL = 30000;
+const HEARTBEAT_TIMEOUT = 15000; // If no pong within 15s after ping, consider connection dead
 
 export const connectWebSocket = async () => {
   const token = uni.getStorageSync('token');
@@ -18,22 +32,19 @@ export const connectWebSocket = async () => {
     const res = await post('/api/notifications/ws-ticket');
     if (res.code === 200 && res.data && res.data.ticket) {
       const ticket = res.data.ticket;
-      
+
       socketTask = uni.connectSocket({
         url: `${WS_BASE_URL}?ticket=${ticket}`,
-        success: () => {
-          console.log('WebSocket connection initialized');
-        },
+        success: () => {},
         fail: () => {
-          console.error('WebSocket connection failed');
           socketTask = null;
           scheduleReconnect();
         }
       });
 
       socketTask.onOpen(() => {
-        console.log('WebSocket connected');
         isConnected = true;
+        reconnectAttempts = 0; // Reset on successful connection
         if (reconnectTimer) {
           clearTimeout(reconnectTimer);
           reconnectTimer = null;
@@ -44,22 +55,28 @@ export const connectWebSocket = async () => {
       socketTask.onMessage((res: any) => {
         try {
           const payload = JSON.parse(res.data);
+          // Track pong responses
+          if (payload.type === 'pong' || res.data === 'pong') {
+            lastPongTime = Date.now();
+            return;
+          }
           handleWebSocketMessage(payload);
         } catch (e) {
-          console.error('Failed to parse WS message', e);
+          // Non-JSON message (e.g., plain "pong" string)
+          if (res.data === 'pong') {
+            lastPongTime = Date.now();
+          }
         }
       });
 
       socketTask.onClose(() => {
-        console.log('WebSocket closed');
         isConnected = false;
         socketTask = null;
         stopHeartbeat();
         scheduleReconnect();
       });
-      
-      socketTask.onError((err: any) => {
-        console.error('WebSocket error', err);
+
+      socketTask.onError(() => {
         isConnected = false;
         socketTask = null;
         stopHeartbeat();
@@ -67,14 +84,11 @@ export const connectWebSocket = async () => {
       });
     }
   } catch (e) {
-    console.error('Failed to get ws ticket', e);
     scheduleReconnect();
   } finally {
     isConnecting = false;
   }
 };
-
-import { showPopup, showModal } from './../stores/globalUI';
 
 const handleWebSocketMessage = (payload: any) => {
   const type = payload.type;
@@ -92,22 +106,34 @@ const handleWebSocketMessage = (payload: any) => {
     // 小程序是私密日记工具，不向用户暴露网页端的社交事件。
     return;
   } else {
-    // Other notifications
     uni.$emit('refreshNotifications');
   }
 };
 
-let heartbeatTimer: any = null;
 const startHeartbeat = () => {
+  stopHeartbeat();
+  lastPongTime = Date.now();
   heartbeatTimer = setInterval(() => {
     if (socketTask && isConnected) {
       socketTask.send({
         data: 'ping',
-        success: () => console.log('Heartbeat sent'),
-        fail: () => console.error('Heartbeat failed')
+        success: () => {},
+        fail: () => {
+          // Heartbeat send failed — connection is likely dead
+          forceReconnect();
+        }
       });
+
+      // Set a timeout to check if pong was received
+      if (heartbeatTimeoutTimer) clearTimeout(heartbeatTimeoutTimer);
+      heartbeatTimeoutTimer = setTimeout(() => {
+        // No pong received within timeout — connection is half-open
+        if (Date.now() - lastPongTime > HEARTBEAT_TIMEOUT) {
+          forceReconnect();
+        }
+      }, HEARTBEAT_TIMEOUT);
     }
-  }, 30000);
+  }, HEARTBEAT_INTERVAL);
 };
 
 const stopHeartbeat = () => {
@@ -115,18 +141,54 @@ const stopHeartbeat = () => {
     clearInterval(heartbeatTimer);
     heartbeatTimer = null;
   }
+  if (heartbeatTimeoutTimer) {
+    clearTimeout(heartbeatTimeoutTimer);
+    heartbeatTimeoutTimer = null;
+  }
+};
+
+/**
+ * Force-close the current connection and trigger reconnection.
+ * Used when heartbeat fails or pong timeout is detected.
+ */
+const forceReconnect = () => {
+  if (!isConnected) return;
+  stopHeartbeat();
+  isConnected = false;
+  const task = socketTask;
+  socketTask = null;
+  try {
+    task?.close();
+  } catch (e) {
+    // Ignore close errors
+  }
+  scheduleReconnect();
 };
 
 const scheduleReconnect = () => {
   if (disconnectRequested || reconnectTimer || !uni.getStorageSync('token')) return;
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    // Stop reconnecting after max attempts; will retry on next app foreground (onShow)
+    reconnectAttempts = 0;
+    return;
+  }
+
+  // Exponential backoff: delay = min(initial * 2^attempts, max)
+  const delay = Math.min(
+    INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttempts),
+    MAX_RECONNECT_DELAY
+  );
+  reconnectAttempts++;
+
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     connectWebSocket();
-  }, 5000);
+  }, delay);
 };
 
 export const disconnectWebSocket = () => {
   disconnectRequested = true;
+  reconnectAttempts = 0;
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
@@ -135,5 +197,9 @@ export const disconnectWebSocket = () => {
   isConnected = false;
   const currentTask = socketTask;
   socketTask = null;
-  currentTask?.close();
+  try {
+    currentTask?.close();
+  } catch (e) {
+    // Ignore close errors
+  }
 };

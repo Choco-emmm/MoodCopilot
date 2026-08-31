@@ -36,7 +36,6 @@
 
 <script setup lang="ts">
 import { currentTheme, themeStyle } from '@/stores/theme';
-import { requireLogin } from '@/stores/login';
 
 const props = defineProps<{
   current: number
@@ -71,7 +70,7 @@ const list = [
 
 const switchTab = (url: string, index: number) => {
   if (props.current === index) return;
-  requireLogin(() => uni.switchTab({ url }));
+  uni.switchTab({ url });
 };
 </script>
 

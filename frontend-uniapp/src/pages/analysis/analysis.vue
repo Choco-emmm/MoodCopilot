@@ -279,14 +279,7 @@ import { ref, onMounted } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { get, post, put, del } from '@/utils/request';
 import { parseMarkdown } from '@/utils/markdown';
-
-
-
-
-
-uni.$on('themeChanged', () => {
-  
-});
+import { hasLoginToken, requireLogin } from '@/stores/login';
 
 const loadingReport = ref(false);
 const weeklyReport = ref<any>(null);
@@ -310,6 +303,7 @@ const isGraphConsolidating = ref(false);
 const isGraphApplying = ref(false);
 const showGraphConsolidateModal = ref(false);
 const previewGraphTriples = ref<any[]>([]);
+const isLoggedIn = ref(hasLoginToken());
 
 const loadAllData = async () => {
   fetchMemory();
@@ -317,10 +311,20 @@ const loadAllData = async () => {
 };
 
 onMounted(() => {
-  loadAllData();
+  if (isLoggedIn.value) loadAllData();
+  uni.$on('login-success', loadAfterLogin);
 });
 
+function loadAfterLogin() {
+  isLoggedIn.value = true;
+  loadAllData();
+}
+
 onPullDownRefresh(async () => {
+  if (!isLoggedIn.value) {
+    uni.stopPullDownRefresh();
+    return;
+  }
   await Promise.all([
     fetchMemory(),
     fetchGraph()
@@ -393,6 +397,10 @@ const fetchSummaries = () => {
 };
 
 const previewConsolidate = async () => {
+  if (!isLoggedIn.value) {
+    requireLogin();
+    return;
+  }
   if (isConsolidating.value) return;
   isConsolidating.value = true;
   try {
@@ -422,6 +430,10 @@ const applyConsolidate = async () => {
 };
 
 const previewGraphConsolidate = async () => {
+  if (!isLoggedIn.value) {
+    requireLogin();
+    return;
+  }
   if (isGraphConsolidating.value) return;
   isGraphConsolidating.value = true;
   try {
@@ -443,7 +455,7 @@ const memoryPreview = (value: string) => {
 };
 
 const goToReports = () => {
-  uni.navigateTo({ url: '/pages/summaries/summaries' });
+  requireLogin(() => uni.navigateTo({ url: '/pages/summaries/summaries' }));
 };
 
 const closeGraphConsolidateModal = () => {
@@ -1193,4 +1205,3 @@ const deleteTriple = (id: number) => {
 .memory-edit { color: var(--theme-primary); font-size: 21rpx; }
 .memory-row-actions .del-btn { position: static; display: flex; width: 38rpx; height: 38rpx; align-items: center; justify-content: center; margin: 0; border: 1rpx solid var(--theme-border); border-radius: 50%; background: transparent; color: var(--theme-text-placeholder); font-size: 27rpx; line-height: 1; box-shadow: none; }
 </style>
-

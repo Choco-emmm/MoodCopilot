@@ -230,19 +230,13 @@
 <script setup lang="ts">
 import GlobalUI from '@/components/GlobalUI.vue';
 import { themeOptions, currentTheme, themeMode, defaultLightTheme, defaultDarkTheme, setThemeMode, setSpecificTheme } from '@/stores/theme';
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 
 import { get, post, upload, getFullUrl } from '@/utils/request';
-import { connectWebSocket, disconnectWebSocket } from '@/utils/socket';
+import { connectWebSocket } from '@/utils/socket';
 import { showLoginWithoutContinuation } from '@/stores/login';
+import { logout as authLogout } from '@/stores/user';
 
-
-
-
-
-uni.$on('themeChanged', () => {
-  
-});
 
 const showQuotaModal = ref(false);
 
@@ -368,6 +362,11 @@ onMounted(() => {
   });
 });
 
+onUnmounted(() => {
+  uni.$off('login-success');
+  uni.$off('profileUpdated');
+});
+
 const checkLoginStatus = () => {
   const token = uni.getStorageSync('token');
   if (token) {
@@ -442,13 +441,11 @@ const handleWechatLogin = () => {
   });
 };
 
-const handleLogout = () => {
-  uni.removeStorageSync('token');
-  uni.removeStorageSync('userInfo');
+const handleLogout = async () => {
+  await authLogout();
   isLoggedIn.value = false;
   quotaInfo.value = null;
   userInfo.value = null;
-  disconnectWebSocket(); // Disconnect WS on logout
   uni.$emit('refreshFeed');
   uni.showToast({ title: '已退出', icon: 'none' });
 };

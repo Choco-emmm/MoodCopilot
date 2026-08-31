@@ -28,7 +28,7 @@ function formatDate(value: string) {
 </script>
 
 <style scoped>
-.announcement-mask { position: fixed; inset: 0; z-index: 10010; display: flex; align-items: center; justify-content: center; padding: 42rpx; box-sizing: border-box; background: rgba(25, 30, 27, .4); }
+.announcement-mask { position: fixed; inset: 0; z-index: 10030; display: flex; align-items: center; justify-content: center; padding: 42rpx; box-sizing: border-box; background: rgba(25, 30, 27, .4); }
 .announcement-card { position: relative; width: 100%; max-width: 620rpx; max-height: 78vh; padding: 42rpx; box-sizing: border-box; background: var(--theme-surface); border-top: 8rpx solid var(--theme-primary); border-radius: 12rpx; box-shadow: 0 28rpx 72rpx rgba(0, 0, 0, .18); }
 .announcement-topline { display: flex; justify-content: space-between; padding-right: 48rpx; color: var(--theme-primary); font-size: 21rpx; font-weight: 700; letter-spacing: 2rpx; }
 .announcement-close { position: absolute; top: 26rpx; right: 28rpx; width: 48rpx; height: 48rpx; color: var(--theme-text-secondary); font-size: 48rpx; font-weight: 300; line-height: 42rpx; text-align: center; }

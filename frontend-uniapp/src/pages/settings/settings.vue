@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { get, post } from '@/utils/request';
 import GlobalUI from '@/components/GlobalUI.vue';
 
@@ -48,6 +48,15 @@ const showEmailModal = ref(false);
 const bindForm = ref({
   email: '',
   code: ''
+});
+
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
+
+onUnmounted(() => {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
 });
 
 
@@ -83,9 +92,12 @@ const sendBindCode = async () => {
     if (res.code === 200) {
       uni.showToast({ title: '已发送', icon: 'success' });
       countdown.value = 60;
-      const timer = setInterval(() => {
+      countdownTimer = setInterval(() => {
         countdown.value--;
-        if (countdown.value <= 0) clearInterval(timer);
+        if (countdown.value <= 0) {
+          if (countdownTimer) clearInterval(countdownTimer);
+          countdownTimer = null;
+        }
       }, 1000);
     } else {
       uni.showToast({ title: res.message || '发送失败', icon: 'none' });
