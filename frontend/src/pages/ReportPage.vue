@@ -464,7 +464,13 @@ async function createCustom() {
   if (!startDate.value || !endDate.value) return
   creating.value = true
   try {
-    const iso = (ts: number) => new Date(ts).toISOString().split('T')[0]
+    const iso = (ts: number) => {
+      const d = new Date(ts);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const d2 = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d2}`;
+    };
     await summaryApi.create({ startDate: iso(startDate.value), endDate: iso(endDate.value) })
     startDate.value = null
     endDate.value = null

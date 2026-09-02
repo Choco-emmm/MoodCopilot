@@ -79,6 +79,18 @@
     </p>
   </template>
 
+  <template v-else-if="diary.analysisStatus === 'failed_limit'">
+    <div class="section-title compact">
+      <div>
+        <p class="eyebrow">AI 分析</p>
+        <h2>深度思考额度已用完</h2>
+      </div>
+    </div>
+    <p class="feedback" style="color: var(--color-text-muted);">
+      日记已保存。你可以稍后重试，或使用普通分析模型。
+    </p>
+  </template>
+
   <template v-else-if="diary.analysisStatus === 'skipped_user'">
     <div class="section-title compact">
       <div>
@@ -151,7 +163,7 @@ function stopHintTimer() {
 }
 
 onMounted(() => {
-  if (!props.diary.analysis?.summary && props.diary.analysisStatus !== 'skipped_quota' && props.diary.analysisStatus !== 'skipped_user') {
+  if (!props.diary.analysis?.summary && props.diary.analysisStatus !== 'skipped_quota' && props.diary.analysisStatus !== 'failed_limit' && props.diary.analysisStatus !== 'skipped_user') {
     startHintRotation()
   }
 })

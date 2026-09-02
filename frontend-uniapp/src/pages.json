@@ -111,6 +111,22 @@
 				"navigationBarBackgroundColor": "#F6F2EA",
 				"navigationBarTextStyle": "black"
 			}
+		},
+		{
+			"path": "pages/life-events/life-events",
+			"style": {
+				"navigationBarTitleText": "重要事件",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/life-chapters/life-chapters",
+			"style": {
+				"navigationBarTitleText": "时光画卷",
+				"navigationBarBackgroundColor": "#F6F2EA",
+				"navigationBarTextStyle": "black"
+			}
 		}
 	],
 	"globalStyle": {

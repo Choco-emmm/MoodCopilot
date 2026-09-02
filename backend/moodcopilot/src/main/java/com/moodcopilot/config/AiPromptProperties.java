@@ -21,6 +21,9 @@ public class AiPromptProperties {
     private String agentToolsPrompt;
     private String welcomeTopicsSystemPrompt;
     private String queryRewritePrompt;
+    private String lifeEventExtractionSystemPrompt;
+    private String lifeChapterSummarySystemPrompt;
+    private String cbtCognitiveSkillPrompt;
 
     public String getAnalysisSystemPrompt() {
         return analysisSystemPrompt;
@@ -124,5 +127,29 @@ public class AiPromptProperties {
 
     public void setQueryRewritePrompt(String queryRewritePrompt) {
         this.queryRewritePrompt = queryRewritePrompt;
+    }
+
+    public String getLifeEventExtractionSystemPrompt() {
+        return lifeEventExtractionSystemPrompt;
+    }
+
+    public void setLifeEventExtractionSystemPrompt(String lifeEventExtractionSystemPrompt) {
+        this.lifeEventExtractionSystemPrompt = lifeEventExtractionSystemPrompt;
+    }
+
+    public String getLifeChapterSummarySystemPrompt() {
+        return lifeChapterSummarySystemPrompt;
+    }
+
+    public void setLifeChapterSummarySystemPrompt(String lifeChapterSummarySystemPrompt) {
+        this.lifeChapterSummarySystemPrompt = lifeChapterSummarySystemPrompt;
+    }
+
+    public String getCbtCognitiveSkillPrompt() {
+        return cbtCognitiveSkillPrompt;
+    }
+
+    public void setCbtCognitiveSkillPrompt(String cbtCognitiveSkillPrompt) {
+        this.cbtCognitiveSkillPrompt = cbtCognitiveSkillPrompt;
     }
 }

@@ -228,6 +228,16 @@ public class MemoryExtractionService {
      * 这里同步拿到当前用户 ID，然后复用已有异步提取流程，避免阻塞聊天主链路。
      */
     public void extractAndSyncMemoryFromChat(Long userId, String userMessage, List<String> refs, String aiReply) {
+        extractAndSyncMemoryFromChat(userId, userMessage, refs, aiReply, false);
+    }
+
+    /**
+     * 在聊天完成后，用"用户消息 + AI 回复 + 用户引用"作为新证据增量更新长期画像。
+     * 这里同步拿到当前用户 ID，然后复用已有异步提取流程，避免阻塞聊天主链路。
+     * relaxThreshold=true 时（重要事件回访会话），放宽第一层硬门槛与打分阈值，更敏锐地固化人生转折中的领悟。
+     */
+    public void extractAndSyncMemoryFromChat(Long userId, String userMessage, List<String> refs, String aiReply,
+            boolean relaxThreshold) {
         String normalizedUserMessage = userMessage == null ? "" : normalizeWhitespace(userMessage);
         String normalizedAiReply = aiReply == null ? "" : normalizeWhitespace(aiReply);
         List<String> normalizedRefs = normalizeRefs(refs);
@@ -240,13 +250,13 @@ public class MemoryExtractionService {
         // 第一层：硬门槛，过滤无信息量噪声。
         // 但如果短消息中包含长期特征关键词（如"总是""习惯""关系"），放行进入后续评分。
         boolean hasLongTermKeyword = containsLongTermKeyword(normalizedUserMessage);
-        if (normalizedUserMessage.length() < CHAT_MIN_USER_MESSAGE_LENGTH && normalizedRefs.isEmpty()
+        if (!relaxThreshold && normalizedUserMessage.length() < CHAT_MIN_USER_MESSAGE_LENGTH && normalizedRefs.isEmpty()
                 && !hasLongTermKeyword) {
             log.info("memory-chat | skip | reason=short_user_message | userId={} | userLength={} | refCount={}",
                     userId, normalizedUserMessage.length(), normalizedRefs.size());
             return;
         }
-        if (isLikelySmallTalk(normalizedUserMessage) && normalizedRefs.isEmpty()) {
+        if (!relaxThreshold && isLikelySmallTalk(normalizedUserMessage) && normalizedRefs.isEmpty()) {
             log.info("memory-chat | skip | reason=small_talk | userId={} | userLength={}", userId,
                     normalizedUserMessage.length());
             return;
@@ -265,9 +275,11 @@ public class MemoryExtractionService {
 
         // 第二层：信息量打分，避免仅靠长度误触发。
         int score = scoreChatEvidence(normalizedUserMessage, normalizedRefs, normalizedAiReply);
-        if (score < CHAT_TRIGGER_SCORE_THRESHOLD) {
+        int scoreThreshold = relaxThreshold ? Math.max(1, CHAT_TRIGGER_SCORE_THRESHOLD / 2)
+                : CHAT_TRIGGER_SCORE_THRESHOLD;
+        if (score < scoreThreshold) {
             log.info("memory-chat | skip | reason=low_score | userId={} | score={} | threshold={}",
-                    userId, score, CHAT_TRIGGER_SCORE_THRESHOLD);
+                    userId, score, scoreThreshold);
             return;
         }
 
@@ -280,9 +292,9 @@ public class MemoryExtractionService {
             return;
         }
 
-        // 第四层：冷却窗口，降低高频聊天造成的画像抖动。
+        // 第四层：冷却窗口，降低高频聊天造成的画像抖动。（重要事件回访不受冷却限制）
         String cooldownKey = CHAT_MEMORY_UPDATE_LOCK_PREFIX + userId;
-        boolean acquired = Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(
+        boolean acquired = relaxThreshold || Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(
                 cooldownKey,
                 String.valueOf(System.currentTimeMillis()),
                 CHAT_MEMORY_UPDATE_COOLDOWN));

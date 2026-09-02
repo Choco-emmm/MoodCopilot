@@ -36,6 +36,7 @@ public class RagMemoryService {
     private static final Logger log = LoggerFactory.getLogger(RagMemoryService.class);
     private static final String INDEX_NAME = "idx:rag_v2";
     private static final String KEY_PREFIX = "rag:";
+    private static final int IMAGE_CONTEXT_MAX_CHARS = 4096;
     public static final String SOURCE_DIARY = "diary";
     public static final String SOURCE_PROFILE = "profile";
     public static final String SOURCE_MUSIC = "music";
@@ -706,7 +707,7 @@ public class RagMemoryService {
                         sb.append("  <diary_content>").append(escapeXml(truncate(diary.getContent(), 500)))
                           .append("</diary_content>\n");
                     }
-                    sb.append("  <image_description>").append(escapeXml(truncate(hit.content(), 500)))
+                    sb.append("  <image_description>").append(escapeXml(truncate(hit.content(), IMAGE_CONTEXT_MAX_CHARS)))
                       .append("</image_description>\n");
                     sb.append("</context_item>\n");
                 }

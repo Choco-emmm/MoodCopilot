@@ -1,5 +1,5 @@
 <template>
-  <div v-if="streaming && (streamingText || streamingRefs.length)" class="msg-item ai">
+  <div v-if="streaming && (streamingText || streamingRefs.length || isCompressing)" class="msg-item ai">
     <div class="msg-avatar ai-avatar">
       <svg class="ai-avatar-icon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
         <rect x="14" y="11" width="36" height="42" rx="8" stroke="currentColor" stroke-width="4"/>
@@ -29,7 +29,7 @@
                 <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
                 <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
               </div>
-              <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
+              <span class="rag-ref-snippet">{{ ref.snippet }}</span>
               <span v-if="ref.diaryId && String(ref.diaryId) !== '-1'" class="rag-ref-go">→</span>
             </div>
           </template>
@@ -44,25 +44,47 @@
             </div>
           </template>
           <template v-if="streamingGraphRefs.length">
-            <div class="rag-refs-section-label">🕸️ 关系图谱</div>
+            <div class="rag-refs-section-label">🕸️ 情绪因果图谱</div>
             <div
               v-for="(ref, i) in streamingGraphRefs"
               :key="'sg'+i"
-              class="rag-ref-item-profile"
-              @click="toggleSnippet(1000 + i)"
+              :class="['rag-ref-item-graph', { 'rag-ref-clickable': ref.diaryId && String(ref.diaryId) !== '-1' }]"
+              @click="String(ref.diaryId) !== '-1' && ref.diaryId && $emit('go-diary', ref.diaryId)"
             >
-              <div class="rag-ref-meta">
-                <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
-                <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
+              <div class="graph-card-chain">
+                <span class="graph-node-head" :title="parseGraphTriple(ref.snippet).head">{{ parseGraphTriple(ref.snippet).head }}</span>
+                <span class="graph-edge">
+                  <span class="graph-edge-relation">{{ parseGraphTriple(ref.snippet).relation }}</span>
+                  <span class="graph-edge-arrow">▶</span>
+                </span>
+                <span :class="['graph-node-tail', getTriplePolarityClass(parseGraphTriple(ref.snippet).relation, parseGraphTriple(ref.snippet).tail)]" :title="parseGraphTriple(ref.snippet).tail">
+                  {{ parseGraphTriple(ref.snippet).tail }}
+                </span>
               </div>
-              <span :class="['rag-ref-snippet', { 'expanded': isSnippetExpanded(1000 + i) }]" :title="ref.snippet">{{ ref.snippet }}</span>
+              <div class="rag-ref-meta graph-meta-sub" v-if="ref.date || (ref.diaryId && String(ref.diaryId) !== '-1')">
+                <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
+                <span v-if="ref.diaryId && String(ref.diaryId) !== '-1'" class="rag-ref-go">查看日记 →</span>
+              </div>
             </div>
           </template>
         </div>
       </div>
 
       <div class="chat-bubble chat-ai">
-        <div v-if="parsedStreaming.think && !parsedStreaming.text" class="thinking-status">
+        <div v-if="isCompressing" class="thinking-status compressing-status">
+          <div class="compressing-header">
+            <span class="sparkle-icon">✨</span>
+            <span class="thinking-text">{{ compressingMessage || '正在优化对话上下文...' }}</span>
+            <span class="thinking-dots-inline">
+              <span class="dot animate-bounce" style="animation-delay: 0ms"></span>
+              <span class="dot animate-bounce" style="animation-delay: 150ms"></span>
+              <span class="dot animate-bounce" style="animation-delay: 300ms"></span>
+            </span>
+          </div>
+          <div class="compressing-tip">正在精炼长对话记忆，完成后继续回复</div>
+        </div>
+
+        <div v-else-if="parsedStreaming.think && !parsedStreaming.text" class="thinking-status">
           <span class="sparkle-icon">✨</span>
           <span class="thinking-text">深度思考中</span>
           <span class="thinking-dots-inline">
@@ -72,7 +94,7 @@
           </span>
         </div>
 
-        <div v-if="!parsedStreaming.text && !parsedStreaming.think" class="thinking-status">
+        <div v-else-if="!parsedStreaming.text && !parsedStreaming.think" class="thinking-status">
           <span class="sparkle-icon">✨</span>
           <span class="thinking-text">MoodCopilot 正在思考</span>
           <span class="typing-dots"></span>
@@ -102,6 +124,8 @@ const props = defineProps<{
   streaming: boolean
   streamingText: string
   streamingRefs: RagRef[]
+  isCompressing?: boolean
+  compressingMessage?: string
 }>()
 
 defineEmits<{
@@ -219,4 +243,131 @@ function formatRefDate(dateStr?: string): string {
   }
   return dateStr
 }
+
+function parseGraphTriple(snippet?: string) {
+  if (!snippet) return { head: '', relation: '关联', tail: '' }
+  const text = snippet.replace(/^记忆图谱[：:]\s*/, '').trim()
+  const parts = text.split(/\s+/)
+  if (parts.length >= 3) {
+    return {
+      head: parts[0],
+      relation: parts[1],
+      tail: parts.slice(2).join(' ')
+    }
+  } else if (parts.length === 2) {
+    return {
+      head: parts[0],
+      relation: '影响',
+      tail: parts[1]
+    }
+  }
+  return { head: text, relation: '关联', tail: '' }
+}
+
+function getTriplePolarityClass(relation: string, tail: string): string {
+  const text = relation + ' ' + tail
+  if (/缓解|治愈|平静|开心|放松|好转|支持|满足|成就|积极/.test(text)) {
+    return 'graph-tail-positive'
+  }
+  if (/引发|导致|加重|焦虑|难受|内耗|崩溃|烦躁|失眠|压抑|痛苦|疲惫|委屈|消极/.test(text)) {
+    return 'graph-tail-negative'
+  }
+  return 'graph-tail-neutral'
+}
 </script>
+
+<style scoped>
+.compressing-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.compressing-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.compressing-tip {
+  font-size: 11px;
+  color: var(--color-text-muted, #8a919f);
+  padding-left: 20px;
+}
+
+.rag-ref-item-graph {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid color-mix(in oklab, var(--color-primary) 18%, transparent);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  transition: all 0.2s ease;
+}
+.rag-ref-item-graph:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--color-primary) 10%, transparent);
+}
+.graph-card-chain {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.graph-node-head {
+  font-weight: 600;
+  color: var(--color-text);
+  background: color-mix(in oklab, var(--color-surface-hover, #f3f4f6) 90%, transparent);
+  padding: 2px 6px;
+  border-radius: 4px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.graph-edge {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.graph-edge-relation {
+  font-style: italic;
+  font-size: 11px;
+  color: var(--color-primary);
+  padding: 0 2px;
+}
+.graph-edge-arrow {
+  font-size: 9px;
+  color: var(--color-primary);
+}
+.graph-node-tail {
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.graph-tail-negative {
+  color: #dc2626;
+  background: #fee2e2;
+}
+.graph-tail-positive {
+  color: #16a34a;
+  background: #dcfce7;
+}
+.graph-tail-neutral {
+  color: var(--color-primary);
+  background: color-mix(in oklab, var(--color-primary) 12%, transparent);
+}
+.graph-meta-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 11px;
+}
+</style>

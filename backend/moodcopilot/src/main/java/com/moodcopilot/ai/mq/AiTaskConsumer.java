@@ -40,7 +40,7 @@ public class AiTaskConsumer implements StreamListener<String, MapRecord<String, 
 
             if (AiTaskMessage.TYPE_DIARY_ANALYSIS.equals(task.taskType())) {
                 // 同步执行任务，抛出异常则不执行 ack
-                diaryService.runAiAnalysisSync(task.diaryId(), task.userId());
+                diaryService.runAiAnalysisSync(task.diaryId(), task.userId(), task.isUseReasoning());
             } else {
                 log.warn("未知的任务类型: {}", task.taskType());
             }

@@ -53,7 +53,11 @@
           </view>
         </view>
 
-        <view v-if="diary.analysisStatus === 'analyzing'" class="analysis-card analysis-pending">
+        <view v-if="diary.analysisStatus === 'failed_limit'" class="analysis-card analysis-pending">
+          <text class="analysis-kicker">深度思考额度已用完</text>
+          <text class="analysis-copy">日记已保存，可稍后重试或改用普通分析。</text>
+        </view>
+        <view v-else-if="diary.analysisStatus === 'analyzing'" class="analysis-card analysis-pending">
           <text class="analysis-kicker">AI 正在阅读这篇记录</text>
           <text class="analysis-copy">分析完成后会出现在这里。</text>
         </view>

@@ -8,7 +8,12 @@ import java.io.Serializable;
 public record AiTaskMessage(
         String taskType,
         Long diaryId,
-        Long userId
+        Long userId,
+        Boolean useReasoning
 ) implements Serializable {
     public static final String TYPE_DIARY_ANALYSIS = "DIARY_ANALYSIS";
+
+    public boolean isUseReasoning() {
+        return Boolean.TRUE.equals(useReasoning);
+    }
 }

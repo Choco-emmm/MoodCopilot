@@ -31,7 +31,7 @@
                 <span class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
                 <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
               </div>
-              <span class="rag-ref-snippet" :title="ref.snippet">{{ ref.snippet }}</span>
+              <span class="rag-ref-snippet">{{ ref.snippet }}</span>
               <span v-if="ref.diaryId && String(ref.diaryId) !== '-1'" class="rag-ref-go">→</span>
             </div>
           </template>
@@ -46,14 +46,27 @@
             </div>
           </template>
           <template v-if="graphRefs.length">
-            <div class="rag-refs-section-label">🕸️ 关系图谱</div>
+            <div class="rag-refs-section-label">🕸️ 情绪因果图谱</div>
             <div
               v-for="(ref, i) in graphRefs"
               :key="'g'+i"
-              class="rag-ref-item-profile"
-              @click="toggleSnippet(1000 + i)"
+              :class="['rag-ref-item-graph', { 'rag-ref-clickable': ref.diaryId && String(ref.diaryId) !== '-1' }]"
+              @click="String(ref.diaryId) !== '-1' && ref.diaryId && $emit('go-diary', ref.diaryId)"
             >
-              <span :class="['rag-ref-snippet', { 'expanded': isSnippetExpanded(1000 + i) }]" :title="ref.snippet">{{ ref.snippet }}</span>
+              <div class="graph-card-chain">
+                <span class="graph-node-head" :title="parseGraphTriple(ref.snippet).head">{{ parseGraphTriple(ref.snippet).head }}</span>
+                <span class="graph-edge">
+                  <span class="graph-edge-relation">{{ parseGraphTriple(ref.snippet).relation }}</span>
+                  <span class="graph-edge-arrow">▶</span>
+                </span>
+                <span :class="['graph-node-tail', getTriplePolarityClass(parseGraphTriple(ref.snippet).relation, parseGraphTriple(ref.snippet).tail)]" :title="parseGraphTriple(ref.snippet).tail">
+                  {{ parseGraphTriple(ref.snippet).tail }}
+                </span>
+              </div>
+              <div class="rag-ref-meta graph-meta-sub" v-if="ref.date || (ref.diaryId && String(ref.diaryId) !== '-1')">
+                <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
+                <span v-if="ref.diaryId && String(ref.diaryId) !== '-1'" class="rag-ref-go">查看日记 →</span>
+              </div>
             </div>
           </template>
         </div>
@@ -68,8 +81,9 @@
           <!-- 如果只有 think 没有正文（消息异常时的兜底） -->
           <span v-else class="ai-think-placeholder">...</span>
 
-          <!-- Quote Action -->
+          <!-- Quote Action and Time -->
           <div v-if="parsedContent.text" class="msg-actions">
+            <span class="msg-time" v-if="msg.createdAt">{{ formatMsgTime(msg.createdAt) }}</span>
             <button class="msg-action-btn" title="引用此回复" @click="handleQuote">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"></path><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"></path></svg>
               <span>引用</span>
@@ -89,8 +103,9 @@
             </li>
           </ul>
           
-          <!-- Quote Action -->
+          <!-- Quote Action and Time -->
           <div class="msg-actions msg-actions-user">
+            <span class="msg-time" v-if="msg.createdAt">{{ formatMsgTime(msg.createdAt) }}</span>
             <button class="msg-action-btn" title="引用此回复" @click="handleQuote">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"></path><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"></path></svg>
               <span>引用</span>
@@ -126,9 +141,26 @@ export interface Message {
   id: string
   role: 'user' | 'ai'
   content: string
+  createdAt?: string
   references?: string[]
   ragReferences?: RagRef[]
   quoteRef?: { content: string; author: string }
+  status?: 'pending' | 'streaming' | 'success' | 'error'
+}
+
+function formatMsgTime(isoString?: string): string {
+  if (!isoString) return ''
+  try {
+    const d = new Date(isoString)
+    const yy = String(d.getFullYear()).slice(-2)
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    const HH = String(d.getHours()).padStart(2, '0')
+    const MM = String(d.getMinutes()).padStart(2, '0')
+    return `${yy}-${mm}-${dd} ${HH}:${MM}`
+  } catch {
+    return ''
+  }
 }
 
 const props = defineProps<{
@@ -267,4 +299,125 @@ function formatRefDate(dateStr?: string): string {
   }
   return dateStr
 }
+
+function parseGraphTriple(snippet?: string) {
+  if (!snippet) return { head: '', relation: '关联', tail: '' }
+  const text = snippet.replace(/^记忆图谱[：:]\s*/, '').trim()
+  const parts = text.split(/\s+/)
+  if (parts.length >= 3) {
+    return {
+      head: parts[0],
+      relation: parts[1],
+      tail: parts.slice(2).join(' ')
+    }
+  } else if (parts.length === 2) {
+    return {
+      head: parts[0],
+      relation: '影响',
+      tail: parts[1]
+    }
+  }
+  return { head: text, relation: '关联', tail: '' }
+}
+
+function getTriplePolarityClass(relation: string, tail: string): string {
+  const text = relation + ' ' + tail
+  if (/缓解|治愈|平静|开心|放松|好转|支持|满足|成就|积极/.test(text)) {
+    return 'graph-tail-positive'
+  }
+  if (/引发|导致|加重|焦虑|难受|内耗|崩溃|烦躁|失眠|压抑|痛苦|疲惫|委屈|消极/.test(text)) {
+    return 'graph-tail-negative'
+  }
+  return 'graph-tail-neutral'
+}
 </script>
+
+<style scoped>
+.msg-time {
+  font-size: 11px;
+  color: var(--color-text-tertiary, #999);
+  margin-right: 8px;
+  opacity: 0.8;
+}
+.msg-actions {
+  display: flex;
+  align-items: center;
+}
+
+.rag-ref-item-graph {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid color-mix(in oklab, var(--color-primary) 18%, transparent);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  transition: all 0.2s ease;
+}
+.rag-ref-item-graph:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--color-primary) 10%, transparent);
+}
+.graph-card-chain {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.graph-node-head {
+  font-weight: 600;
+  color: var(--color-text);
+  background: color-mix(in oklab, var(--color-surface-hover, #f3f4f6) 90%, transparent);
+  padding: 2px 6px;
+  border-radius: 4px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.graph-edge {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.graph-edge-relation {
+  font-style: italic;
+  font-size: 11px;
+  color: var(--color-primary);
+  padding: 0 2px;
+}
+.graph-edge-arrow {
+  font-size: 9px;
+  color: var(--color-primary);
+}
+.graph-node-tail {
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.graph-tail-negative {
+  color: #dc2626;
+  background: #fee2e2;
+}
+.graph-tail-positive {
+  color: #16a34a;
+  background: #dcfce7;
+}
+.graph-tail-neutral {
+  color: var(--color-primary);
+  background: color-mix(in oklab, var(--color-primary) 12%, transparent);
+}
+.graph-meta-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 11px;
+}
+</style>

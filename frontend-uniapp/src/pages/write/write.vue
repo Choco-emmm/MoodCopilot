@@ -16,6 +16,12 @@
         <checkbox :checked="analyze" color="var(--theme-primary)" style="transform:scale(0.8);" />
         <text class="toggle-text">AI 分析我的情绪</text>
       </label>
+      <view v-if="analyze" class="analysis-model-choice">
+        <text class="model-choice-label">分析模式</text>
+        <picker :range="analysisModelOptions" :value="useReasoning ? 1 : 0" @change="onAnalysisModelChange">
+          <view class="model-choice-picker">{{ useReasoning ? '深度思考' : '普通分析' }} <text class="model-choice-arrow">⌄</text></view>
+        </picker>
+      </view>
     </view>
 
     <!-- Editor -->
@@ -127,6 +133,8 @@ const content = ref('');
 
 const isSubmitting = ref(false);
 const analyze = ref(true);
+const useReasoning = ref(false);
+const analysisModelOptions = ['普通分析', '深度思考'];
 const isPublic = ref(false);
 const images = ref<string[]>([]);
 
@@ -143,6 +151,10 @@ const lyricsError = ref(false);
 const showLyricsPanel = ref(false);
 const selectedLyricIndices = ref<number[]>([]);
 let lyricsRequestId = 0;
+
+const onAnalysisModelChange = (event: any) => {
+  useReasoning.value = Number(event.detail.value) === 1;
+};
 
 const removeMusic = () => {
   lyricsRequestId++;
@@ -262,6 +274,7 @@ const submitDiary = async () => {
       isPublic: isPublic.value,
       visibility: isPublic.value ? 'PUBLIC' : 'PRIVATE',
       analyze: analyze.value,
+      useReasoning: analyze.value && useReasoning.value,
       images: images.value,
       musicMeta: musicMeta.value
     };
@@ -283,7 +296,9 @@ const submitDiary = async () => {
           title: '发布成功',
           content: analysisQueued
             ? '日记已保存。AI 正在分析，完成后会通知你。'
-            : '日记已保存。今日 AI 分析次数已用完，你仍可正常查看和编辑日记。',
+            : analysisStatus === 'failed_limit'
+              ? '日记已保存。深度思考额度已用完，可改用普通分析或稍后重试。'
+              : '日记已保存。今日 AI 分析次数已用完，你仍可正常查看和编辑日记。',
           showCancel: false,
           success: () => {
             uni.navigateBack();
@@ -711,6 +726,10 @@ const previewImage = (current: string) => {
 .composer-subtitle { font-size: 23rpx; line-height: 1.55; }
 .composer-controls { margin-bottom: 18rpx; padding: 15rpx 0; border-top: 1rpx solid var(--theme-border); border-bottom: 1rpx solid var(--theme-border); }
 .toggle-text { font-size: 23rpx; }
+.analysis-model-choice { display: flex; align-items: center; gap: 14rpx; margin-top: 14rpx; }
+.model-choice-label { color: var(--theme-text-secondary); font-size: 22rpx; }
+.model-choice-picker { min-width: 180rpx; padding: 9rpx 16rpx; border: 1rpx solid var(--theme-border); border-radius: 6rpx; color: var(--theme-primary); font-size: 22rpx; }
+.model-choice-arrow { margin-left: 6rpx; color: var(--theme-text-placeholder); }
 .composer-editor { min-height: 0; margin-bottom: 16rpx; padding: 26rpx; border: 1rpx solid var(--theme-border); border-radius: 8rpx; box-shadow: none; }
 .composer-textarea { min-height: 230rpx; font-size: 29rpx; line-height: 1.72; }
 .image-uploader { margin-top: 20rpx; padding-top: 18rpx; border-top: 1rpx solid var(--theme-border); }

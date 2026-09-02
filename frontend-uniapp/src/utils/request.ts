@@ -74,11 +74,15 @@ const handleResponseError = (statusCode: number, dataMessage?: string, defaultMs
     uni.removeStorageSync('token');
     uni.showToast({ title: '请先登录', icon: 'none' });
     uni.$emit('unauthorized');
-    return new Error('Unauthorized');
+    const error = new Error('Unauthorized') as Error & { statusCode?: number };
+    error.statusCode = statusCode;
+    return error;
   } else {
-    const msg = dataMessage || defaultMsg;
+    const msg = dataMessage || (statusCode === 429 ? '请求额度已用完，请稍后再试' : defaultMsg);
     uni.showToast({ title: msg, icon: 'none' });
-    return new Error(msg);
+    const error = new Error(msg) as Error & { statusCode?: number };
+    error.statusCode = statusCode;
+    return error;
   }
 };
 

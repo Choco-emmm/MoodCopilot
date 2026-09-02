@@ -910,19 +910,6 @@ const deleteTriple = (id: number) => {
   display: block;
 }
 
-.core-badge {
-  position: absolute;
-  bottom: -20rpx;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #f9ca24;
-  color: #fff;
-  font-size: 20rpx;
-  padding: 4rpx 12rpx;
-  border-radius: 20rpx;
-  white-space: nowrap;
-  box-shadow: 0 4rpx 10rpx rgba(249, 202, 36, 0.3);
-}
 
 /* Graph Styles */
 .graph-container {

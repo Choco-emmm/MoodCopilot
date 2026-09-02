@@ -33,6 +33,7 @@ export function useChat() {
     conv.activeConvId,
     conv.saveToBackend,
     conv.loadConversations,
+    conv.waitForConversationTitle,
     scroll,
   )
 
@@ -48,7 +49,7 @@ export function useChat() {
   )
 
   // ── Quick Starters ──
-  const quickStarters = ref<{ icon: string; text: string }[]>([])
+  const quickStarters = ref<{ icon: string; text: string; eventId?: number; greeting?: string }[]>([])
   const quickStartersLoading = ref(true)
 
   async function loadWelcomeTopics() {
@@ -73,7 +74,10 @@ export function useChat() {
     }
   }
 
-  function useQuickStarter(text: string) {
+  const pendingEventId = ref<number | undefined>(undefined)
+
+  function useQuickStarter(text: string, eventId?: number) {
+    pendingEventId.value = eventId
     stream.draft.value = text
     handleSend()
   }
@@ -183,6 +187,7 @@ export function useChat() {
 
   // ── Send wrapper (handles conversation creation) ──
   async function handleSend() {
+    const eventId = pendingEventId.value
     await stream.send(conv.creatingConversation.value, async () => {
       conv.creatingConversation.value = true
       try {
@@ -191,7 +196,8 @@ export function useChat() {
         logWarn('chat', '创建会话请求失败', e)
       }
       conv.creatingConversation.value = false
-    })
+    }, eventId)
+    pendingEventId.value = undefined
   }
 
   // ── Lifecycle ──
@@ -209,6 +215,10 @@ export function useChat() {
       shouldAutoSend = !!state.autoSend
       if (shouldAutoSend) stream.draft.value = '来看看我最近的报告吧，我们继续聊聊'
       history.replaceState({ ...history.state, references: undefined, autoSend: undefined }, '')
+    }
+    if (state?.eventId) {
+      pendingEventId.value = Number(state.eventId)
+      history.replaceState({ ...history.state, eventId: undefined }, '')
     }
 
     await conv.loadConversations()
@@ -268,6 +278,7 @@ export function useChat() {
   onActivated(async () => {
     // Resume sync polling and scroll to latest messages
     sync.startAutoSync()
+    loadRecentDiaryOptions()
     if (window.visualViewport) {
       viewportBaseHeight.value = Math.max(window.visualViewport.height, window.innerHeight)
       updateMobileKeyboardState()
@@ -296,6 +307,9 @@ export function useChat() {
     streaming: stream.streaming,
     streamingText: stream.streamingText,
     isThinking: stream.isThinking,
+    isCompressing: stream.isCompressing,
+    compressingMessage: stream.compressingMessage,
+    useReasoning: stream.useReasoning,
     streamingRefs: stream.streamingRefs,
     lastReplyError: stream.lastReplyError,
     lastReplyRequest: stream.lastReplyRequest,

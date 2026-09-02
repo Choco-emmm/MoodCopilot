@@ -26,8 +26,8 @@ public class AiTaskProducer {
         this.objectMapper = objectMapper;
     }
 
-    public void submitDiaryAnalysisTask(long diaryId, long userId) {
-        AiTaskMessage message = new AiTaskMessage(AiTaskMessage.TYPE_DIARY_ANALYSIS, diaryId, userId);
+    public void submitDiaryAnalysisTask(long diaryId, long userId, boolean useReasoning) {
+        AiTaskMessage message = new AiTaskMessage(AiTaskMessage.TYPE_DIARY_ANALYSIS, diaryId, userId, useReasoning);
         sendMessage(message);
     }
 

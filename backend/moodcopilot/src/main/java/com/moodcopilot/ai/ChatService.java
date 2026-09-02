@@ -1,6 +1,7 @@
 package com.moodcopilot.ai;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.*;
 import com.moodcopilot.entity.UserProfileMemoryEntity;
@@ -49,13 +50,13 @@ public class ChatService {
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
     private static final String MSG_PREFIX = "chat:msgs:";
     private static final String SUMMARY_PREFIX = "chat:summary:";
+    private static final String REF_REMINDER = "请优先结合我引用的日记内容来回应，不要忽略日记中的具体细节和情绪";
     private static final int COMPRESSION_TRIGGER_MSG_COUNT = 20;
     private static final int KEEP_RECENT_MSG_COUNT = 10;
 
     private final ChatClient chatChatClient;
     private final ChatClient analysisChatClient;
     private final ChatConversationMapper conversationMapper;
-    private final ChatIntentRouter chatIntentRouter;
     private final DeepSeekReasoningClient reasoningClient;
     private final Cache<String, ChatMemory> userChatMemories;
     private final StringRedisTemplate redisTemplate;
@@ -71,11 +72,13 @@ public class ChatService {
     private final com.moodcopilot.mapper.DiaryMapper diaryMapper;
     private final VisionService visionService;
     private final com.moodcopilot.config.AiPromptProperties aiPrompts;
+    private final com.moodcopilot.event.LifeEventService lifeEventService;
+    private final com.moodcopilot.event.LifeChapterService lifeChapterService;
+    private final ChatTitleService chatTitleService;
 
     public ChatService(ChatClient chatChatClient,
             ChatClient analysisChatClient,
             ChatConversationMapper conversationMapper,
-            ChatIntentRouter chatIntentRouter,
             DeepSeekReasoningClient reasoningClient,
             Cache<String, ChatMemory> userChatMemories,
             StringRedisTemplate redisTemplate,
@@ -90,11 +93,13 @@ public class ChatService {
             com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper,
             com.moodcopilot.mapper.DiaryMapper diaryMapper,
             VisionService visionService,
-            com.moodcopilot.config.AiPromptProperties aiPrompts) {
+            com.moodcopilot.config.AiPromptProperties aiPrompts,
+            @org.springframework.context.annotation.Lazy com.moodcopilot.event.LifeEventService lifeEventService,
+            @org.springframework.context.annotation.Lazy com.moodcopilot.event.LifeChapterService lifeChapterService,
+            ChatTitleService chatTitleService) {
         this.chatChatClient = chatChatClient;
         this.analysisChatClient = analysisChatClient;
         this.conversationMapper = conversationMapper;
-        this.chatIntentRouter = chatIntentRouter;
         this.reasoningClient = reasoningClient;
         this.userChatMemories = userChatMemories;
         this.redisTemplate = redisTemplate;
@@ -110,27 +115,37 @@ public class ChatService {
         this.diaryMapper = diaryMapper;
         this.visionService = visionService;
         this.aiPrompts = aiPrompts;
+        this.lifeEventService = lifeEventService;
+        this.lifeChapterService = lifeChapterService;
+        this.chatTitleService = chatTitleService;
     }
 
     // ---- 会话管理 ----
 
     public List<ChatConversationEntity> listConversations() {
         UserEntity user = currentUser();
-        return conversationMapper.selectList(
+        List<ChatConversationEntity> conversations = conversationMapper.selectList(
                 new LambdaQueryWrapper<ChatConversationEntity>()
                         .eq(ChatConversationEntity::getUserId, user.getId())
                         .orderByDesc(ChatConversationEntity::getUpdatedAt));
+        return conversations;
     }
 
     public ChatConversationEntity createConversation(String title) {
         UserEntity user = currentUser();
         ChatConversationEntity conv = new ChatConversationEntity();
         conv.setUserId(user.getId());
-        conv.setTitle(title != null && !title.isBlank() ? title : "新对话");
+        conv.setTitle(title != null && !title.isBlank() ? title : "新聊天");
         conv.setCreatedAt(java.time.LocalDateTime.now());
         conv.setUpdatedAt(java.time.LocalDateTime.now());
         conversationMapper.insert(conv);
         return conv;
+    }
+
+    /** 提交标题生成任务，不让标题模型调用阻塞聊天请求。 */
+    public void scheduleConversationTitle(Long conversationId, String firstMessage) {
+        UserEntity user = currentUser();
+        chatTitleService.requestGeneration(conversationId, user.getId(), firstMessage);
     }
 
     public void deleteConversation(Long conversationId) {
@@ -191,22 +206,49 @@ public class ChatService {
             }
         }
 
+        List<Map<String, String>> topics = null;
         try {
             String cached = redisTemplate.opsForValue().get(cacheKey);
             if (cached != null) {
-                return objectMapper.readValue(cached, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, String>>>() {});
+                topics = objectMapper.readValue(cached, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, String>>>() {});
             }
         } catch (Exception e) {
             log.warn("读取 welcome topics 缓存失败", e);
         }
 
-        // 兜底返回默认
-        return List.of(
-                Map.of("icon", "🌟", "text", "分析我最近三天的情绪波动"),
-                Map.of("icon", "💡", "text", "帮我回顾我最近开心的事情"),
-                Map.of("icon", "🌿", "text", "推荐一些适合我解压的音乐与方法"),
-                Map.of("icon", "💬", "text", "今天有点累，陪我聊一下")
-        );
+        if (topics == null || topics.isEmpty()) {
+            topics = List.of(
+                    Map.of("icon", "🌟", "text", "分析我最近三天的情绪波动"),
+                    Map.of("icon", "💡", "text", "帮我看看是什么最容易让我内耗"),
+                    Map.of("icon", "🌿", "text", "推荐一些适合我解压的音乐与方法"),
+                    Map.of("icon", "💬", "text", "今天有点累，陪我聊一下")
+            );
+        }
+
+        // 探测当前用户是否有已到期且待回访的重要事件，若有，将其置顶在第 1 位
+        try {
+            var pendingOpt = lifeEventService.getPendingEventForFollowUp(userId);
+            if (pendingOpt.isPresent()) {
+                var ev = pendingOpt.get();
+                Map<String, String> eventTopic = new LinkedHashMap<>();
+                eventTopic.put("icon", "💌");
+                eventTopic.put("text", "聊聊关于「" + ev.getTitle() + "」的进展");
+                eventTopic.put("eventId", String.valueOf(ev.getId()));
+                eventTopic.put("greeting", "我一直惦记着你关于「" + ev.getTitle() + "」的事，一切还顺利吗？心里感觉怎么样？");
+
+                List<Map<String, String>> merged = new ArrayList<>();
+                merged.add(eventTopic);
+                for (var t : topics) {
+                    if (merged.size() >= 4) break;
+                    merged.add(t);
+                }
+                return merged;
+            }
+        } catch (Exception e) {
+            log.warn("探测重要未决事件失败 userId={}", userId, e);
+        }
+
+        return topics;
     }
 
     private void generateAndCacheWelcomeTopics(Long userId, String memoryBackground) {
@@ -235,10 +277,10 @@ public class ChatService {
     /** 流式聊天结果：RAG 上下文 + AI 文字流 */
     public record ChatStreamContext(String ragContext, Flux<String> stream) {}
 
-    public ChatStreamContext chat(Long conversationId, String message, List<String> refs, String memoryBackground) {
-        // 流式接口：先统一装配上下文，再决定走普通模型还是思考模型。
+    public ChatStreamContext chat(Long conversationId, String message, List<String> refs, String memoryBackground, boolean useReasoning) {
+        // 流式接口：先统一装配上下文，再按用户显式选择的模型执行。
         message = augmentWithRefReminder(message, refs);
-        ChatExecutionResult exec = prepareChatExecution(conversationId, message, refs, memoryBackground);
+        ChatExecutionResult exec = prepareChatExecution(conversationId, message, refs, memoryBackground, useReasoning);
         ChatRequest request = exec.request();
         Authentication auth = exec.auth();
         String ragCtx = exec.ragCtx();
@@ -267,7 +309,8 @@ public class ChatService {
                            .append(request.summary())
                            .append("\n</conversation_summary>\n\n");
                     }
-                    sys.append(ragCtx).append("\n").append(buildTimeMetadata());
+                    sys.append(ragCtx).append("\n").append(buildChapterContext(exec.user()))
+                            .append(buildTimeMetadata());
                     s.text(sys.toString());
                 })
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
@@ -288,10 +331,10 @@ public class ChatService {
         return new ChatStreamContext(ragCtx, mergedStream);
     }
 
-    public String reply(Long conversationId, String message, List<String> refs, String memoryBackground) {
+    public String reply(Long conversationId, String message, List<String> refs, String memoryBackground, boolean useReasoning) {
         // 非流式接口：移动端/公网优先走这里，减少 SSE 连接不稳定的影响。
         message = augmentWithRefReminder(message, refs);
-        ChatExecutionResult exec = prepareChatExecution(conversationId, message, refs, memoryBackground);
+        ChatExecutionResult exec = prepareChatExecution(conversationId, message, refs, memoryBackground, useReasoning);
         ChatRequest request = exec.request();
         Authentication auth = exec.auth();
         String ragCtx = exec.ragCtx();
@@ -318,7 +361,8 @@ public class ChatService {
                            .append(request.summary())
                            .append("\n</conversation_summary>\n\n");
                     }
-                    sys.append(ragCtx).append("\n").append(buildTimeMetadata());
+                    sys.append(ragCtx).append("\n").append(buildChapterContext(exec.user()))
+                            .append(buildTimeMetadata());
                     s.text(sys.toString());
                 })
                 .advisors(new MessageChatMemoryAdvisor(request.memory()))
@@ -339,39 +383,34 @@ public class ChatService {
 
     private record ChatExecutionResult(ChatRequest request, Authentication auth, UserEntity user, String ragCtx, boolean useReasoning) {}
 
-    private ChatExecutionResult prepareChatExecution(Long conversationId, String message, List<String> refs, String memoryBackground) {
+    private ChatExecutionResult prepareChatExecution(Long conversationId, String message, List<String> refs, String memoryBackground, boolean requestedUseReasoning) {
         ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity user = currentUser();
         String ragCtx = ""; // 已迁移为 Agentic RAG，不再强制前置全量检索
 
-        boolean useReasoning = false;
-        if (shouldUseReasoning(conversationId, message, refs, memoryBackground)) {
-            try {
-                rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REASONING);
-                useReasoning = true;
-            } catch (RateLimitException e) {
-                log.info("推理额度不足，降级到普通聊天 userId={}", user.getId());
-            }
-        }
-
-        if (!useReasoning) {
+        // 用户显式选择模型：深度思考额度不足时直接抛出限流异常（429），不再静默降级
+        boolean useReasoning;
+        if (requestedUseReasoning) {
+            rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REASONING);
+            useReasoning = true;
+        } else {
             rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT);
+            useReasoning = false;
         }
         userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
 
         return new ChatExecutionResult(request, auth, user, ragCtx, useReasoning);
     }
 
-    private boolean shouldUseReasoning(Long conversationId, String message, List<String> refs,
-            String memoryBackground) {
-        return chatIntentRouter.shouldUseReasoning(message, refs, memoryBackground, conversationId);
-    }
-
     private List<Map<String, Object>> buildMessagesForReasoner(ChatRequest request, String message, Authentication auth, String ragCtx) {
         List<Map<String, Object>> msgs = new ArrayList<>();
         StringBuilder sys = new StringBuilder();
         sys.append(aiPrompts.getAgentToolsPrompt()).append("\n\n");
+        // 深度分析路由下按需注入 CBT 认知透视技能（日常闲聊不携带，避免说教）
+        if (aiPrompts.getCbtCognitiveSkillPrompt() != null && !aiPrompts.getCbtCognitiveSkillPrompt().isBlank()) {
+            sys.append(aiPrompts.getCbtCognitiveSkillPrompt()).append("\n\n");
+        }
         if (request.context() != null && !request.context().isBlank()) {
             sys.append(request.context()).append("\n\n");
         }
@@ -383,7 +422,9 @@ public class ChatService {
         if (ragCtx != null && !ragCtx.isBlank()) {
             sys.append(ragCtx).append("\n");
         }
-        sys.append(buildReasoningDataContext(auth)).append("\n").append(buildTimeMetadata());
+        sys.append(buildReasoningDataContext(auth)).append("\n")
+                .append(buildChapterContext(((UserEntity) auth.getPrincipal()).getId()))
+                .append(buildTimeMetadata());
         
         msgs.add(Map.of("role", "system", "content", sys.toString()));
         
@@ -595,7 +636,7 @@ public class ChatService {
                                     "type", "tool_memory",
                                     "diaryId", d.id() != null ? d.id().toString() : "",
                                     "date", d.date() != null ? d.date().toString() : "",
-                                    "snippet", d.snippet() != null ? d.snippet() : "",
+                                    "snippet", compactToolSnippet(d.snippet()),
                                     "toolName", "diarySearch"));
                         }
                     }
@@ -619,7 +660,7 @@ public class ChatService {
                         for (var g : gsr.items()) {
                             items.add(Map.of(
                                     "type", "graph_memory",
-                                    "snippet", g.content() != null ? g.content() : "",
+                                    "snippet", compactToolSnippet(g.content()),
                                     "date", g.date() != null ? g.date() : "",
                                     "diaryId", g.diaryId() != null ? g.diaryId().toString() : "",
                                     "toolName", "graphSearch"));
@@ -630,7 +671,7 @@ public class ChatService {
                     if (result instanceof DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult dir) {
                         items.add(Map.of(
                                 "type", "image_analysis",
-                                "snippet", dir.analysisResult(),
+                                "snippet", compactToolSnippet(dir.analysisResult()),
                                 "toolName", "diaryImageAnalysis"));
                     }
                 }
@@ -643,6 +684,13 @@ public class ChatService {
         } catch (Exception e) {
             log.warn("推送工具引用事件失败 {}: {}", functionName, e.getMessage());
         }
+    }
+
+    /** 仅限制前端引用面板的摘要，不影响完整工具结果返回给模型。 */
+    private String compactToolSnippet(String value) {
+        if (value == null || value.isBlank()) return "";
+        String normalized = value.replaceAll("\\s+", " ").trim();
+        return normalized.length() > 160 ? normalized.substring(0, 160) + "…" : normalized;
     }
 
     private Object executeToolFunction(String functionName, String argumentsJson, Authentication auth) throws Exception {
@@ -738,9 +786,21 @@ public class ChatService {
                                 }
                             }
                         }
+                    } else {
+                        // 降级全量拉取：返回最近的图谱关系概览
+                        var wrapper = new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
+                                .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getUserId, userId)
+                                .orderByDesc(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getCreatedAt)
+                                .last("LIMIT " + limit);
+                        for (var t : diaryKnowledgeGraphMapper.selectList(wrapper)) {
+                            items.add(new GraphSearchResult.GraphItem(
+                                    t.getHeadEntity() + " " + t.getRelation() + " " + t.getTailEntity(),
+                                    t.getCreatedAt() != null ? t.getCreatedAt().toString() : null,
+                                    t.getDiaryId()));
+                        }
                     }
                     yield new GraphSearchResult(items.size(), items,
-                            items.isEmpty() ? "未找到与 '" + keyword + "' 相关的图谱三元组" : "已返回图谱三元组");
+                            items.isEmpty() ? (keyword.isBlank() ? "当前暂无知识图谱记录" : "未找到与 '" + keyword + "' 相关的图谱三元组") : "已返回知识图谱因果三元组（共 " + items.size() + " 条）");
                 }
                 case "diaryImageAnalysisFunction" -> {
                     var req = objectMapper.readValue(argumentsJson, DiaryImageAnalysisRequest.class);
@@ -984,12 +1044,11 @@ public class ChatService {
                 user.getId(), conversationId, message == null ? 0 : message.length(), refs == null ? 0 : refs.size(),
                 memoryBackground != null && !memoryBackground.isBlank());
 
-        if ("新对话".equals(conv.getTitle()) && message != null && !message.isBlank()) {
-            String title = message.length() > 20 ? message.substring(0, 20) : message;
-            conv.setTitle(title);
-        }
-        conv.setUpdatedAt(java.time.LocalDateTime.now());
-        conversationMapper.updateById(conv);
+        // 标题由异步任务独立更新，避免整行更新把已生成的标题覆盖回占位符。
+        conversationMapper.update(null, new LambdaUpdateWrapper<ChatConversationEntity>()
+                .eq(ChatConversationEntity::getId, conversationId)
+                .eq(ChatConversationEntity::getUserId, user.getId())
+                .set(ChatConversationEntity::getUpdatedAt, java.time.LocalDateTime.now()));
 
         return new ChatRequest(context, memory, summary);
     }
@@ -1070,6 +1129,27 @@ public class ChatService {
 
     // ---- 日记上下文 ----
 
+    /** 注入最近活跃的人生章节宏观叙事背景（时光画卷），失败降级为空字符串 */
+    private String buildChapterContext(UserEntity user) {
+        if (user == null || user.getId() == null) return "";
+        try {
+            return lifeChapterService.buildActiveChapterContext(user.getId());
+        } catch (Exception e) {
+            log.debug("构建人生章节背景失败: {}", e.getMessage());
+            return "";
+        }
+    }
+
+    private String buildChapterContext(Long userId) {
+        if (userId == null) return "";
+        try {
+            return lifeChapterService.buildActiveChapterContext(userId);
+        } catch (Exception e) {
+            log.debug("构建人生章节背景失败: {}", e.getMessage());
+            return "";
+        }
+    }
+
     private String buildTimeMetadata() {
         String currentTime = java.time.LocalDateTime.now()
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd EEEE"));
@@ -1148,8 +1228,8 @@ public class ChatService {
      */
     private String augmentWithRefReminder(String message, List<String> refs) {
         if (refs == null || refs.isEmpty() || message == null || message.isBlank()) return message;
-        if (message.startsWith("（请优先结合")) return message; // 防止重复注入
-        return "（请优先结合我引用的日记内容来回应，不要忽略日记中的具体细节和情绪）\n\n" + message;
+        if (message.startsWith("（" + REF_REMINDER) || message.startsWith("(" + REF_REMINDER)) return message; // 防止重复注入
+        return "（" + REF_REMINDER + "）\n\n" + message;
     }
 
     private String buildContext(long userId, List<String> refs, String memoryBackground) {

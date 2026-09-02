@@ -13,6 +13,12 @@
         <input type="checkbox" v-model="analyze" />
         <span>AI 分析我的情绪</span>
       </label>
+      <div v-if="analyze" class="composer-model-choice" role="radiogroup" aria-label="选择分析模型">
+        <label v-for="option in analysisModelOptions" :key="option.label" class="composer-model-option">
+          <input type="radio" v-model="useReasoning" :value="option.value" />
+          <span>{{ option.label }}</span>
+        </label>
+      </div>
       <div class="composer-visibility">
         <button
           v-for="opt in visibilityOptions"
@@ -289,6 +295,14 @@ const draftNotice = ref(initialDraftNotice)
 const draftSavedAt = ref('')
 const visibility = ref<'PRIVATE' | 'PUBLIC'>(props.initialVisibility || 'PRIVATE')
 const analyze = ref(true)
+const useReasoning = ref(false)
+const analysisModelOptions = [
+  { value: false, label: '极速分析' },
+  { value: true, label: '深度思考' },
+]
+watch(analyze, (enabled) => {
+  if (!enabled) useReasoning.value = false
+})
 
 const collections = ref<any[]>([])
 const selectedCollections = ref<number[]>([])
@@ -836,10 +850,10 @@ async function handleSave() {
 
     if (isEditMode.value) {
       diaryId = props.editId!
-      await store.updateDiary(diaryId, content, visibility.value, musicPayload, imagesPayload, analyze.value && contentChanged.value, imageMetaPayload)
+      await store.updateDiary(diaryId, content, visibility.value, musicPayload, imagesPayload, analyze.value && contentChanged.value, imageMetaPayload, useReasoning.value)
       router.push(`/diary/${diaryId}`)
     } else {
-      await store.createDiary(content, visibility.value, musicPayload, analyze.value, imagesPayload, imageMetaPayload)
+      await store.createDiary(content, visibility.value, musicPayload, analyze.value, imagesPayload, imageMetaPayload, useReasoning.value)
       diaryId = store.activeDiary?.id!
       htmlContent.value = ''
       draft.value = ''

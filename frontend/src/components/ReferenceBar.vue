@@ -6,7 +6,10 @@
     </div>
     
     <div class="ref-popover-wrapper">
-      <button class="ref-add-btn" @click.stop="showPopover = !showPopover">+ 引用日记</button>
+      <button class="ref-add-btn" @click.stop="
+        showPopover = !showPopover;
+        if (showPopover) $emit('open');
+      ">+ 引用日记</button>
       
       <div v-if="showPopover" class="ref-popover-overlay" @click="showPopover = false"></div>
       
@@ -50,6 +53,7 @@ defineEmits<{
   remove: [index: number]
   add: [diaryId: string]
   retry: []
+  open: []
 }>()
 
 const showPopover = ref(false)

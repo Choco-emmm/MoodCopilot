@@ -28,12 +28,15 @@ public class ChatController {
     private final ChatService chatService;
     private final MemoryExtractionService memoryExtractionService;
     private final ObjectMapper objectMapper;
+    private final com.moodcopilot.event.LifeEventService lifeEventService;
 
     public ChatController(ChatService chatService, MemoryExtractionService memoryExtractionService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @org.springframework.context.annotation.Lazy com.moodcopilot.event.LifeEventService lifeEventService) {
         this.chatService = chatService;
         this.memoryExtractionService = memoryExtractionService;
         this.objectMapper = objectMapper;
+        this.lifeEventService = lifeEventService;
     }
 
     // ---- 一次性批量初始化画像（初始化后可删除此接口）----
@@ -80,19 +83,38 @@ public class ChatController {
         response.setHeader("Cache-Control", "no-cache");
         response.setHeader("Connection", "keep-alive");
         response.setHeader("X-Accel-Buffering", "no");
-        String message = (String) body.get("message");
+        String originalMessage = (String) body.get("message");
+        chatService.scheduleConversationTitle(id, originalMessage);
+        String message = originalMessage;
+        boolean eventFollowUp = false;
+        Object eventIdObj = body.get("eventId");
+        if (eventIdObj != null) {
+            try {
+                Long eventId = Long.parseLong(String.valueOf(eventIdObj));
+                UserEntity eventUser = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+                String eventCtx = lifeEventService.buildEventContextForChat(eventUser.getId(), eventId);
+                if (!eventCtx.isBlank()) {
+                    message = eventCtx + "\n\n" + (message != null ? message : "");
+                    lifeEventService.markEventFollowedUp(eventUser.getId(), eventId);
+                    eventFollowUp = true;
+                }
+            } catch (Exception e) {
+                log.warn("处理回访重要事件失败: {}", e.getMessage());
+            }
+        }
         @SuppressWarnings("unchecked")
         List<String> references = (List<String>) body.get("references");
+        boolean useReasoning = Boolean.TRUE.equals(body.get("useReasoning"));
         String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
-        log.info("收到流式聊天请求，conversationId={}，messageLength={}，referenceCount={}",
-                id, message == null ? 0 : message.length(), references == null ? 0 : references.size());
+        log.info("收到流式聊天请求，conversationId={}，messageLength={}，referenceCount={}，useReasoning={}",
+                id, message == null ? 0 : message.length(), references == null ? 0 : references.size(), useReasoning);
         UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = user.getId();
         Authentication currentAuth = SecurityContextHolder.getContext().getAuthentication();
         StringBuilder aiReplyBuffer = new StringBuilder();
         ChatService.ChatStreamContext ctx;
         try {
-            ctx = chatService.chat(id, message, references, memoryBackground);
+            ctx = chatService.chat(id, message, references, memoryBackground, useReasoning);
         } catch (com.moodcopilot.common.RateLimitException e) {
             log.info("AI 限流触发，conversationId={}，type={}", id, e.getType());
             throw new org.springframework.web.server.ResponseStatusException(
@@ -141,14 +163,16 @@ public class ChatController {
             doneEvent = Flux.empty();
         }
 
+        final String chatMessage = message;
+        final boolean followedUpEvent = eventFollowUp;
         return Flux.concat(refsEvent, chunkStream, doneEvent)
                 .doOnComplete(() -> {
                     log.info("流式聊天完成，准备触发画像增量更新，conversationId={}，replyLength={}",
                             id, aiReplyBuffer.length());
                     try {
                         String cleanReply = removePreToolDuplicate(aiReplyBuffer.toString());
-                        memoryExtractionService.extractAndSyncMemoryFromChat(userId, message, references,
-                                cleanReply);
+                        memoryExtractionService.extractAndSyncMemoryFromChat(userId, chatMessage, references,
+                                cleanReply, followedUpEvent);
                         log.info("流式聊天后画像增量更新已提交，conversationId={}", id);
                     } catch (Exception e) {
                         log.warn("聊天后触发长期画像更新失败，conversationId={}，reason={}", id, e.getMessage());
@@ -208,17 +232,36 @@ public class ChatController {
      */
     @PostMapping("/conversations/{id}/reply")
     public ApiResponse<String> reply(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        String message = (String) body.get("message");
+        String originalMessage = (String) body.get("message");
+        chatService.scheduleConversationTitle(id, originalMessage);
+        String message = originalMessage;
+        boolean eventFollowUp = false;
+        Object eventIdObj = body.get("eventId");
+        if (eventIdObj != null) {
+            try {
+                Long eventId = Long.parseLong(String.valueOf(eventIdObj));
+                UserEntity eventUser = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+                String eventCtx = lifeEventService.buildEventContextForChat(eventUser.getId(), eventId);
+                if (!eventCtx.isBlank()) {
+                    message = eventCtx + "\n\n" + (message != null ? message : "");
+                    lifeEventService.markEventFollowedUp(eventUser.getId(), eventId);
+                    eventFollowUp = true;
+                }
+            } catch (Exception e) {
+                log.warn("处理回访重要事件失败: {}", e.getMessage());
+            }
+        }
         @SuppressWarnings("unchecked")
         List<String> references = (List<String>) body.get("references");
+        boolean useReasoning = Boolean.TRUE.equals(body.get("useReasoning"));
         String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
-        log.info("收到非流式聊天请求，conversationId={}，messageLength={}，referenceCount={}",
-                id, message == null ? 0 : message.length(), references == null ? 0 : references.size());
+        log.info("收到非流式聊天请求，conversationId={}，messageLength={}，referenceCount={}，useReasoning={}",
+                id, message == null ? 0 : message.length(), references == null ? 0 : references.size(), useReasoning);
         UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = user.getId();
         String reply;
         try {
-            reply = chatService.reply(id, message, references, memoryBackground);
+            reply = chatService.reply(id, message, references, memoryBackground, useReasoning);
         } catch (com.moodcopilot.common.RateLimitException e) {
             log.info("AI 限流触发（非流式），conversationId={}，type={}", id, e.getType());
             throw new org.springframework.web.server.ResponseStatusException(
@@ -227,7 +270,7 @@ public class ChatController {
         log.info("非流式聊天完成，准备触发画像增量更新，conversationId={}，replyLength={}",
                 id, reply == null ? 0 : reply.length());
         try {
-            memoryExtractionService.extractAndSyncMemoryFromChat(userId, message, references, reply);
+            memoryExtractionService.extractAndSyncMemoryFromChat(userId, message, references, reply, eventFollowUp);
             log.info("非流式聊天后画像增量更新已提交，conversationId={}", id);
         } catch (Exception e) {
             log.warn("非流式聊天后触发长期画像更新失败，conversationId={}，reason={}", id, e.getMessage());

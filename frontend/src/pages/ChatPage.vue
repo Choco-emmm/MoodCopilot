@@ -24,6 +24,14 @@
           <router-link to="/ai-memory" class="index-link">
             记忆中心 <span class="en-sub">Memory</span> <span class="link-arrow">↗</span>
           </router-link>
+          <span class="index-separator">·</span>
+          <router-link to="/life-events" class="index-link">
+            重要事件 <span class="en-sub">Threads</span> <span class="link-arrow">↗</span>
+          </router-link>
+          <span class="index-separator">·</span>
+          <router-link to="/life-chapters" class="index-link">
+            时光画卷 <span class="en-sub">Chapters</span> <span class="link-arrow">↗</span>
+          </router-link>
         </div>
 
         <div class="chat-mobile-conv">
@@ -37,7 +45,7 @@
               :key="conv.id"
               :value="conv.id"
             >
-              {{ conv.title || `对话 ${conv.id}` }}
+              {{ displayConversationTitle(conv.title, conv.id) }}
             </option>
           </select>
           <n-button
@@ -54,6 +62,10 @@
           <div v-if="messages.length === 0" class="chat-empty">
             <h2 class="chat-header-title">MoodCopilot</h2>
             <p class="chat-subtitle">可以聊聊最近的心情，分享你的故事和想法</p>
+            <div v-if="quickStarters[0]?.eventId" class="event-checkin-note">
+              <span class="event-checkin-kicker">今天想起一件事</span>
+              <span>{{ quickStarters[0].greeting || quickStarters[0].text }}</span>
+            </div>
             
             <div v-if="quickStartersLoading" class="chat-quick-starters skeleton-starters">
               <div v-for="i in 4" :key="i" class="quick-starter-card skeleton-card">
@@ -67,7 +79,7 @@
                 :key="idx" 
                 class="quick-starter-card"
                 type="button"
-                @click="useQuickStarter(item.text)"
+                @click="useQuickStarter(item.text, item.eventId)"
               >
                 <span class="starter-icon">{{ item.icon }}</span>
                 <span class="starter-text">{{ item.text }}</span>
@@ -86,7 +98,31 @@
             @quote="handleQuote"
           />
 
-          <div v-if="isThinking" class="msg-item ai animate-fade-in">
+          <div v-if="isCompressing" class="msg-item ai animate-fade-in">
+            <div class="msg-avatar ai-avatar">
+              <svg class="ai-avatar-icon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+                <rect x="14" y="11" width="36" height="42" rx="8" stroke="currentColor" stroke-width="4"/>
+                <path d="M24 11V53" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                <path d="M32 38C26.6 33.8 24 31.1 24 27.5C24 24.95 26 23 28.6 23C30.1 23 31.55 23.68 32.5 24.76C33.45 23.68 34.9 23 36.4 23C39 23 41 24.95 41 27.5C41 31.1 38.4 33.8 33 38L32.5 38.4L32 38Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="msg-wrapper">
+              <div class="chat-bubble chat-ai thinking-bubble">
+                <div class="thinking-header">
+                  <span class="sparkle-icon">✨</span>
+                  <span class="thinking-text">{{ compressingMessage || '正在优化对话上下文...' }}</span>
+                </div>
+                <div class="thinking-dots-loader">
+                  <span class="dot animate-bounce" style="animation-delay: 0ms"></span>
+                  <span class="dot animate-bounce" style="animation-delay: 150ms"></span>
+                  <span class="dot animate-bounce" style="animation-delay: 300ms"></span>
+                </div>
+                <div class="compressing-subtip">正在精炼长对话记忆，优化后将继续回复</div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="isThinking" class="msg-item ai animate-fade-in">
             <div class="msg-avatar ai-avatar">
               <svg class="ai-avatar-icon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
                 <rect x="14" y="11" width="36" height="42" rx="8" stroke="currentColor" stroke-width="4"/>
@@ -110,9 +146,11 @@
           </div>
 
           <ChatStreamingItem
-            :streaming="streaming"
+            :streaming="streaming && !isCompressing"
             :streaming-text="streamingText"
             :streaming-refs="streamingRefs"
+            :is-compressing="isCompressing"
+            :compressing-message="compressingMessage"
             @go-diary="goToDiary"
           />
         </div>
@@ -122,6 +160,9 @@
             v-model:draft="draft"
             :streaming="streaming"
             :disabled="creatingConversation"
+            :is-compressing="isCompressing"
+            :compressing-message="compressingMessage"
+            :use-reasoning="useReasoning"
             :last-reply-error="lastReplyError"
             :can-retry="!!lastReplyRequest"
             :references="references"
@@ -130,6 +171,7 @@
             :recent-diaries-error="recentDiariesError"
             @send="send"
             @send-enter="handleDraftEnter"
+            @update:use-reasoning="useReasoning = $event"
             @retry="retryLastReply"
             @remove-ref="removeRef"
             @add-diary-ref="addDiaryRef"
@@ -150,6 +192,7 @@ import ChatMessageItem from '../components/chat/ChatMessageItem.vue'
 import ChatStreamingItem from '../components/chat/ChatStreamingItem.vue'
 import ChatInputBox from '../components/chat/ChatInputBox.vue'
 import { useChat } from '../composables/useChat'
+import { displayConversationTitle } from '../utils/chatTitle'
 
 const {
   authStore, userInitial,
@@ -157,7 +200,7 @@ const {
   createConversation, selectConversation, deleteConversation,
   handleMobileConversationChange, deleteActiveConversation,
   messages,
-  draft, streaming, streamingText, isThinking, streamingRefs,
+  draft, streaming, streamingText, isThinking, isCompressing, compressingMessage, useReasoning, streamingRefs,
   lastReplyError, lastReplyRequest, references,
   send, retryLastReply, removeRef,
   recentDiaryOptions, recentDiariesLoading, recentDiariesError,
@@ -182,6 +225,28 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 }
 </script>
 <style scoped>
+.event-checkin-note {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: 520px;
+  margin: 22px auto 4px;
+  padding: 12px 15px;
+  border-left: 3px solid var(--color-primary);
+  background: color-mix(in oklab, var(--color-primary) 7%, transparent);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: left;
+}
+
+.event-checkin-kicker {
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+
 @keyframes bounce-subtle {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
@@ -638,6 +703,11 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   height: 6px;
   background-color: var(--color-primary);
   border-radius: 50%;
+}
+:deep(.compressing-subtip) {
+  font-size: 11px;
+  color: var(--color-text-muted, #8a919f);
+  margin-top: 2px;
 }
 
 /* ── 快捷对话建议卡片 ── */

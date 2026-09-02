@@ -62,6 +62,12 @@
       <view class="card action-card hover-scale smooth-shadow" @click="goToSummaries" style="margin-bottom: 24rpx;">
         <text class="action-text">📊 情绪报告</text>
       </view>
+      <view class="card action-card hover-scale smooth-shadow" @click="goToLifeEvents" style="margin-bottom: 24rpx;">
+        <text class="action-text">🧵 重要事件</text>
+      </view>
+      <view class="card action-card hover-scale smooth-shadow" @click="goToLifeChapters" style="margin-bottom: 24rpx;">
+        <text class="action-text">📜 时光画卷</text>
+      </view>
       <view class="card action-card hover-scale smooth-shadow" @click="goToCollections" style="margin-bottom: 24rpx;">
         <text class="action-text">📁 我的合集</text>
       </view>
@@ -212,7 +218,7 @@
         <view class="quota-modal-desc">
           <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">AI 分析：</text>发布或修改日记时自动触发（含基础配图提炼）。</text></view>
           <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">图片分析：</text>聊天时向 AI 追问图片内的具体文字、细节（基础提炼未涵盖的内容）时才触发。</text></view>
-          <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">深度思考：</text>当您的问题涉及复杂心理分析、建议或情绪梳理时，后台智能路由会自动为您开启长链路推演。</text></view>
+          <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">深度思考：</text>发送聊天或分析日记前可手动选择，适合复杂心理分析、建议或情绪梳理。</text></view>
           <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">共鸣检索：</text>功能加紧开发中，敬请期待...</text></view>
         </view>
         
@@ -336,6 +342,14 @@ const goToCollections = () => {
 
 const goToSummaries = () => {
   uni.navigateTo({ url: '/pages/summaries/summaries' });
+};
+
+const goToLifeEvents = () => {
+  uni.navigateTo({ url: '/pages/life-events/life-events' });
+};
+
+const goToLifeChapters = () => {
+  uni.navigateTo({ url: '/pages/life-chapters/life-chapters' });
 };
 
 const goToGrowth = () => {
@@ -1087,4 +1101,3 @@ const fetchQuota = async () => {
   white-space: nowrap;
 }
 </style>
-

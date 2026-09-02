@@ -102,6 +102,8 @@ public class DiaryService {
     private final TransactionTemplate transactionTemplate;
     private final AiTaskProducer aiTaskProducer;
     private final DiaryCacheService diaryCacheService;
+    private final com.moodcopilot.event.LifeEventService lifeEventService;
+    private final com.moodcopilot.event.LifeChapterService lifeChapterService;
 
     public DiaryService(DiaryMapper diaryMapper,
             DiaryAnalysisMapper diaryAnalysisMapper,
@@ -128,7 +130,9 @@ public class DiaryService {
             UserGrowthService userGrowthService,
             TransactionTemplate transactionTemplate,
             @org.springframework.context.annotation.Lazy AiTaskProducer aiTaskProducer,
-            DiaryCacheService diaryCacheService) {
+            DiaryCacheService diaryCacheService,
+            @org.springframework.context.annotation.Lazy com.moodcopilot.event.LifeEventService lifeEventService,
+            @org.springframework.context.annotation.Lazy com.moodcopilot.event.LifeChapterService lifeChapterService) {
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.diaryCommentMapper = diaryCommentMapper;
@@ -155,6 +159,8 @@ public class DiaryService {
         this.transactionTemplate = transactionTemplate;
         this.aiTaskProducer = aiTaskProducer;
         this.diaryCacheService = diaryCacheService;
+        this.lifeEventService = lifeEventService;
+        this.lifeChapterService = lifeChapterService;
     }
 
     @jakarta.annotation.PostConstruct
@@ -283,7 +289,11 @@ public class DiaryService {
                 log.info("用户主动关闭AI分析，不执行日记分析，diaryId={}", diaryId);
             } else {
                 try {
-                    rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
+                    if (request.isUseReasoning()) {
+                        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REASONING);
+                    } else {
+                        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
+                    }
 
                     // 删除旧的分析结果，防止前端在轮询时错误获取到旧数据
                     transactionTemplate.executeWithoutResult(status -> {
@@ -291,10 +301,10 @@ public class DiaryService {
                     });
 
                     log.info("日记内容已修改，提交后台重新执行 AI 分析，diaryId={}", diaryId);
-                    aiTaskProducer.submitDiaryAnalysisTask(diaryId, user.getId());
+                    aiTaskProducer.submitDiaryAnalysisTask(diaryId, user.getId(), request.isUseReasoning());
                     analysisStatus = "analyzing";
                 } catch (RateLimitException e) {
-                    analysisStatus = "skipped_quota";
+                    analysisStatus = request.isUseReasoning() ? "failed_limit" : "skipped_quota";
                     log.info("AI分析限额已满，跳过分析，diaryId={}", diaryId);
                 }
             }
@@ -319,11 +329,11 @@ public class DiaryService {
         return view;
     }
 
-    public void submitAiAnalysisTask(long diaryId, long userId) {
-        aiTaskProducer.submitDiaryAnalysisTask(diaryId, userId);
+    public void submitAiAnalysisTask(long diaryId, long userId, boolean useReasoning) {
+        aiTaskProducer.submitDiaryAnalysisTask(diaryId, userId, useReasoning);
     }
 
-    public void runAiAnalysisSync(long diaryId, long userId) {
+    public void runAiAnalysisSync(long diaryId, long userId, boolean useReasoning) {
         DiaryEntity diary = diaryMapper.selectById(diaryId);
         if (diary == null || diary.getIsDeleted()) {
             log.warn("无法执行 AI 分析，日记不存在或已删除，diaryId={}", diaryId);
@@ -387,7 +397,7 @@ public class DiaryService {
                 content == null ? 0 : content.length(), musicMeta != null, images != null && !images.isEmpty());
         try {
             String imageDescriptions = visionService.describeImages(images, imageMeta);
-            DiaryAnalysis analysis = aiAnalysisService.analyze(userId, content, musicMeta, imageDescriptions);
+            DiaryAnalysis analysis = aiAnalysisService.analyze(userId, content, musicMeta, imageDescriptions, useReasoning);
 
             DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
             analysisEntity.setDiaryId(diaryId);
@@ -414,6 +424,9 @@ public class DiaryService {
             eventPublisher.publishEvent(new DiaryAnalysisCompletedEvent(
                     this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels(),
                     content, analysis.summary(), analysis.feedback(), analysis.valence(), analysis.arousal()));
+
+            // 提取日记中提及的未来重要事件，异步聚合到未决事件时间线
+            lifeEventService.extractAndTrackLifeEvents(userId, diaryId, content, diary.getCreatedAt());
 
             Thread.startVirtualThread(() -> {
                 try {
@@ -1008,6 +1021,8 @@ public class DiaryService {
             insights = guidance.insights();
             suggestions = guidance.suggestions();
             followUpPrompt = guidance.followUpPrompt();
+            // 月度沉淀人生章节（时光画卷），异步执行不阻塞月报
+            lifeChapterService.generateChapterForPeriod(userId, firstOfMonth, lastOfMonth);
         }
 
         Map<String, Integer> moodDistribution = buildMoodDistribution(dailyMoods);

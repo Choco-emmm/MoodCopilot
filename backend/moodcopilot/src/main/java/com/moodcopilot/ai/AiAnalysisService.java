@@ -25,6 +25,7 @@ public class AiAnalysisService {
     private static final Logger log = LoggerFactory.getLogger(AiAnalysisService.class);
 
     private final ChatClient analysisChatClient;
+    private final DeepSeekReasoningClient reasoningClient;
     private final ObjectMapper objectMapper;
     private final com.moodcopilot.config.AiPromptProperties aiPrompts;
     private final MemoryExtractionService memoryExtractionService;
@@ -33,10 +34,11 @@ public class AiAnalysisService {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
-    public AiAnalysisService(ChatClient analysisChatClient, ObjectMapper objectMapper, com.moodcopilot.config.AiPromptProperties aiPrompts,
+    public AiAnalysisService(ChatClient analysisChatClient, DeepSeekReasoningClient reasoningClient, ObjectMapper objectMapper, com.moodcopilot.config.AiPromptProperties aiPrompts,
                              @org.springframework.context.annotation.Lazy MemoryExtractionService memoryExtractionService,
                              @org.springframework.context.annotation.Lazy RagMemoryService ragMemoryService) {
         this.analysisChatClient = analysisChatClient;
+        this.reasoningClient = reasoningClient;
         this.objectMapper = objectMapper;
         this.aiPrompts = aiPrompts;
         this.memoryExtractionService = memoryExtractionService;
@@ -84,10 +86,14 @@ public class AiAnalysisService {
     }
 
     public DiaryAnalysis analyze(Long userId, String content, com.moodcopilot.entity.MusicMeta musicMeta) {
-        return analyze(userId, content, musicMeta, null);
+        return analyze(userId, content, musicMeta, null, false);
     }
 
     public DiaryAnalysis analyze(Long userId, String content, com.moodcopilot.entity.MusicMeta musicMeta, String imageDescriptions) {
+        return analyze(userId, content, musicMeta, imageDescriptions, false);
+    }
+
+    public DiaryAnalysis analyze(Long userId, String content, com.moodcopilot.entity.MusicMeta musicMeta, String imageDescriptions, boolean useReasoning) {
         StringBuilder sb = new StringBuilder();
         if (userId != null) {
             try {
@@ -125,16 +131,20 @@ public class AiAnalysisService {
         }
 
         String userPrompt = sb.toString();
-        // log.info("AI 日记分析上下文:\n{}", userPrompt); // 包含完整日记内容，已注释保护隐私
 
         int maxRetries = 3;
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                String json = analysisChatClient.prompt()
-                        .system(aiPrompts.getAnalysisSystemPrompt())
-                        .user(userPrompt)
-                        .call()
-                        .content();
+                String json;
+                if (useReasoning) {
+                    json = reasoningClient.generate(aiPrompts.getAnalysisSystemPrompt(), userPrompt);
+                } else {
+                    json = analysisChatClient.prompt()
+                            .system(aiPrompts.getAnalysisSystemPrompt())
+                            .user(userPrompt)
+                            .call()
+                            .content();
+                }
                 return parseAiResponse(json);
             } catch (JsonProcessingException e) {
                 if (attempt < maxRetries) {
@@ -394,8 +404,13 @@ public class AiAnalysisService {
             prompt.append("\n");
         }
         try {
+            // 周月报场景下按需注入 CBT 认知透视技能，帮助洞察部分温和松动思维盲区
+            String systemPrompt = aiPrompts.getReportGuidanceSystemPrompt();
+            if (aiPrompts.getCbtCognitiveSkillPrompt() != null && !aiPrompts.getCbtCognitiveSkillPrompt().isBlank()) {
+                systemPrompt = systemPrompt + "\n\n" + aiPrompts.getCbtCognitiveSkillPrompt();
+            }
             String json = analysisChatClient.prompt()
-                    .system(aiPrompts.getReportGuidanceSystemPrompt())
+                    .system(systemPrompt)
                     .user(prompt.toString())
                     .call()
                     .content();

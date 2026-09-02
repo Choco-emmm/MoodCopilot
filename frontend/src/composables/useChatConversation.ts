@@ -1,15 +1,18 @@
 import { ref, nextTick } from 'vue'
 import { chatApi } from '../api'
 import { logWarn } from '../utils/logger'
+import { isPlaceholderConversationTitle } from '../utils/chatTitle'
 import { useScrollManager } from './useScrollManager'
 
 export interface Message {
   id: string
   role: 'user' | 'ai'
   content: string
+  createdAt?: string
   references?: string[]
   ragReferences?: RagRef[]
   quoteRef?: { content: string; author: string }
+  status?: 'pending' | 'streaming' | 'success' | 'error'
 }
 
 export interface RagRef {
@@ -54,6 +57,16 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
         }
       }
     } catch (e) { logWarn('chat', '加载会话列表失败', e); conversations.value = [] }
+  }
+
+  async function waitForConversationTitle(id: number) {
+    const delays = [700, 1300, 2200, 3500]
+    for (const delay of delays) {
+      await new Promise(resolve => window.setTimeout(resolve, delay))
+      await loadConversations()
+      const conversation = conversations.value.find(item => item.id === id)
+      if (conversation && !isPlaceholderConversationTitle(conversation.title)) return
+    }
   }
 
   async function selectConversation(id: number) {
@@ -165,6 +178,6 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
     conversations, activeConvId, messages, creatingConversation,
     loadConversations, selectConversation, createConversation,
     doCreateConversationOnServer, deleteConversation,
-    saveToBackend, loadFromBackend,
+    saveToBackend, loadFromBackend, waitForConversationTitle,
   }
 }

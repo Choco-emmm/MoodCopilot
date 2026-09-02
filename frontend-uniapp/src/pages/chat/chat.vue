@@ -28,7 +28,7 @@
           <view class="drawer-content" @click.stop>
             <view class="drawer-header">
               <text class="drawer-title">所有对话</text>
-              <button class="new-chat-btn" @click="createNewChat">＋ 新对话</button>
+              <button class="new-chat-btn" @click="createNewChat">＋ 新聊天</button>
             </view>
             <scroll-view scroll-y class="drawer-list">
               <view 
@@ -38,7 +38,7 @@
                 :class="{ active: conv.id === conversationId }"
                 @click="switchConversation(conv.id)"
               >
-                <text class="conv-title">{{ conv.title || '新对话' }}</text>
+                <text class="conv-title">{{ displayConversationTitle(conv.title) }}</text>
                 <text class="conv-date">{{ formatDate(conv.updatedAt || conv.createdAt) }}</text>
               </view>
             </scroll-view>
@@ -108,6 +108,12 @@
 
     <!-- 底部输入框区域 -->
     <view class="chat-bottom-wrapper">
+      <view class="chat-model-row">
+        <text class="chat-model-label">回复模式</text>
+        <picker :range="chatModelOptions" :value="useReasoning ? 1 : 0" @change="onChatModelChange">
+          <view class="chat-model-picker">{{ useReasoning ? '深度思考' : '普通对话' }} <text class="chat-model-arrow">⌄</text></view>
+        </picker>
+      </view>
       <!-- 引用预览 -->
       <view v-if="activeQuote" class="quote-preview-bar fade-in">
         <text class="quote-icon">❝</text>
@@ -170,12 +176,14 @@ import { parseMarkdown, extractPlainText } from '@/utils/markdown';
 import GlobalUI from '@/components/GlobalUI.vue';
 import { hasLoginToken, requireLogin } from '@/stores/login';
 import { activeQuote, setQuote, clearQuote } from '@/stores/quote';
+import { displayConversationTitle, isPlaceholderConversationTitle } from '@/utils/chatTitle';
 
 import { onShow } from '@dcloudio/uni-app';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  createdAt?: string;
 }
 
 const loadingInit = ref(true);
@@ -191,13 +199,20 @@ const conversations = ref<any[]>([]);
 const welcomeTopics = ref<string[]>([]);
 const isCreatingConversation = ref(false);
 const currentConversationTitle = computed(() => {
-  return conversations.value.find(conversation => conversation.id === conversationId.value)?.title || '新的对话';
+  return displayConversationTitle(conversations.value.find(conversation => conversation.id === conversationId.value)?.title);
 });
 
 const showDiarySelector = ref(false);
 const recentDiaries = ref<any[]>([]);
 const loadingDiaries = ref(false);
 const isLoggedIn = ref(hasLoginToken());
+const activeEventId = ref<number | null>(null);
+const useReasoning = ref(false);
+const chatModelOptions = ['普通对话', '深度思考'];
+
+const onChatModelChange = (event: any) => {
+  useReasoning.value = Number(event.detail.value) === 1;
+};
 
 const parseTopic = (topic: string | any) => {
   if (typeof topic === 'string') {
@@ -223,12 +238,25 @@ const formatDate = (isoString: string) => {
 };
 
 onMounted(() => {
+  restorePendingEvent();
   if (isLoggedIn.value) {
     initConversation();
     fetchUserInfo();
   } else {
     loadingInit.value = false;
   }
+});
+
+function restorePendingEvent() {
+  const storedEventId = Number(uni.getStorageSync('pendingLifeEventId'));
+  if (Number.isFinite(storedEventId) && storedEventId > 0) {
+    activeEventId.value = storedEventId;
+    uni.removeStorageSync('pendingLifeEventId');
+  }
+}
+
+onShow(() => {
+  restorePendingEvent();
 });
 
 const fetchUserInfo = async () => {
@@ -263,7 +291,10 @@ const openDiarySelector = async () => {
 };
 
 const selectDiaryForQuote = (diary: any) => {
-  setQuote(diary.content || '一段没有文字的记录');
+  const dateStr = formatDate(diary.createdAt);
+  const plain = diary.content ? extractPlainText(diary.content) : '一段没有文字的记录';
+  const prefix = `关于我的这篇日记（${dateStr}）：\n\n`;
+  setQuote(prefix + plain);
   showDiarySelector.value = false;
 };
 
@@ -325,7 +356,7 @@ const createNewChat = async () => {
   if (isCreatingConversation.value) return;
   isCreatingConversation.value = true;
   try {
-    const res = await post('/api/chat/conversations', { title: '新对话' });
+    const res = await post('/api/chat/conversations', { title: '新聊天' });
     if (res.code === 200) {
       conversationId.value = res.data.id;
       messages.value = [];
@@ -381,6 +412,7 @@ const loadHistory = async () => {
 const sendTopic = (topic: string | any) => {
   const parsed = parseTopic(topic);
   inputContent.value = parsed.text || topic;
+  activeEventId.value = parsed.eventId ? Number(parsed.eventId) : null;
   sendMessage();
 };
 
@@ -397,9 +429,11 @@ const sendMessage = async () => {
   if (!conversationId.value) return;
 
   const content = inputContent.value.trim();
+  const isFirstUserMessage = !messages.value.some(message => message.role === 'user');
   const currentQuote = activeQuote.value;
+  const eventId = activeEventId.value;
   
-  messages.value.push({ role: 'user', content });
+  messages.value.push({ role: 'user', content, createdAt: new Date().toISOString() });
   inputContent.value = '';
   clearQuote();
   isWaiting.value = true;
@@ -409,19 +443,44 @@ const sendMessage = async () => {
     const references = currentQuote ? [currentQuote] : [];
     const res = await post(`/api/chat/conversations/${conversationId.value}/reply`, {
       message: content,
-      references: references
+      references: references,
+      useReasoning: useReasoning.value,
+      ...(eventId ? { eventId } : {}),
     });
     
     if (res.code === 200) {
-      messages.value.push({ role: 'assistant', content: res.data });
+      messages.value.push({ role: 'assistant', content: res.data, createdAt: new Date().toISOString() });
     } else {
-      messages.value.push({ role: 'assistant', content: '抱歉，我现在有点走神，请稍后再试' });
+      messages.value.push({ role: 'assistant', content: '抱歉，我现在有点走神，请稍后再试', createdAt: new Date().toISOString() });
     }
-  } catch (e) {
-    messages.value.push({ role: 'assistant', content: '网络似乎出了点问题' });
+  } catch (e: any) {
+    const errorMessage = e?.statusCode === 429 && useReasoning.value
+      ? '深度思考额度已用完，请改用普通对话或明日再试。'
+      : (e?.message || '网络似乎出了点问题');
+    messages.value.push({ role: 'assistant', content: errorMessage, createdAt: new Date().toISOString() });
   } finally {
     isWaiting.value = false;
+    activeEventId.value = null;
     scrollToBottom();
+    if (isFirstUserMessage && conversationId.value) {
+      void waitForConversationTitle(conversationId.value);
+    }
+  }
+};
+
+const waitForConversationTitle = async (id: number) => {
+  const delays = [700, 1300, 2200, 3500];
+  for (const delay of delays) {
+    await new Promise(resolve => setTimeout(resolve, delay));
+    try {
+      const res = await get('/api/chat/conversations');
+      if (res.code !== 200 || !Array.isArray(res.data)) continue;
+      conversations.value = res.data;
+      const conversation = conversations.value.find(item => item.id === id);
+      if (conversation && !isPlaceholderConversationTitle(conversation.title)) return;
+    } catch (e) {
+      console.warn('刷新聊天标题失败', e);
+    }
   }
 };
 
@@ -899,6 +958,10 @@ const scrollToBottom = (target?: 'waiting') => {
 .ai-bubble { border: 1rpx solid var(--theme-border); box-shadow: none; }
 .user-bubble { border-radius: 8rpx; }
 .chat-bottom-wrapper { border-top: 1rpx solid var(--theme-border); background: var(--theme-surface); }
+.chat-model-row { display: flex; align-items: center; justify-content: space-between; padding: 12rpx 26rpx 0; }
+.chat-model-label { color: var(--theme-text-placeholder); font-size: 21rpx; }
+.chat-model-picker { padding: 7rpx 12rpx; border: 1rpx solid var(--theme-border); border-radius: 6rpx; color: var(--theme-primary); font-size: 22rpx; }
+.chat-model-arrow { margin-left: 6rpx; color: var(--theme-text-placeholder); }
 .chat-input-bar { gap: 14rpx; padding: 18rpx 26rpx; }
 .quote-action-btn { display: flex; width: 62rpx; height: 62rpx; flex: 0 0 62rpx; align-items: center; justify-content: center; border: 1rpx solid var(--theme-border); border-radius: 6rpx; color: var(--theme-primary); }
 .quote-action-icon { font-size: 34rpx; line-height: 1; }
