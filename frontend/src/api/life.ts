@@ -6,7 +6,7 @@ export interface LifeEvent {
   title: string
   description?: string
   targetDate: string
-  status: 'PENDING' | 'FOLLOWED_UP' | 'ARCHIVED' | string
+  status: 'PENDING' | 'FOLLOWED_UP' | string
   diaryIds: number[]
   lastDiaryId?: number
   followUpNote?: string
@@ -28,7 +28,7 @@ export interface LifeChapter {
 
 export const lifeEventApi = {
   list: () => api.get<ApiResponse<LifeEvent[]>>('/life-events'),
-  updateStatus: (id: number, status: string, note?: string) =>
+  updateStatus: (id: number, status: 'PENDING' | 'FOLLOWED_UP', note?: string) =>
     api.put<ApiResponse<LifeEvent>>(`/life-events/${id}/status`, { status, note: note || '' }),
 }
 

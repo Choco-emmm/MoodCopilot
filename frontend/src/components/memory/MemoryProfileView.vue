@@ -12,6 +12,16 @@
       </n-button>
     </div>
     <p class="memory-desc">MoodCopilot 从你的日记和聊天中学习的长期画像，你可以编辑修正或删除不想要的部分。如果碎片太多，可以尝试智能整理归并。</p>
+    <section v-if="candidates.length" class="candidate-section" aria-label="待确认记忆">
+      <div class="candidate-head"><span>待确认的记忆</span><small>这些是 AI 的推断，确认后才会进入正式画像</small></div>
+      <div v-for="candidate in candidates" :key="candidate.id" class="candidate-item">
+        <div class="candidate-copy"><strong>{{ candidate.attributeKey }}</strong><span>{{ candidate.attributeValue }}</span><small>{{ candidate.evidenceSummary || '暂无证据摘要' }}</small></div>
+        <div class="candidate-actions">
+          <n-button size="small" secondary type="primary" @click="approveCandidate(candidate.id)">确认</n-button>
+          <n-button size="small" secondary @click="rejectCandidate(candidate.id)">拒绝</n-button>
+        </div>
+      </div>
+    </section>
     <div v-if="memoriesLoading" class="memory-loading" style="text-align: center; padding: 40px 0;">
       <n-spin size="small" />
     </div>
@@ -96,6 +106,7 @@ const editingMemoryId = ref<number | null>(null)
 const editingMemoryValue = ref('')
 const editingMemoryIsCore = ref(false)
 const savingMemoryId = ref<number | null>(null)
+const candidates = ref<any[]>([])
 
 onMounted(() => {
   loadMemories()
@@ -103,8 +114,29 @@ onMounted(() => {
 
 async function loadMemories() {
   memoriesLoading.value = true
-  await store.loadMemories()
+  await Promise.all([store.loadMemories(), loadCandidates()])
   memoriesLoading.value = false
+}
+
+async function loadCandidates() {
+  try {
+    const response = await memoryApi.getCandidates()
+    candidates.value = response.data.data || []
+  } catch (e) {
+    logWarn('memory', '加载候选记忆失败', e)
+    candidates.value = []
+  }
+}
+
+async function approveCandidate(id: number) {
+  await memoryApi.approveCandidate(id)
+  candidates.value = candidates.value.filter(candidate => candidate.id !== id)
+  await store.loadMemories()
+}
+
+async function rejectCandidate(id: number) {
+  await memoryApi.rejectCandidate(id)
+  candidates.value = candidates.value.filter(candidate => candidate.id !== id)
 }
 
 function isRecentlyUpdated(item: any) {
@@ -176,6 +208,14 @@ function cancelEditMemory() {
   margin: 0 0 16px 0;
   line-height: 1.5;
 }
+.candidate-section { margin: 18px 0 22px; padding: 14px 16px; border: 1px solid var(--color-border); border-left: 3px solid var(--color-primary); background: color-mix(in srgb, var(--color-primary) 4%, transparent); }
+.candidate-head { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; color: var(--color-text); font-size: 14px; font-weight: 700; }
+.candidate-head small, .candidate-copy small { color: var(--color-text-secondary); font-size: 12px; font-weight: 400; line-height: 1.5; }
+.candidate-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-top: 1px solid var(--color-border); }
+.candidate-copy { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.candidate-copy strong { color: var(--color-text); font-size: 13px; }
+.candidate-copy span { color: var(--color-text); font-size: 13px; line-height: 1.5; }
+.candidate-actions { display: flex; flex-shrink: 0; gap: 6px; }
 .memory-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

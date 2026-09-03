@@ -33,10 +33,13 @@
         <div class="event-actions">
           <button class="text-button primary" type="button" @click="chatAbout(event)">聊聊这件事</button>
           <button v-if="event.status === 'PENDING'" class="text-button" type="button" @click="markDone(event)">标记已跟进</button>
-          <button v-else-if="event.status === 'FOLLOWED_UP'" class="text-button" type="button" @click="archive(event)">收进档案</button>
+          <button v-else-if="event.status === 'FOLLOWED_UP'" class="text-button" type="button" @click="restore(event)">恢复待跟进</button>
         </div>
       </article>
     </section>
+    <button v-if="undoEvent" class="undo-toast" type="button" @click="undoFollowUp">
+      已标记为已跟进 · <span>撤销</span>
+    </button>
   </main>
 </template>
 
@@ -50,6 +53,8 @@ const router = useRouter()
 const events = ref<LifeEvent[]>([])
 const loading = ref(true)
 const error = ref('')
+const undoEvent = ref<LifeEvent | null>(null)
+let undoTimer: ReturnType<typeof setTimeout> | undefined
 
 onMounted(loadEvents)
 
@@ -72,7 +77,7 @@ function formatDate(value: string) {
 }
 
 function statusLabel(status: string) {
-  return status === 'PENDING' ? '待回访' : status === 'FOLLOWED_UP' ? '已回访' : '已归档'
+  return status === 'PENDING' ? '待跟进' : '已跟进'
 }
 
 function chatAbout(event: LifeEvent) {
@@ -87,16 +92,31 @@ function openLinkedDiary(event: LifeEvent) {
 
 async function updateStatus(event: LifeEvent, status: string) {
   try {
-    const response = await lifeEventApi.updateStatus(event.id, status)
+    const response = await lifeEventApi.updateStatus(event.id, status as 'PENDING' | 'FOLLOWED_UP')
     const updated = response.data.data
     if (updated) Object.assign(event, updated)
+    return true
   } catch {
     error.value = '状态更新失败，请稍后再试。'
+    return false
   }
 }
 
-function markDone(event: LifeEvent) { void updateStatus(event, 'FOLLOWED_UP') }
-function archive(event: LifeEvent) { void updateStatus(event, 'ARCHIVED') }
+async function markDone(event: LifeEvent) {
+  if (!await updateStatus(event, 'FOLLOWED_UP')) return
+  undoEvent.value = event
+  if (undoTimer) clearTimeout(undoTimer)
+  undoTimer = setTimeout(() => { undoEvent.value = null }, 5000)
+}
+
+async function undoFollowUp() {
+  const event = undoEvent.value
+  if (!event) return
+  if (undoTimer) clearTimeout(undoTimer)
+  if (await updateStatus(event, 'PENDING')) undoEvent.value = null
+}
+
+function restore(event: LifeEvent) { void updateStatus(event, 'PENDING') }
 </script>
 
 <style scoped>
@@ -120,5 +140,7 @@ function archive(event: LifeEvent) { void updateStatus(event, 'ARCHIVED') }
 .text-button.primary { color: var(--color-primary); font-weight: 650; }
 .state { padding: 42px 0; color: var(--color-text-muted); text-align: center; }
 .state.error { color: var(--color-error); }
+.undo-toast { position: fixed; right: 24px; bottom: 24px; z-index: 20; border: 1px solid var(--color-border); border-radius: 6px; padding: 11px 14px; background: var(--color-surface, #fff); color: var(--color-text); box-shadow: 0 8px 24px rgba(0,0,0,.12); cursor: pointer; font: inherit; font-size: 13px; }
+.undo-toast span { color: var(--color-primary); font-weight: 700; }
 @media (max-width: 640px) { .event-entry { grid-template-columns: 1fr; gap: 10px; } .event-actions { justify-content: flex-start; } .text-button { padding-left: 0; margin-right: 14px; } }
 </style>

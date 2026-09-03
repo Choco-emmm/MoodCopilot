@@ -29,6 +29,11 @@ public class DiaryEntity {
     private java.util.List<String> images;
     @TableField(value = "image_meta", typeHandler = JacksonTypeHandler.class)
     private java.util.List<DiaryImageMeta> imageMeta;
+    private String analysisStatus;
+    private String analysisError;
+    private String requestedModel;
+    private String actualModel;
+    private String fallbackReason;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -111,6 +116,17 @@ public class DiaryEntity {
     public void setImageMeta(java.util.List<DiaryImageMeta> imageMeta) {
         this.imageMeta = imageMeta;
     }
+
+    public String getAnalysisStatus() { return analysisStatus; }
+    public void setAnalysisStatus(String analysisStatus) { this.analysisStatus = analysisStatus; }
+    public String getAnalysisError() { return analysisError; }
+    public void setAnalysisError(String analysisError) { this.analysisError = analysisError; }
+    public String getRequestedModel() { return requestedModel; }
+    public void setRequestedModel(String requestedModel) { this.requestedModel = requestedModel; }
+    public String getActualModel() { return actualModel; }
+    public void setActualModel(String actualModel) { this.actualModel = actualModel; }
+    public String getFallbackReason() { return fallbackReason; }
+    public void setFallbackReason(String fallbackReason) { this.fallbackReason = fallbackReason; }
 
     public Boolean getIsDeleted() {
         return isDeleted;

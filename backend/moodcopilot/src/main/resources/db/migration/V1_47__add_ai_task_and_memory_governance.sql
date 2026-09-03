@@ -1,0 +1,116 @@
+ALTER TABLE diaries
+  ADD COLUMN analysis_status VARCHAR(32) NULL,
+  ADD COLUMN analysis_error VARCHAR(1000) NULL,
+  ADD COLUMN requested_model VARCHAR(64) NULL,
+  ADD COLUMN actual_model VARCHAR(64) NULL,
+  ADD COLUMN fallback_reason VARCHAR(255) NULL;
+
+CREATE TABLE ai_tasks (
+  task_id VARCHAR(64) NOT NULL,
+  parent_task_id VARCHAR(64) NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  task_type VARCHAR(64) NOT NULL,
+  aggregate_id VARCHAR(128) NOT NULL,
+  analysis_version VARCHAR(128) NULL,
+  requested_model VARCHAR(64) NULL,
+  idempotency_key VARCHAR(255) NOT NULL,
+  payload JSON NULL,
+  status VARCHAR(32) NOT NULL,
+  attempts INT UNSIGNED NOT NULL DEFAULT 0,
+  max_attempts INT UNSIGNED NOT NULL DEFAULT 3,
+  next_retry_at DATETIME(3) NULL,
+  last_error VARCHAR(2000) NULL,
+  lease_owner VARCHAR(128) NULL,
+  lease_until DATETIME(3) NULL,
+  published_at DATETIME(3) NULL,
+  started_at DATETIME(3) NULL,
+  finished_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (task_id),
+  UNIQUE KEY uk_ai_tasks_idempotency (idempotency_key),
+  KEY idx_ai_tasks_dispatch (status, next_retry_at, lease_until),
+  KEY idx_ai_tasks_user_created (user_id, created_at),
+  CONSTRAINT fk_ai_tasks_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+ALTER TABLE user_profile_memory DROP INDEX uk_user_profile_memory_user_attr;
+ALTER TABLE user_profile_memory
+  ADD COLUMN memory_type VARCHAR(32) NOT NULL DEFAULT 'preference',
+  ADD COLUMN source_type VARCHAR(32) NOT NULL DEFAULT 'system',
+  ADD COLUMN source_diary_id BIGINT UNSIGNED NULL,
+  ADD COLUMN source_conversation_id BIGINT UNSIGNED NULL,
+  ADD COLUMN confidence DECIMAL(5,4) NOT NULL DEFAULT 0.5000,
+  ADD COLUMN valid_from DATE NULL,
+  ADD COLUMN valid_until DATE NULL,
+  ADD COLUMN last_evidence_at DATETIME(3) NULL,
+  ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'active',
+  ADD COLUMN active_attribute_key VARCHAR(64) GENERATED ALWAYS AS (IF(status = 'active', attribute_key, NULL)) STORED,
+  ADD COLUMN previous_memory_id BIGINT UNSIGNED NULL,
+  ADD COLUMN superseded_at DATETIME(3) NULL,
+  ADD COLUMN superseded_reason VARCHAR(255) NULL,
+  ADD COLUMN updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  ADD KEY idx_memory_user_status_key (user_id, status, attribute_key),
+  ADD UNIQUE KEY uk_memory_one_active_key (user_id, active_attribute_key),
+  ADD KEY idx_memory_previous (previous_memory_id),
+  ADD CONSTRAINT fk_memory_previous FOREIGN KEY (previous_memory_id) REFERENCES user_profile_memory(id) ON DELETE SET NULL;
+
+CREATE TABLE user_memory_candidates (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  attribute_key VARCHAR(64) NOT NULL,
+  normalized_value VARCHAR(500) NOT NULL,
+  attribute_value VARCHAR(500) NOT NULL,
+  memory_type VARCHAR(32) NOT NULL,
+  source_type VARCHAR(32) NOT NULL,
+  confidence DECIMAL(5,4) NOT NULL DEFAULT 0.5000,
+  is_core BOOLEAN NOT NULL DEFAULT FALSE,
+  status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  evidence_summary VARCHAR(1000) NULL,
+  source_diary_id BIGINT UNSIGNED NULL,
+  source_conversation_id BIGINT UNSIGNED NULL,
+  valid_from DATE NULL,
+  valid_until DATE NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_memory_candidate_pending (user_id, attribute_key, normalized_value, status),
+  KEY idx_memory_candidates_user_status (user_id, status, updated_at),
+  CONSTRAINT fk_memory_candidates_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE user_memory_evidence (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  memory_id BIGINT UNSIGNED NULL,
+  candidate_id BIGINT UNSIGNED NULL,
+  source_type VARCHAR(32) NOT NULL,
+  source_diary_id BIGINT UNSIGNED NULL,
+  source_conversation_id BIGINT UNSIGNED NULL,
+  evidence_text VARCHAR(2000) NOT NULL,
+  evidence_date DATE NULL,
+  model_confidence DECIMAL(5,4) NULL,
+  evidence_quality DECIMAL(5,4) NOT NULL DEFAULT 0.5000,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_memory_evidence_source (user_id, source_type, source_diary_id, source_conversation_id, evidence_text(191)),
+  KEY idx_memory_evidence_candidate (candidate_id, evidence_date),
+  KEY idx_memory_evidence_memory (memory_id, evidence_date),
+  CONSTRAINT fk_memory_evidence_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_memory_evidence_memory FOREIGN KEY (memory_id) REFERENCES user_profile_memory(id) ON DELETE CASCADE,
+  CONSTRAINT fk_memory_evidence_candidate FOREIGN KEY (candidate_id) REFERENCES user_memory_candidates(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE user_memory_rejections (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  memory_type VARCHAR(32) NOT NULL,
+  normalized_key VARCHAR(64) NOT NULL,
+  normalized_value VARCHAR(500) NOT NULL,
+  rejection_type VARCHAR(32) NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  expires_at DATETIME(3) NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_memory_rejections_lookup (user_id, normalized_key, normalized_value, expires_at),
+  CONSTRAINT fk_memory_rejections_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;

@@ -1,47 +1,64 @@
 package com.moodcopilot.ai.mq;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.data.redis.connection.stream.MapRecord;
-import org.springframework.data.redis.connection.stream.RecordId;
-import org.springframework.data.redis.connection.stream.StreamRecords;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.moodcopilot.entity.DiaryEntity;
+import com.moodcopilot.mapper.DiaryMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.util.DigestUtils;
 
-import java.util.Collections;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 @Service
 public class AiTaskProducer {
-    private static final Logger log = LoggerFactory.getLogger(AiTaskProducer.class);
-    public static final String STREAM_KEY = "stream:ai:tasks";
+    private final AiTaskService taskService;
+    private final DiaryMapper diaryMapper;
 
-    private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
-
-    public AiTaskProducer(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
-        this.redisTemplate = redisTemplate;
-        this.objectMapper = objectMapper;
+    public AiTaskProducer(AiTaskService taskService, DiaryMapper diaryMapper) {
+        this.taskService = taskService;
+        this.diaryMapper = diaryMapper;
     }
 
-    public void submitDiaryAnalysisTask(long diaryId, long userId, boolean useReasoning) {
-        AiTaskMessage message = new AiTaskMessage(AiTaskMessage.TYPE_DIARY_ANALYSIS, diaryId, userId, useReasoning);
-        sendMessage(message);
+    public String submitDiaryAnalysisTask(long diaryId, long userId, boolean useReasoning) {
+        DiaryEntity diary = diaryMapper.selectOne(new LambdaQueryWrapper<DiaryEntity>()
+                .eq(DiaryEntity::getId, diaryId).eq(DiaryEntity::getAuthorUserId, userId));
+        String content = diary == null || diary.getContent() == null ? "" : diary.getContent();
+        String requestedModel = useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash";
+        String contentHash = DigestUtils.md5DigestAsHex(content.getBytes(StandardCharsets.UTF_8));
+        return taskService.enqueue(userId, AiTaskMessage.TYPE_DIARY_ANALYSIS, String.valueOf(diaryId), contentHash,
+                requestedModel, "diary:" + diaryId + ":analysis:" + contentHash + ":" + requestedModel,
+                Map.of("useReasoning", useReasoning), null);
     }
 
-    private void sendMessage(AiTaskMessage message) {
-        try {
-            String json = objectMapper.writeValueAsString(message);
-            Map<String, String> map = Collections.singletonMap("payload", json);
-            MapRecord<String, String, String> record = StreamRecords.newRecord()
-                    .in(STREAM_KEY)
-                    .ofMap(map);
-            RecordId recordId = redisTemplate.opsForStream().add(record);
-            log.info("已提交 AI 任务到消息队列，taskType={}，messageId={}", message.taskType(), recordId);
-        } catch (JsonProcessingException e) {
-            log.error("AI 任务消息序列化失败: {}", e.getMessage());
-        }
+    public void submitAnalysisPostProcessTasks(long diaryId, long userId, String analysisVersion,
+                                               String requestedModel, String parentTaskId) {
+        submit(userId, AiTaskMessage.TYPE_MEMORY_EXTRACTION, diaryId, analysisVersion, requestedModel,
+                "memory", parentTaskId);
+        submit(userId, AiTaskMessage.TYPE_LIFE_EVENT_EXTRACTION, diaryId, analysisVersion, requestedModel,
+                "event", parentTaskId);
+        submit(userId, AiTaskMessage.TYPE_GRAPH_EXTRACTION, diaryId, analysisVersion, requestedModel,
+                "graph", parentTaskId);
+        submit(userId, AiTaskMessage.TYPE_DIARY_RAG_INDEX, diaryId, analysisVersion, requestedModel,
+                "rag", parentTaskId);
+        submit(userId, AiTaskMessage.TYPE_REPORT_INVALIDATION, diaryId, analysisVersion, requestedModel,
+                "report", parentTaskId);
+        submit(userId, AiTaskMessage.TYPE_NOTIFICATION, diaryId, analysisVersion, requestedModel,
+                "notification", parentTaskId);
+    }
+
+    public void submitMemoryRagTask(long diaryId, long userId, String analysisVersion, String parentTaskId) {
+        submit(userId, AiTaskMessage.TYPE_MEMORY_RAG_INDEX, diaryId, analysisVersion, null,
+                "memory-rag", parentTaskId);
+    }
+
+    public void submitGraphRagTask(long diaryId, long userId, String analysisVersion, String parentTaskId) {
+        submit(userId, AiTaskMessage.TYPE_GRAPH_RAG_INDEX, diaryId, analysisVersion, null,
+                "graph-rag", parentTaskId);
+    }
+
+    private void submit(long userId, String taskType, long diaryId, String analysisVersion,
+                        String requestedModel, String suffix, String parentTaskId) {
+        taskService.enqueue(userId, taskType, String.valueOf(diaryId), analysisVersion, requestedModel,
+                "diary:" + diaryId + ":" + suffix + ":" + analysisVersion, Map.of(), parentTaskId);
     }
 }

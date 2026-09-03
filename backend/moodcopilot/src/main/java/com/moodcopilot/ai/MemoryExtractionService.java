@@ -21,6 +21,7 @@ import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -60,10 +61,11 @@ public class MemoryExtractionService {
             JSON 格式必须是：
             {
               "attributes": [
-                {"attributeKey": "性格", "attributeValue": "....", "isCore": true},
-                {"attributeKey": "长期目标", "attributeValue": "....", "isCore": false}
+                {"attributeKey": "社交偏好", "attributeValue": "....", "memoryType": "preference", "assertionType": "inferred", "confidence": 0.82, "evidence": "原文证据", "validFrom": "2026-09-02", "validUntil": null, "isCore": false}
               ]
             }
+
+            assertionType 只能是 explicit、inferred 或 negated。用户在日记/消息中明确说出的事实用 explicit；根据文字归纳出的模式用 inferred；明确否定旧事实用 negated。memoryType 只能是 preference、relationship、habit、event、short_term_state、pattern。confidence 仅供服务端评分，不能用来绕过证据门槛。
 
             【isCore 判断规则 —— 极其重要！】
             请根据特征的底层程度判断 isCore（布尔值 true/false）：
@@ -123,6 +125,7 @@ public class MemoryExtractionService {
     private final StringRedisTemplate redisTemplate;
     private final RagMemoryService ragMemoryService;
     private final NotificationService notificationService;
+    private final MemoryOrchestrator memoryOrchestrator;
 
     public MemoryExtractionService(ChatClient analysisChatClient,
             UserProfileMemoryMapper userProfileMemoryMapper,
@@ -132,7 +135,8 @@ public class MemoryExtractionService {
             UserMapper userMapper,
             StringRedisTemplate redisTemplate,
             RagMemoryService ragMemoryService,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            MemoryOrchestrator memoryOrchestrator) {
         this.analysisChatClient = analysisChatClient;
         this.userProfileMemoryMapper = userProfileMemoryMapper;
         this.objectMapper = objectMapper;
@@ -142,6 +146,7 @@ public class MemoryExtractionService {
         this.redisTemplate = redisTemplate;
         this.ragMemoryService = ragMemoryService;
         this.notificationService = notificationService;
+        this.memoryOrchestrator = memoryOrchestrator;
     }
 
     /**
@@ -158,6 +163,18 @@ public class MemoryExtractionService {
     }
 
     public void extractAndSyncMemory(Long userId, String diaryContent, MusicMeta musicMeta, String imageDescriptions) {
+        extractAndSyncMemory(UserIdSource.diary(userId), diaryContent, musicMeta, imageDescriptions);
+    }
+
+    public void extractAndSyncMemoryForDiary(Long userId, Long diaryId, String diaryContent,
+            MusicMeta musicMeta, String imageDescriptions, LocalDate evidenceDate) {
+        extractAndSyncMemory(UserIdSource.diary(userId, diaryId, evidenceDate), diaryContent, musicMeta,
+                imageDescriptions);
+    }
+
+    private void extractAndSyncMemory(UserIdSource source, String diaryContent, MusicMeta musicMeta,
+            String imageDescriptions) {
+        Long userId = source.userId();
         try {
             List<UserProfileMemoryEntity> existing = listUserMemories(userId);
             log.info("开始提取长期画像，userId={}，旧属性数={}，日记长度={}，hasMusic={}，hasImages={}", userId, existing.size(),
@@ -178,13 +195,12 @@ public class MemoryExtractionService {
             }
             MemoryExtractionResponse response = objectMapper.readValue(cleanedJson, MemoryExtractionResponse.class);
             List<MemoryAttribute> sanitizedAttributes = sanitizeAttributes(response.attributes());
-            transactionOperations.execute(status -> {
-                syncMemories(userId, existing, sanitizedAttributes);
-                return null;
-            });
+            memoryOrchestrator.processExtractedMemories(userId, sanitizedAttributes, source.sourceType(),
+                    source.diaryId(), source.conversationId(), diaryContent, source.evidenceDate());
             log.info("长期画像提取完成，userId={}，新属性数={}，旧属性数={}", userId, sanitizedAttributes.size(), existing.size());
         } catch (Exception e) {
-            log.warn("长记忆提取失败，userId={}: {}", userId, e.getMessage());
+            log.warn("长记忆提取失败，userId={}: {}", userId, e.getMessage(), e);
+            throw new IllegalStateException("长期记忆提取失败", e);
         }
     }
 
@@ -228,7 +244,12 @@ public class MemoryExtractionService {
      * 这里同步拿到当前用户 ID，然后复用已有异步提取流程，避免阻塞聊天主链路。
      */
     public void extractAndSyncMemoryFromChat(Long userId, String userMessage, List<String> refs, String aiReply) {
-        extractAndSyncMemoryFromChat(userId, userMessage, refs, aiReply, false);
+        extractAndSyncMemoryFromChat(userId, null, userMessage, refs, aiReply, false);
+    }
+
+    public void extractAndSyncMemoryFromChat(Long userId, Long conversationId, String userMessage,
+            List<String> refs, String aiReply) {
+        extractAndSyncMemoryFromChat(userId, conversationId, userMessage, refs, aiReply, false);
     }
 
     /**
@@ -238,6 +259,11 @@ public class MemoryExtractionService {
      */
     public void extractAndSyncMemoryFromChat(Long userId, String userMessage, List<String> refs, String aiReply,
             boolean relaxThreshold) {
+        extractAndSyncMemoryFromChat(userId, null, userMessage, refs, aiReply, relaxThreshold);
+    }
+
+    public void extractAndSyncMemoryFromChat(Long userId, Long conversationId, String userMessage, List<String> refs,
+            String aiReply, boolean relaxThreshold) {
         String normalizedUserMessage = userMessage == null ? "" : normalizeWhitespace(userMessage);
         String normalizedAiReply = aiReply == null ? "" : normalizeWhitespace(aiReply);
         List<String> normalizedRefs = normalizeRefs(refs);
@@ -309,7 +335,7 @@ public class MemoryExtractionService {
                 "memory-chat | pass | userId={} | score={} | userLength={} | replyLength={} | refCount={} | evidenceLength={}",
                 userId, score, normalizedUserMessage.length(), normalizedAiReply.length(), normalizedRefs.size(),
                 evidence.length());
-        extractAndSyncMemory(userId, evidence);
+        extractAndSyncMemory(UserIdSource.chat(userId, conversationId), evidence, null, null);
     }
 
     /**
@@ -366,16 +392,12 @@ public class MemoryExtractionService {
     // ---- 用户记忆管理（供 Controller 调用） ----
 
     public List<UserProfileMemoryEntity> listUserMemories(Long userId) {
-        return userProfileMemoryMapper.selectList(new LambdaQueryWrapper<UserProfileMemoryEntity>()
-                .eq(UserProfileMemoryEntity::getUserId, userId)
-                .orderByAsc(UserProfileMemoryEntity::getAttributeKey));
+        return memoryOrchestrator.current(userId);
     }
 
     private List<UserProfileMemoryEntity> listUserCoreMemories(Long userId) {
-        return userProfileMemoryMapper.selectList(new LambdaQueryWrapper<UserProfileMemoryEntity>()
-                .eq(UserProfileMemoryEntity::getUserId, userId)
-                .eq(UserProfileMemoryEntity::getIsCore, true)
-                .orderByAsc(UserProfileMemoryEntity::getAttributeKey));
+        return memoryOrchestrator.current(userId).stream()
+                .filter(memory -> Boolean.TRUE.equals(memory.getIsCore())).toList();
     }
 
     public List<UserProfileMemoryEntity> listCurrentUserMemories() {
@@ -384,34 +406,14 @@ public class MemoryExtractionService {
 
     public void deleteMemory(long memoryId) {
         UserEntity user = currentUser();
-        UserProfileMemoryEntity entity = userProfileMemoryMapper.selectById(memoryId);
-        if (entity == null || !entity.getUserId().equals(user.getId())) {
-            throw new ResponseStatusException(BAD_REQUEST, "记忆记录不存在或无权操作");
-        }
-        userProfileMemoryMapper.deleteById(memoryId);
-        log.info("用户手动删除长期画像属性，userId={}，memoryId={}，attributeKey={}", user.getId(), memoryId,
-                entity.getAttributeKey());
-        reindexUserProfile(user.getId());
+        memoryOrchestrator.deleteFormal(user.getId(), memoryId);
+        log.info("用户手动删除长期画像属性，userId={}，memoryId={}", user.getId(), memoryId);
     }
 
     public void updateMemory(long memoryId, String newValue, Boolean isCore) {
         UserEntity user = currentUser();
-        UserProfileMemoryEntity entity = userProfileMemoryMapper.selectById(memoryId);
-        if (entity == null || !entity.getUserId().equals(user.getId())) {
-            throw new ResponseStatusException(BAD_REQUEST, "记忆记录不存在或无权操作");
-        }
-        if (newValue != null && !newValue.isBlank()) {
-            String sanitized = sanitizeAttributeValue(newValue);
-            entity.setAttributeValue(sanitized);
-        }
-        if (isCore != null) {
-            entity.setIsCore(isCore);
-        }
-        entity.setUpdateTime(LocalDateTime.now());
-        userProfileMemoryMapper.updateById(entity);
-        log.info("用户手动编辑长期画像属性，userId={}，memoryId={}，attributeKey={}", user.getId(), memoryId,
-                entity.getAttributeKey());
-        reindexUserProfile(user.getId());
+        memoryOrchestrator.updateFormal(user.getId(), memoryId, newValue, isCore);
+        log.info("用户手动编辑长期画像属性，userId={}，memoryId={}", user.getId(), memoryId);
     }
 
     private void reindexUserProfile(long userId) {
@@ -474,9 +476,7 @@ public class MemoryExtractionService {
         if (!normalizedRefs.isEmpty()) {
             sb.append("用户引用：").append(String.join("；", normalizedRefs)).append("\n");
         }
-        if (!normalizedAiReply.isEmpty()) {
-            sb.append("AI回复：").append(truncate(normalizedAiReply, 1200)).append("\n");
-        }
+        // 助手回复只能帮助理解上下文，不能作为用户事实证据。
         log.info("已构建聊天画像证据，userMessageLength={}，aiReplyLength={}，referenceCount={}，evidenceLength={}",
                 normalizedUserMessage.length(), normalizedAiReply.length(), normalizedRefs.size(), sb.length());
         return sb.toString();
@@ -563,105 +563,11 @@ public class MemoryExtractionService {
             if (key.isEmpty() || value.isEmpty()) {
                 continue;
             }
-            deduped.put(key, new MemoryAttribute(key, value, attribute.isCore()));
+            deduped.put(key, new MemoryAttribute(key, value, attribute.isCore(), attribute.memoryType(),
+                    attribute.assertionType(), attribute.confidence(), attribute.evidence(),
+                    attribute.validFrom(), attribute.validUntil()));
         }
         return List.copyOf(deduped.values());
-    }
-
-    /**
-     * 增量同步：
-     * 1. 已存在同 key 就更新 value；
-     * 2. 不存在就插入；
-     * 3. attributeValue 为 "DELETE_MARKER" 时显式删除该属性。
-     *
-     * 安全防护：如果 LLM 返回空属性列表，跳过本次同步，避免一次性清空用户全部画像。
-     */
-    private void syncMemories(Long userId, List<UserProfileMemoryEntity> existing, List<MemoryAttribute> attributes) {
-        if (attributes.isEmpty()) {
-            if (!existing.isEmpty()) {
-                log.warn("长期画像同步被跳过：LLM 返回了空属性列表但存在 {} 条旧属性，userId={}，已保留旧数据",
-                        existing.size(), userId);
-            }
-            return;
-        }
-        Map<String, UserProfileMemoryEntity> existingByKey = existing.stream()
-                .collect(Collectors.toMap(UserProfileMemoryEntity::getAttributeKey, memory -> memory, (a, b) -> a,
-                        LinkedHashMap::new));
-
-        LocalDateTime now = LocalDateTime.now();
-        int updatedCount = 0;
-        int insertedCount = 0;
-        int deletedCount = 0;
-        java.util.List<java.util.Map<String, String>> diffAdded = new java.util.ArrayList<>();
-        java.util.List<java.util.Map<String, String>> diffDeleted = new java.util.ArrayList<>();
-        java.util.List<java.util.Map<String, String>> diffUpdated = new java.util.ArrayList<>();
-
-        for (MemoryAttribute attribute : attributes) {
-            UserProfileMemoryEntity existingEntity = existingByKey.get(attribute.attributeKey());
-
-            if (DELETE_MARKER.equals(attribute.attributeValue())) {
-                if (existingEntity != null) {
-                    diffDeleted.add(java.util.Map.of("key", existingEntity.getAttributeKey(), "value", existingEntity.getAttributeValue()));
-                    userProfileMemoryMapper.deleteById(existingEntity.getId());
-                    deletedCount++;
-                    log.info("长期画像属性已通过 DELETE_MARKER 删除，userId={}，attributeKey={}", userId,
-                            attribute.attributeKey());
-                }
-                continue;
-            }
-
-            if (existingEntity != null) {
-                String oldVal = existingEntity.getAttributeValue();
-                String newVal = attribute.attributeValue();
-                if (!oldVal.equals(newVal)) {
-                    java.util.Map<String, String> diffEntry = new java.util.LinkedHashMap<>();
-                    diffEntry.put("key", existingEntity.getAttributeKey());
-                    String[] compact = compactDiff(oldVal, newVal);
-                    if (compact != null) {
-                        diffEntry.put("oldValue", compact[0]);
-                        diffEntry.put("newValue", compact[1]);
-                    }
-                    diffUpdated.add(diffEntry);
-                }
-                existingEntity.setAttributeValue(attribute.attributeValue());
-                existingEntity.setIsCore(Boolean.TRUE.equals(attribute.isCore()));
-                existingEntity.setUpdateTime(now);
-                userProfileMemoryMapper.updateById(existingEntity);
-                updatedCount++;
-                continue;
-            }
-            UserProfileMemoryEntity entity = new UserProfileMemoryEntity();
-            entity.setUserId(userId);
-            entity.setAttributeKey(attribute.attributeKey());
-            entity.setAttributeValue(attribute.attributeValue());
-            entity.setIsCore(Boolean.TRUE.equals(attribute.isCore()));
-            entity.setUpdateTime(now);
-            userProfileMemoryMapper.insert(entity);
-            diffAdded.add(java.util.Map.of("key", attribute.attributeKey(), "value", attribute.attributeValue()));
-            insertedCount++;
-        }
-
-        log.info("长期画像已同步，userId={}，inserted={}，updated={}，deleted={}，finalEstimatedCount~{}",
-                userId, insertedCount, updatedCount, deletedCount,
-                existing.size() + insertedCount - deletedCount);
-
-        // 移除常驻通知，因为后续会触发 notifyGlobalEvent 弹窗通知
-
-        // 异步索引最新画像到 RAG 向量库
-        List<UserProfileMemoryEntity> latest = listUserMemories(userId);
-        if (!latest.isEmpty()) {
-            ragMemoryService.indexUserProfile(userId, latest);
-        }
-
-        if ((!diffAdded.isEmpty() || !diffUpdated.isEmpty() || !diffDeleted.isEmpty())
-                && Boolean.TRUE.equals(userMapper.selectById(userId).getProfileNotifyEnabled())) {
-            
-            java.util.Map<String, Object> payload = java.util.Map.of(
-                    "message", "✨ AI 已更新了关于你的长期记忆",
-                    "diff", java.util.Map.of("added", diffAdded, "deleted", diffDeleted, "updated", diffUpdated)
-            );
-            notificationService.notifyGlobalEvent(userId, "MEMORY_UPDATED", payload);
-        }
     }
 
     private UserEntity currentUser() {
@@ -768,6 +674,19 @@ public class MemoryExtractionService {
     record MemoryExtractionResponse(List<MemoryAttribute> attributes) {
     }
 
-    record MemoryAttribute(String attributeKey, String attributeValue, Boolean isCore) {
+    record MemoryAttribute(String attributeKey, String attributeValue, Boolean isCore,
+                           String memoryType, String assertionType, Double confidence, String evidence,
+                           java.time.LocalDate validFrom, java.time.LocalDate validUntil) {
+    }
+
+    private record UserIdSource(Long userId, Long diaryId, Long conversationId,
+                                String sourceType, LocalDate evidenceDate) {
+        static UserIdSource diary(Long userId) { return diary(userId, null, LocalDate.now()); }
+        static UserIdSource diary(Long userId, Long diaryId, LocalDate date) {
+            return new UserIdSource(userId, diaryId, null, "diary_inferred", date);
+        }
+        static UserIdSource chat(Long userId, Long conversationId) {
+            return new UserIdSource(userId, null, conversationId, "chat_candidate", LocalDate.now());
+        }
     }
 }

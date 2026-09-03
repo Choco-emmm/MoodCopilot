@@ -48,6 +48,29 @@ services:
       interval: 10s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-moodcopilot}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-moodcopilot}
+    expose:
+      - "5672"
+      - "15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
   backend:
     image: ghcr.io/${REGISTRY_OWNER:-choco-emmm}/moodcopilot-backend:${IMAGE_TAG:-latest}
     build: ./backend/moodcopilot
@@ -63,6 +86,9 @@ services:
       DB_USERNAME: root
       DB_PASSWORD: ${DB_PASSWORD:-root}
       REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-moodcopilot}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-moodcopilot}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY}
       JWT_SECRET: ${JWT_SECRET}
@@ -95,6 +121,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   frontend:
     image: nginx:alpine
@@ -122,3 +150,4 @@ volumes:
   mysql_data:
   uploads_data:
   redis_data:
+  rabbitmq_data:

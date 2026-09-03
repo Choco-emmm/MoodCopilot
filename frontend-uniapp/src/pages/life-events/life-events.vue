@@ -20,11 +20,14 @@
           <text class="event-meta">关联 {{ event.diaryIds?.length || 0 }} 篇日记</text>
           <view class="event-actions">
             <view class="event-chat" @click="chatAbout(event)">聊聊这件事</view>
-            <view v-if="event.status === 'PENDING'" class="event-action" @click="updateStatus(event, 'FOLLOWED_UP')">标记已跟进</view>
-            <view v-else-if="event.status === 'FOLLOWED_UP'" class="event-action" @click="updateStatus(event, 'ARCHIVED')">收进档案</view>
+            <view v-if="event.status === 'PENDING'" class="event-action" @click="markDone(event)">标记已跟进</view>
+            <view v-else-if="event.status === 'FOLLOWED_UP'" class="event-action" @click="updateStatus(event, 'PENDING')">恢复待跟进</view>
           </view>
         </view>
       </view>
+    </view>
+    <view v-if="undoEvent" class="undo-toast" @click="undoFollowUp">
+      <text>已标记为已跟进 · </text><text class="undo-action">撤销</text>
     </view>
   </view>
 </template>
@@ -63,7 +66,7 @@ function formatDate(value: string) {
   return parts.length === 3 ? `${Number(parts[1])}月${Number(parts[2])}日` : value
 }
 
-function statusLabel(status: string) { return status === 'PENDING' ? '待回访' : status === 'FOLLOWED_UP' ? '已回访' : '已归档' }
+function statusLabel(status: string) { return status === 'PENDING' ? '待跟进' : '已跟进' }
 
 function chatAbout(event: LifeEvent) {
   uni.setStorageSync('pendingLifeEventId', event.id)
@@ -73,6 +76,24 @@ function chatAbout(event: LifeEvent) {
 async function updateStatus(event: LifeEvent, status: string) {
   const res = await put(`/api/life-events/${event.id}/status`, { status })
   if (res.code === 200 && res.data) Object.assign(event, res.data)
+  return res.code === 200
+}
+
+const undoEvent = ref<LifeEvent | null>(null)
+let undoTimer: ReturnType<typeof setTimeout> | undefined
+
+async function markDone(event: LifeEvent) {
+  if (!await updateStatus(event, 'FOLLOWED_UP')) return
+  undoEvent.value = event
+  if (undoTimer) clearTimeout(undoTimer)
+  undoTimer = setTimeout(() => { undoEvent.value = null }, 5000)
+}
+
+async function undoFollowUp() {
+  const event = undoEvent.value
+  if (!event) return
+  if (undoTimer) clearTimeout(undoTimer)
+  if (await updateStatus(event, 'PENDING')) undoEvent.value = null
 }
 </script>
 
@@ -94,5 +115,7 @@ async function updateStatus(event: LifeEvent, status: string) {
 .event-actions { display: flex; flex-wrap: wrap; gap: 24rpx; margin-top: 20rpx; font-size: 23rpx; }
 .event-chat { color: var(--theme-primary); font-weight: 650; }
 .event-action { color: var(--theme-text-secondary); }
+.undo-toast { position: fixed; right: 30rpx; bottom: calc(30rpx + env(safe-area-inset-bottom)); z-index: 30; display: flex; align-items: center; padding: 22rpx 28rpx; border: 1rpx solid var(--theme-border); border-radius: 8rpx; background: var(--theme-surface); color: var(--theme-text-primary); box-shadow: 0 10rpx 30rpx rgba(0,0,0,.16); font-size: 24rpx; }
+.undo-action { color: var(--theme-primary); font-weight: 700; }
 .state { padding: 80rpx 20rpx; color: var(--theme-text-secondary); font-size: 26rpx; line-height: 1.7; text-align: center; }
 </style>

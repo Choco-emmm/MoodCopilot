@@ -217,6 +217,15 @@ public class RagMemoryService {
         redis.delete(key);
     }
 
+    public void deleteKeys(List<String> keys) {
+        if (keys == null || keys.isEmpty()) return;
+        try {
+            redis.delete(keys);
+        } catch (Exception e) {
+            log.debug("Redis cache invalidation failed: {}", e.getMessage());
+        }
+    }
+
     /**
      * 异步：将日记内容 embedding 后存入 Redis vector index。
      */

@@ -65,6 +65,7 @@ public class ChatService {
     private final UserGrowthService userGrowthService;
     private final DiaryService diaryService;
     private final MemoryExtractionService memoryExtractionService;
+    private final ContextPlanner contextPlanner;
     private final RagMemoryService ragMemoryService;
     private final AiAnalysisService aiAnalysisService;
     private final DeepSeekClient deepSeekClient;
@@ -87,6 +88,7 @@ public class ChatService {
             UserGrowthService userGrowthService,
             DiaryService diaryService,
             MemoryExtractionService memoryExtractionService,
+            ContextPlanner contextPlanner,
             RagMemoryService ragMemoryService,
             AiAnalysisService aiAnalysisService,
             DeepSeekClient deepSeekClient,
@@ -108,6 +110,7 @@ public class ChatService {
         this.userGrowthService = userGrowthService;
         this.diaryService = diaryService;
         this.memoryExtractionService = memoryExtractionService;
+        this.contextPlanner = contextPlanner;
         this.ragMemoryService = ragMemoryService;
         this.aiAnalysisService = aiAnalysisService;
         this.deepSeekClient = deepSeekClient;
@@ -387,7 +390,7 @@ public class ChatService {
         ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground);
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity user = currentUser();
-        String ragCtx = ""; // 已迁移为 Agentic RAG，不再强制前置全量检索
+        String ragCtx = ""; // 工具按需检索；ContextPlanner 仍负责隔离可能传入的检索上下文
 
         // 用户显式选择模型：深度思考额度不足时直接抛出限流异常（429），不再静默降级
         boolean useReasoning;
@@ -1027,7 +1030,8 @@ public class ChatService {
         ChatConversationEntity conv = requireOwnedConversation(conversationId, user);
 
         // 这里负责把"用户画像 + 用户引用 + 最近日记"拼成统一上下文，后面的模型调用都直接复用。
-        String context = buildContext(user.getId(), refs, memoryBackground);
+        ContextPlanner.ContextPlan contextPlan = contextPlanner.plan(user.getId(), memoryBackground, refs, "");
+        String context = buildContext(user.getId(), contextPlan.context(), refs, null);
         String memKey = user.getId() + ":" + conversationId;
         ChatMemory memory = userChatMemories.get(memKey, k -> new InMemoryChatMemory());
         // 如果 ChatMemory 为空（刚启动、Caffeine 过期、或新会话），尝试从 Redis 恢复历史上下文
@@ -1232,12 +1236,12 @@ public class ChatService {
         return "（" + REF_REMINDER + "）\n\n" + message;
     }
 
-    private String buildContext(long userId, List<String> refs, String memoryBackground) {
+    private String buildContext(long userId, String plannedContext, List<String> refs, String memoryBackground) {
         StringBuilder sb = new StringBuilder();
 
-        if (memoryBackground != null && !memoryBackground.isBlank()) {
+        if (plannedContext != null && !plannedContext.isBlank()) {
             sb.append("<long_term_memory>\n")
-                    .append(memoryBackground).append("\n")
+                    .append(plannedContext).append("\n")
                     .append("</long_term_memory>\n\n");
         }
 
@@ -1248,14 +1252,7 @@ public class ChatService {
             sb.append("严禁行为：严禁给出敷衍、宏观、万能的宽泛安慰。不要跳出这篇日记去聊不相关的话题。")
                     .append("请像一位懂你的朋友一样，针对这篇引用的具体切片进行温暖、贴心的引导和共情。\n\n");
 
-            sb.append("<user_diary>\n");
-            for (int i = 0; i < refs.size(); i++) {
-                String ref = refs.get(i);
-                sb.append(ref);
-                if (i < refs.size() - 1)
-                    sb.append("\n---\n");
-            }
-            sb.append("\n</user_diary>\n\n");
+            sb.append("用户引用内容已由 ContextPlanner 放入 <user_diary> 区块，请围绕其中的具体细节回应。\n\n");
         }
 
         sb.append("""

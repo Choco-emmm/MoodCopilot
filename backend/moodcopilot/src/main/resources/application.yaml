@@ -27,6 +27,21 @@ spring:
           max-idle: 20
           min-idle: 5
           time-between-eviction-runs: 30s
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:moodcopilot}
+    password: ${RABBITMQ_PASSWORD:moodcopilot}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        default-requeue-rejected: false
+        prefetch: ${RABBITMQ_PREFETCH:5}
+        retry:
+          enabled: false
   #数据库的连接信息
   datasource:
     #    url: jdbc:mysql://localhost:3306/dems

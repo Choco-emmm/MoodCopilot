@@ -13,13 +13,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import org.springframework.web.server.ResponseStatusException;
 @Service
 public class LifeEventService {
 
@@ -49,7 +50,6 @@ public class LifeEventService {
             String status, List<Long> diaryIds, Long lastDiaryId, String followUpNote,
             String createdAt, String updatedAt) {}
 
-    @Async("aiExecutor")
     public void extractAndTrackLifeEvents(Long userId, Long diaryId, String content, LocalDateTime diaryCreatedAt) {
         if (content == null || content.isBlank() || content.length() < 10) return;
         try {
@@ -98,6 +98,7 @@ public class LifeEventService {
             }
         } catch (Exception e) {
             log.warn("提取重要事件失败 userId={}, diaryId={}: {}", userId, diaryId, e.getMessage());
+            throw new IllegalStateException("重要事件提取失败", e);
         }
     }
 
@@ -121,7 +122,7 @@ public class LifeEventService {
         List<LifeEventView> views = new ArrayList<>();
         for (UserLifeEventEntity e : list) {
             views.add(new LifeEventView(e.getId(), e.getTitle(), e.getDescription(),
-                    e.getTargetDate() != null ? e.getTargetDate().toString() : "", e.getStatus(),
+                    e.getTargetDate() != null ? e.getTargetDate().toString() : "", visibleStatus(e.getStatus()),
                     parseDiaryIds(e.getDiaryIdsJson()), e.getLastDiaryId(), e.getFollowUpNote(),
                     e.getCreatedAt() != null ? e.getCreatedAt().toString() : "",
                     e.getUpdatedAt() != null ? e.getUpdatedAt().toString() : ""));
@@ -134,12 +135,18 @@ public class LifeEventService {
                 new LambdaQueryWrapper<UserLifeEventEntity>()
                         .eq(UserLifeEventEntity::getId, eventId).eq(UserLifeEventEntity::getUserId, userId));
         if (entity == null) throw new IllegalArgumentException("事件不存在");
-        if (status != null && !status.isBlank()) entity.setStatus(status.toUpperCase().trim());
+        if (status != null && !status.isBlank()) {
+            String normalized = status.toUpperCase().trim();
+            if (!"PENDING".equals(normalized) && !"FOLLOWED_UP".equals(normalized)) {
+                throw new ResponseStatusException(BAD_REQUEST, "事件状态只能是 PENDING 或 FOLLOWED_UP");
+            }
+            entity.setStatus(normalized);
+        }
         if (note != null) entity.setFollowUpNote(note);
         entity.setUpdatedAt(LocalDateTime.now());
         userLifeEventMapper.updateById(entity);
         return new LifeEventView(entity.getId(), entity.getTitle(), entity.getDescription(),
-                entity.getTargetDate() != null ? entity.getTargetDate().toString() : "", entity.getStatus(),
+                entity.getTargetDate() != null ? entity.getTargetDate().toString() : "", visibleStatus(entity.getStatus()),
                 parseDiaryIds(entity.getDiaryIdsJson()), entity.getLastDiaryId(), entity.getFollowUpNote(),
                 entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : "",
                 entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : "");
@@ -166,6 +173,10 @@ public class LifeEventService {
         return entity != null;
     }
 
+    private String visibleStatus(String status) {
+        return "ARCHIVED".equalsIgnoreCase(status) ? "FOLLOWED_UP" : status;
+    }
+
     public String buildEventContextForChat(Long userId, Long eventId) {
         UserLifeEventEntity entity = findOwnedEvent(userId, eventId);
         if (entity == null) return "";
@@ -176,10 +187,13 @@ public class LifeEventService {
         if (entity.getDescription() != null && !entity.getDescription().isBlank())
             sb.append("- 背景描述：").append(entity.getDescription()).append("\n");
         if (!diaryIds.isEmpty()) {
-            List<DiaryEntity> diaries = diaryMapper.selectBatchIds(diaryIds);
+            List<DiaryEntity> diaries = diaryMapper.selectList(new LambdaQueryWrapper<DiaryEntity>()
+                    .in(DiaryEntity::getId, diaryIds)
+                    .eq(DiaryEntity::getAuthorUserId, userId)
+                    .eq(DiaryEntity::getIsDeleted, false));
             sb.append("- 相关日记（共 ").append(diaries.size()).append(" 篇）：\n");
             for (DiaryEntity d : diaries) {
-                if (d != null && !d.getIsDeleted()) {
+                if (d != null) {
                     String clean = d.getContent() != null ? d.getContent().replaceAll("<[^>]+>", "").trim() : "";
                     if (clean.length() > 100) clean = clean.substring(0, 100) + "...";
                     sb.append("  * ").append(d.getCreatedAt() != null ? d.getCreatedAt().toLocalDate() : "").append("：").append(clean).append("\n");

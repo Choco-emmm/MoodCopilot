@@ -60,6 +60,7 @@ public class MemoryConsolidationService {
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
     private final NotificationService notificationService;
     private final UserMapper userMapper;
+    private final MemoryOrchestrator memoryOrchestrator;
 
     public MemoryConsolidationService(@Qualifier("analysisChatClient") ChatClient chatClient,
             UserProfileMemoryMapper memoryMapper,
@@ -69,7 +70,8 @@ public class MemoryConsolidationService {
             TransactionOperations transactionOperations,
             org.springframework.data.redis.core.StringRedisTemplate redisTemplate,
             NotificationService notificationService,
-            UserMapper userMapper) {
+            UserMapper userMapper,
+            MemoryOrchestrator memoryOrchestrator) {
         this.chatClient = chatClient;
         this.memoryMapper = memoryMapper;
         this.memoryExtractionService = memoryExtractionService;
@@ -79,6 +81,7 @@ public class MemoryConsolidationService {
         this.redisTemplate = redisTemplate;
         this.notificationService = notificationService;
         this.userMapper = userMapper;
+        this.memoryOrchestrator = memoryOrchestrator;
     }
 
     public List<MemoryExtractionService.MemoryAttribute> previewConsolidation(Long userId) {
@@ -137,46 +140,7 @@ public class MemoryConsolidationService {
     }
 
     public void applyConsolidation(Long userId, List<MemoryExtractionService.MemoryAttribute> attributes) {
-        List<UserProfileMemoryEntity> existing = memoryExtractionService.listUserMemories(userId);
-        LocalDateTime now = LocalDateTime.now();
-        Map<String, UserProfileMemoryEntity> existingBySignature = existing.stream()
-                .collect(Collectors.toMap(this::memorySignature, memory -> memory, (left, right) -> left,
-                        LinkedHashMap::new));
-
-        transactionOperations.execute(status -> {
-            for (UserProfileMemoryEntity old : existing) {
-                memoryMapper.deleteById(old.getId());
-            }
-
-            for (MemoryExtractionService.MemoryAttribute attr : attributes) {
-                UserProfileMemoryEntity entity = new UserProfileMemoryEntity();
-                entity.setUserId(userId);
-                String key = attr.attributeKey().trim();
-                if (key.length() > 64)
-                    key = key.substring(0, 64);
-                String val = attr.attributeValue().trim();
-                if (val.length() > 500)
-                    val = val.substring(0, 500);
-
-                entity.setAttributeKey(key);
-                entity.setAttributeValue(val);
-                entity.setIsCore(Boolean.TRUE.equals(attr.isCore()));
-                UserProfileMemoryEntity matched = existingBySignature
-                        .get(memorySignature(key, val, entity.getIsCore()));
-                entity.setUpdateTime(
-                        matched != null && matched.getUpdateTime() != null ? matched.getUpdateTime() : now);
-                memoryMapper.insert(entity);
-            }
-            return null;
-        });
-
-        List<UserProfileMemoryEntity> latest = memoryExtractionService.listUserMemories(userId);
-        ragMemoryService.indexUserProfile(userId, latest);
-        UserEntity user = userMapper.selectById(userId);
-        if (user != null && !Boolean.FALSE.equals(user.getProfileNotifyEnabled())) {
-            String summary = "### 长期画像已更新\n\n本次共保留 **" + latest.size() + "** 条稳定画像特征。\n\n点击查看画像详情。";
-            notificationService.notifyMemoryUpdated(userId, summary);
-        }
+        memoryOrchestrator.replaceWithUserAction(userId, attributes);
     }
 
     private String buildConsolidationPrompt(List<UserProfileMemoryEntity> existing) {

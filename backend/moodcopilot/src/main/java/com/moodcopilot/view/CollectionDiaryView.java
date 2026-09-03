@@ -75,7 +75,8 @@ public record CollectionDiaryView(
                 Boolean.TRUE.equals(diary.getIsPinned()),
                 sanitizeMusicMeta(diary.getMusicMeta(), includePrivateInsights),
                 diary.getImages(),
-                viewAnalysis != null ? "complete" : null,
+                diary.getAnalysisStatus() != null ? diary.getAnalysisStatus()
+                                : (viewAnalysis != null ? "complete" : null),
                 sortOrder);
     }
 

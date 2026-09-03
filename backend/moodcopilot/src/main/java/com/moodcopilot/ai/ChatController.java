@@ -95,7 +95,6 @@ public class ChatController {
                 String eventCtx = lifeEventService.buildEventContextForChat(eventUser.getId(), eventId);
                 if (!eventCtx.isBlank()) {
                     message = eventCtx + "\n\n" + (message != null ? message : "");
-                    lifeEventService.markEventFollowedUp(eventUser.getId(), eventId);
                     eventFollowUp = true;
                 }
             } catch (Exception e) {
@@ -171,7 +170,7 @@ public class ChatController {
                             id, aiReplyBuffer.length());
                     try {
                         String cleanReply = removePreToolDuplicate(aiReplyBuffer.toString());
-                        memoryExtractionService.extractAndSyncMemoryFromChat(userId, chatMessage, references,
+                        memoryExtractionService.extractAndSyncMemoryFromChat(userId, id, chatMessage, references,
                                 cleanReply, followedUpEvent);
                         log.info("流式聊天后画像增量更新已提交，conversationId={}", id);
                     } catch (Exception e) {
@@ -244,7 +243,6 @@ public class ChatController {
                 String eventCtx = lifeEventService.buildEventContextForChat(eventUser.getId(), eventId);
                 if (!eventCtx.isBlank()) {
                     message = eventCtx + "\n\n" + (message != null ? message : "");
-                    lifeEventService.markEventFollowedUp(eventUser.getId(), eventId);
                     eventFollowUp = true;
                 }
             } catch (Exception e) {
@@ -270,7 +268,7 @@ public class ChatController {
         log.info("非流式聊天完成，准备触发画像增量更新，conversationId={}，replyLength={}",
                 id, reply == null ? 0 : reply.length());
         try {
-            memoryExtractionService.extractAndSyncMemoryFromChat(userId, message, references, reply, eventFollowUp);
+            memoryExtractionService.extractAndSyncMemoryFromChat(userId, id, message, references, reply, eventFollowUp);
             log.info("非流式聊天后画像增量更新已提交，conversationId={}", id);
         } catch (Exception e) {
             log.warn("非流式聊天后触发长期画像更新失败，conversationId={}，reason={}", id, e.getMessage());

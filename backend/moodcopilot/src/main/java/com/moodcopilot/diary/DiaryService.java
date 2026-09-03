@@ -301,7 +301,7 @@ public class DiaryService {
                     });
 
                     log.info("日记内容已修改，提交后台重新执行 AI 分析，diaryId={}", diaryId);
-                    aiTaskProducer.submitDiaryAnalysisTask(diaryId, user.getId(), request.isUseReasoning());
+                    submitAiAnalysisTask(diaryId, user.getId(), request.isUseReasoning());
                     analysisStatus = "analyzing";
                 } catch (RateLimitException e) {
                     analysisStatus = request.isUseReasoning() ? "failed_limit" : "skipped_quota";
@@ -330,10 +330,30 @@ public class DiaryService {
     }
 
     public void submitAiAnalysisTask(long diaryId, long userId, boolean useReasoning) {
-        aiTaskProducer.submitDiaryAnalysisTask(diaryId, userId, useReasoning);
+        DiaryEntity status = new DiaryEntity();
+        status.setId(diaryId);
+        status.setAnalysisStatus("analyzing");
+        status.setAnalysisError(null);
+        status.setRequestedModel(useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash");
+        status.setActualModel(null);
+        status.setFallbackReason(null);
+        diaryMapper.updateById(status);
+        try {
+            aiTaskProducer.submitDiaryAnalysisTask(diaryId, userId, useReasoning);
+        } catch (RuntimeException e) {
+            DiaryEntity failed = new DiaryEntity();
+            failed.setId(diaryId);
+            failed.setAnalysisStatus("failed");
+            failed.setAnalysisError(e.getMessage() == null ? "AI 任务提交失败" : e.getMessage());
+            diaryMapper.updateById(failed);
+            throw e;
+        }
+    }
+    public void runAiAnalysisSync(long diaryId, long userId, boolean useReasoning) {
+        runAiAnalysisSync(diaryId, userId, useReasoning, null);
     }
 
-    public void runAiAnalysisSync(long diaryId, long userId, boolean useReasoning) {
+    public void runAiAnalysisSync(long diaryId, long userId, boolean useReasoning, String parentTaskId) {
         DiaryEntity diary = diaryMapper.selectById(diaryId);
         if (diary == null || diary.getIsDeleted()) {
             log.warn("无法执行 AI 分析，日记不存在或已删除，diaryId={}", diaryId);
@@ -419,117 +439,33 @@ public class DiaryService {
             } else {
                 diaryAnalysisMapper.insert(analysisEntity);
             }
+            DiaryEntity completed = new DiaryEntity();
+            completed.setId(diaryId);
+            completed.setAnalysisStatus("complete");
+            completed.setAnalysisError(null);
+            completed.setActualModel(useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash");
+            completed.setFallbackReason(null);
+            diaryMapper.updateById(completed);
             log.info("日记 AI 分析已落库，diaryId={}", diaryId);
 
             eventPublisher.publishEvent(new DiaryAnalysisCompletedEvent(
                     this, diaryId, userId, analysis.moodLabel(), analysis.moodIntensity(), analysis.topicLabels(),
                     content, analysis.summary(), analysis.feedback(), analysis.valence(), analysis.arousal()));
 
-            // 提取日记中提及的未来重要事件，异步聚合到未决事件时间线
-            lifeEventService.extractAndTrackLifeEvents(userId, diaryId, content, diary.getCreatedAt());
-
-            Thread.startVirtualThread(() -> {
-                try {
-                    // 先请求大模型，如果失败也不影响旧数据
-                    java.util.List<AiAnalysisService.KnowledgeTriple> triples = aiAnalysisService
-                            .extractKnowledgeGraph(content, musicMeta, imageDescriptions);
-
-                    // 获取旧数据
-                    java.util.List<com.moodcopilot.entity.DiaryKnowledgeGraphEntity> oldTriples = diaryKnowledgeGraphMapper
-                            .selectList(
-                                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
-                                            .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId));
-
-                    // 开启事务进行数据库级替换
-                    java.util.List<com.moodcopilot.entity.DiaryKnowledgeGraphEntity> newEntities = new java.util.ArrayList<>();
-                    transactionTemplate.execute(status -> {
-                        if (!oldTriples.isEmpty()) {
-                            diaryKnowledgeGraphMapper.delete(
-                                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
-                                            .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getDiaryId, diaryId));
-                        }
-                        if (!triples.isEmpty()) {
-                            for (AiAnalysisService.KnowledgeTriple triple : triples) {
-                                com.moodcopilot.entity.DiaryKnowledgeGraphEntity entity = new com.moodcopilot.entity.DiaryKnowledgeGraphEntity();
-                                entity.setUserId(userId);
-                                entity.setDiaryId(diaryId);
-                                entity.setHeadEntity(triple.head());
-                                entity.setRelation(triple.relation());
-                                entity.setTailEntity(triple.tail());
-                                entity.setTailPolarity(triple.tailPolarity() != null ? triple.tailPolarity() : 0);
-                                entity.setCreatedAt(java.time.LocalDateTime.now());
-                                diaryKnowledgeGraphMapper.insert(entity);
-                                newEntities.add(entity);
-                            }
-                        }
-                        return null;
-                    });
-
-                    // 事务提交成功后，再执行 Redis 的清理和更新
-                    for (com.moodcopilot.entity.DiaryKnowledgeGraphEntity old : oldTriples) {
-                        ragMemoryService.deleteKnowledgeGraph(old.getId());
-                    }
-                    for (com.moodcopilot.entity.DiaryKnowledgeGraphEntity entity : newEntities) {
-                        ragMemoryService.indexKnowledgeGraph(userId, diaryId, entity.getId(), entity.getHeadEntity(),
-                                entity.getRelation(), entity.getTailEntity());
-                    }
-
-                    // 比较新旧三元组，看看是否有差异
-                    List<Map<String, String>> diffAdded = new java.util.ArrayList<>();
-                    List<Map<String, String>> diffDeleted = new java.util.ArrayList<>();
-                    Set<String> oldSet = oldTriples.stream()
-                            .map(t -> t.getHeadEntity() + "|" + t.getRelation() + "|" + t.getTailEntity())
-                            .collect(java.util.stream.Collectors.toSet());
-                    Set<String> newSet = triples.stream().map(t -> t.head() + "|" + t.relation() + "|" + t.tail())
-                            .collect(java.util.stream.Collectors.toSet());
-
-                    for (com.moodcopilot.entity.DiaryKnowledgeGraphEntity oldT : oldTriples) {
-                        String key = oldT.getHeadEntity() + "|" + oldT.getRelation() + "|" + oldT.getTailEntity();
-                        if (!newSet.contains(key)) {
-                            diffDeleted.add(java.util.Map.of("head", oldT.getHeadEntity(), "relation",
-                                    oldT.getRelation(), "tail", oldT.getTailEntity()));
-                        }
-                    }
-
-                    for (AiAnalysisService.KnowledgeTriple newT : triples) {
-                        String key = newT.head() + "|" + newT.relation() + "|" + newT.tail();
-                        if (!oldSet.contains(key)) {
-                            diffAdded.add(java.util.Map.of("head", newT.head(), "relation", newT.relation(), "tail",
-                                    newT.tail()));
-                        }
-                    }
-
-                    if ((!diffAdded.isEmpty() || !diffDeleted.isEmpty())
-                            && Boolean.TRUE.equals(userMapper.selectById(userId).getProfileNotifyEnabled())) {
-                        log.info("日记知识图谱提取完成，diaryId={}，共 {} 条三元组", diaryId, triples.size());
-                        java.util.Map<String, Object> payload = java.util.Map.of(
-                                "message", "🕸️ AI 已提取了新的事件因果关系",
-                                "diff", java.util.Map.of("added", diffAdded, "deleted", diffDeleted));
-                        notificationService.notifyGlobalEvent(userId, "GRAPH_UPDATED", payload);
-                    } else if (!oldTriples.isEmpty()) {
-                        log.info("日记知识图谱已被清空或无变化，diaryId={}", diaryId);
-                    }
-                } catch (Exception e) {
-                    log.error("日记知识图谱提取或落库失败，diaryId={}", diaryId, e);
-                }
-            });
-
-            memoryExtractionService.extractAndSyncMemory(userId, content, musicMeta, imageDescriptions);
-            // VLM 描述拿到后重新索引，让图片信息可被 RAG 检索（独立图片向量，不混入日记正文）
-            if (imageDescriptions != null && !imageDescriptions.isBlank()) {
-                ragMemoryService.indexDiary(userId, diaryId, content, musicMeta);
-                ragMemoryService.indexDiaryImages(userId, diaryId, imageDescriptions);
-                log.info("RAG 已用图片描述独立索引 diaryId={}", diaryId);
-            }
-            markReportsStale(userId);
-            diary = diaryMapper.selectById(diaryId);
-            if (diary != null && "PUBLIC".equals(diary.getVisibility())) {
-                evictPublicDiaryCaches();
-            }
-            log.info("日记分析后续任务已触发，diaryId={}，userId={}，动作=publishEvent+extractMemory+markReportsStale", diaryId,
-                    userId);
+            String analysisVersion = org.springframework.util.DigestUtils.md5DigestAsHex(
+                    (content == null ? "" : content).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            aiTaskProducer.submitAnalysisPostProcessTasks(diaryId, userId, analysisVersion,
+                    useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", parentTaskId);
+            log.info("日记分析后处理任务已创建，diaryId={}，userId={}，analysisVersion={}", diaryId, userId, analysisVersion);
         } catch (Exception e) {
+            DiaryEntity failed = new DiaryEntity();
+            failed.setId(diaryId);
+            failed.setAnalysisStatus("failed");
+            failed.setAnalysisError(e.getMessage() == null ? "AI 分析失败" :
+                    e.getMessage().substring(0, Math.min(1000, e.getMessage().length())));
+            diaryMapper.updateById(failed);
             log.error("日记 AI 分析异步任务失败，diaryId={}，userId={}，错误信息={}", diaryId, userId, e.getMessage(), e);
+            throw e;
         }
     }
 

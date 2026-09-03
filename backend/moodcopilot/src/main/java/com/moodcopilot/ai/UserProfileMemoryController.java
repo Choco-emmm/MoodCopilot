@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.moodcopilot.entity.UserMemoryCandidateEntity;
 
 @RestController
 @RequestMapping("/api/memory")
@@ -13,11 +15,14 @@ public class UserProfileMemoryController {
 
     private final MemoryExtractionService memoryExtractionService;
     private final MemoryConsolidationService memoryConsolidationService;
+    private final MemoryOrchestrator memoryOrchestrator;
 
     public UserProfileMemoryController(MemoryExtractionService memoryExtractionService,
-                                       MemoryConsolidationService memoryConsolidationService) {
+                                       MemoryConsolidationService memoryConsolidationService,
+                                       MemoryOrchestrator memoryOrchestrator) {
         this.memoryExtractionService = memoryExtractionService;
         this.memoryConsolidationService = memoryConsolidationService;
+        this.memoryOrchestrator = memoryOrchestrator;
     }
 
     @PostMapping("/consolidate/preview")
@@ -43,6 +48,18 @@ public class UserProfileMemoryController {
                     map.put("attributeKey", m.getAttributeKey());
                     map.put("attributeValue", m.getAttributeValue());
                     map.put("isCore", Boolean.TRUE.equals(m.getIsCore()));
+                    map.put("memoryType", m.getMemoryType());
+                    map.put("sourceType", m.getSourceType());
+                    map.put("sourceDiaryId", m.getSourceDiaryId());
+                    map.put("sourceConversationId", m.getSourceConversationId());
+                    map.put("confidence", m.getConfidence());
+                    map.put("validFrom", m.getValidFrom());
+                    map.put("validUntil", m.getValidUntil());
+                    map.put("status", m.getStatus());
+                    map.put("previousMemoryId", m.getPreviousMemoryId());
+                    map.put("supersededAt", m.getSupersededAt());
+                    map.put("supersededReason", m.getSupersededReason());
+                    map.put("lastEvidenceAt", m.getLastEvidenceAt());
                     if (m.getUpdateTime() != null) {
                         map.put("updateTime", m.getUpdateTime().toString());
                     }
@@ -64,5 +81,95 @@ public class UserProfileMemoryController {
         Boolean isCore = body.containsKey("isCore") ? (Boolean) body.get("isCore") : null;
         memoryExtractionService.updateMemory(id, newValue, isCore);
         return ApiResponse.ok(null);
+    }
+
+    @PatchMapping("/{id}")
+    public ApiResponse<Void> patch(@PathVariable long id, @RequestBody Map<String, Object> body) {
+        return update(id, body);
+    }
+
+    @GetMapping("/{id}/history")
+    public ApiResponse<List<Map<String, Object>>> history(
+            @AuthenticationPrincipal com.moodcopilot.entity.UserEntity user, @PathVariable long id) {
+        return ApiResponse.ok(memoryOrchestrator.history(user.getId(), id).stream().map(this::memoryMap).toList());
+    }
+
+    @GetMapping("/{id}/evidence")
+    public ApiResponse<List<Map<String, Object>>> evidence(
+            @AuthenticationPrincipal com.moodcopilot.entity.UserEntity user, @PathVariable long id) {
+        return ApiResponse.ok(memoryOrchestrator.evidence(user.getId(), id).stream().map(e -> {
+            Map<String, Object> item = new java.util.LinkedHashMap<>();
+            item.put("id", e.getId());
+            item.put("sourceType", e.getSourceType());
+            item.put("sourceDiaryId", e.getSourceDiaryId());
+            item.put("sourceConversationId", e.getSourceConversationId());
+            item.put("evidenceText", e.getEvidenceText());
+            item.put("evidenceDate", e.getEvidenceDate());
+            item.put("modelConfidence", e.getModelConfidence());
+            item.put("evidenceQuality", e.getEvidenceQuality());
+            item.put("createdAt", e.getCreatedAt());
+            return item;
+        }).toList());
+    }
+
+    @GetMapping("/candidates")
+    public ApiResponse<List<Map<String, Object>>> candidates(
+            @AuthenticationPrincipal com.moodcopilot.entity.UserEntity user,
+            @RequestParam(required = false) String status) {
+        List<UserMemoryCandidateEntity> candidates = memoryOrchestrator.listCandidates(user.getId(), status);
+        return ApiResponse.ok(candidates.stream().map(candidate -> {
+            Map<String, Object> item = new java.util.LinkedHashMap<>();
+            item.put("id", candidate.getId());
+            item.put("attributeKey", candidate.getAttributeKey());
+            item.put("attributeValue", candidate.getAttributeValue());
+            item.put("memoryType", candidate.getMemoryType());
+            item.put("sourceType", candidate.getSourceType());
+            item.put("sourceDiaryId", candidate.getSourceDiaryId());
+            item.put("sourceConversationId", candidate.getSourceConversationId());
+            item.put("confidence", candidate.getConfidence());
+            item.put("isCore", candidate.getIsCore());
+            item.put("status", candidate.getStatus());
+            item.put("evidenceSummary", candidate.getEvidenceSummary());
+            item.put("validFrom", candidate.getValidFrom());
+            item.put("validUntil", candidate.getValidUntil());
+            item.put("updatedAt", candidate.getUpdatedAt());
+            return item;
+        }).toList());
+    }
+
+    @PostMapping("/candidates/{id}/approve")
+    public ApiResponse<Void> approve(@AuthenticationPrincipal com.moodcopilot.entity.UserEntity user,
+                                     @PathVariable long id) {
+        memoryOrchestrator.approveCandidate(user.getId(), id);
+        return ApiResponse.ok();
+    }
+
+    @PostMapping("/candidates/{id}/reject")
+    public ApiResponse<Void> reject(@AuthenticationPrincipal com.moodcopilot.entity.UserEntity user,
+                                    @PathVariable long id) {
+        memoryOrchestrator.rejectCandidate(user.getId(), id);
+        return ApiResponse.ok();
+    }
+
+    private Map<String, Object> memoryMap(UserProfileMemoryEntity m) {
+        Map<String, Object> item = new java.util.LinkedHashMap<>();
+        item.put("id", m.getId());
+        item.put("attributeKey", m.getAttributeKey());
+        item.put("attributeValue", m.getAttributeValue());
+        item.put("memoryType", m.getMemoryType());
+        item.put("sourceType", m.getSourceType());
+        item.put("sourceDiaryId", m.getSourceDiaryId());
+        item.put("sourceConversationId", m.getSourceConversationId());
+        item.put("confidence", m.getConfidence());
+        item.put("validFrom", m.getValidFrom());
+        item.put("validUntil", m.getValidUntil());
+        item.put("status", m.getStatus());
+        item.put("isCore", m.getIsCore());
+        item.put("previousMemoryId", m.getPreviousMemoryId());
+        item.put("supersededAt", m.getSupersededAt());
+        item.put("supersededReason", m.getSupersededReason());
+        item.put("lastEvidenceAt", m.getLastEvidenceAt());
+        item.put("updatedAt", m.getUpdatedAt() != null ? m.getUpdatedAt() : m.getUpdateTime());
+        return item;
     }
 }

@@ -149,6 +149,14 @@
       <view v-else class="card empty-card">
         <text class="empty-text">AI 正在努力了解你，多写点日记给它线索吧。</text>
       </view>
+      <view v-if="candidates.length" class="candidate-section">
+        <view class="candidate-title">待确认的记忆</view>
+        <text class="candidate-desc">AI 的推断需要你确认后才会进入正式画像。</text>
+        <view v-for="candidate in candidates" :key="candidate.id" class="candidate-row">
+          <view class="candidate-copy"><text class="candidate-key">{{ candidate.attributeKey }}</text><text class="candidate-value">{{ candidate.attributeValue }}</text><text class="candidate-evidence">{{ candidate.evidenceSummary || '暂无证据摘要' }}</text></view>
+          <view class="candidate-actions"><text class="candidate-approve" @click="approveCandidate(candidate.id)">确认</text><text class="candidate-reject" @click="rejectCandidate(candidate.id)">拒绝</text></view>
+        </view>
+      </view>
     </view>
 
     <!-- 关系图谱 -->
@@ -288,6 +296,7 @@ const showLegacyReports = false;
 
 const loadingMemory = ref(false);
 const memories = ref<any[]>([]);
+const candidates = ref<any[]>([]);
 
 const loadingGraph = ref(false);
 const triples = ref<any[]>([]);
@@ -307,6 +316,7 @@ const isLoggedIn = ref(hasLoginToken());
 
 const loadAllData = async () => {
   fetchMemory();
+  fetchCandidates();
   fetchGraph();
 };
 
@@ -327,6 +337,7 @@ onPullDownRefresh(async () => {
   }
   await Promise.all([
     fetchMemory(),
+    fetchCandidates(),
     fetchGraph()
   ]);
   uni.stopPullDownRefresh();
@@ -370,6 +381,31 @@ const fetchMemory = () => {
       }
     })
     .catch(() => loadingMemory.value = false);
+};
+
+const fetchCandidates = () => {
+  return get('/api/memory/candidates?status=PENDING')
+    .then((res: any) => {
+      if (res.code === 200) candidates.value = res.data || [];
+    })
+    .catch(() => candidates.value = []);
+};
+
+const approveCandidate = async (id: number) => {
+  const res = await post(`/api/memory/candidates/${id}/approve`);
+  if (res.code === 200) {
+    candidates.value = candidates.value.filter(candidate => candidate.id !== id);
+    await fetchMemory();
+    uni.showToast({ title: '记忆已确认', icon: 'success' });
+  }
+};
+
+const rejectCandidate = async (id: number) => {
+  const res = await post(`/api/memory/candidates/${id}/reject`);
+  if (res.code === 200) {
+    candidates.value = candidates.value.filter(candidate => candidate.id !== id);
+    uni.showToast({ title: '已拒绝', icon: 'none' });
+  }
 };
 
 const fetchGraph = () => {
