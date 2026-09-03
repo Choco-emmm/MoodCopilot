@@ -128,8 +128,6 @@ public class AiPostProcessService {
             }
         });
         oldTriples.forEach(old -> ragMemoryService.deleteKnowledgeGraph(old.getId()));
-        newEntities.forEach(entity -> ragMemoryService.indexKnowledgeGraph(userId, diaryId, entity.getId(),
-                entity.getHeadEntity(), entity.getRelation(), entity.getTailEntity()));
         UserEntity user = userMapper.selectById(userId);
         if (user != null && Boolean.TRUE.equals(user.getProfileNotifyEnabled())) {
             Set<String> oldSet = new HashSet<>();

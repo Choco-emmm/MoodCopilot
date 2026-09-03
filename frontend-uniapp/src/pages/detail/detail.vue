@@ -61,6 +61,10 @@
           <text class="analysis-kicker">AI 正在阅读这篇记录</text>
           <text class="analysis-copy">分析完成后会出现在这里。</text>
         </view>
+        <view v-else-if="diary.analysisStatus === 'failed'" class="analysis-card analysis-pending">
+          <text class="analysis-kicker">分析未完成</text>
+          <text class="analysis-copy">{{ diary.analysisError || '日记已保存，本次分析没有完成。' }}</text>
+        </view>
         <view v-else-if="diary.analysis?.summary" class="analysis-card">
           <text class="analysis-kicker">AI 分析</text>
           

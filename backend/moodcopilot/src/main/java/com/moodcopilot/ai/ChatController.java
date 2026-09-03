@@ -86,17 +86,14 @@ public class ChatController {
         String originalMessage = (String) body.get("message");
         chatService.scheduleConversationTitle(id, originalMessage);
         String message = originalMessage;
-        boolean eventFollowUp = false;
+        String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
         Object eventIdObj = body.get("eventId");
         if (eventIdObj != null) {
             try {
                 Long eventId = Long.parseLong(String.valueOf(eventIdObj));
                 UserEntity eventUser = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
                 String eventCtx = lifeEventService.buildEventContextForChat(eventUser.getId(), eventId);
-                if (!eventCtx.isBlank()) {
-                    message = eventCtx + "\n\n" + (message != null ? message : "");
-                    eventFollowUp = true;
-                }
+                if (!eventCtx.isBlank()) memoryBackground += "\n" + eventCtx;
             } catch (Exception e) {
                 log.warn("处理回访重要事件失败: {}", e.getMessage());
             }
@@ -104,7 +101,6 @@ public class ChatController {
         @SuppressWarnings("unchecked")
         List<String> references = (List<String>) body.get("references");
         boolean useReasoning = Boolean.TRUE.equals(body.get("useReasoning"));
-        String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
         log.info("收到流式聊天请求，conversationId={}，messageLength={}，referenceCount={}，useReasoning={}",
                 id, message == null ? 0 : message.length(), references == null ? 0 : references.size(), useReasoning);
         UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -163,15 +159,15 @@ public class ChatController {
         }
 
         final String chatMessage = message;
-        final boolean followedUpEvent = eventFollowUp;
+        final String userEvidenceMessage = originalMessage;
         return Flux.concat(refsEvent, chunkStream, doneEvent)
                 .doOnComplete(() -> {
                     log.info("流式聊天完成，准备触发画像增量更新，conversationId={}，replyLength={}",
                             id, aiReplyBuffer.length());
                     try {
                         String cleanReply = removePreToolDuplicate(aiReplyBuffer.toString());
-                        memoryExtractionService.extractAndSyncMemoryFromChat(userId, id, chatMessage, references,
-                                cleanReply, followedUpEvent);
+                        memoryExtractionService.extractAndSyncMemoryFromChat(userId, id, userEvidenceMessage, references,
+                                cleanReply);
                         log.info("流式聊天后画像增量更新已提交，conversationId={}", id);
                     } catch (Exception e) {
                         log.warn("聊天后触发长期画像更新失败，conversationId={}，reason={}", id, e.getMessage());
@@ -234,17 +230,14 @@ public class ChatController {
         String originalMessage = (String) body.get("message");
         chatService.scheduleConversationTitle(id, originalMessage);
         String message = originalMessage;
-        boolean eventFollowUp = false;
+        String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
         Object eventIdObj = body.get("eventId");
         if (eventIdObj != null) {
             try {
                 Long eventId = Long.parseLong(String.valueOf(eventIdObj));
                 UserEntity eventUser = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
                 String eventCtx = lifeEventService.buildEventContextForChat(eventUser.getId(), eventId);
-                if (!eventCtx.isBlank()) {
-                    message = eventCtx + "\n\n" + (message != null ? message : "");
-                    eventFollowUp = true;
-                }
+                if (!eventCtx.isBlank()) memoryBackground += "\n" + eventCtx;
             } catch (Exception e) {
                 log.warn("处理回访重要事件失败: {}", e.getMessage());
             }
@@ -252,7 +245,6 @@ public class ChatController {
         @SuppressWarnings("unchecked")
         List<String> references = (List<String>) body.get("references");
         boolean useReasoning = Boolean.TRUE.equals(body.get("useReasoning"));
-        String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
         log.info("收到非流式聊天请求，conversationId={}，messageLength={}，referenceCount={}，useReasoning={}",
                 id, message == null ? 0 : message.length(), references == null ? 0 : references.size(), useReasoning);
         UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -268,7 +260,7 @@ public class ChatController {
         log.info("非流式聊天完成，准备触发画像增量更新，conversationId={}，replyLength={}",
                 id, reply == null ? 0 : reply.length());
         try {
-            memoryExtractionService.extractAndSyncMemoryFromChat(userId, id, message, references, reply, eventFollowUp);
+            memoryExtractionService.extractAndSyncMemoryFromChat(userId, id, originalMessage, references, reply);
             log.info("非流式聊天后画像增量更新已提交，conversationId={}", id);
         } catch (Exception e) {
             log.warn("非流式聊天后触发长期画像更新失败，conversationId={}，reason={}", id, e.getMessage());

@@ -357,6 +357,13 @@ public class DiaryService {
         DiaryEntity diary = diaryMapper.selectById(diaryId);
         if (diary == null || diary.getIsDeleted()) {
             log.warn("无法执行 AI 分析，日记不存在或已删除，diaryId={}", diaryId);
+            if (diary != null) {
+                DiaryEntity cancelled = new DiaryEntity();
+                cancelled.setId(diaryId);
+                cancelled.setAnalysisStatus("cancelled");
+                cancelled.setAnalysisError("日记已删除，跳过分析");
+                diaryMapper.updateById(cancelled);
+            }
             return;
         }
         String content = diary.getContent();

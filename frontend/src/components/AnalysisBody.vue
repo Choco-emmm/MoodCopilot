@@ -111,6 +111,22 @@
       {{ progressHint }}
     </p>
   </template>
+
+  <template v-else-if="diary.analysisStatus === 'failed'">
+    <div class="section-title compact">
+      <div>
+        <p class="eyebrow">AI 分析</p>
+        <h2>分析未完成</h2>
+      </div>
+    </div>
+    <p class="feedback" style="color: var(--color-text-muted);">
+      {{ diary.analysisError || '这次分析没有完成，日记内容已经保存。' }}
+    </p>
+  </template>
+
+  <template v-else-if="diary.analysisStatus === 'cancelled'">
+    <p class="feedback" style="color: var(--color-text-muted);">这篇日记已删除，未继续分析。</p>
+  </template>
 </template>
 
 <script setup lang="ts">

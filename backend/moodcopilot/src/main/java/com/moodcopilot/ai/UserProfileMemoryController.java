@@ -83,6 +83,12 @@ public class UserProfileMemoryController {
         return ApiResponse.ok(null);
     }
 
+    @GetMapping("/{id}")
+    public ApiResponse<Map<String, Object>> detail(
+            @AuthenticationPrincipal com.moodcopilot.entity.UserEntity user, @PathVariable long id) {
+        return ApiResponse.ok(memoryMap(memoryOrchestrator.detail(user.getId(), id)));
+    }
+
     @PatchMapping("/{id}")
     public ApiResponse<Void> patch(@PathVariable long id, @RequestBody Map<String, Object> body) {
         return update(id, body);
@@ -115,8 +121,11 @@ public class UserProfileMemoryController {
     @GetMapping("/candidates")
     public ApiResponse<List<Map<String, Object>>> candidates(
             @AuthenticationPrincipal com.moodcopilot.entity.UserEntity user,
-            @RequestParam(required = false) String status) {
-        List<UserMemoryCandidateEntity> candidates = memoryOrchestrator.listCandidates(user.getId(), status);
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "updatedAt") String sort) {
+        List<UserMemoryCandidateEntity> candidates = memoryOrchestrator.listCandidates(user.getId(), status, page, size, sort);
         return ApiResponse.ok(candidates.stream().map(candidate -> {
             Map<String, Object> item = new java.util.LinkedHashMap<>();
             item.put("id", candidate.getId());

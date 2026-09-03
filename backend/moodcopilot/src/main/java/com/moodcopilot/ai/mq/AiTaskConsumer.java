@@ -69,13 +69,13 @@ public class AiTaskConsumer {
                 postProcessService.process(task.getTaskType(), diaryId, task.getUserId(),
                         task.getAnalysisVersion(), task.getTaskId());
             }
-            taskService.markSucceeded(task.getTaskId());
+            taskService.markSucceeded(task.getTaskId(), task.getLeaseOwner());
             channel.basicAck(tag, false);
         } catch (Exception e) {
             if (isUnrecoverable(e)) {
-                taskService.markDeadLetter(task.getTaskId(), e);
+                taskService.markDeadLetter(task.getTaskId(), task.getLeaseOwner(), e);
             } else {
-                taskService.markFailed(task.getTaskId(), e);
+                taskService.markFailed(task.getTaskId(), task.getLeaseOwner(), e);
             }
             channel.basicAck(tag, false);
             log.error("AI 任务处理失败，已写入任务状态，taskId={}", task.getTaskId(), e);

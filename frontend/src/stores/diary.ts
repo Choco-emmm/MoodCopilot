@@ -32,7 +32,8 @@ export interface Diary {
   musicMeta?: MusicMeta | null
   images?: string[] | null
   imageMeta?: DiaryImageMetaPayload[] | null
-  analysisStatus?: string | null // "analyzing" | "complete" | "skipped_quota" | "failed_limit" | "skipped_user"
+  analysisStatus?: string | null // "analyzing" | "complete" | "failed" | "cancelled" | "skipped_quota" | "failed_limit" | "skipped_user"
+  analysisError?: string | null
   createdAt: string
   resonanceCount: number
   likedByMe?: boolean

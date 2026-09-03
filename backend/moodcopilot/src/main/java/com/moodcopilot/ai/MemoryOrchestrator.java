@@ -10,8 +10,12 @@ import com.moodcopilot.mapper.UserMemoryCandidateMapper;
 import com.moodcopilot.mapper.UserMemoryEvidenceMapper;
 import com.moodcopilot.mapper.UserMemoryRejectionMapper;
 import com.moodcopilot.mapper.UserProfileMemoryMapper;
+import com.moodcopilot.notification.NotificationService;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
@@ -21,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -38,19 +43,33 @@ public class MemoryOrchestrator {
     private final UserMemoryRejectionMapper rejectionMapper;
     private final RagMemoryService ragMemoryService;
     private final ObjectMapper objectMapper;
+    private final NotificationService notificationService;
 
+    @Autowired
     public MemoryOrchestrator(UserProfileMemoryMapper memoryMapper,
                               UserMemoryCandidateMapper candidateMapper,
                               UserMemoryEvidenceMapper evidenceMapper,
                               UserMemoryRejectionMapper rejectionMapper,
                               RagMemoryService ragMemoryService,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              NotificationService notificationService) {
         this.memoryMapper = memoryMapper;
         this.candidateMapper = candidateMapper;
         this.evidenceMapper = evidenceMapper;
         this.rejectionMapper = rejectionMapper;
         this.ragMemoryService = ragMemoryService;
         this.objectMapper = objectMapper;
+        this.notificationService = notificationService;
+    }
+
+    /** 保留无通知依赖的构造入口，便于纯记忆规则单测隔离通知副作用。 */
+    public MemoryOrchestrator(UserProfileMemoryMapper memoryMapper,
+                              UserMemoryCandidateMapper candidateMapper,
+                              UserMemoryEvidenceMapper evidenceMapper,
+                              UserMemoryRejectionMapper rejectionMapper,
+                              RagMemoryService ragMemoryService,
+                              ObjectMapper objectMapper) {
+        this(memoryMapper, candidateMapper, evidenceMapper, rejectionMapper, ragMemoryService, objectMapper, null);
     }
 
     @Transactional
@@ -67,20 +86,29 @@ public class MemoryOrchestrator {
             if (key.isBlank() || value.isBlank()) continue;
             String type = normalizeType(attr.memoryType());
             String assertion = attr.assertionType() == null ? "inferred" : attr.assertionType().toLowerCase(Locale.ROOT);
-            String actualSource = "explicit".equals(assertion) ? "explicit" : safeSource;
+            if (!Set.of("explicit", "inferred", "negated").contains(assertion)) assertion = "inferred";
             String evidence = clean(attr.evidence(), 2000);
             if (evidence.isBlank()) evidence = clean(defaultEvidence, 2000);
+            String actualSource = "explicit".equals(safeSource)
+                    || ("explicit".equals(assertion) && verifiedExplicitEvidence(safeSource, evidence, defaultEvidence))
+                    ? "explicit" : safeSource;
 
             if ("DELETE_MARKER".equals(value)) {
                 rejectActive(userId, key, type, "MODEL_NEGATION");
                 continue;
             }
-            if ("explicit".equals(actualSource) || "USER_ACTION".equalsIgnoreCase(assertion)) {
+            if ("negated".equals(assertion)) {
+                rejectActive(userId, key, type, "MODEL_NEGATION");
+                addRejection(userId, type, key, value, "MODEL_NEGATION");
+                continue;
+            }
+            if ("explicit".equals(actualSource)) {
                 UserProfileMemoryEntity memory = saveFormal(userId, key, value, type, actualSource,
                         sourceDiaryId, sourceConversationId, scoreConfidence(attr.confidence()), date,
                         "explicit evidence", attr.isCore());
                 addEvidence(userId, memory.getId(), null, actualSource, sourceDiaryId, sourceConversationId,
                         evidence, date, attr.confidence(), 1.0);
+                notifyFormalized(userId, key, value, "用户明确确认");
                 continue;
             }
             if (isRejected(userId, type, key, value)) continue;
@@ -129,6 +157,7 @@ public class MemoryOrchestrator {
                 .set(UserMemoryEvidenceEntity::getMemoryId, memory.getId()));
         candidate.setStatus("APPROVED");
         candidateMapper.updateById(candidate);
+        notifyFormalized(userId, candidate.getAttributeKey(), candidate.getAttributeValue(), "你确认了候选记忆");
         reindex(userId);
     }
 
@@ -169,9 +198,25 @@ public class MemoryOrchestrator {
     }
 
     public List<UserMemoryCandidateEntity> listCandidates(long userId, String status) {
+        return listCandidates(userId, status, 1, 20, "updatedAt");
+    }
+
+    public List<UserMemoryCandidateEntity> listCandidates(long userId, String status, int page, int size, String sort) {
         var wrapper = new LambdaQueryWrapper<UserMemoryCandidateEntity>().eq(UserMemoryCandidateEntity::getUserId, userId);
         if (status != null && !status.isBlank()) wrapper.eq(UserMemoryCandidateEntity::getStatus, status.toUpperCase(Locale.ROOT));
-        return candidateMapper.selectList(wrapper.orderByDesc(UserMemoryCandidateEntity::getUpdatedAt));
+        if ("createdAt".equals(sort)) {
+            wrapper.orderByAsc(UserMemoryCandidateEntity::getCreatedAt);
+        } else {
+            wrapper.orderByDesc(UserMemoryCandidateEntity::getUpdatedAt);
+        }
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(100, Math.max(1, size));
+        wrapper.last("LIMIT " + ((long) (safePage - 1) * safeSize) + "," + safeSize);
+        return candidateMapper.selectList(wrapper);
+    }
+
+    public UserProfileMemoryEntity detail(long userId, long memoryId) {
+        return ownedFormal(userId, memoryId);
     }
 
     @Transactional
@@ -257,6 +302,7 @@ public class MemoryOrchestrator {
         candidate.setConfidence(effective);
         candidate.setStatus("APPROVED");
         candidateMapper.updateById(candidate);
+        notifyFormalized(candidate.getUserId(), candidate.getAttributeKey(), candidate.getAttributeValue(), "多次证据已满足升级条件");
     }
 
     private UserProfileMemoryEntity saveFormal(Long userId, String key, String value, String type, String source,
@@ -302,7 +348,8 @@ public class MemoryOrchestrator {
         next.setLastEvidenceAt(now);
         next.setStatus(ACTIVE);
         next.setPreviousMemoryId(old == null ? null : old.getId());
-        next.setIsCore(requestedIsCore != null ? requestedIsCore : ("preference".equals(type) || "relationship".equals(type)));
+        next.setIsCore(!"short_term_state".equals(type)
+                && (requestedIsCore != null ? requestedIsCore : ("preference".equals(type) || "relationship".equals(type))));
         memoryMapper.insert(next);
         return next;
     }
@@ -371,6 +418,35 @@ public class MemoryOrchestrator {
     }
 
     private void reindex(long userId) { ragMemoryService.indexUserProfile(userId, current(userId)); }
+
+    private boolean verifiedExplicitEvidence(String source, String evidence, String sourceText) {
+        if (!"diary_inferred".equals(source) && !"chat_candidate".equals(source)) return "explicit".equals(source);
+        if (evidence == null || evidence.isBlank() || sourceText == null || sourceText.isBlank()) return false;
+        String normalizedEvidence = normalize(evidence);
+        String normalizedSource = normalize(sourceText);
+        return (normalizedSource.contains(normalizedEvidence) || normalizedEvidence.contains(normalizedSource))
+                && containsExplicitUserMarker(normalizedSource);
+    }
+
+    private boolean containsExplicitUserMarker(String source) {
+        return List.of("我喜欢", "我不喜欢", "我偏好", "我习惯", "我是", "我会", "我想", "我希望",
+                "我一直", "我通常", "对我来说", "我的目标", "我不再").stream().anyMatch(source::contains);
+    }
+
+    private void notifyFormalized(long userId, String key, String value, String reason) {
+        if (notificationService == null) return;
+        String summary = "记忆中心已更新：**" + clean(key, 64) + "**\n" + clean(value, 180) + "\n\n" + reason;
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            notificationService.notifyMemoryUpdated(userId, summary);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                notificationService.notifyMemoryUpdated(userId, summary);
+            }
+        });
+    }
     private String normalizeSource(String value) {
         for (String allowed : SOURCE_TYPES) if (allowed.equals(value)) return value;
         throw new IllegalArgumentException("不支持的记忆来源类型");

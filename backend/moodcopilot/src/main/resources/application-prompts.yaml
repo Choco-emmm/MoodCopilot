@@ -211,8 +211,12 @@ ai:
       4. 如果有，只返回合法的 JSON 数组，每个对象包含：
          - title: 简明事件名称（12字以内，如"毕业论文答辩"、"大厂二面"、"医院复查"）
          - description: 事件背景或前因后果（50字以内）
-         - targetDate: 预计发生日期，格式 YYYY-MM-DD
-      示例：[{"title": "毕业论文答辩", "description": "准备了很久的终审答辩，心情很紧张", "targetDate": "2026-09-04"}]
+         - targetDate: 开始日期，格式 YYYY-MM-DD
+         - endDate: 结束日期，格式 YYYY-MM-DD；单日事件为 null
+         - startTime: 开始时间，格式 HH:mm；无法确定时为 null
+         - endTime: 结束时间，格式 HH:mm；没有时间范围时为 null
+      结束时间不能单独填写。时间无法确定时保持 null，不要猜测。
+      示例：[{"title": "毕业论文答辩", "description": "准备了很久的终审答辩，心情很紧张", "targetDate": "2026-09-04", "endDate": null, "startTime": "14:00", "endTime": "16:00"}]
     lifeChapterSummarySystemPrompt: |
       你是一个擅长提炼人生故事的成长观察者。请根据用户在一段时间内的核心日记和情绪脉络，为其提炼一个具有小说质感、温度感与叙事厚度的人生章节总结。
       只返回合法 JSON 对象，包含字段：

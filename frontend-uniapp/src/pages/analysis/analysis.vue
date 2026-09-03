@@ -139,6 +139,7 @@
               <text class="memory-value">{{ memoryPreview(m.attributeValue) }}</text>
             </view>
             <view class="memory-row-actions">
+              <text class="memory-edit" @click.stop="openMemoryDetails(m)">依据</text>
               <text class="memory-edit">编辑</text>
               <text class="del-btn" @click.stop="deleteMemory(m.id)">×</text>
             </view>
@@ -153,9 +154,30 @@
         <view class="candidate-title">待确认的记忆</view>
         <text class="candidate-desc">AI 的推断需要你确认后才会进入正式画像。</text>
         <view v-for="candidate in candidates" :key="candidate.id" class="candidate-row">
-          <view class="candidate-copy"><text class="candidate-key">{{ candidate.attributeKey }}</text><text class="candidate-value">{{ candidate.attributeValue }}</text><text class="candidate-evidence">{{ candidate.evidenceSummary || '暂无证据摘要' }}</text></view>
+          <view class="candidate-copy"><text class="candidate-key">{{ candidate.attributeKey }}</text><text class="candidate-value">{{ candidate.attributeValue }}</text><text class="candidate-evidence">{{ candidate.evidenceSummary || '暂无证据摘要' }}</text><text class="candidate-evidence">来源：{{ candidate.sourceType }} · {{ candidate.sourceDiaryId ? `日记 #${candidate.sourceDiaryId}` : (candidate.sourceConversationId ? `会话 #${candidate.sourceConversationId}` : '用户整理') }}</text></view>
           <view class="candidate-actions"><text class="candidate-approve" @click="approveCandidate(candidate.id)">确认</text><text class="candidate-reject" @click="rejectCandidate(candidate.id)">拒绝</text></view>
         </view>
+      </view>
+    </view>
+
+    <view class="modal-overlay" v-if="showMemoryDetailsModal" @click="showMemoryDetailsModal = false">
+      <view class="modal-content" @click.stop>
+        <text class="modal-title">记忆依据与历史</text>
+        <scroll-view scroll-y class="preview-list">
+          <view v-if="memoryDetailsLoading" class="empty-text">正在加载...</view>
+          <template v-else>
+            <view v-for="item in memoryEvidence" :key="`e-${item.id}`" class="preview-item">
+              <text class="preview-key">{{ item.evidenceDate || '未标日期' }} · {{ item.sourceType }}</text>
+              <text class="preview-value">{{ item.evidenceText }}</text>
+            </view>
+            <view v-for="item in memoryHistory" :key="`h-${item.id}`" class="preview-item">
+              <text class="preview-key">历史版本 · {{ item.status }}</text>
+              <text class="preview-value">{{ item.attributeValue }}</text>
+            </view>
+            <text v-if="!memoryEvidence.length && !memoryHistory.length" class="empty-text">暂无可展示的依据。</text>
+          </template>
+        </scroll-view>
+        <view class="modal-actions"><button class="cancel-btn" @click="showMemoryDetailsModal = false">关闭</button></view>
       </view>
     </view>
 
@@ -297,6 +319,10 @@ const showLegacyReports = false;
 const loadingMemory = ref(false);
 const memories = ref<any[]>([]);
 const candidates = ref<any[]>([]);
+const showMemoryDetailsModal = ref(false);
+const memoryDetailsLoading = ref(false);
+const memoryEvidence = ref<any[]>([]);
+const memoryHistory = ref<any[]>([]);
 
 const loadingGraph = ref(false);
 const triples = ref<any[]>([]);
@@ -384,11 +410,30 @@ const fetchMemory = () => {
 };
 
 const fetchCandidates = () => {
-  return get('/api/memory/candidates?status=PENDING')
+  return get('/api/memory/candidates?status=PENDING&page=1&size=20&sort=updatedAt')
     .then((res: any) => {
       if (res.code === 200) candidates.value = res.data || [];
     })
     .catch(() => candidates.value = []);
+};
+
+const openMemoryDetails = async (memory: any) => {
+  showMemoryDetailsModal.value = true;
+  memoryDetailsLoading.value = true;
+  memoryEvidence.value = [];
+  memoryHistory.value = [];
+  try {
+    const [evidence, history] = await Promise.all([
+      get(`/api/memory/${memory.id}/evidence`),
+      get(`/api/memory/${memory.id}/history`)
+    ]);
+    memoryEvidence.value = evidence.code === 200 ? evidence.data || [] : [];
+    memoryHistory.value = history.code === 200 ? history.data || [] : [];
+  } catch (e) {
+    uni.showToast({ title: '依据加载失败', icon: 'none' });
+  } finally {
+    memoryDetailsLoading.value = false;
+  }
 };
 
 const approveCandidate = async (id: number) => {

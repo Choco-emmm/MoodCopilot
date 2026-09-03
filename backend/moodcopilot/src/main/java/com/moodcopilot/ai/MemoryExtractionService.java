@@ -41,10 +41,8 @@ public class MemoryExtractionService {
     private static final Logger log = LoggerFactory.getLogger(MemoryExtractionService.class);
     private static final int ATTRIBUTE_KEY_MAX_LENGTH = 64;
     private static final int ATTRIBUTE_VALUE_MAX_LENGTH = 500;
-    private static final String CHAT_MEMORY_UPDATE_LOCK_PREFIX = "memory:chat:update:";
     private static final String CHAT_MEMORY_LAST_HASH_PREFIX = "memory:chat:last-hash:";
     private static final String DELETE_MARKER = "DELETE_MARKER";
-    private static final Duration CHAT_MEMORY_UPDATE_COOLDOWN = Duration.ofMinutes(10);
     private static final Duration CHAT_MEMORY_LAST_HASH_TTL = Duration.ofHours(2);
     private static final int CHAT_MIN_USER_MESSAGE_LENGTH = 18;
     private static final int CHAT_MIN_AI_REPLY_LENGTH = 30;
@@ -244,26 +242,32 @@ public class MemoryExtractionService {
      * 这里同步拿到当前用户 ID，然后复用已有异步提取流程，避免阻塞聊天主链路。
      */
     public void extractAndSyncMemoryFromChat(Long userId, String userMessage, List<String> refs, String aiReply) {
-        extractAndSyncMemoryFromChat(userId, null, userMessage, refs, aiReply, false);
+        extractAndSyncMemoryFromChatInternal(userId, null, userMessage, refs, aiReply);
     }
 
     public void extractAndSyncMemoryFromChat(Long userId, Long conversationId, String userMessage,
             List<String> refs, String aiReply) {
-        extractAndSyncMemoryFromChat(userId, conversationId, userMessage, refs, aiReply, false);
+        extractAndSyncMemoryFromChatInternal(userId, conversationId, userMessage, refs, aiReply);
     }
 
     /**
      * 在聊天完成后，用"用户消息 + AI 回复 + 用户引用"作为新证据增量更新长期画像。
      * 这里同步拿到当前用户 ID，然后复用已有异步提取流程，避免阻塞聊天主链路。
-     * relaxThreshold=true 时（重要事件回访会话），放宽第一层硬门槛与打分阈值，更敏锐地固化人生转折中的领悟。
+     * 事件回访只影响聊天上下文，不放宽记忆抽取门槛。
      */
     public void extractAndSyncMemoryFromChat(Long userId, String userMessage, List<String> refs, String aiReply,
-            boolean relaxThreshold) {
-        extractAndSyncMemoryFromChat(userId, null, userMessage, refs, aiReply, relaxThreshold);
+            boolean ignoredRelaxThreshold) {
+        extractAndSyncMemoryFromChat(userId, null, userMessage, refs, aiReply);
     }
 
     public void extractAndSyncMemoryFromChat(Long userId, Long conversationId, String userMessage, List<String> refs,
-            String aiReply, boolean relaxThreshold) {
+            String aiReply, boolean ignoredRelaxThreshold) {
+        // Kept for binary/source compatibility; event context must never loosen memory gates.
+        extractAndSyncMemoryFromChat(userId, conversationId, userMessage, refs, aiReply);
+    }
+
+    private void extractAndSyncMemoryFromChatInternal(Long userId, Long conversationId, String userMessage,
+            List<String> refs, String aiReply) {
         String normalizedUserMessage = userMessage == null ? "" : normalizeWhitespace(userMessage);
         String normalizedAiReply = aiReply == null ? "" : normalizeWhitespace(aiReply);
         List<String> normalizedRefs = normalizeRefs(refs);
@@ -276,13 +280,13 @@ public class MemoryExtractionService {
         // 第一层：硬门槛，过滤无信息量噪声。
         // 但如果短消息中包含长期特征关键词（如"总是""习惯""关系"），放行进入后续评分。
         boolean hasLongTermKeyword = containsLongTermKeyword(normalizedUserMessage);
-        if (!relaxThreshold && normalizedUserMessage.length() < CHAT_MIN_USER_MESSAGE_LENGTH && normalizedRefs.isEmpty()
+        if (normalizedUserMessage.length() < CHAT_MIN_USER_MESSAGE_LENGTH && normalizedRefs.isEmpty()
                 && !hasLongTermKeyword) {
             log.info("memory-chat | skip | reason=short_user_message | userId={} | userLength={} | refCount={}",
                     userId, normalizedUserMessage.length(), normalizedRefs.size());
             return;
         }
-        if (!relaxThreshold && isLikelySmallTalk(normalizedUserMessage) && normalizedRefs.isEmpty()) {
+        if (isLikelySmallTalk(normalizedUserMessage) && normalizedRefs.isEmpty()) {
             log.info("memory-chat | skip | reason=small_talk | userId={} | userLength={}", userId,
                     normalizedUserMessage.length());
             return;
@@ -301,8 +305,7 @@ public class MemoryExtractionService {
 
         // 第二层：信息量打分，避免仅靠长度误触发。
         int score = scoreChatEvidence(normalizedUserMessage, normalizedRefs, normalizedAiReply);
-        int scoreThreshold = relaxThreshold ? Math.max(1, CHAT_TRIGGER_SCORE_THRESHOLD / 2)
-                : CHAT_TRIGGER_SCORE_THRESHOLD;
+        int scoreThreshold = CHAT_TRIGGER_SCORE_THRESHOLD;
         if (score < scoreThreshold) {
             log.info("memory-chat | skip | reason=low_score | userId={} | score={} | threshold={}",
                     userId, score, scoreThreshold);
@@ -315,18 +318,6 @@ public class MemoryExtractionService {
         String lastHash = redisTemplate.opsForValue().get(hashKey);
         if (currentHash.equals(lastHash)) {
             log.info("memory-chat | skip | reason=duplicate_hash | userId={}", userId);
-            return;
-        }
-
-        // 第四层：冷却窗口，降低高频聊天造成的画像抖动。（重要事件回访不受冷却限制）
-        String cooldownKey = CHAT_MEMORY_UPDATE_LOCK_PREFIX + userId;
-        boolean acquired = relaxThreshold || Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(
-                cooldownKey,
-                String.valueOf(System.currentTimeMillis()),
-                CHAT_MEMORY_UPDATE_COOLDOWN));
-        if (!acquired) {
-            log.info("memory-chat | skip | reason=cooldown | userId={} | cooldownMinutes={}",
-                    userId, CHAT_MEMORY_UPDATE_COOLDOWN.toMinutes());
             return;
         }
 
@@ -476,7 +467,7 @@ public class MemoryExtractionService {
         if (!normalizedRefs.isEmpty()) {
             sb.append("用户引用：").append(String.join("；", normalizedRefs)).append("\n");
         }
-        // 助手回复只能帮助理解上下文，不能作为用户事实证据。
+        // 助手回复只能帮助判断本轮是否值得抽取，不能作为用户事实证据。
         log.info("已构建聊天画像证据，userMessageLength={}，aiReplyLength={}，referenceCount={}，evidenceLength={}",
                 normalizedUserMessage.length(), normalizedAiReply.length(), normalizedRefs.size(), sb.length());
         return sb.toString();

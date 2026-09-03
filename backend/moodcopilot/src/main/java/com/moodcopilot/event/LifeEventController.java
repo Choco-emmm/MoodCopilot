@@ -23,6 +23,43 @@ public class LifeEventController {
         return ApiResponse.ok(lifeEventService.listUserEvents(user.getId()));
     }
 
+    @GetMapping("/{id}")
+    public ApiResponse<LifeEventService.LifeEventView> getEvent(@AuthenticationPrincipal UserEntity user,
+                                                                 @PathVariable Long id) {
+        return ApiResponse.ok(lifeEventService.getEvent(user.getId(), id));
+    }
+
+    @GetMapping("/diaries")
+    public ApiResponse<List<LifeEventService.LifeDiaryOption>> listDiaries(
+            @AuthenticationPrincipal UserEntity user,
+            @RequestParam(required = false) String keyword) {
+        return ApiResponse.ok(lifeEventService.listUserDiaryOptions(user.getId(), keyword));
+    }
+
+    @PostMapping
+    public ApiResponse<LifeEventService.LifeEventView> createEvent(
+            @AuthenticationPrincipal UserEntity user,
+            @RequestBody LifeEventService.LifeEventUpsertRequest request) {
+        return ApiResponse.ok(lifeEventService.createEvent(user.getId(), request));
+    }
+
+    @PutMapping("/{id}")
+    public ApiResponse<LifeEventService.LifeEventView> updateEvent(
+            @AuthenticationPrincipal UserEntity user,
+            @PathVariable Long id,
+            @RequestBody LifeEventService.LifeEventUpsertRequest request) {
+        return ApiResponse.ok(lifeEventService.updateEvent(user.getId(), id, request));
+    }
+
+    @PutMapping("/{id}/diaries")
+    public ApiResponse<LifeEventService.LifeEventView> updateEventDiaries(
+            @AuthenticationPrincipal UserEntity user,
+            @PathVariable Long id,
+            @RequestBody Map<String, List<Long>> body) {
+        List<Long> diaryIds = body == null ? List.of() : body.getOrDefault("diaryIds", List.of());
+        return ApiResponse.ok(lifeEventService.updateEventDiaries(user.getId(), id, diaryIds));
+    }
+
     @PutMapping("/{id}/status")
     public ApiResponse<LifeEventService.LifeEventView> updateStatus(
             @AuthenticationPrincipal UserEntity user,
@@ -45,6 +82,9 @@ public class LifeEventController {
                 "eventId", e.getId(),
                 "title", e.getTitle(),
                 "targetDate", e.getTargetDate() != null ? e.getTargetDate().toString() : "",
+                "endDate", e.getEndDate() != null ? e.getEndDate().toString() : "",
+                "startTime", e.getStartTime() != null ? e.getStartTime().toString() : "",
+                "endTime", e.getEndTime() != null ? e.getEndTime().toString() : "",
                 "description", e.getDescription() != null ? e.getDescription() : "",
                 "suggestedGreeting", "我一直惦记着你关于 " + e.getTitle() + " 的事，一切还顺利吗？"));
     }

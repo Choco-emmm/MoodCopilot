@@ -43,7 +43,8 @@ export const diaryApi = {
 
 export const memoryApi = {
   getAll: () => api.get('/memory'),
-  getCandidates: (status = 'PENDING') => api.get(`/memory/candidates?status=${encodeURIComponent(status)}`),
+  getDetail: (id: number) => api.get(`/memory/${id}`),
+  getCandidates: (status = 'PENDING', page = 1, size = 20, sort = 'updatedAt') => api.get('/memory/candidates', { params: { status, page, size, sort } }),
   approveCandidate: (id: number) => api.post(`/memory/candidates/${id}/approve`),
   rejectCandidate: (id: number) => api.post(`/memory/candidates/${id}/reject`),
   getHistory: (id: number) => api.get(`/memory/${id}/history`),

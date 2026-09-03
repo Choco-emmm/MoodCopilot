@@ -15,7 +15,7 @@
     <section v-if="candidates.length" class="candidate-section" aria-label="待确认记忆">
       <div class="candidate-head"><span>待确认的记忆</span><small>这些是 AI 的推断，确认后才会进入正式画像</small></div>
       <div v-for="candidate in candidates" :key="candidate.id" class="candidate-item">
-        <div class="candidate-copy"><strong>{{ candidate.attributeKey }}</strong><span>{{ candidate.attributeValue }}</span><small>{{ candidate.evidenceSummary || '暂无证据摘要' }}</small></div>
+        <div class="candidate-copy"><strong>{{ candidate.attributeKey }}</strong><span>{{ candidate.attributeValue }}</span><small>{{ candidate.evidenceSummary || '暂无证据摘要' }}</small><small>来源：{{ candidate.sourceType }} · {{ candidate.sourceDiaryId ? `日记 #${candidate.sourceDiaryId}` : (candidate.sourceConversationId ? `会话 #${candidate.sourceConversationId}` : '用户整理') }}</small></div>
         <div class="candidate-actions">
           <n-button size="small" secondary type="primary" @click="approveCandidate(candidate.id)">确认</n-button>
           <n-button size="small" secondary @click="rejectCandidate(candidate.id)">拒绝</n-button>
@@ -74,11 +74,28 @@
             <n-button size="small" secondary @click="cancelEditMemory">取消</n-button>
           </template>
           <template v-else>
+            <n-button size="small" secondary @click="toggleDetails(m.id)">{{ detailsMemoryId === m.id ? '收起依据' : '查看依据' }}</n-button>
             <n-button size="small" secondary @click="startEditMemory(m)">编辑</n-button>
             <n-button size="small" secondary type="error" :disabled="deletingMemoryId === m.id" @click="forgetMemory(m.id)">
               {{ deletingMemoryId === m.id ? '...' : '删除' }}
             </n-button>
           </template>
+        </div>
+        <div v-if="detailsMemoryId === m.id" class="memory-details">
+        <div class="memory-detail-title">证据与版本历史</div>
+        <div v-if="detailsLoading" class="memory-detail-muted">正在加载...</div>
+        <template v-else>
+          <div v-if="memoryEvidence.length" class="memory-detail-list">
+            <div v-for="item in memoryEvidence" :key="`e-${item.id}`" class="memory-detail-line">
+              <span>{{ item.evidenceDate || '未标日期' }} · {{ item.sourceType }}</span>
+              <small>{{ item.evidenceText }}</small>
+            </div>
+          </div>
+          <div v-else class="memory-detail-muted">暂无可展示的证据。</div>
+          <div v-if="memoryHistory.length" class="memory-detail-history">
+            <span v-for="item in memoryHistory" :key="`h-${item.id}`">{{ item.attributeValue }} · {{ item.status }}</span>
+          </div>
+        </template>
         </div>
       </div>
     </div>
@@ -107,6 +124,10 @@ const editingMemoryValue = ref('')
 const editingMemoryIsCore = ref(false)
 const savingMemoryId = ref<number | null>(null)
 const candidates = ref<any[]>([])
+const detailsMemoryId = ref<number | null>(null)
+const detailsLoading = ref(false)
+const memoryEvidence = ref<any[]>([])
+const memoryHistory = ref<any[]>([])
 
 onMounted(() => {
   loadMemories()
@@ -137,6 +158,26 @@ async function approveCandidate(id: number) {
 async function rejectCandidate(id: number) {
   await memoryApi.rejectCandidate(id)
   candidates.value = candidates.value.filter(candidate => candidate.id !== id)
+}
+
+async function toggleDetails(id: number) {
+  if (detailsMemoryId.value === id) {
+    detailsMemoryId.value = null
+    return
+  }
+  detailsMemoryId.value = id
+  detailsLoading.value = true
+  try {
+    const [evidence, history] = await Promise.all([memoryApi.getEvidence(id), memoryApi.getHistory(id)])
+    memoryEvidence.value = evidence.data.data || []
+    memoryHistory.value = history.data.data || []
+  } catch (e) {
+    memoryEvidence.value = []
+    memoryHistory.value = []
+    logWarn('memory', '加载记忆依据失败', id, e)
+  } finally {
+    detailsLoading.value = false
+  }
 }
 
 function isRecentlyUpdated(item: any) {
@@ -216,6 +257,13 @@ function cancelEditMemory() {
 .candidate-copy strong { color: var(--color-text); font-size: 13px; }
 .candidate-copy span { color: var(--color-text); font-size: 13px; line-height: 1.5; }
 .candidate-actions { display: flex; flex-shrink: 0; gap: 6px; }
+.memory-details { width: 100%; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border); color: var(--color-text-secondary); font-size: 12px; line-height: 1.5; }
+.memory-detail-title { color: var(--color-text); font-weight: 600; margin-bottom: 6px; }
+.memory-detail-line { display: flex; flex-direction: column; gap: 2px; padding: 5px 0; }
+.memory-detail-line small { color: var(--color-text); white-space: pre-wrap; }
+.memory-detail-history { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.memory-detail-history span { padding: 2px 6px; border: 1px solid var(--color-border); }
+.memory-detail-muted { color: var(--color-text-light); }
 .memory-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

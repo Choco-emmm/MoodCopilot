@@ -82,6 +82,8 @@ public class AiTaskService {
                 taskMapper.update(null, new LambdaUpdateWrapper<AiTaskEntity>()
                         .eq(AiTaskEntity::getTaskId, task.getTaskId())
                         .eq(AiTaskEntity::getStatus, "RUNNING")
+                        .eq(AiTaskEntity::getLeaseOwner, NODE_ID)
+                        .isNull(AiTaskEntity::getStartedAt)
                         .set(AiTaskEntity::getStatus, "PUBLISHED")
                         .set(AiTaskEntity::getLeaseOwner, null)
                         .set(AiTaskEntity::getLeaseUntil, null)
@@ -99,8 +101,11 @@ public class AiTaskService {
                 .and(w -> w.eq(AiTaskEntity::getStatus, "PUBLISHED")
                         .or(x -> x.eq(AiTaskEntity::getStatus, "RETRY_WAIT")
                                 .and(y -> y.isNull(AiTaskEntity::getNextRetryAt)
-                                        .or().le(AiTaskEntity::getNextRetryAt, now))))
-                .and(w -> w.isNull(AiTaskEntity::getLeaseUntil).or().lt(AiTaskEntity::getLeaseUntil, now))
+                                        .or().le(AiTaskEntity::getNextRetryAt, now)))
+                        .or(x -> x.eq(AiTaskEntity::getStatus, "RUNNING")
+                                .eq(AiTaskEntity::getLeaseOwner, NODE_ID)
+                                .isNull(AiTaskEntity::getStartedAt)
+                                .gt(AiTaskEntity::getLeaseUntil, now)))
                 .set(AiTaskEntity::getStatus, "RUNNING")
                 .set(AiTaskEntity::getLeaseOwner, NODE_ID)
                 .set(AiTaskEntity::getLeaseUntil, now.plusMinutes(RUN_LEASE_MINUTES))
@@ -111,8 +116,14 @@ public class AiTaskService {
 
     @Transactional
     public void markSucceeded(String taskId) {
+        markSucceeded(taskId, NODE_ID);
+    }
+
+    @Transactional
+    public void markSucceeded(String taskId, String leaseOwner) {
         taskMapper.update(null, new LambdaUpdateWrapper<AiTaskEntity>()
                 .eq(AiTaskEntity::getTaskId, taskId).eq(AiTaskEntity::getStatus, "RUNNING")
+                .eq(AiTaskEntity::getLeaseOwner, leaseOwner)
                 .set(AiTaskEntity::getStatus, "SUCCEEDED")
                 .set(AiTaskEntity::getLeaseOwner, null).set(AiTaskEntity::getLeaseUntil, null)
                 .set(AiTaskEntity::getFinishedAt, LocalDateTime.now()).set(AiTaskEntity::getLastError, null));
@@ -120,15 +131,25 @@ public class AiTaskService {
 
     @Transactional
     public void markFailed(String taskId, Throwable error) {
-        markFailed(taskId, error, false);
+        markFailed(taskId, NODE_ID, error, false);
+    }
+
+    @Transactional
+    public void markFailed(String taskId, String leaseOwner, Throwable error) {
+        markFailed(taskId, leaseOwner, error, false);
     }
 
     @Transactional
     public void markDeadLetter(String taskId, Throwable error) {
-        markFailed(taskId, error, true);
+        markFailed(taskId, NODE_ID, error, true);
     }
 
-    private void markFailed(String taskId, Throwable error, boolean permanent) {
+    @Transactional
+    public void markDeadLetter(String taskId, String leaseOwner, Throwable error) {
+        markFailed(taskId, leaseOwner, error, true);
+    }
+
+    private void markFailed(String taskId, String leaseOwner, Throwable error, boolean permanent) {
         AiTaskEntity task = taskMapper.selectById(taskId);
         if (task == null) return;
         String message = truncate(error == null ? "unknown error" : error.getMessage(), 2000);
@@ -136,6 +157,7 @@ public class AiTaskService {
             long delaySeconds = 1L << Math.min(task.getAttempts(), 3);
             taskMapper.update(null, new LambdaUpdateWrapper<AiTaskEntity>()
                     .eq(AiTaskEntity::getTaskId, taskId).eq(AiTaskEntity::getStatus, "RUNNING")
+                    .eq(AiTaskEntity::getLeaseOwner, leaseOwner)
                     .set(AiTaskEntity::getStatus, "RETRY_WAIT")
                     .set(AiTaskEntity::getNextRetryAt, LocalDateTime.now().plusSeconds(delaySeconds))
                     .set(AiTaskEntity::getLastError, message)
@@ -144,6 +166,7 @@ public class AiTaskService {
         } else {
             taskMapper.update(null, new LambdaUpdateWrapper<AiTaskEntity>()
                     .eq(AiTaskEntity::getTaskId, taskId).eq(AiTaskEntity::getStatus, "RUNNING")
+                    .eq(AiTaskEntity::getLeaseOwner, leaseOwner)
                     .set(AiTaskEntity::getStatus, "DEAD_LETTER")
                     .set(AiTaskEntity::getLastError, message)
                     .set(AiTaskEntity::getLeaseOwner, null).set(AiTaskEntity::getLeaseUntil, null)
@@ -163,6 +186,8 @@ public class AiTaskService {
         String message = truncate(error == null ? "dispatch failed" : error.getMessage(), 2000);
         LambdaUpdateWrapper<AiTaskEntity> update = new LambdaUpdateWrapper<AiTaskEntity>()
                 .eq(AiTaskEntity::getTaskId, taskId).eq(AiTaskEntity::getStatus, "RUNNING")
+                .eq(AiTaskEntity::getLeaseOwner, NODE_ID)
+                .isNull(AiTaskEntity::getStartedAt)
                 .setSql("attempts = attempts + 1")
                 .set(AiTaskEntity::getLastError, message)
                 .set(AiTaskEntity::getLeaseOwner, null).set(AiTaskEntity::getLeaseUntil, null);
@@ -185,7 +210,9 @@ public class AiTaskService {
         List<AiTaskEntity> expired = taskMapper.selectList(new LambdaQueryWrapper<AiTaskEntity>()
                 .eq(AiTaskEntity::getStatus, "RUNNING").lt(AiTaskEntity::getLeaseUntil, now).last("LIMIT 100"));
         for (AiTaskEntity task : expired) {
-            markFailed(task.getTaskId(), new IllegalStateException("task lease expired"));
+            if (task.getLeaseOwner() != null) {
+                markFailed(task.getTaskId(), task.getLeaseOwner(), new IllegalStateException("task lease expired"));
+            }
         }
     }
 
