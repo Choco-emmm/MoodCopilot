@@ -203,7 +203,7 @@ button,
   border: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent);
   border-radius: var(--radius-full);
   margin-bottom: 20px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+  box-shadow: var(--shadow-md);
 }
 
 .masthead-nav {
@@ -1031,7 +1031,7 @@ h3 {
 
 .like-btn.liked {
   border-color: var(--color-primary);
-  background: color-mix(in oklab, var(--color-primary-light) 60%, white 40%);
+  background: color-mix(in oklab, var(--color-primary-light) 60%, var(--color-surface) 40%);
   color: var(--color-primary);
 }
 
@@ -1060,7 +1060,7 @@ h3 {
 .feed-admin-row {
   margin-top: 2px;
   padding-top: 8px;
-  border-top: 1px dashed color-mix(in oklab, var(--color-border) 86%, white 14%);
+  border-top: 1px dashed color-mix(in oklab, var(--color-border) 86%, var(--color-surface) 14%);
 }
 
 .feed-admin-delete {
@@ -1302,7 +1302,7 @@ h3 {
 }
 
 .comment-foot .n-button:hover {
-  background: rgba(73, 108, 88, 0.1);
+  background: color-mix(in oklab, var(--color-primary) 10%, transparent);
   color: var(--color-text);
 }
 
@@ -2207,7 +2207,7 @@ h3 {
 }
 
 .conv-item.active {
-  background: color-mix(in oklab, var(--color-primary-light) 68%, white 32%);
+  background: color-mix(in oklab, var(--color-primary-light) 68%, var(--color-surface) 32%);
   box-shadow: inset 2px 0 0 var(--color-primary);
 }
 
@@ -5070,7 +5070,7 @@ h3 {
 .msg-wrapper { position: relative; }
 .msg-actions { display: flex; justify-content: flex-start; margin-top: 6px; opacity: 0; transition: opacity 0.2s ease; }
 .msg-item:hover .msg-actions { opacity: 1; }
-.msg-action-btn { background: transparent; border: none; color: var(--color-text-muted); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; transition: all 0.2s ease; }
+.msg-action-btn { background: transparent; border: none; color: var(--color-text-muted); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; transition: background-color var(--duration-normal) var(--ease-out), color var(--duration-normal) var(--ease-out); }
 .msg-action-btn:hover { background: var(--color-surface-hover); color: var(--color-primary); }
 @media (max-width: 768px) { .msg-actions { opacity: 1; margin-top: 4px; } }
 
@@ -5081,12 +5081,12 @@ h3 {
 .msg-actions-user { justify-content: flex-end; }
 
 
-.chat-user .msg-action-btn { color: rgba(255, 255, 255, 0.6); }
-.chat-user .msg-action-btn:hover { background: rgba(0, 0, 0, 0.1); color: #fff; }
+.chat-user .msg-action-btn { color: inherit; opacity: 0.7; }
+.chat-user .msg-action-btn:hover { background: color-mix(in oklab, currentColor 10%, transparent); color: var(--color-on-primary); }
 
 
 /* Restoring chat-user styles */
-.chat-user .md-content blockquote { border-left-color: currentColor; color: inherit; opacity: 0.9; background: rgba(0, 0, 0, 0.1); padding: 6px 12px; margin: 4px 0 8px 0; border-radius: 0 4px 4px 0; }
+.chat-user .md-content blockquote { border-left-color: currentColor; color: inherit; opacity: 0.9; background: color-mix(in oklab, currentColor 10%, transparent); padding: 6px 12px; margin: 4px 0 8px 0; border-radius: 0 4px 4px 0; }
 .chat-user .msg-action-btn { color: inherit; opacity: 0.7; }
-.chat-user .msg-action-btn:hover { background: rgba(0, 0, 0, 0.1); color: #fff; }
+.chat-user .msg-action-btn:hover { background: color-mix(in oklab, currentColor 10%, transparent); color: var(--color-on-primary); }
 

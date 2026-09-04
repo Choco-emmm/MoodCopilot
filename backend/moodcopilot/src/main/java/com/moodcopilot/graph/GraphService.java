@@ -53,10 +53,26 @@ public class GraphService {
     }
 
     public List<DiaryKnowledgeGraphEntity> getTriplesForUser(Long userId) {
-        List<DiaryKnowledgeGraphEntity> all = new ArrayList<>();
-        all.addAll(getConsolidatedTriplesForUser(userId));
-        all.addAll(getRawTriplesForUser(userId));
-        return all;
+        // Consolidated rows represent the user-facing graph. Keep a raw row only when
+        // consolidation has not produced the same semantic triple yet.
+        Map<String, DiaryKnowledgeGraphEntity> unique = new LinkedHashMap<>();
+        for (DiaryKnowledgeGraphEntity triple : getRawTriplesForUser(userId)) {
+            unique.putIfAbsent(tripleKey(triple), triple);
+        }
+        for (DiaryKnowledgeGraphEntity triple : getConsolidatedTriplesForUser(userId)) {
+            unique.put(tripleKey(triple), triple);
+        }
+        return new ArrayList<>(unique.values());
+    }
+
+    private String tripleKey(DiaryKnowledgeGraphEntity triple) {
+        return String.join("\u0000",
+                normalize(triple.getHeadEntity()), normalize(triple.getRelation()),
+                normalize(triple.getTailEntity()), String.valueOf(triple.getTailPolarity()));
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     public List<DiaryKnowledgeGraphEntity> getRawTriplesForUser(Long userId) {

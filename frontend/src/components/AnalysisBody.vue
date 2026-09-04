@@ -210,15 +210,18 @@ function stopHintTimer() {
 }
 
 onMounted(() => {
-  if (!props.diary.analysis?.summary && props.diary.analysisStatus !== 'skipped_quota' && props.diary.analysisStatus !== 'failed_limit' && props.diary.analysisStatus !== 'skipped_user') {
+  if (shouldShowProgress(props.diary)) {
     startHintRotation()
   }
 })
 
-watch(() => props.diary.analysis?.summary, (summary) => {
-  if (summary) {
-    stopHintTimer()
-  }
+function shouldShowProgress(diary: Diary) {
+  return !diary.analysis?.summary && diary.analysisStatus === 'analyzing'
+}
+
+watch(() => [props.diary.analysis?.summary, props.diary.analysisStatus], () => {
+  if (shouldShowProgress(props.diary)) startHintRotation()
+  else stopHintTimer()
 })
 
 onUnmounted(() => {

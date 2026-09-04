@@ -335,7 +335,7 @@
 <script setup lang="ts">
 import GlobalUI from '@/components/GlobalUI.vue';
 
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { get, post, put, del } from '@/utils/request';
 import { parseMarkdown } from '@/utils/markdown';
@@ -397,7 +397,21 @@ const loadAllData = async () => {
 onMounted(() => {
   if (isLoggedIn.value) loadAllData();
   uni.$on('login-success', loadAfterLogin);
+  uni.$on('refreshMemory', fetchMemory);
+  uni.$on('refreshGraph', fetchGraph);
+  uni.$on('refreshAnalysis', refreshAnalysisData);
 });
+
+onUnmounted(() => {
+  uni.$off('login-success', loadAfterLogin);
+  uni.$off('refreshMemory', fetchMemory);
+  uni.$off('refreshGraph', fetchGraph);
+  uni.$off('refreshAnalysis', refreshAnalysisData);
+});
+
+function refreshAnalysisData() {
+  if (isLoggedIn.value) loadAllData();
+}
 
 function loadAfterLogin() {
   isLoggedIn.value = true;

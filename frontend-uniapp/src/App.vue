@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onLaunch, onShow, onHide } from "@dcloudio/uni-app";
 import { connectWebSocket, disconnectWebSocket } from "@/utils/socket";
-import { currentTheme } from "@/stores/theme";
+import { currentTheme, syncNavigationBarColor } from "@/stores/theme";
 import { watch } from "vue";
 import { get } from '@/utils/request';
 import { loadActiveAnnouncement, setAnnouncementUserId } from '@/stores/announcement';
@@ -11,6 +11,7 @@ import { restoreLoggedInUser, showLoginWithoutContinuation } from '@/stores/logi
 onLaunch(() => {
   console.log("App Launch");
   restoreLoggedInUser();
+  syncNavigationBarColor();
   void loadActiveAnnouncement();
   void restoreAnnouncementUser();
   connectWebSocket();
@@ -21,6 +22,7 @@ onLaunch(() => {
 
 onShow(() => {
   console.log("App Show");
+  syncNavigationBarColor();
   connectWebSocket();
 
 });
@@ -80,35 +82,35 @@ page {
 
 /* 2. 多层平滑阴影 Smooth Shadows */
 .smooth-shadow {
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.02), 
-              0 12rpx 24rpx rgba(0, 0, 0, 0.02),
-              0 24rpx 48rpx rgba(0, 0, 0, 0.02);
+  box-shadow: 0 4rpx 12rpx color-mix(in oklab, var(--theme-primary) 3%, transparent),
+              0 12rpx 24rpx color-mix(in oklab, var(--theme-primary) 3%, transparent),
+              0 24rpx 48rpx color-mix(in oklab, var(--theme-primary) 3%, transparent);
 }
 .smooth-shadow-lg {
-  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.03), 
-              0 24rpx 48rpx rgba(0, 0, 0, 0.03),
-              0 48rpx 96rpx rgba(0, 0, 0, 0.03);
+  box-shadow: 0 8rpx 24rpx color-mix(in oklab, var(--theme-primary) 4%, transparent),
+              0 24rpx 48rpx color-mix(in oklab, var(--theme-primary) 4%, transparent),
+              0 48rpx 96rpx color-mix(in oklab, var(--theme-primary) 4%, transparent);
 }
 
 /* 3. 玻璃拟物化 Glassmorphism */
 .glass-card {
-  background: rgba(255, 255, 255, 0.6);
+  background: color-mix(in oklab, var(--theme-surface) 60%, transparent);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid color-mix(in oklab, var(--theme-surface) 30%, transparent);
 }
 
 /* 夜间模式的玻璃材质适配 */
 @media (prefers-color-scheme: dark) {
   .glass-card {
-    background: rgba(40, 40, 40, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: color-mix(in oklab, var(--theme-surface) 60%, transparent);
+    border: 1px solid color-mix(in oklab, var(--theme-surface) 8%, transparent);
   }
 }
 
 /* 4. 尊贵渐变 Premium Gradient */
 .premium-gradient-bg {
-  background: linear-gradient(135deg, #F9F3EA 0%, #E8DFD1 100%);
+  background: linear-gradient(135deg, var(--theme-surface), var(--theme-bg));
 }
 
 /* 5. 淡入动画 Fade In */

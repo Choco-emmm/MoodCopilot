@@ -116,10 +116,7 @@ public class AiTaskService {
                 .and(w -> w.eq(AiTaskEntity::getStatus, "PUBLISHED")
                         .or(x -> x.eq(AiTaskEntity::getStatus, "RETRY_WAIT")
                                 .and(y -> y.isNull(AiTaskEntity::getNextRetryAt)
-                                        .or().le(AiTaskEntity::getNextRetryAt, now)))
-                        .or(x -> x.eq(AiTaskEntity::getStatus, "RUNNING")
-                                .isNull(AiTaskEntity::getStartedAt)
-                                .gt(AiTaskEntity::getLeaseUntil, now)))
+                                        .or().le(AiTaskEntity::getNextRetryAt, now))))
                 .set(AiTaskEntity::getStatus, "RUNNING")
                 .set(AiTaskEntity::getLeaseOwner, NODE_ID)
                 .set(AiTaskEntity::getLeaseUntil, now.plusMinutes(RUN_LEASE_MINUTES))
@@ -220,8 +217,12 @@ public class AiTaskService {
                     .set(AiTaskEntity::getFinishedAt, LocalDateTime.now());
         }
         if (taskMapper.update(null, update) == 1) {
+            String nextStatus = attempts + 1 < maxAttempts ? "RETRY_WAIT" : "DEAD_LETTER";
             log.warn("AI 任务投递失败，taskId={}，taskType={}，attempt={}，status={}，error={}", taskId,
-                    task.getTaskType(), attempts + 1, attempts + 1 < maxAttempts ? "RETRY_WAIT" : "DEAD_LETTER", message);
+                    task.getTaskType(), attempts + 1, nextStatus, message);
+            if ("DEAD_LETTER".equals(nextStatus)) {
+                markRelatedDiaryFailed(task, message);
+            }
         }
     }
 
@@ -246,14 +247,16 @@ public class AiTaskService {
      */
     @Transactional
     public boolean markLeaseExpired(AiTaskEntity task, LocalDateTime now) {
-        // attempts 在 claimForRun 原子领取执行租约时递增；恢复阶段不能重复计数。
+        // 执行领取时记录本次尝试；租约超时也消耗一次可恢复执行机会，避免旧任务无限悬挂。
         int attempts = task.getAttempts() == null ? 0 : task.getAttempts();
         int maxAttempts = task.getMaxAttempts() == null ? MAX_ATTEMPTS : task.getMaxAttempts();
-        String message = attempts < maxAttempts
+        int nextAttempts = Math.min(attempts + 1, maxAttempts);
+        String message = nextAttempts < maxAttempts
                 ? "AI 任务租约超时，已进入自动重试"
                 : "AI 任务租约超时，已停止自动重试";
+        task.setAttempts(nextAttempts);
         task.setLastError(message);
-        task.setStatus(attempts < maxAttempts ? "RETRY_WAIT" : "DEAD_LETTER");
+        task.setStatus(nextAttempts < maxAttempts ? "RETRY_WAIT" : "DEAD_LETTER");
         LambdaUpdateWrapper<AiTaskEntity> update = new LambdaUpdateWrapper<AiTaskEntity>()
                 .eq(AiTaskEntity::getTaskId, task.getTaskId())
                 .eq(AiTaskEntity::getStatus, "RUNNING")
@@ -263,8 +266,11 @@ public class AiTaskService {
                 .set(AiTaskEntity::getLeaseOwner, null)
                 .set(AiTaskEntity::getLeaseUntil, null);
         if (attempts < maxAttempts) {
-            update.set(AiTaskEntity::getStatus, "RETRY_WAIT")
-                    .set(AiTaskEntity::getNextRetryAt, now.plusSeconds(1L << Math.min(attempts, 3)));
+            update.set(AiTaskEntity::getStatus, nextAttempts < maxAttempts ? "RETRY_WAIT" : "DEAD_LETTER")
+                    .set(AiTaskEntity::getNextRetryAt, nextAttempts < maxAttempts
+                            ? now.plusSeconds(1L << Math.min(nextAttempts, 3)) : null);
+            update.setSql("attempts = LEAST(attempts + 1, max_attempts)");
+            if (nextAttempts >= maxAttempts) update.set(AiTaskEntity::getFinishedAt, now);
         } else {
             update.set(AiTaskEntity::getStatus, "DEAD_LETTER")
                     .set(AiTaskEntity::getNextRetryAt, null)
@@ -287,6 +293,16 @@ public class AiTaskService {
         } catch (NumberFormatException e) {
             log.warn("无法更新超时日记状态，aggregateId={}", task.getAggregateId());
         }
+    }
+
+    public AiTaskEntity getTask(String taskId) {
+        return taskMapper.selectById(taskId);
+    }
+
+    public boolean isDispatching(String taskId) {
+        AiTaskEntity task = taskMapper.selectById(taskId);
+        return task != null && "RUNNING".equals(task.getStatus()) && task.getStartedAt() == null
+                && task.getLeaseUntil() != null && task.getLeaseUntil().isAfter(LocalDateTime.now());
     }
 
     public String payloadValue(AiTaskEntity task, String key) {

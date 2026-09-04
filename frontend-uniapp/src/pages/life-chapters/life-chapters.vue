@@ -51,6 +51,8 @@
           </view>
         </view>
       </view>
+      <view v-if="gaps.length" class="gaps"><text class="section-label">记录较少的时间段</text><view v-for="gap in gaps" :key="`${gap.startDate}-${gap.endDate}`" class="gap-item"><text>{{ gap.startDate }} - {{ gap.endDate }}</text><text>这段时间暂时没有足够记录</text></view></view>
+      <view v-if="nextCursor" class="timeline-load-more" @click="loadMoreChapters">{{ loadingMore ? '正在加载…' : '继续查看更早阶段' }}</view>
     </view>
   </view>
 </template>
@@ -73,6 +75,9 @@ const versionsId = ref<number | null>(null)
 const versions = ref<Record<number, ChapterVersion[]>>({})
 const refreshingId = ref<number | null>(null)
 const candidates = ref<TimelineCandidate[]>([])
+const gaps = ref<{ startDate: string; endDate: string }[]>([])
+const nextCursor = ref<string | null>(null)
+const loadingMore = ref(false)
 
 onMounted(() => {
   if (!hasLoginToken()) {
@@ -85,12 +90,31 @@ onMounted(() => {
 
 async function loadChapters() {
   try {
-    const res = await get<{ stages: LifeChapter[]; gaps: { startDate: string; endDate: string }[] }>('/api/life-timeline?includeGaps=true&size=50')
-    if (res.code === 200) chapters.value = res.data?.stages || []
+    const res = await get<{ stages: LifeChapter[]; gaps: { startDate: string; endDate: string }[]; nextCursor?: string }>('/api/life-timeline?includeGaps=true&size=50')
+    if (res.code === 200) {
+      chapters.value = res.data?.stages || []
+      gaps.value = res.data?.gaps || []
+      nextCursor.value = res.data?.nextCursor || null
+    }
     const candidateRes = await get<TimelineCandidate[]>('/api/life-timeline/candidates')
     if (candidateRes.code === 200) candidates.value = candidateRes.data || []
   } finally {
     loading.value = false
+  }
+}
+
+async function loadMoreChapters() {
+  if (!nextCursor.value || loadingMore.value) return
+  loadingMore.value = true
+  try {
+    const res = await get<{ stages: LifeChapter[]; gaps: { startDate: string; endDate: string }[]; nextCursor?: string }>('/api/life-timeline', { cursor: nextCursor.value, includeGaps: true, size: 50 })
+    if (res.code === 200) {
+      chapters.value = [...chapters.value, ...(res.data?.stages || [])]
+      gaps.value = [...gaps.value, ...(res.data?.gaps || [])]
+      nextCursor.value = res.data?.nextCursor || null
+    }
+  } finally {
+    loadingMore.value = false
   }
 }
 

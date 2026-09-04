@@ -53,7 +53,12 @@
           </view>
         </view>
 
-        <view v-if="diary.analysisStatus === 'failed_limit'" class="analysis-card analysis-pending">
+        <view v-if="diary.analysisStatus === 'skipped_quota'" class="analysis-card analysis-pending">
+          <text class="analysis-kicker">今日分析次数已用完</text>
+          <text class="analysis-copy">日记已保存，额度恢复后可以重新分析。</text>
+          <button class="analysis-retry" :disabled="retrying" @click="chooseRetryModel">重新分析</button>
+        </view>
+        <view v-else-if="diary.analysisStatus === 'failed_limit'" class="analysis-card analysis-pending">
           <text class="analysis-kicker">深度思考额度已用完</text>
           <text class="analysis-copy">日记已保存，可稍后重试或改用普通分析。</text>
           <button class="analysis-retry" :disabled="retrying" @click="chooseRetryModel">{{ retrying ? '正在提交...' : '重新分析' }}</button>
@@ -127,7 +132,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
 import GlobalUI from '@/components/GlobalUI.vue'
 import MusicCard from '@/components/MusicCard.vue'
 import { get, post, request } from '@/utils/request'
@@ -135,6 +140,7 @@ import { formatDiaryContent, extractPlainText } from '@/utils/markdown'
 import { currentUser, fetchCurrentUser } from '@/stores/user'
 import { moodColor } from '@/utils/mood'
 import { setQuote } from '@/stores/quote'
+import { currentTheme } from '@/stores/theme'
 
 const loading = ref(true)
 const diary = ref<any>(null)
@@ -142,6 +148,7 @@ const showCollectionModal = ref(false)
 const myCollections = ref<any[]>([])
 const parentCollections = ref<any[]>([])
 const retrying = ref(false)
+let analysisPollTimer: ReturnType<typeof setTimeout> | null = null
 
 const diaryMoodColor = computed(() => {
   if (diary.value?.analysis && isOwner.value) {
@@ -206,7 +213,11 @@ async function fetchDiary(id: string | number) {
   loading.value = true
   try {
     const response = await get(`/api/diaries/${id}`)
-    if (response.code === 200) diary.value = response.data
+    if (response.code === 200) {
+      diary.value = response.data
+      if (diary.value?.analysisStatus === 'analyzing') startAnalysisPolling()
+      else stopAnalysisPolling()
+    }
   } catch (error) {
     console.error('Failed to fetch diary', error)
   } finally {
@@ -228,7 +239,12 @@ async function retryAnalysis(useReasoning: boolean) {
     const response = await request(`/api/diaries/${diary.value.id}/analysis/retry`, 'POST', { useReasoning })
     if (response.code === 200) {
       diary.value = response.data
-      uni.showToast({ title: response.data?.analysisStatus === 'analyzing' ? '已提交分析' : '暂时无法分析', icon: 'none' })
+      if (response.data?.analysisStatus === 'analyzing') {
+        startAnalysisPolling()
+        uni.showToast({ title: '已提交分析', icon: 'none' })
+      } else {
+        uni.showToast({ title: response.data?.analysisError || '暂时无法分析', icon: 'none' })
+      }
     }
   } catch (error) {
     console.error('Failed to retry diary analysis', error)
@@ -236,6 +252,36 @@ async function retryAnalysis(useReasoning: boolean) {
     retrying.value = false
   }
 }
+
+function stopAnalysisPolling() {
+  if (analysisPollTimer) {
+    clearTimeout(analysisPollTimer)
+    analysisPollTimer = null
+  }
+}
+
+function startAnalysisPolling() {
+  stopAnalysisPolling()
+  const poll = async () => {
+    if (!diary.value || diary.value.analysisStatus !== 'analyzing') return
+    try {
+      const response = await get(`/api/diaries/${diary.value.id}`)
+      if (response.code === 200) {
+        diary.value = response.data
+        if (diary.value?.analysisStatus === 'analyzing') {
+          analysisPollTimer = setTimeout(poll, 3000)
+        } else {
+          analysisPollTimer = null
+        }
+      }
+    } catch {
+      analysisPollTimer = setTimeout(poll, 5000)
+    }
+  }
+  analysisPollTimer = setTimeout(poll, 2000)
+}
+
+onUnload(() => stopAnalysisPolling())
 
 async function fetchParentCollections(diaryId: number) {
   try {
@@ -273,7 +319,7 @@ async function addToCollection(collectionId: number) {
 function openOwnerActions() {
   uni.showActionSheet({
     itemList: ['编辑日记', '删除日记'],
-    itemColor: '#365f4c',
+    itemColor: currentTheme.value.primary,
     success: ({ tapIndex }) => {
       if (tapIndex === 0) {
         uni.navigateTo({ url: `/pages/write/write?id=${diary.value.id}&mode=edit` })
@@ -288,7 +334,7 @@ function confirmDelete() {
   uni.showModal({
     title: '删除日记',
     content: '删除后无法恢复，确定继续吗？',
-    confirmColor: '#c74d4d',
+    confirmColor: currentTheme.value.accent,
     success: async ({ confirm }) => {
       if (!confirm) return
       try {
@@ -350,8 +396,8 @@ function goToCollection(collectionId: number) {
 .entry-quick-actions { display: flex; gap: 24rpx; margin-top: 4rpx; }
 .action-btn { display: flex; align-items: center; gap: 8rpx; font-size: 24rpx; font-weight: 600; padding: 8rpx 0; }
 .action-icon { font-size: 28rpx; }
-.delete-btn { color: #d65c5c; }
-.delete-btn .action-icon { color: #d65c5c; }
+.delete-btn { color: var(--theme-accent); }
+.delete-btn .action-icon { color: var(--theme-accent); }
 .mood-tag { padding: 7rpx 14rpx; border-radius: 999rpx; background: rgba(var(--theme-primary-rgb), .09); color: var(--theme-primary); font-size: 22rpx; margin-bottom: 10rpx; display: inline-block; }
 .diary-text { display: block; margin-top: 30rpx; color: var(--theme-text-primary); font-size: 31rpx; line-height: 1.86; word-break: break-word; }
 .diary-images { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; margin-top: 28rpx; }
@@ -365,7 +411,7 @@ function goToCollection(collectionId: number) {
 .analysis-card { margin-top: 20rpx; padding: 32rpx; }
 .analysis-retry { align-self: flex-start; margin-top: 22rpx; padding: 0 24rpx; border: 1rpx solid var(--theme-primary); border-radius: 6rpx; background: transparent; color: var(--theme-primary); font-size: 25rpx; line-height: 68rpx; }
 .analysis-pending { border-style: dashed; background: rgba(var(--theme-primary-rgb), .025); }
-.analysis-kicker { display: block; color: #a86c6c; font-size: 22rpx; font-weight: 650; letter-spacing: 1rpx; margin-bottom: 16rpx; }
+.analysis-kicker { display: block; color: var(--theme-accent); font-size: 22rpx; font-weight: 650; letter-spacing: 1rpx; margin-bottom: 16rpx; }
 .analysis-mood-header { display: flex; align-items: center; flex-wrap: wrap; margin-bottom: 20rpx; }
 .analysis-mood-label { font-size: 32rpx; font-weight: 650; }
 .analysis-mood-intensity { color: var(--theme-text-secondary); font-size: 28rpx; font-weight: 500; margin-left: 6rpx; }
@@ -374,7 +420,7 @@ function goToCollection(collectionId: number) {
 .secondary-mood-tag { font-size: 22rpx; padding: 2rpx 14rpx; border-radius: 999rpx; border: 1rpx solid var(--theme-border); color: var(--theme-text-secondary); background: transparent; }
 .mood-meter { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10rpx; margin-bottom: 30rpx; }
 .meter-step { height: 12rpx; border-radius: 999rpx; background: var(--theme-border); }
-.meter-step.filled { background: linear-gradient(90deg, var(--theme-primary, #4a7c62), var(--theme-accent, #d9827a)); }
+.meter-step.filled { background: linear-gradient(90deg, var(--theme-primary), var(--theme-accent)); }
 .analysis-copy { display: block; color: var(--theme-text-primary); font-size: 28rpx; line-height: 1.8; white-space: pre-line; }
 .entry-actions { margin-top: 20rpx; border-top: 1rpx solid var(--theme-border); }
 .chat-action, .collection-action { display: flex; align-items: center; padding: 25rpx 8rpx; color: var(--theme-text-primary); font-size: 26rpx; }

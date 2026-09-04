@@ -43,12 +43,19 @@ const updateThemeStyle = () => {
   const theme = currentTheme.value;
   const isDark = theme.dark || false;
   
-  const textPrimary = isDark ? 'rgba(255, 255, 255, 0.9)' : '#20201d';
-  const textSecondary = isDark ? 'rgba(255, 255, 255, 0.6)' : '#666666';
-  const textPlaceholder = isDark ? 'rgba(255, 255, 255, 0.3)' : '#999999';
-  const borderCol = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+  const textPrimary = isDark
+    ? 'color-mix(in oklab, var(--theme-surface) 88%, var(--theme-primary))'
+    : 'color-mix(in oklab, var(--theme-primary) 82%, var(--theme-bg))';
+  const textSecondary = isDark
+    ? 'color-mix(in oklab, var(--theme-surface) 58%, var(--theme-primary))'
+    : 'color-mix(in oklab, var(--theme-primary) 55%, var(--theme-bg))';
+  const textPlaceholder = isDark
+    ? 'color-mix(in oklab, var(--theme-surface) 34%, var(--theme-primary))'
+    : 'color-mix(in oklab, var(--theme-primary) 34%, var(--theme-bg))';
+  const borderCol = 'color-mix(in oklab, var(--theme-primary) 16%, transparent)';
+  const onPrimary = isDark ? 'var(--theme-bg)' : 'var(--theme-surface)';
 
-  themeStyle.value = `--theme-primary: ${theme.primary}; --theme-primary-rgb: ${hexToRgb(theme.primary)}; --theme-accent: ${theme.accent}; --theme-bg: ${theme.bg}; --theme-surface: ${theme.surface}; --theme-surface-rgb: ${hexToRgb(theme.surface)}; --theme-text-primary: ${textPrimary}; --theme-text-secondary: ${textSecondary}; --theme-text-placeholder: ${textPlaceholder}; --theme-border: ${borderCol};`;
+  themeStyle.value = `--theme-primary: ${theme.primary}; --theme-primary-rgb: ${hexToRgb(theme.primary)}; --theme-accent: ${theme.accent}; --theme-bg: ${theme.bg}; --theme-surface: ${theme.surface}; --theme-surface-rgb: ${hexToRgb(theme.surface)}; --theme-text-primary: ${textPrimary}; --theme-text-secondary: ${textSecondary}; --theme-text-placeholder: ${textPlaceholder}; --theme-border: ${borderCol}; --theme-text-on-primary: ${onPrimary}; --theme-overlay: color-mix(in oklab, var(--theme-primary) 45%, transparent);`;
 };
 
 watch(currentTheme, () => {
@@ -64,6 +71,8 @@ export const setThemeMode = (mode: 'light' | 'dark' | 'auto') => {
 export const syncNavigationBarColor = () => {
   try {
     uni.setNavigationBarColor({
+      // WeChat's native API accepts only black/white navigation text. This is
+      // the platform adapter boundary; page styles still consume theme tokens.
       frontColor: currentTheme.value.dark ? '#ffffff' : '#000000',
       backgroundColor: currentTheme.value.bg,
       animation: { duration: 200, timingFunc: 'easeInOut' }

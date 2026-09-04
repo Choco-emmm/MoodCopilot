@@ -26,6 +26,7 @@
         <div class="chapter-body"><LifeChapterContent :chapter="chapter" :expanded-id="expandedId" :versions-id="versionsId" :versions="versions" :refreshing-id="refreshingId" @toggle-sources="toggleSources" @toggle-versions="toggleVersions" @refresh="refreshChapter" @open-diary="openDiary" @open-events="openEvents" /></div>
       </article></div>
       <div v-if="gaps.length" class="gaps"><p class="group-label">记录较少的时间段</p><div v-for="gap in gaps" :key="`${gap.startDate}-${gap.endDate}`">{{ gap.startDate }} - {{ gap.endDate }}<span>这段时间暂时没有足够记录</span></div></div>
+      <div v-if="nextCursor" class="timeline-load-more"><button type="button" class="text-button" :disabled="loadingMore" @click="loadMoreChapters">{{ loadingMore ? '正在加载…' : '继续查看更早阶段' }}</button></div>
     </section>
   </main>
 </template>
@@ -46,6 +47,8 @@ const versions = ref<Record<number, LifeChapterVersion[]>>({})
 const refreshingId = ref<number | null>(null)
 const candidates = ref<LifeTimelineCandidate[]>([])
 const gaps = ref<{ startDate: string; endDate: string }[]>([])
+const nextCursor = ref<string | null>(null)
+const loadingMore = ref(false)
 const router = useRouter()
 const currentChapter = computed(() => chapters.value.find(chapter => chapter.isOpen))
 const historyChapters = computed(() => chapters.value.filter(chapter => !chapter.isOpen))
@@ -54,7 +57,21 @@ async function loadChapters() {
   const timeline = (await lifeChapterApi.timeline({ includeGaps: true, size: 50 })).data.data
   chapters.value = timeline?.stages || []
   gaps.value = timeline?.gaps || []
+  nextCursor.value = timeline?.nextCursor || null
   candidates.value = (await lifeChapterApi.candidates()).data.data || []
+}
+
+async function loadMoreChapters() {
+  if (!nextCursor.value || loadingMore.value) return
+  loadingMore.value = true
+  try {
+    const timeline = (await lifeChapterApi.timeline({ cursor: nextCursor.value, includeGaps: true, size: 50 })).data.data
+    chapters.value = [...chapters.value, ...(timeline?.stages || [])]
+    gaps.value = [...gaps.value, ...(timeline?.gaps || [])]
+    nextCursor.value = timeline?.nextCursor || null
+  } finally {
+    loadingMore.value = false
+  }
 }
 
 function toggleSources(id: number) { expandedId.value = expandedId.value === id ? null : id }
@@ -109,6 +126,7 @@ onMounted(async () => {
 .mood-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 15px; }
 .mood-row span { padding: 4px 9px; border: 1px solid var(--color-border); color: var(--color-text-muted); font-size: 11px; }
 .state { padding: 42px 0; color: var(--color-text-muted); text-align: center; }
+.timeline-load-more { padding: 24px 0; text-align: center; }
 .state.error { color: var(--color-error); }
 .chapter-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 16px; }
 .text-button, .source-link { padding: 0; border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font: inherit; font-size: 12px; }

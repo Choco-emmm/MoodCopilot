@@ -227,6 +227,9 @@
     <div v-if="store.analysisStatus !== 'idle'" class="composer-status">
       <template v-if="store.analysisStatus === 'analyzing'">已保存，MoodCopilot 正在分析中...</template>
       <template v-else-if="store.analysisStatus === 'complete'">分析完成</template>
+      <template v-else-if="store.analysisStatus === 'skipped_quota'">日记已保存，今日分析次数已用完。</template>
+      <template v-else-if="store.analysisStatus === 'failed_limit'">日记已保存，深度思考额度已用完。</template>
+      <template v-else-if="store.analysisStatus === 'skipped_user'">日记已保存，AI 分析已关闭。</template>
       <template v-else-if="store.analysisStatus === 'failed'">
         分析结果暂时没有更新。
         <template v-if="store.activeDiary">

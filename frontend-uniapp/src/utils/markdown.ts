@@ -45,13 +45,21 @@ export const unescapeHtml = (text: string) => {
 
 export const formatDiaryContent = (text: string) => {
   if (!text) return '';
-  let unescaped = unescapeHtml(text);
-  if (unescaped.includes('<p>') || unescaped.includes('<div') || unescaped.includes('<br') || unescaped.includes('<h')) {
-    unescaped = unescaped.replace(/<p>/gi, '<p style="margin: 0 0 16px 0; line-height: 1.8;">');
-    unescaped = unescaped.replace(/<img /gi, '<img style="max-width: 100%; border-radius: 8px;" ');
-    return unescaped;
+  const unescaped = unescapeHtml(text);
+  if (!/<\/?(p|div|br|h[1-6]|ul|ol|li|blockquote|strong|em|u)\b/i.test(unescaped)) {
+    return escapeHtml(unescaped).replace(/\n/g, '<br/>');
   }
-  return unescaped.replace(/\n/g, '<br/>');
+
+  // rich-text receives user and AI content. Keep only structural tags and drop
+  // every attribute so inline event handlers, styles and unsafe URLs cannot pass through.
+  return unescaped
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<\/?(script|style|iframe|object|embed|form|input|button|img)\b[^>]*>/gi, '')
+    .replace(/<\/?([a-z][\w-]*)(?:\s[^>]*)?>/gi, (_match, tag: string) => {
+      const allowed = ['p', 'br', 'strong', 'em', 'u', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div'];
+      return allowed.includes(tag.toLowerCase()) ? `<${_match.startsWith('</') ? '/' : ''}${tag.toLowerCase()}>` : '';
+    })
+    .replace(/\n/g, '<br/>');
 };
 
 export const extractPlainText = (text: string) => {

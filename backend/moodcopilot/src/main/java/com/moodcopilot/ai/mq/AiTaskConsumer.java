@@ -61,6 +61,13 @@ public class AiTaskConsumer {
         }
         AiTaskEntity task = taskService.claimForRun(message.taskId());
         if (task == null) {
+            // Dispatcher publishes after claiming a short RUNNING lease. A broker delivery can
+            // arrive before the publisher-confirm callback updates the row to PUBLISHED.
+            // Requeue that message instead of ACKing it and losing the only delivery.
+            if (taskService.isDispatching(message.taskId())) {
+                channel.basicNack(tag, false, true);
+                return;
+            }
             log.info("忽略已处理或已租约占用的重复 AI 消息，taskId={}", message.taskId());
             channel.basicAck(tag, false);
             return;

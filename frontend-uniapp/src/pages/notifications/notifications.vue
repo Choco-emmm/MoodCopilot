@@ -97,6 +97,14 @@ const openNotification = async (notification: any) => {
   }
   if (didMarkRead && notification.diaryId) {
     uni.navigateTo({ url: `/pages/detail/detail?id=${notification.diaryId}` });
+    return;
+  }
+  if (didMarkRead && ['MEMORY_UPDATED', 'GRAPH_UPDATED'].includes(notification.type)) {
+    uni.switchTab({ url: '/pages/analysis/analysis' });
+    return;
+  }
+  if (didMarkRead && notification.type === 'PROFILE_UPDATED') {
+    uni.switchTab({ url: '/pages/profile/profile' });
   }
 };
 
@@ -122,7 +130,7 @@ const getNotifIconUrl = (type: string) => {
     case 'AI_ANALYSIS_COMPLETE': 
       return encodeSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${primary}"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`);
     default: 
-      return encodeSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#7d7870"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>`);
+      return encodeSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="${primary}"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>`);
   }
 };
 
@@ -157,7 +165,7 @@ const formatTime = (dateStr: string) => {
 }
 
 .empty-text {
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   font-size: 28rpx;
 }
 
@@ -176,14 +184,14 @@ const formatTime = (dateStr: string) => {
   background-color: var(--theme-surface);
   border-radius: 4rpx;
   padding: 32rpx;
-  box-shadow: 0 4rpx 16rpx rgba(32, 32, 29, 0.04);
-  border: 1px solid rgba(var(--theme-primary-rgb), 0.1);
+  box-shadow: 0 4rpx 16rpx color-mix(in oklab, var(--theme-primary) 5%, transparent);
+  border: 1px solid color-mix(in oklab, var(--theme-primary) 10%, transparent);
   align-items: flex-start;
 }
 
 .notification-card.unread {
   border-left: 8rpx solid var(--theme-primary);
-  background-color: #f4fbf7;
+  background-color: color-mix(in oklab, var(--theme-primary) 6%, var(--theme-surface));
 }
 
 .icon-container {
@@ -222,12 +230,12 @@ const formatTime = (dateStr: string) => {
 
 .notif-time {
   font-size: 24rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
 }
 
 .notif-content {
   font-size: 28rpx;
-  color: #4a4a46;
+  color: var(--theme-text-primary);
   line-height: 1.6;
   display: block;
 }

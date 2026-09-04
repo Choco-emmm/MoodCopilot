@@ -4,7 +4,11 @@ import { isUsableToken, clearAuthStorage } from '../utils/auth'
 
 export const api = axios.create({ baseURL: '/api' })
 
-let isRedirectingToLogin = false;
+let isRedirectingToLogin = false
+
+export function resetLoginRedirectState() {
+  isRedirectingToLogin = false
+}
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')

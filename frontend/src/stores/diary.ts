@@ -61,7 +61,7 @@ export const useDiaryStore = defineStore('diary', () => {
   const loading = ref(false)
   const saving = ref(false)
   const errorMessage = ref<string | null>(null)
-  const analysisStatus = ref<'idle' | 'saved' | 'analyzing' | 'complete' | 'failed'>('idle')
+  const analysisStatus = ref<'idle' | 'saved' | 'analyzing' | 'complete' | 'failed' | 'failed_limit' | 'skipped_quota' | 'skipped_user'>('idle')
 
   watch(analysisStatus, (val) => {
     if (val === 'complete' || val === 'failed') {
@@ -82,6 +82,13 @@ export const useDiaryStore = defineStore('diary', () => {
   let analysisPollTimer: ReturnType<typeof setInterval> | null = null
   let analysisPollAttempts = 0
   const ANALYSIS_POLL_MAX_ATTEMPTS = 60
+
+  function setUiAnalysisStatus(status: string | null | undefined) {
+    const allowed = ['analyzing', 'complete', 'failed', 'failed_limit', 'skipped_quota', 'skipped_user'] as const
+    analysisStatus.value = allowed.includes(status as typeof allowed[number])
+      ? status as typeof analysisStatus.value
+      : 'failed'
+  }
 
   // ── Helpers ──
 
@@ -154,12 +161,12 @@ export const useDiaryStore = defineStore('diary', () => {
       activeDiary.value = diary
 
       if (diary.analysisStatus === 'skipped_quota' || diary.analysisStatus === 'failed_limit') {
-        analysisStatus.value = 'complete'
+        setUiAnalysisStatus(diary.analysisStatus)
         errorMessage.value = diary.analysisStatus === 'failed_limit'
           ? '深度思考额度已用完，日记已保存，可稍后重新获取分析'
           : '今日 AI 分析次数已用完，日记已保存'
       } else if (diary.analysisStatus === 'skipped_user') {
-        analysisStatus.value = 'complete'
+        analysisStatus.value = 'skipped_user'
       } else {
         analysisStatus.value = diary.analysis == null ? 'analyzing' : 'complete'
       }
@@ -195,12 +202,12 @@ export const useDiaryStore = defineStore('diary', () => {
       const updated = normalize(res.data.data)
 
       if (updated.analysisStatus === 'skipped_quota' || updated.analysisStatus === 'failed_limit') {
-        analysisStatus.value = 'complete'
+        setUiAnalysisStatus(updated.analysisStatus)
         errorMessage.value = updated.analysisStatus === 'failed_limit'
           ? '深度思考额度已用完，日记修改已保存，可稍后重新获取分析'
           : '今日 AI 分析次数已用完，日记修改已保存'
       } else if (updated.analysisStatus === 'skipped_user') {
-        analysisStatus.value = 'complete'
+        analysisStatus.value = 'skipped_user'
       } else {
         analysisStatus.value = updated.analysis == null ? 'analyzing' : 'complete'
       }
@@ -251,7 +258,11 @@ export const useDiaryStore = defineStore('diary', () => {
           || updated.analysisStatus === 'skipped_quota' || updated.analysisStatus === 'skipped_user') {
           if (activeDiary.value?.id === diaryId) activeDiary.value = updated
           mergeDiary(updated)
-          analysisStatus.value = 'failed'
+          analysisStatus.value = updated.analysisStatus === 'failed_limit'
+            ? 'failed_limit'
+            : updated.analysisStatus === 'skipped_quota'
+              ? 'skipped_quota'
+              : updated.analysisStatus === 'skipped_user' ? 'skipped_user' : 'failed'
           errorMessage.value = updated.analysisError || 'AI 分析没有完成，请选择模型后重试'
           clearAnalysisPollTimer()
           return
@@ -268,8 +279,11 @@ export const useDiaryStore = defineStore('diary', () => {
         }
       } catch (e) {
         logWarn('diary', '轮询分析结果失败', diaryId, e)
-        analysisStatus.value = 'failed'
-        clearAnalysisPollTimer()
+        if (analysisPollAttempts >= ANALYSIS_POLL_MAX_ATTEMPTS) {
+          analysisStatus.value = 'failed'
+          errorMessage.value = '暂时无法读取分析进度，请稍后重新打开日记查看'
+          clearAnalysisPollTimer()
+        }
       }
     }, 2000)
   }
