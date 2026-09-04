@@ -318,7 +318,7 @@ import SettingSection from '../SettingSection.vue'
 import { authApi, suggestionApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
 import { logWarn } from '../../utils/logger'
-import { themeOptions } from '../../constants/theme'
+import { themeOptions, type ThemeOption } from '../../constants/theme'
 
 const props = defineProps<{
   show: boolean
@@ -340,14 +340,14 @@ const themeModeOptions = [
 ]
 
 const lightThemeOptions = computed(() =>
-  themeOptions.filter(t => !t.dark)
+  themeOptions.filter((t: ThemeOption) => !t.dark)
 )
 
 const lightThemeGroups = computed(() => {
   const groups: { name: string, themes: typeof themeOptions }[] = []
   const map = new Map<string, typeof themeOptions>()
   
-  lightThemeOptions.value.forEach(t => {
+  lightThemeOptions.value.forEach((t: ThemeOption) => {
     const cat = t.category || '其它主题'
     if (!map.has(cat)) {
       const arr: typeof themeOptions = []
@@ -360,7 +360,7 @@ const lightThemeGroups = computed(() => {
 })
 
 const darkThemeOptions = computed(() =>
-  themeOptions.filter(t => !!t.dark)
+  themeOptions.filter((t: ThemeOption) => !!t.dark)
 )
 
 const fileInput = ref<HTMLInputElement | null>(null)

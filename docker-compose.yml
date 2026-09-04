@@ -141,7 +141,9 @@ services:
 
   web:
     image: ghcr.io/${REGISTRY_OWNER:-choco-emmm}/moodcopilot-frontend:${IMAGE_TAG:-latest}
-    build: ./frontend
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: moodcopilot-web
     expose:
       - "3000"

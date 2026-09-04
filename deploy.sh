@@ -35,7 +35,7 @@ git pull --ff-only
 
 # 记录变更范围（与上一次部署比较）
 CHANGED=$(git diff --name-only ORIG_HEAD HEAD 2>/dev/null || echo "")
-FRONTEND_CHANGED=$(echo "$CHANGED" | grep -q '^frontend/' && echo true || echo false)
+FRONTEND_CHANGED=$(echo "$CHANGED" | grep -Eq '^(frontend|shared)/' && echo true || echo false)
 BACKEND_CHANGED=$(echo "$CHANGED" | grep -q '^backend/' && echo true || echo false)
 INFRA_CHANGED=$(echo "$CHANGED" | grep -q 'docker-compose.yml' && echo true || echo false)
 

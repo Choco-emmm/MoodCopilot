@@ -73,7 +73,7 @@ import { useNotificationStore } from './stores/notification'
 import { useTaskStore } from './stores/task'
 import GlobalConsolidationModals from './components/GlobalConsolidationModals.vue'
 import type { GlobalThemeOverrides } from 'naive-ui'
-import { themeOptions } from './constants/theme'
+import { themeOptions, type ThemeOption } from './constants/theme'
 
 const router = useRouter()
 const route = useRoute()
@@ -151,7 +151,7 @@ const activeThemeName = computed(() => {
 
 watchEffect(() => {
   document.documentElement.setAttribute('data-theme', activeThemeName.value)
-  const currentTheme = themeOptions.find(t => t.value === activeThemeName.value) || themeOptions[0]
+  const currentTheme = themeOptions.find((t: ThemeOption) => t.value === activeThemeName.value) || themeOptions[0]
   
   // 注入我们 19 套主题的色彩变量，以驱动无边框排版
   const root = document.documentElement
@@ -173,7 +173,7 @@ const naiveTheme = computed(() => {
 })
 
 const dynamicThemeOverrides = computed<GlobalThemeOverrides>(() => {
-  const current = themeOptions.find(t => t.value === activeThemeName.value) || themeOptions[0]
+  const current = themeOptions.find((t: ThemeOption) => t.value === activeThemeName.value) || themeOptions[0]
   const isBlackRice = activeThemeName.value === 'black-rice'
   const isMinimalDark = activeThemeName.value === 'minimal-dark'
   const isDarkTheme = isBlackRice || isMinimalDark
