@@ -26,6 +26,7 @@ declare module 'vue' {
     DiaryFeedItem: typeof import('./src/components/DiaryFeedItem.vue')['default']
     GlobalConsolidationModals: typeof import('./src/components/GlobalConsolidationModals.vue')['default']
     ImageGallery: typeof import('./src/components/ImageGallery.vue')['default']
+    LifeChapterContent: typeof import('./src/components/LifeChapterContent.vue')['default']
     LoadingSkeleton: typeof import('./src/components/LoadingSkeleton.vue')['default']
     MemoryGraphView: typeof import('./src/components/memory/MemoryGraphView.vue')['default']
     MemoryProfileView: typeof import('./src/components/memory/MemoryProfileView.vue')['default']
