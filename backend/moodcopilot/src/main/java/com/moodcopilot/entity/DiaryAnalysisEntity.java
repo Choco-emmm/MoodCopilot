@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.moodcopilot.ai.MemorySignal;
+import com.moodcopilot.mybatis.MemorySignalListTypeHandler;
+import org.apache.ibatis.type.JdbcType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,7 +24,7 @@ public class DiaryAnalysisEntity {
     private List<String> topicLabelsJson;
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> secondaryMoodsJson;
-    @TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(typeHandler = MemorySignalListTypeHandler.class, jdbcType = JdbcType.VARCHAR)
     private List<MemorySignal> memorySignalsJson;
     private String summary;
     private String feedback;

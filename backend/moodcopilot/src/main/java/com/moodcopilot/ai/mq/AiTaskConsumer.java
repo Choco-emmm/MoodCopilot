@@ -77,6 +77,8 @@ public class AiTaskConsumer {
             } else if (AiTaskMessage.TYPE_LIFE_CHAPTER_REFRESH.equals(task.getTaskType())) {
                 long chapterId = Long.parseLong(task.getAggregateId());
                 lifeChapterService.refreshChapterTask(task.getUserId(), chapterId, task.getAnalysisVersion());
+            } else if (AiTaskMessage.TYPE_TIMELINE_RECOMPUTE.equals(task.getTaskType())) {
+                lifeChapterService.recomputeTimeline(task.getUserId(), java.time.LocalDate.parse(task.getAggregateId()), task.getAnalysisVersion());
             } else {
                 long diaryId = Long.parseLong(task.getAggregateId());
                 postProcessService.process(task.getTaskType(), diaryId, task.getUserId(),

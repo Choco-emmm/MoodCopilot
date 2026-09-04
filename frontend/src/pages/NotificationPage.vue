@@ -75,6 +75,8 @@ import { NButton, NEmpty, NSpin } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import { useNotificationStore, type Notification } from '../stores/notification'
 import { renderSafeMarkdown } from '../utils/markdown'
+import { lifeEventApi } from '../api'
+import { setPendingChatEventContext } from '../utils/chatContext'
 
 const router = useRouter()
 const notif = useNotificationStore()
@@ -96,7 +98,7 @@ onMounted(() => {
   void loadNotifications(true)
 })
 
-function handleNotifClick(item: Notification) {
+async function handleNotifClick(item: Notification) {
   if (!item.isRead) {
     void notif.markRead(item.id).catch(() => {})
   }
@@ -110,6 +112,28 @@ function handleNotifClick(item: Notification) {
   }
   if (item.type === 'GRAPH_UPDATED') {
     router.push({ path: '/ai-memory', query: { tab: 'graph' } })
+    return
+  }
+  if (item.lifeEventId) {
+    const context: Record<string, unknown> = { eventId: item.lifeEventId }
+    try {
+      const response = await lifeEventApi.get(item.lifeEventId)
+      const event = response.data.data
+      if (event) {
+        Object.assign(context, {
+          title: event.title,
+          description: event.description,
+          targetDate: event.targetDate,
+          endDate: event.endDate,
+          startTime: event.startTime,
+          endTime: event.endTime,
+        })
+      }
+    } catch {
+      // The chat page can still resolve the event context from eventId.
+    }
+    setPendingChatEventContext(context as any)
+    router.push('/chat')
     return
   }
   if (item.type === 'SYSTEM' && !item.diaryId) {

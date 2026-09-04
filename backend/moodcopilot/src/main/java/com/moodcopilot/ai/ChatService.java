@@ -287,6 +287,7 @@ public class ChatService {
         ChatRequest request = exec.request();
         Authentication auth = exec.auth();
         String ragCtx = exec.ragCtx();
+        final String chapterQuery = message;
 
         if (exec.useReasoning()) {
             log.info("聊天路由结果：reasoning（流式），conversationId={}，messageLength={}", conversationId,
@@ -312,7 +313,7 @@ public class ChatService {
                            .append(request.summary())
                            .append("\n</conversation_summary>\n\n");
                     }
-                    sys.append(ragCtx).append("\n").append(buildChapterContext(exec.user()))
+                    sys.append(ragCtx).append("\n").append(buildChapterContext(exec.user(), chapterQuery))
                             .append(buildTimeMetadata());
                     s.text(sys.toString());
                 })
@@ -341,6 +342,7 @@ public class ChatService {
         ChatRequest request = exec.request();
         Authentication auth = exec.auth();
         String ragCtx = exec.ragCtx();
+        final String chapterQuery = message;
 
         if (exec.useReasoning()) {
             log.info("非流式聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
@@ -364,7 +366,7 @@ public class ChatService {
                            .append(request.summary())
                            .append("\n</conversation_summary>\n\n");
                     }
-                    sys.append(ragCtx).append("\n").append(buildChapterContext(exec.user()))
+                    sys.append(ragCtx).append("\n").append(buildChapterContext(exec.user(), chapterQuery))
                             .append(buildTimeMetadata());
                     s.text(sys.toString());
                 })
@@ -426,7 +428,7 @@ public class ChatService {
             sys.append(ragCtx).append("\n");
         }
         sys.append(buildReasoningDataContext(auth)).append("\n")
-                .append(buildChapterContext(((UserEntity) auth.getPrincipal()).getId()))
+                .append(buildChapterContext(((UserEntity) auth.getPrincipal()).getId(), message))
                 .append(buildTimeMetadata());
         
         msgs.add(Map.of("role", "system", "content", sys.toString()));
@@ -1135,9 +1137,13 @@ public class ChatService {
 
     /** 注入最近活跃的人生章节宏观叙事背景（时光画卷），失败降级为空字符串 */
     private String buildChapterContext(UserEntity user) {
+        return buildChapterContext(user, "");
+    }
+
+    private String buildChapterContext(UserEntity user, String query) {
         if (user == null || user.getId() == null) return "";
         try {
-            return lifeChapterService.buildActiveChapterContext(user.getId());
+            return lifeChapterService.buildActiveChapterContext(user.getId(), query);
         } catch (Exception e) {
             log.debug("构建人生章节背景失败: {}", e.getMessage());
             return "";
@@ -1145,9 +1151,13 @@ public class ChatService {
     }
 
     private String buildChapterContext(Long userId) {
+        return buildChapterContext(userId, "");
+    }
+
+    private String buildChapterContext(Long userId, String query) {
         if (userId == null) return "";
         try {
-            return lifeChapterService.buildActiveChapterContext(userId);
+            return lifeChapterService.buildActiveChapterContext(userId, query);
         } catch (Exception e) {
             log.debug("构建人生章节背景失败: {}", e.getMessage());
             return "";

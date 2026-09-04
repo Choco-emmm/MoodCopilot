@@ -73,7 +73,19 @@
       </div>
 
       <div
-        :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai']"
+        :class="['chat-bubble', msg.role === 'user' ? 'chat-user' : 'chat-ai', { 'long-pressing': isLongPressing }]"
+        :title="parsedContent.text || msg.content ? '长按引用' : undefined"
+        :aria-label="parsedContent.text || msg.content ? '长按引用此消息' : undefined"
+        role="button"
+        tabindex="0"
+        @pointerdown="startLongPress"
+        @pointerup="cancelLongPress"
+        @pointercancel="cancelLongPress"
+        @pointerleave="cancelLongPress"
+        @pointermove="handlePointerMove"
+        @contextmenu.prevent="handleContextMenu"
+        @keydown.enter.prevent="handleQuote"
+        @keydown.space.prevent="handleQuote"
       >
         <template v-if="msg.role === 'ai'">
           <!-- think 块内容不对用户展示，只显示正文 -->
@@ -113,6 +125,7 @@
           </div>
         </template>
       </div>
+      <time v-if="msg.createdAt" class="msg-time">{{ formatMsgTime(msg.createdAt) }}</time>
     </div>
 
     <!-- User Avatar -->
@@ -124,7 +137,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 import { renderSafeMarkdown } from '../../utils/markdown'
 
 interface RagRef {
@@ -177,6 +190,12 @@ const emit = defineEmits<{
 
 const isRefsExpanded = ref(false)
 const expandedSnippets = ref<Set<number>>(new Set())
+const isLongPressing = ref(false)
+let longPressTimer: number | null = null
+let pressOrigin: { x: number; y: number } | null = null
+
+const LONG_PRESS_DELAY = 500
+const LONG_PRESS_MOVE_LIMIT = 10
 
 const quoteLabel = computed(() => {
   if (!props.msg.quoteRef) return ''
@@ -217,6 +236,47 @@ function handleQuote() {
   const snippet = plainText.length > 80 ? plainText.slice(0, 80) + '...' : plainText
   emit('quote', { text: snippet, role: props.msg.role })
 }
+
+function clearLongPress() {
+  if (longPressTimer !== null) {
+    window.clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+  pressOrigin = null
+  isLongPressing.value = false
+}
+
+function startLongPress(event: PointerEvent) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+  clearLongPress()
+  pressOrigin = { x: event.clientX, y: event.clientY }
+  longPressTimer = window.setTimeout(() => {
+    longPressTimer = null
+    pressOrigin = null
+    if (parsedContent.value.text || props.msg.content) {
+      isLongPressing.value = true
+      handleQuote()
+      window.setTimeout(() => { isLongPressing.value = false }, 180)
+    }
+  }, LONG_PRESS_DELAY)
+}
+
+function cancelLongPress() {
+  clearLongPress()
+}
+
+function handlePointerMove(event: PointerEvent) {
+  if (!pressOrigin) return
+  const distance = Math.hypot(event.clientX - pressOrigin.x, event.clientY - pressOrigin.y)
+  if (distance > LONG_PRESS_MOVE_LIMIT) clearLongPress()
+}
+
+function handleContextMenu() {
+  clearLongPress()
+  handleQuote()
+}
+
+onBeforeUnmount(clearLongPress)
 
 const parsedContent = computed(() => {
   const content = props.msg.content
@@ -335,13 +395,30 @@ function getTriplePolarityClass(relation: string, tail: string): string {
 <style scoped>
 .msg-time {
   font-size: 11px;
-  color: var(--color-text-tertiary, #999);
-  margin-right: 8px;
-  opacity: 0.8;
+  position: absolute;
+  right: 0;
+  bottom: -18px;
+  color: var(--color-text-muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
 }
+.msg-wrapper { position: relative; }
+.msg-item.ai .msg-time { left: 0; right: auto; }
+.msg-item:hover .msg-time, .msg-item:focus-within .msg-time { opacity: 0.8; }
 .msg-actions {
-  display: flex;
-  align-items: center;
+  display: none !important;
+}
+.chat-bubble {
+  touch-action: manipulation;
+  outline: none;
+}
+.chat-bubble:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+.chat-bubble.long-pressing {
+  user-select: none;
 }
 
 .rag-ref-item-graph {

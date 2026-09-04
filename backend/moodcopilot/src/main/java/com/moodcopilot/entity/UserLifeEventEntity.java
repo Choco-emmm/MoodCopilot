@@ -28,6 +28,20 @@ public class UserLifeEventEntity {
 
     private LocalTime endTime;
 
+    private String temporalPhase;
+
+    private LocalDateTime nextFollowUpAt;
+
+    private LocalDateTime lastFollowUpAt;
+
+    private Integer followUpCount;
+
+    private String followUpReason;
+
+    private Boolean followUpCompleted;
+
+    private java.math.BigDecimal importance;
+
     private String status;
 
     private String diaryIdsJson;
@@ -104,6 +118,62 @@ public class UserLifeEventEntity {
 
     public void setEndTime(LocalTime endTime) {
         this.endTime = endTime;
+    }
+
+    public String getTemporalPhase() {
+        return temporalPhase;
+    }
+
+    public void setTemporalPhase(String temporalPhase) {
+        this.temporalPhase = temporalPhase;
+    }
+
+    public LocalDateTime getNextFollowUpAt() {
+        return nextFollowUpAt;
+    }
+
+    public void setNextFollowUpAt(LocalDateTime nextFollowUpAt) {
+        this.nextFollowUpAt = nextFollowUpAt;
+    }
+
+    public LocalDateTime getLastFollowUpAt() {
+        return lastFollowUpAt;
+    }
+
+    public void setLastFollowUpAt(LocalDateTime lastFollowUpAt) {
+        this.lastFollowUpAt = lastFollowUpAt;
+    }
+
+    public Integer getFollowUpCount() {
+        return followUpCount;
+    }
+
+    public void setFollowUpCount(Integer followUpCount) {
+        this.followUpCount = followUpCount;
+    }
+
+    public String getFollowUpReason() {
+        return followUpReason;
+    }
+
+    public void setFollowUpReason(String followUpReason) {
+        this.followUpReason = followUpReason;
+    }
+
+    public Boolean getFollowUpCompleted() {
+        return followUpCompleted;
+    }
+
+    public void setFollowUpCompleted(Boolean followUpCompleted) {
+        this.followUpCompleted = followUpCompleted;
+    }
+
+    public java.math.BigDecimal getImportance() {
+        return importance;
+    }
+
+    public void setImportance(java.math.BigDecimal importance) {
+        this.importance = importance;
     }
 
     public String getStatus() {

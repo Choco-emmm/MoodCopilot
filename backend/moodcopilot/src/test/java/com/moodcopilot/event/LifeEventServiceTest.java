@@ -17,6 +17,8 @@ import java.time.LocalDate;
 import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -101,5 +103,92 @@ class LifeEventServiceTest {
         dueAt.setAccessible(true);
 
         assertEquals(LocalDateTime.of(2026, 9, 6, 23, 59, 59, 999_999_999), dueAt.invoke(service, event));
+    }
+
+    @Test
+    void manualUpcomingEventGetsTemporalPhaseAndFollowUpPlan() {
+        UserLifeEventMapper eventMapper = mock(UserLifeEventMapper.class);
+        LifeEventService service = new LifeEventService(eventMapper, mock(DiaryMapper.class),
+                mock(DiaryAnalysisMapper.class), mock(ChatClient.class), new ObjectMapper(), mock(AiPromptProperties.class), null);
+
+        LifeEventService.LifeEventView view = service.createEvent(7L,
+                new LifeEventService.LifeEventUpsertRequest("期末考试", "", "2099-09-04", null, null, null, List.of()));
+
+        assertEquals("UPCOMING", view.temporalPhase());
+        assertNotNull(view.nextFollowUpAt());
+        assertFalse(view.followUpCompleted());
+    }
+
+    @Test
+    void viewDerivesPhaseInsteadOfTrustingStaleStoredPhase() {
+        UserLifeEventMapper eventMapper = mock(UserLifeEventMapper.class);
+        UserLifeEventEntity event = new UserLifeEventEntity();
+        event.setId(14L);
+        event.setUserId(7L);
+        event.setStatus("PENDING");
+        event.setTargetDate(LocalDate.now().minusDays(2));
+        event.setTemporalPhase("UPCOMING");
+        when(eventMapper.selectOne(any(Wrapper.class))).thenReturn(event);
+
+        LifeEventService service = new LifeEventService(eventMapper, mock(DiaryMapper.class),
+                mock(ChatClient.class), new ObjectMapper(), mock(AiPromptProperties.class));
+
+        assertEquals("PAST", service.getEvent(7L, 14L).temporalPhase());
+    }
+
+    @Test
+    void eventCanMergeWhenOnlyItsTemporalPhaseChanged() throws Exception {
+        LifeEventService service = new LifeEventService(mock(UserLifeEventMapper.class), mock(DiaryMapper.class),
+                mock(ChatClient.class), new ObjectMapper(), mock(AiPromptProperties.class));
+        UserLifeEventEntity event = new UserLifeEventEntity();
+        event.setTargetDate(LocalDate.now().minusDays(1));
+        event.setEndDate(LocalDate.now().minusDays(1));
+        event.setTemporalPhase("UPCOMING");
+
+        Method sameEvent = LifeEventService.class.getDeclaredMethod("isSameEvent", UserLifeEventEntity.class,
+                String.class, LocalDate.class, LocalDate.class, String.class);
+        sameEvent.setAccessible(true);
+
+        assertEquals(true, sameEvent.invoke(service, event, "期末考试", event.getTargetDate(),
+                event.getEndDate(), "今天回想期末考试的结果"));
+    }
+
+    @Test
+    void staleFollowUpScheduleCannotBeRecorded() {
+        UserLifeEventMapper eventMapper = mock(UserLifeEventMapper.class);
+        UserLifeEventEntity event = new UserLifeEventEntity();
+        event.setId(15L);
+        event.setUserId(7L);
+        event.setStatus("PENDING");
+        event.setTargetDate(LocalDate.now());
+        event.setNextFollowUpAt(LocalDateTime.now().minusHours(1).withNano(0));
+        when(eventMapper.selectOne(any(Wrapper.class))).thenReturn(event);
+        when(eventMapper.update(any(), any(Wrapper.class))).thenReturn(0);
+
+        LifeEventService service = new LifeEventService(eventMapper, mock(DiaryMapper.class),
+                mock(ChatClient.class), new ObjectMapper(), mock(AiPromptProperties.class));
+
+        assertFalse(service.recordFollowUpSent(7L, 15L, event.getNextFollowUpAt()));
+        verify(eventMapper).update(any(), any(Wrapper.class));
+        assertEquals(0, event.getFollowUpCount() == null ? 0 : event.getFollowUpCount());
+    }
+
+    @Test
+    void markingEventFollowedUpStopsFutureAutomaticFollowUps() {
+        UserLifeEventMapper eventMapper = mock(UserLifeEventMapper.class);
+        UserLifeEventEntity event = new UserLifeEventEntity();
+        event.setId(13L);
+        event.setUserId(7L);
+        event.setStatus("PENDING");
+        event.setFollowUpCompleted(false);
+        event.setNextFollowUpAt(LocalDateTime.now().minusDays(1));
+        when(eventMapper.selectOne(any(Wrapper.class))).thenReturn(event);
+        LifeEventService service = new LifeEventService(eventMapper, mock(DiaryMapper.class),
+                mock(ChatClient.class), new ObjectMapper(), mock(AiPromptProperties.class));
+
+        assertEquals(true, service.markEventFollowedUp(7L, 13L));
+        assertEquals("FOLLOWED_UP", event.getStatus());
+        assertEquals(true, event.getFollowUpCompleted());
+        org.junit.jupiter.api.Assertions.assertNull(event.getNextFollowUpAt());
     }
 }

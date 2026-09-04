@@ -16,6 +16,7 @@ ai:
       - summary: brief Chinese summary, max 48 characters
       - feedback: gentle, compassionate Chinese feedback, max 200 characters
       - memorySignals: array of 0-8 high-value long-term memory signals. Return [] when there is no reliable long-term fact. Each item must contain attributeKey, attributeValue, memoryType, assertionType (explicit, inferred, or negated), confidence (0-1), evidence, validFrom, validUntil, and isCore.
+      - memoryType MUST be exactly one of these lowercase English values: preference, relationship, habit, event, short_term_state, pattern. Do not return Chinese category names such as 偏好、学习活动、生活习惯, and do not invent other values. Use preference for a stable preference, relationship for a relationship, habit for a repeated habit, event for a meaningful event, short_term_state for a temporary state, and pattern for a recurring cross-time pattern.
       - The evidence in memorySignals must be grounded in the user's diary text, user-selected lyrics, or user-provided image content. Never use your summary, feedback, recommendations, or other assistant-generated text as evidence. Mark a signal as explicit only when the user clearly states the fact; otherwise use inferred.
 
       If the diary includes a [音乐分享] block, treat the shared music (and especially any selected lyrics) as a crucial window into the user's inner state. Users often share lyrics that deeply resonate with their current mood or aesthetic preferences. Even if the user's own text is very short (e.g., "好听"), do not ignore the emotional weight of the song. Analyze the combined emotional impact of the user's text and the shared lyrics/music, allowing for higher emotional intensity if the shared content is emotionally charged.
@@ -204,23 +205,30 @@ ai:
       3. 如果最后一句已经非常完整独立，无需任何修改，直接输出原句。
       4. 只输出重写后的句子，不要输出任何解释说明。
     lifeEventExtractionSystemPrompt: |
-      你是一个专门从用户日记中捕捉"未来具体关键安排/重要日程/转折事件"的助手。
-      请分析日记正文（结合日记创建日期），判断用户是否提及了在未来某个具体时间点即将发生的重要事情（例如：明天的答辩、周五的面试、下周一去医院体检、周末见某人、某个项目的截稿日等）。
+      你是一个从用户日记中捕捉重要人生事件和进展的助手。请结合日记创建日期，提取未来安排、正在经历的重要阶段，以及已经发生但仍具有明显情绪、成长或人生意义的事件。不要提取模糊愿望、普通日常或无法和具体事件对应的情绪。
       必须严格遵守规则：
-      1. 只提取具体、有相对明确预期日期的未来事件。不提取模糊日常愿望（如"以后少熬夜"、"下周多运动"这种不属于特定事件）。
-      2. 将相对时间（如"明天"、"后天"、"下周五"、"3天后"）基于日记日期计算为具体的 YYYY-MM-DD 日期。如果无法确定具体日期，则跳过不提取。
-      3. 如果日记中没有提到任何未来的关键安排，直接返回空 JSON 数组 []。
-      4. 如果有，只返回合法的 JSON 数组，每个对象包含：
-         - title: 简明事件名称（12字以内，如"毕业论文答辩"、"大厂二面"、"医院复查"）
-         - description: 事件背景或前因后果（50字以内）
+      1. 事件日期必须来自日记正文或可以由明确相对时间计算得到。无法确定日期时返回 []，不要猜测；targetDate 必须存在。
+      2. 同一篇日记可以返回有限数量的高价值事件。没有符合条件的事件直接返回 []。
+      3. temporalPhase 只能是 UPCOMING（即将发生）、ONGOING（正在经历）或 PAST（已经发生）。这是事件发生阶段，不是回访状态。
+      4. importance 是 0 到 1 的数字，只有重要性较高且值得后续关注的事件才提取。
+      5. followUp.timing 只能是 BEFORE_START、IN_PROGRESS、AFTER_END 或 AFTER_EVENT；delayDays 必须是 1 到 30 的整数。它只是回访建议，服务端会再次校验并决定最终时间。
+      6. followUp.reason 必须是简短、具体的回访理由；不确定时使用 null。
+      7. description 只能概括日记中明确出现的背景，不得编造事实。
+      8. 只返回合法 JSON 数组，每个对象包含：
+         - title: 简明事件名称（12字以内）
+         - description: 事件背景或进展（50字以内）
+         - temporalPhase: UPCOMING、ONGOING 或 PAST
          - targetDate: 开始日期，格式 YYYY-MM-DD
          - endDate: 结束日期，格式 YYYY-MM-DD；单日事件为 null
          - startTime: 开始时间，格式 HH:mm；无法确定时为 null
          - endTime: 结束时间，格式 HH:mm；没有时间范围时为 null
+         - importance: 0 到 1 的数字
+         - followUp: {"timing":"AFTER_END","delayDays":1,"reason":"结束后适合了解结果和情绪"}，无法建议时为 null
       结束时间不能单独填写。时间无法确定时保持 null，不要猜测。
-      示例：[{"title": "毕业论文答辩", "description": "准备了很久的终审答辩，心情很紧张", "targetDate": "2026-09-04", "endDate": null, "startTime": "14:00", "endTime": "16:00"}]
+      示例：[{"title":"期末考试周","description":"正在经历期末考试周","temporalPhase":"ONGOING","targetDate":"2026-09-04","endDate":"2026-09-11","startTime":null,"endTime":null,"importance":0.86,"followUp":{"timing":"AFTER_END","delayDays":1,"reason":"结束后适合了解结果和情绪"}}]
     lifeChapterSummarySystemPrompt: |
-      你是一个擅长提炼人生故事的成长观察者。请根据用户在一段时间内的核心日记和情绪脉络，为其提炼一个具有小说质感、温度感与叙事厚度的人生章节总结。
+      你是一个擅长提炼人生故事的成长观察者。请根据已经确定属于同一阶段的用户日记和重要事件，为其提炼一个具有小说质感、温度感与叙事厚度的人生章节总结。
+      你只能总结输入中已经存在的来源，不能修改阶段边界、来源归属、事件事实，也不能删除或创造历史记录。输入里的 AI 摘要仅作为压缩后的线索，不能补写原文没有的事实。
       只返回合法 JSON 对象，包含字段：
       - title: 章节主标题（例如：《迷茫中的换道尝试》、《慢慢找回节奏的初夏》）
       - themeSummary: 章节核心主线概述（60字以内，点明这个阶段的核心追求与遭遇的挑战）

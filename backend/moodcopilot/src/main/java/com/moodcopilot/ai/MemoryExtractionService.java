@@ -647,7 +647,13 @@ public class MemoryExtractionService {
             if (key.isEmpty() || value.isEmpty()) {
                 continue;
             }
-            String type = MemorySafetyPolicy.normalizeType(attribute.memoryType(), key, value);
+            String requestedType = attribute.memoryType() == null
+                    ? "" : attribute.memoryType().trim().toLowerCase(java.util.Locale.ROOT);
+            if (!MemorySafetyPolicy.isSupportedType(requestedType)) {
+                log.warn("忽略非法记忆类型，attributeKey={}，memoryType={}", key, attribute.memoryType());
+                continue;
+            }
+            String type = MemorySafetyPolicy.normalizeType(requestedType, key, value);
             Boolean isCore = MemorySafetyPolicy.allowCore(type, key, value) ? attribute.isCore() : Boolean.FALSE;
             deduped.put(key, new MemoryAttribute(key, value, isCore, type,
                     attribute.assertionType(), attribute.confidence(), attribute.evidence(),

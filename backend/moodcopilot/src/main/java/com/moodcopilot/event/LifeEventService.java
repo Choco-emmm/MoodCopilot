@@ -1,6 +1,7 @@
 package com.moodcopilot.event;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.JsonUtils;
@@ -29,6 +30,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -55,6 +57,9 @@ public class LifeEventService {
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
     private static final ZoneId DEFAULT_EVENT_TIME_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final int DEFAULT_FOLLOW_UP_DELAY_DAYS = 2;
+    private static final int MAX_FOLLOW_UP_DELAY_DAYS = 30;
+    private static final int MAX_FOLLOW_UPS_WITHOUT_END_DATE = 2;
 
     private final UserLifeEventMapper userLifeEventMapper;
     private final DiaryMapper diaryMapper;
@@ -64,6 +69,7 @@ public class LifeEventService {
     private final AiPromptProperties aiPrompts;
     private final StringRedisTemplate redisTemplate;
     private final ZoneId eventTimeZone;
+    private final LifeChapterService lifeChapterService;
 
     @Autowired
     public LifeEventService(UserLifeEventMapper userLifeEventMapper, DiaryMapper diaryMapper,
@@ -71,15 +77,16 @@ public class LifeEventService {
                             @Qualifier("analysisChatClient") ChatClient analysisChatClient,
                             ObjectMapper objectMapper, AiPromptProperties aiPrompts,
                             StringRedisTemplate redisTemplate,
-                            @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId) {
+                            @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId,
+                            LifeChapterService lifeChapterService) {
         this(userLifeEventMapper, diaryMapper, diaryAnalysisMapper, analysisChatClient, objectMapper,
-                aiPrompts, redisTemplate, parseTimeZone(timeZoneId));
+                aiPrompts, redisTemplate, parseTimeZone(timeZoneId), lifeChapterService);
     }
 
     private LifeEventService(UserLifeEventMapper userLifeEventMapper, DiaryMapper diaryMapper,
                              DiaryAnalysisMapper diaryAnalysisMapper, ChatClient analysisChatClient,
                              ObjectMapper objectMapper, AiPromptProperties aiPrompts,
-                             StringRedisTemplate redisTemplate, ZoneId eventTimeZone) {
+                             StringRedisTemplate redisTemplate, ZoneId eventTimeZone, LifeChapterService lifeChapterService) {
         this.userLifeEventMapper = userLifeEventMapper;
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
@@ -88,6 +95,7 @@ public class LifeEventService {
         this.aiPrompts = aiPrompts;
         this.redisTemplate = redisTemplate;
         this.eventTimeZone = eventTimeZone;
+        this.lifeChapterService = lifeChapterService;
     }
 
     /** 兼容旧测试；生产 Bean 使用包含摘要 Mapper 和 Redis 的构造器。 */
@@ -95,7 +103,7 @@ public class LifeEventService {
                             ChatClient analysisChatClient, ObjectMapper objectMapper,
                             AiPromptProperties aiPrompts) {
         this(userLifeEventMapper, diaryMapper, null, analysisChatClient, objectMapper, aiPrompts,
-                null, DEFAULT_EVENT_TIME_ZONE);
+                null, DEFAULT_EVENT_TIME_ZONE, null);
     }
 
     /** 兼容直接构造 Service 的测试；生产环境通过配置注入事件时区。 */
@@ -104,18 +112,28 @@ public class LifeEventService {
                             ObjectMapper objectMapper, AiPromptProperties aiPrompts,
                             StringRedisTemplate redisTemplate) {
         this(userLifeEventMapper, diaryMapper, diaryAnalysisMapper, analysisChatClient, objectMapper,
-                aiPrompts, redisTemplate, DEFAULT_EVENT_TIME_ZONE);
+                aiPrompts, redisTemplate, DEFAULT_EVENT_TIME_ZONE, null);
     }
 
-    public record ExtractedLifeEvent(String title, String description, String targetDate,
-                                     String endDate, String startTime, String endTime) {}
+    public record FollowUpSuggestion(String timing, Integer delayDays, String reason) {}
+    public record ExtractedLifeEvent(String title, String description, String temporalPhase,
+                                     String targetDate, String endDate, String startTime, String endTime,
+                                     BigDecimal importance, FollowUpSuggestion followUp) {
+        public ExtractedLifeEvent(String title, String description, String targetDate,
+                                  String endDate, String startTime, String endTime) {
+            this(title, description, null, targetDate, endDate, startTime, endTime, null, null);
+        }
+    }
     public record LifeEventUpsertRequest(String title, String description, String targetDate,
                                          String endDate, String startTime, String endTime,
                                          List<Long> diaryIds) {}
     public record LifeEventView(Long id, String title, String description, String targetDate,
                                 String endDate, String startTime, String endTime, String status,
                                 List<Long> diaryIds, int diaryCount, Long lastDiaryId,
-                                String followUpNote, String createdAt, String updatedAt) {}
+                                String followUpNote, String createdAt, String updatedAt,
+                                String temporalPhase, String nextFollowUpAt, String lastFollowUpAt,
+                                int followUpCount, String followUpReason, boolean followUpCompleted,
+                                BigDecimal importance) {}
     public record LifeDiaryOption(Long id, String date, String excerpt, String summary) {}
     public record LifeDiaryPage(List<LifeDiaryOption> items, long total, int page, int size, boolean hasMore) {}
 
@@ -129,22 +147,43 @@ public class LifeEventService {
                     .user(prompt).call().content();
             List<ExtractedLifeEvent> events = objectMapper.readValue(JsonUtils.cleanJson(response),
                     new TypeReference<List<ExtractedLifeEvent>>() {});
-            if (events == null || events.isEmpty()) return;
+            if (events == null || events.isEmpty()) {
+                log.info("事件提取完成，识别数量=0，userId={}，diaryId={}", userId, diaryId);
+                return;
+            }
+            log.info("事件提取完成，识别数量={}，userId={}，diaryId={}", events.size(), userId, diaryId);
             withUserLock(userId, () -> {
                 List<UserLifeEventEntity> existing = listMergeableEvents(userId);
                 deduplicateExistingEvents(existing);
                 for (ExtractedLifeEvent extracted : events) {
+                    String title = clean(extracted.title(), 128);
+                    if (title.isBlank()) {
+                        log.info("事件未创建，userId={}, diaryId={}, 原因=事件名称为空", userId, diaryId);
+                        continue;
+                    }
+                    String phase;
+                    BigDecimal importance;
+                    FollowUpSuggestion followUp;
+                    try {
+                        phase = validateTemporalPhase(extracted.temporalPhase());
+                        if (phase == null && extracted.temporalPhase() != null && !extracted.temporalPhase().isBlank()) {
+                            throw new IllegalArgumentException("阶段值只能是 UPCOMING、ONGOING 或 PAST");
+                        }
+                        importance = validateImportance(extracted.importance());
+                        followUp = validateFollowUp(extracted.followUp());
+                    } catch (IllegalArgumentException ex) {
+                        log.info("事件未创建，userId={}, diaryId={}, 原因={}", userId, diaryId, ex.getMessage());
+                        continue;
+                    }
                     ParsedSchedule schedule;
                     try {
                         schedule = parseSchedule(extracted.targetDate(), extracted.endDate(), extracted.startTime(), extracted.endTime());
                     } catch (IllegalArgumentException ex) {
-                        log.info("跳过非法 AI 事件 userId={}, diaryId={}, reason={}", userId, diaryId, ex.getMessage());
+                        log.info("事件未创建，userId={}, diaryId={}, 原因={}", userId, diaryId, ex.getMessage());
                         continue;
                     }
-                    String title = clean(extracted.title(), 128);
-                    if (title.isBlank()) continue;
                     UserLifeEventEntity matched = existing.stream()
-                            .filter(candidate -> isSameEvent(candidate, title, schedule.startDate(), schedule.endDate()))
+                            .filter(candidate -> isSameEvent(candidate, title, schedule.startDate(), schedule.endDate(), content))
                             .findFirst().orElse(null);
                     if (matched == null) {
                         UserLifeEventEntity created = new UserLifeEventEntity();
@@ -153,15 +192,20 @@ public class LifeEventService {
                         created.setDescription(clean(extracted.description(), 1000));
                         applySchedule(created, schedule);
                         created.setStatus("PENDING");
+                        applyTemporalAndFollowUp(created, phase, followUp, importance, schedule, false);
                         created.setDiaryIdsJson(writeIds(List.of(diaryId)));
                         created.setLastDiaryId(diaryId);
                         created.setCreatedAt(LocalDateTime.now());
                         created.setUpdatedAt(LocalDateTime.now());
                         userLifeEventMapper.insert(created);
+                        log.info("事件提取完成，识别数量=1，事件已创建，eventId={}，diaryId={}，phase={}", created.getId(), diaryId, created.getTemporalPhase());
+                        notifyTimelineChanged(userId, created.getId());
                         existing.add(created);
                     } else {
-                        mergeEvent(matched, schedule, extracted.description(), diaryId);
+                        mergeEvent(matched, schedule, extracted.description(), diaryId, phase, followUp, importance);
                         userLifeEventMapper.updateById(matched);
+                        log.info("事件已合并，eventId={}，diaryId={}，phase={}，status={}", matched.getId(), diaryId, matched.getTemporalPhase(), matched.getStatus());
+                        notifyTimelineChanged(userId, matched.getId());
                     }
                 }
                 return null;
@@ -182,11 +226,13 @@ public class LifeEventService {
         entity.setDescription(clean(request.description(), 1000));
         applySchedule(entity, schedule);
         entity.setStatus("PENDING");
+        applyTemporalAndFollowUp(entity, null, null, null, schedule, false);
         entity.setDiaryIdsJson(writeIds(diaryIds));
         entity.setLastDiaryId(diaryIds.isEmpty() ? null : diaryIds.get(diaryIds.size() - 1));
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
         userLifeEventMapper.insert(entity);
+        notifyTimelineChanged(userId, entity.getId());
         return toView(entity);
     }
 
@@ -203,6 +249,7 @@ public class LifeEventService {
         entity.setTitle(title);
         entity.setDescription(clean(request.description(), 1000));
         applySchedule(entity, schedule);
+        applyTemporalAndFollowUp(entity, null, null, entity.getImportance(), schedule, false);
         if (request.diaryIds() != null) {
             List<Long> diaryIds = validateDiaryIds(userId, request.diaryIds());
             entity.setDiaryIdsJson(writeIds(diaryIds));
@@ -210,6 +257,7 @@ public class LifeEventService {
         }
         entity.setUpdatedAt(LocalDateTime.now());
         userLifeEventMapper.updateById(entity);
+        notifyTimelineChanged(userId, entity.getId());
         return toView(entity);
     }
 
@@ -221,16 +269,70 @@ public class LifeEventService {
         entity.setLastDiaryId(ids.isEmpty() ? null : ids.get(ids.size() - 1));
         entity.setUpdatedAt(LocalDateTime.now());
         userLifeEventMapper.updateById(entity);
+        notifyTimelineChanged(userId, entity.getId());
         return toView(entity);
     }
 
     public LifeEventView getEvent(Long userId, Long eventId) { return toView(requireOwned(userId, eventId)); }
+
+    public String currentTemporalPhase(UserLifeEventEntity entity) {
+        return entity == null ? "PAST" : phaseFor(entity.getTargetDate(), entity.getEndDate(), entity.getStartTime(), entity.getEndTime());
+    }
 
     public List<LifeEventView> listUserEvents(Long userId) {
         return userLifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>()
                 .eq(UserLifeEventEntity::getUserId, userId)
                 .orderByDesc(UserLifeEventEntity::getTargetDate)
                 .orderByDesc(UserLifeEventEntity::getUpdatedAt)).stream().map(this::toView).toList();
+    }
+
+    /**
+     * Repairs values initialized by older migrations without using the database
+     * server timezone. This is intentionally idempotent and never reopens an
+     * event that the user has already marked as followed up.
+     */
+    @Transactional
+    public int repairLegacyEventSchedules() {
+        if (userLifeEventMapper == null) return 0;
+        LocalDateTime now = nowInEventZone();
+        int repaired = 0;
+        List<UserLifeEventEntity> events = userLifeEventMapper.selectList(null);
+        for (UserLifeEventEntity entity : events) {
+            boolean changed = false;
+            String phase = phaseFor(entity.getTargetDate(), entity.getEndDate(), entity.getStartTime(), entity.getEndTime());
+            if (!Objects.equals(entity.getTemporalPhase(), phase)) {
+                entity.setTemporalPhase(phase);
+                changed = true;
+            }
+            if ("FOLLOWED_UP".equalsIgnoreCase(entity.getStatus())) {
+                if (!Boolean.TRUE.equals(entity.getFollowUpCompleted())) {
+                    entity.setFollowUpCompleted(true);
+                    changed = true;
+                }
+                if (entity.getNextFollowUpAt() != null) {
+                    entity.setNextFollowUpAt(null);
+                    changed = true;
+                }
+            } else if ("PENDING".equalsIgnoreCase(entity.getStatus())) {
+                if (entity.getFollowUpCompleted() == null) {
+                    entity.setFollowUpCompleted(false);
+                    changed = true;
+                }
+                if (!Boolean.TRUE.equals(entity.getFollowUpCompleted()) && entity.getNextFollowUpAt() == null) {
+                    entity.setNextFollowUpAt(initialFollowUpAt(entity, phase, null, DEFAULT_FOLLOW_UP_DELAY_DAYS, now));
+                    changed = true;
+                }
+            }
+            if (changed) {
+                entity.setUpdatedAt(LocalDateTime.now());
+                userLifeEventMapper.updateById(entity);
+                repaired++;
+            }
+        }
+        if (repaired > 0) {
+            log.info("历史重要事件回访计划修复完成，修复数量={}，业务时区={}", repaired, eventTimeZone);
+        }
+        return repaired;
     }
 
     public LifeDiaryPage listUserDiaryOptions(Long userId, String keyword, LocalDate startDate,
@@ -280,6 +382,7 @@ public class LifeEventService {
         return new LifeDiaryPage(items, total, safePage, safeSize, (long) safePage * safeSize < total);
     }
 
+    @Transactional
     public LifeEventView updateEventStatus(Long userId, Long eventId, String status, String note) {
         UserLifeEventEntity entity = requireOwned(userId, eventId);
         if (status != null && !status.isBlank()) {
@@ -287,27 +390,124 @@ public class LifeEventService {
             if (!Set.of("PENDING", "FOLLOWED_UP").contains(normalized))
                 throw new ResponseStatusException(BAD_REQUEST, "事件状态只能是 PENDING 或 FOLLOWED_UP");
             entity.setStatus(normalized);
+            if ("FOLLOWED_UP".equals(normalized)) {
+                entity.setFollowUpCompleted(true);
+                entity.setNextFollowUpAt(null);
+            } else {
+                entity.setFollowUpCompleted(false);
+                if (entity.getNextFollowUpAt() == null) entity.setNextFollowUpAt(nowInEventZone());
+            }
         }
         if (note != null) entity.setFollowUpNote(clean(note, 2000));
         entity.setUpdatedAt(LocalDateTime.now());
         userLifeEventMapper.updateById(entity);
+        notifyTimelineChanged(userId, entity.getId());
         return toView(entity);
     }
 
     public Optional<UserLifeEventEntity> getPendingEventForFollowUp(Long userId) {
         return userLifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>()
-                .eq(UserLifeEventEntity::getUserId, userId).eq(UserLifeEventEntity::getStatus, "PENDING"))
-                .stream().filter(this::isDue).max(Comparator.comparing(this::dueAt));
+                .eq(UserLifeEventEntity::getUserId, userId)
+                .eq(UserLifeEventEntity::getStatus, "PENDING"))
+                .stream().filter(event -> !Boolean.TRUE.equals(event.getFollowUpCompleted()))
+                .filter(this::isFollowUpDue)
+                .min(Comparator.comparing(this::followUpAt, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(event -> event.getImportance() == null ? BigDecimal.ZERO : event.getImportance(), Comparator.reverseOrder())
+                        .thenComparing(UserLifeEventEntity::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())));
+    }
+
+    public boolean claimFollowUp(Long userId, Long eventId, LocalDateTime scheduledAt) {
+        if (redisTemplate == null) return true;
+        String time = scheduledAt == null ? "unknown" : scheduledAt.toString();
+        String key = "life-event-follow-up:" + eventId + ":" + time;
+        try {
+            return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, "1", Duration.ofDays(2)));
+        } catch (Exception e) {
+            log.warn("事件回访幂等检查失败，暂不发送，eventId={}", eventId, e);
+            return false;
+        }
+    }
+
+    public void releaseFollowUpClaim(Long eventId, LocalDateTime scheduledAt) {
+        if (redisTemplate == null) return;
+        String time = scheduledAt == null ? "unknown" : scheduledAt.toString();
+        try {
+            redisTemplate.delete("life-event-follow-up:" + eventId + ":" + time);
+        } catch (Exception e) {
+            log.debug("释放事件回访幂等锁失败，eventId={}", eventId, e);
+        }
+    }
+
+    @Transactional
+    public boolean recordFollowUpSent(Long userId, Long eventId, LocalDateTime scheduledAt) {
+        UserLifeEventEntity entity = findOwnedEvent(userId, eventId);
+        if (entity == null || !"PENDING".equalsIgnoreCase(entity.getStatus()) || scheduledAt == null) return false;
+        LocalDateTime currentSchedule = entity.getNextFollowUpAt();
+        if (currentSchedule == null || !currentSchedule.equals(scheduledAt)) {
+            log.info("事件回访计划已变化，忽略旧调度结果，eventId={}，scheduledAt={}，currentSchedule={}",
+                    eventId, scheduledAt, currentSchedule);
+            return false;
+        }
+        LocalDateTime now = nowInEventZone();
+        int count = (entity.getFollowUpCount() == null ? 0 : entity.getFollowUpCount()) + 1;
+        String phase = phaseFor(entity.getTargetDate(), entity.getEndDate(), entity.getStartTime(), entity.getEndTime());
+        LocalDateTime nextFollowUpAt;
+        boolean completed;
+        if ("PAST".equals(phase) || (entity.getEndDate() == null && count >= MAX_FOLLOW_UPS_WITHOUT_END_DATE)) {
+            nextFollowUpAt = null;
+            completed = true;
+        } else if ("UPCOMING".equals(phase)) {
+            nextFollowUpAt = afterEndFollowUpAt(entity);
+            completed = false;
+        } else if (entity.getEndDate() != null) {
+            nextFollowUpAt = atPreferredHour(entity.getEndDate().plusDays(1));
+            completed = false;
+        } else {
+            nextFollowUpAt = now.plusDays(DEFAULT_FOLLOW_UP_DELAY_DAYS);
+            completed = false;
+        }
+        LocalDateTime updatedAt = LocalDateTime.now();
+        UpdateWrapper<UserLifeEventEntity> update = new UpdateWrapper<UserLifeEventEntity>()
+                .eq("id", eventId)
+                .eq("user_id", userId)
+                .eq("status", "PENDING")
+                .eq("next_follow_up_at", scheduledAt)
+                .set("last_follow_up_at", now)
+                .set("follow_up_count", count)
+                .set("temporal_phase", phase)
+                .set("next_follow_up_at", nextFollowUpAt)
+                .set("follow_up_completed", completed)
+                .set("updated_at", updatedAt);
+        int updated = userLifeEventMapper.update(null, update);
+        if (updated != 1) {
+            log.info("事件回访原子更新未命中，忽略旧调度结果，eventId={}，scheduledAt={}", eventId, scheduledAt);
+            return false;
+        }
+        entity.setLastFollowUpAt(now);
+        entity.setFollowUpCount(count);
+        entity.setTemporalPhase(phase);
+        entity.setNextFollowUpAt(nextFollowUpAt);
+        entity.setFollowUpCompleted(completed);
+        entity.setUpdatedAt(updatedAt);
+        log.info("事件回访已记录，eventId={}，scheduledAt={}，followUpCount={}，nextFollowUpAt={}，completed={}",
+                eventId, scheduledAt, entity.getFollowUpCount(), entity.getNextFollowUpAt(), entity.getFollowUpCompleted());
+        return true;
     }
 
     public boolean markEventFollowedUp(Long userId, Long eventId) {
         UserLifeEventEntity entity = findOwnedEvent(userId, eventId);
-        if (entity != null && "PENDING".equals(entity.getStatus())) {
+        if (entity != null && "PENDING".equalsIgnoreCase(entity.getStatus())) {
             entity.setStatus("FOLLOWED_UP");
+            entity.setFollowUpCompleted(true);
+            entity.setNextFollowUpAt(null);
             entity.setUpdatedAt(LocalDateTime.now());
             userLifeEventMapper.updateById(entity);
         }
         return entity != null;
+    }
+
+    private void notifyTimelineChanged(Long userId, Long eventId) {
+        if (lifeChapterService != null) lifeChapterService.onEventChanged(userId, eventId);
     }
 
     public String buildEventContextForChat(Long userId, Long eventId) {
@@ -357,11 +557,13 @@ public class LifeEventService {
                 UserLifeEventEntity duplicate = events.get(j);
                 if (duplicate.getId() == null || duplicate.getTargetDate() == null
                         || !isSameEvent(keeper, duplicate.getTitle(), duplicate.getTargetDate(),
-                        duplicate.getEndDate() == null ? duplicate.getTargetDate() : duplicate.getEndDate())) continue;
+                        duplicate.getEndDate() == null ? duplicate.getTargetDate() : duplicate.getEndDate(), "")) continue;
                 if (keeper.getCreatedAt() != null && duplicate.getCreatedAt() != null
                         && duplicate.getCreatedAt().isBefore(keeper.getCreatedAt())) continue;
-                mergeEvent(keeper, scheduleOf(duplicate), duplicate.getDescription(), null);
-                if ("PENDING".equalsIgnoreCase(duplicate.getStatus())) keeper.setStatus("PENDING");
+                mergeEvent(keeper, scheduleOf(duplicate), duplicate.getDescription(), null,
+                        duplicate.getTemporalPhase(), null, duplicate.getImportance());
+                if ("PENDING".equalsIgnoreCase(duplicate.getStatus())
+                        && !"FOLLOWED_UP".equalsIgnoreCase(keeper.getStatus())) keeper.setStatus("PENDING");
                 if (!normalize(keeper.getTitle()).equals(normalize(duplicate.getTitle()))) {
                     LinkedHashSet<String> aliases = new LinkedHashSet<>(parseStrings(keeper.getTitleAliasesJson()));
                     aliases.add(duplicate.getTitle());
@@ -374,18 +576,24 @@ public class LifeEventService {
         }
     }
 
-    private boolean isSameEvent(UserLifeEventEntity candidate, String title, LocalDate start, LocalDate end) {
+    private boolean isSameEvent(UserLifeEventEntity candidate, String title, LocalDate start, LocalDate end,
+                                String diaryContent) {
         String normalized = normalize(title);
         boolean titleMatch = titleMatches(normalize(candidate.getTitle()), normalized)
                 || parseStrings(candidate.getTitleAliasesJson()).stream().map(this::normalize)
                 .anyMatch(alias -> titleMatches(alias, normalized));
+        if (!titleMatch && diaryContent != null && !diaryContent.isBlank()) {
+            String content = normalize(plain(diaryContent));
+            titleMatch = content.contains(normalize(candidate.getTitle()))
+                    || content.contains(normalized);
+        }
         if (!titleMatch) return false;
         LocalDate candidateStart = candidate.getTargetDate();
         LocalDate candidateEnd = candidate.getEndDate() == null ? candidateStart : candidate.getEndDate();
         if (candidateStart == null) return false;
         long distance = candidateEnd.isBefore(start) ? ChronoUnit.DAYS.between(candidateEnd, start)
                 : end.isBefore(candidateStart) ? ChronoUnit.DAYS.between(end, candidateStart) : 0;
-        return distance <= 7;
+        return distance <= 14;
     }
 
     private boolean titleMatches(String existing, String incoming) {
@@ -393,7 +601,8 @@ public class LifeEventService {
                 && (existing.equals(incoming) || existing.contains(incoming) || incoming.contains(existing));
     }
 
-    private void mergeEvent(UserLifeEventEntity entity, ParsedSchedule incoming, String description, Long diaryId) {
+    private void mergeEvent(UserLifeEventEntity entity, ParsedSchedule incoming, String description, Long diaryId,
+                            String incomingPhase, FollowUpSuggestion followUp, BigDecimal importance) {
         LocalDate oldStart = entity.getTargetDate();
         LocalDate oldEnd = entity.getEndDate() == null ? oldStart : entity.getEndDate();
         LocalDate newStart = oldStart.isBefore(incoming.startDate()) ? oldStart : incoming.startDate();
@@ -403,6 +612,7 @@ public class LifeEventService {
         if (incoming.startTime() != null && (entity.getStartTime() == null || incoming.startTime().isBefore(entity.getStartTime()))) entity.setStartTime(incoming.startTime());
         if (incoming.endTime() != null && (entity.getEndTime() == null || incoming.endTime().isAfter(entity.getEndTime()))) entity.setEndTime(incoming.endTime());
         if ((entity.getDescription() == null || entity.getDescription().isBlank()) && description != null) entity.setDescription(clean(description, 1000));
+        applyTemporalAndFollowUp(entity, incomingPhase, followUp, importance, incoming, true);
         List<Long> ids = parseDiaryIds(entity.getDiaryIdsJson());
         if (diaryId != null && !ids.contains(diaryId)) ids.add(diaryId);
         entity.setDiaryIdsJson(writeIds(ids));
@@ -472,10 +682,139 @@ public class LifeEventService {
     }
     private LifeEventView toView(UserLifeEventEntity entity) {
         List<Long> ids = parseDiaryIds(entity.getDiaryIdsJson());
-        return new LifeEventView(entity.getId(), entity.getTitle(), entity.getDescription(), date(entity.getTargetDate()), date(entity.getEndDate()), time(entity.getStartTime()), time(entity.getEndTime()), visibleStatus(entity.getStatus()), ids, ids.size(), entity.getLastDiaryId(), entity.getFollowUpNote(), value(entity.getCreatedAt()), value(entity.getUpdatedAt()));
+        String phase = validPhaseOrDerived(entity);
+        int followUpCount = entity.getFollowUpCount() == null ? 0 : entity.getFollowUpCount();
+        return new LifeEventView(entity.getId(), entity.getTitle(), entity.getDescription(), date(entity.getTargetDate()), date(entity.getEndDate()), time(entity.getStartTime()), time(entity.getEndTime()), visibleStatus(entity.getStatus()), ids, ids.size(), entity.getLastDiaryId(), entity.getFollowUpNote(), value(entity.getCreatedAt()), value(entity.getUpdatedAt()), phase, minuteValue(entity.getNextFollowUpAt()), minuteValue(entity.getLastFollowUpAt()), followUpCount, clean(entity.getFollowUpReason(), 512), Boolean.TRUE.equals(entity.getFollowUpCompleted()), entity.getImportance());
     }
-    private boolean isDue(UserLifeEventEntity entity) {
-        return entity.getTargetDate() != null && !dueAt(entity).isAfter(LocalDateTime.now(eventTimeZone));
+
+    private void applyTemporalAndFollowUp(UserLifeEventEntity entity, String aiPhase,
+                                          FollowUpSuggestion followUp, BigDecimal importance,
+                                          ParsedSchedule schedule, boolean merged) {
+        String phase = phaseFor(entity.getTargetDate(), entity.getEndDate(), entity.getStartTime(), entity.getEndTime());
+        entity.setTemporalPhase(phase);
+        if (importance != null) entity.setImportance(importance);
+        if (followUp != null && followUp.reason() != null && !followUp.reason().isBlank()) {
+            entity.setFollowUpReason(clean(followUp.reason(), 512));
+        }
+        if ("FOLLOWED_UP".equalsIgnoreCase(entity.getStatus())) {
+            entity.setFollowUpCompleted(true);
+            entity.setNextFollowUpAt(null);
+            return;
+        }
+        if (merged && Boolean.TRUE.equals(entity.getFollowUpCompleted())) {
+            return;
+        }
+        entity.setFollowUpCompleted(false);
+        LocalDateTime now = nowInEventZone();
+        if (!merged || entity.getNextFollowUpAt() == null
+                || ("PAST".equals(phase) && entity.getNextFollowUpAt().isAfter(now))) {
+            int delay = followUp == null || followUp.delayDays() == null
+                    ? DEFAULT_FOLLOW_UP_DELAY_DAYS : followUp.delayDays();
+            String timing = followUp == null ? null : normalizeTiming(followUp.timing());
+            entity.setNextFollowUpAt(initialFollowUpAt(entity, phase, timing, delay, now));
+        }
+    }
+
+    private LocalDateTime initialFollowUpAt(UserLifeEventEntity entity, String phase, String timing,
+                                            int delay, LocalDateTime now) {
+        if ("UPCOMING".equals(phase)) {
+            if (!"AFTER_END".equals(timing) && !"AFTER_EVENT".equals(timing)) {
+                LocalDateTime beforeStart = entity.getTargetDate().atStartOfDay().minusDays(delay).withHour(10);
+                return beforeStart.isAfter(now) ? beforeStart : now;
+            }
+            return afterEndFollowUpAt(entity, delay, now);
+        }
+        if ("PAST".equals(phase)) {
+            LocalDate end = entity.getEndDate() == null ? entity.getTargetDate() : entity.getEndDate();
+            LocalDateTime afterEnd = atPreferredHour(end.plusDays(delay));
+            return afterEnd.isAfter(now) ? afterEnd : now;
+        }
+        if (("AFTER_END".equals(timing) || "AFTER_EVENT".equals(timing)) && entity.getEndDate() != null) {
+            return afterEndFollowUpAt(entity, delay, now);
+        }
+        int inProgressDelay = Math.min(3, Math.max(1, delay));
+        return atPreferredHour(now.toLocalDate().plusDays(inProgressDelay));
+    }
+
+    private LocalDateTime afterEndFollowUpAt(UserLifeEventEntity entity) {
+        return afterEndFollowUpAt(entity, DEFAULT_FOLLOW_UP_DELAY_DAYS, nowInEventZone());
+    }
+
+    private LocalDateTime afterEndFollowUpAt(UserLifeEventEntity entity, int delay, LocalDateTime now) {
+        LocalDate end = entity.getEndDate() == null ? entity.getTargetDate() : entity.getEndDate();
+        LocalDateTime next = atPreferredHour(end.plusDays(Math.min(3, Math.max(1, delay))));
+        return next.isAfter(now) ? next : now;
+    }
+
+    private LocalDateTime atPreferredHour(LocalDate date) {
+        return date.atTime(10, 0);
+    }
+
+    private String validPhaseOrDerived(UserLifeEventEntity entity) {
+        return phaseFor(entity.getTargetDate(), entity.getEndDate(), entity.getStartTime(), entity.getEndTime());
+    }
+
+    private String validateTemporalPhase(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String value = raw.trim().toUpperCase(Locale.ROOT);
+        return Set.of("UPCOMING", "ONGOING", "PAST").contains(value) ? value : null;
+    }
+
+    private BigDecimal validateImportance(BigDecimal value) {
+        if (value == null) return null;
+        if (value.compareTo(BigDecimal.ZERO) < 0 || value.compareTo(BigDecimal.ONE) > 0) {
+            throw new IllegalArgumentException("重要性必须在 0 到 1 之间");
+        }
+        return value;
+    }
+
+    private FollowUpSuggestion validateFollowUp(FollowUpSuggestion suggestion) {
+        if (suggestion == null) return null;
+        int delay = suggestion.delayDays() == null ? DEFAULT_FOLLOW_UP_DELAY_DAYS : suggestion.delayDays();
+        if (delay < 1 || delay > MAX_FOLLOW_UP_DELAY_DAYS) {
+            throw new IllegalArgumentException("回访间隔必须在 1 到 30 天之间");
+        }
+        String timing = normalizeTiming(suggestion.timing());
+        if (suggestion.timing() != null && !suggestion.timing().isBlank() && timing == null) {
+            throw new IllegalArgumentException("回访时机不合法");
+        }
+        return new FollowUpSuggestion(timing, delay, clean(suggestion.reason(), 512));
+    }
+
+    private String normalizeTiming(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String value = raw.trim().toUpperCase(Locale.ROOT);
+        return Set.of("BEFORE_START", "AFTER_END", "IN_PROGRESS", "AFTER_EVENT").contains(value) ? value : null;
+    }
+
+    private String phaseFor(LocalDate start, LocalDate end, LocalTime startTime, LocalTime endTime) {
+        if (start == null) return "PAST";
+        LocalDateTime now = nowInEventZone();
+        LocalDate today = now.toLocalDate();
+        LocalDate actualEnd = end == null ? start : end;
+        LocalDateTime startAt = startTime == null ? start.atStartOfDay() : start.atTime(startTime);
+        if (now.isBefore(startAt)) return "UPCOMING";
+        if (end != null || endTime != null) {
+            LocalDateTime endAt = endTime != null ? actualEnd.atTime(endTime)
+                    : actualEnd.atTime(LocalTime.MAX);
+            if (now.isAfter(endAt)) return "PAST";
+            return "ONGOING";
+        }
+        if (today.isAfter(actualEnd)) return "PAST";
+        return "ONGOING";
+    }
+
+    private LocalDateTime nowInEventZone() {
+        return LocalDateTime.now(eventTimeZone);
+    }
+    private boolean isFollowUpDue(UserLifeEventEntity entity) {
+        if (Boolean.TRUE.equals(entity.getFollowUpCompleted())) return false;
+        LocalDateTime next = entity.getNextFollowUpAt();
+        return next != null && !next.isAfter(nowInEventZone());
+    }
+
+    private LocalDateTime followUpAt(UserLifeEventEntity entity) {
+        return entity.getNextFollowUpAt();
     }
     private LocalDateTime dueAt(UserLifeEventEntity entity) {
         LocalDate date = entity.getEndDate() == null ? entity.getTargetDate() : entity.getEndDate();
@@ -502,6 +841,7 @@ public class LifeEventService {
     private String date(LocalDate value) { return value == null ? "" : value.toString(); }
     private String time(LocalTime value) { return value == null ? "" : value.format(TIME_FORMAT); }
     private String value(LocalDateTime value) { return value == null ? "" : value.toString(); }
+    private String minuteValue(LocalDateTime value) { return value == null ? "" : value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")); }
     private String clean(String value, int max) { if (value == null) return ""; String s = value.trim(); return s.length() > max ? s.substring(0, max) : s; }
     private String plain(String value) { return value == null ? "" : value.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim(); }
     private String normalize(String value) { return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("[\\s\\p{Punct}，。！？、；：‘’“”《》（）【】]+", ""); }

@@ -50,4 +50,5 @@ public class LifeChapterController {
         lifeChapterService.requestRefresh(user.getId(), id);
         return ApiResponse.ok();
     }
+
 }

@@ -89,6 +89,12 @@ const markRead = async (notification: any) => {
 
 const openNotification = async (notification: any) => {
   const didMarkRead = await markRead(notification);
+  const eventId = Number(notification.lifeEventId || notification.eventId);
+  if (didMarkRead && Number.isFinite(eventId) && eventId > 0) {
+    uni.setStorageSync('pendingLifeEventId', eventId);
+    uni.switchTab({ url: '/pages/chat/chat' });
+    return;
+  }
   if (didMarkRead && notification.diaryId) {
     uni.navigateTo({ url: `/pages/detail/detail?id=${notification.diaryId}` });
   }

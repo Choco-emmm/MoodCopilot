@@ -136,6 +136,10 @@ moodcopilot:
     miniapp:
       app-id: ${WX_APP_ID:}
       app-secret: ${WX_APP_SECRET:}
+timeline:
+  max-gap-days: ${TIMELINE_MAX_GAP_DAYS:14}
+  min-evidence-count: ${TIMELINE_MIN_EVIDENCE_COUNT:3}
+  boundary-confidence-threshold: ${TIMELINE_BOUNDARY_CONFIDENCE_THRESHOLD:0.85}
 #Mybatis相关配置
 mybatis-plus:
   map-underscore-to-camel-case: true

@@ -9,6 +9,7 @@ export interface Notification {
   recipientUserId: number
   actorUserId: number | null
   diaryId: number | null
+  lifeEventId: number | null
   commentId: number | null
   type: string
   message: string

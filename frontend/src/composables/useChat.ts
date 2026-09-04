@@ -4,13 +4,14 @@
  */
 import { ref, computed, onMounted, onBeforeUnmount, onActivated, onDeactivated, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { diaryApi } from '../api'
+import { diaryApi, lifeEventApi, type LifeEvent } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { logWarn } from '../utils/logger'
 import { useScrollManager } from './useScrollManager'
 import { useChatConversation, type Message, nextMsgId } from './useChatConversation'
 import { useChatStream, type ChatReference } from './useChatStream'
 import { useChatSync } from './useChatSync'
+import { consumePendingChatEventContext } from '../utils/chatContext'
 
 export function useChat() {
   const router = useRouter()
@@ -76,6 +77,39 @@ export function useChat() {
 
   const pendingEventId = ref<number | undefined>(undefined)
 
+  async function applyEventContext(eventId: number, supplied?: { title?: string; description?: string; targetDate?: string; endDate?: string; startTime?: string; endTime?: string }) {
+    if (!Number.isFinite(eventId) || eventId <= 0) return
+    let event = supplied
+    if (!event?.title) {
+      try {
+        const response = await lifeEventApi.get(eventId)
+        event = response.data.data
+      } catch (e) {
+        logWarn('chat', '加载事件引用失败', eventId, e)
+      }
+    }
+    const title = event?.title || `事件 #${eventId}`
+    const details = [
+      event?.description,
+      event?.targetDate ? `时间：${event.targetDate}${event.endDate ? ` 至 ${event.endDate}` : ''}` : '',
+    ].filter(Boolean).join('\n')
+    stream.references.value = stream.references.value.filter(reference => reference.eventId !== eventId)
+    stream.references.value.unshift({
+      label: '事件',
+      displayContent: `事件 · ${title}`,
+      content: details || `事件：${title}`,
+      fullContent: `事件：${title}${details ? `\n${details}` : ''}`,
+      eventId,
+      sourceType: 'event',
+    })
+    pendingEventId.value = eventId
+  }
+
+  async function consumePendingEventContext() {
+    const context = consumePendingChatEventContext()
+    if (context) await applyEventContext(context.eventId, context)
+  }
+
   function useQuickStarter(text: string, eventId?: number) {
     pendingEventId.value = eventId
     stream.draft.value = text
@@ -86,6 +120,32 @@ export function useChat() {
   const recentDiaryOptions = ref<{ id: number; date: string; snippet: string; fullContent: string }[]>([])
   const recentDiariesLoading = ref(false)
   const recentDiariesError = ref<string | null>(null)
+
+  const recentEventOptions = ref<LifeEvent[]>([])
+  const recentEventsLoading = ref(false)
+  const recentEventsError = ref<string | null>(null)
+
+  async function loadRecentEventOptions() {
+    recentEventsLoading.value = true
+    recentEventsError.value = null
+    try {
+      const response = await lifeEventApi.list()
+      recentEventOptions.value = (response.data.data || []).filter(event => event.status !== 'FOLLOWED_UP').slice(0, 20)
+    } catch (e) {
+      recentEventOptions.value = []
+      recentEventsError.value = '加载重要事件失败'
+      logWarn('chat', '加载引用事件失败', e)
+    } finally {
+      recentEventsLoading.value = false
+    }
+  }
+
+  function addEventRef(eventId: string) {
+    const event = recentEventOptions.value.find(item => String(item.id) === eventId)
+    const id = Number(eventId)
+    if (!Number.isFinite(id) || id <= 0) return
+    void applyEventContext(id, event)
+  }
 
   async function loadRecentDiaryOptions() {
     recentDiariesLoading.value = true
@@ -228,9 +288,11 @@ export function useChat() {
       history.replaceState({ ...history.state, references: undefined, autoSend: undefined }, '')
     }
     if (state?.eventId) {
-      pendingEventId.value = Number(state.eventId)
+      void applyEventContext(Number(state.eventId))
       history.replaceState({ ...history.state, eventId: undefined }, '')
     }
+
+    await consumePendingEventContext()
 
     await conv.loadConversations()
     await loadRecentDiaryOptions()
@@ -290,6 +352,12 @@ export function useChat() {
   onActivated(async () => {
     // Resume sync polling and scroll to latest messages
     sync.startAutoSync()
+    await consumePendingEventContext()
+    const state = history.state as any
+    if (state?.eventId) {
+      void applyEventContext(Number(state.eventId))
+      history.replaceState({ ...history.state, eventId: undefined }, '')
+    }
     await selectPendingConversation()
     loadRecentDiaryOptions()
     if (window.visualViewport) {
@@ -336,6 +404,11 @@ export function useChat() {
     recentDiariesError,
     addDiaryRef,
     loadRecentDiaryOptions,
+    recentEventOptions,
+    recentEventsLoading,
+    recentEventsError,
+    addEventRef,
+    loadRecentEventOptions,
     // quick starters
     quickStarters,
     quickStartersLoading,

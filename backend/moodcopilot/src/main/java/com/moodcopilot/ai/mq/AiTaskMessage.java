@@ -19,4 +19,5 @@ public record AiTaskMessage(
     public static final String TYPE_REPORT_INVALIDATION = "REPORT_INVALIDATION";
     public static final String TYPE_NOTIFICATION = "NOTIFICATION";
     public static final String TYPE_LIFE_CHAPTER_REFRESH = "LIFE_CHAPTER_REFRESH";
+    public static final String TYPE_TIMELINE_RECOMPUTE = "TIMELINE_RECOMPUTE";
 }

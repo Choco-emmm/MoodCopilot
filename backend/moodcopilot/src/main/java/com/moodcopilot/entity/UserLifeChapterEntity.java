@@ -41,6 +41,13 @@ public class UserLifeChapterEntity {
     private LocalDateTime lastGeneratedAt;
     private String lastGenerationError;
     private Long lockVersion;
+    private String segmentType;
+    private Boolean isOpen;
+    private String boundaryReason;
+    private java.math.BigDecimal boundaryConfidence;
+    private LocalDateTime lastSourceAt;
+    private Long previousChapterId;
+    private Long nextChapterId;
 
     public Long getId() {
         return id;
@@ -146,4 +153,18 @@ public class UserLifeChapterEntity {
     public void setLastGenerationError(String lastGenerationError) { this.lastGenerationError = lastGenerationError; }
     public Long getLockVersion() { return lockVersion; }
     public void setLockVersion(Long lockVersion) { this.lockVersion = lockVersion; }
+    public String getSegmentType() { return segmentType; }
+    public void setSegmentType(String value) { segmentType = value; }
+    public Boolean getIsOpen() { return isOpen; }
+    public void setIsOpen(Boolean value) { isOpen = value; }
+    public String getBoundaryReason() { return boundaryReason; }
+    public void setBoundaryReason(String value) { boundaryReason = value; }
+    public java.math.BigDecimal getBoundaryConfidence() { return boundaryConfidence; }
+    public void setBoundaryConfidence(java.math.BigDecimal value) { boundaryConfidence = value; }
+    public LocalDateTime getLastSourceAt() { return lastSourceAt; }
+    public void setLastSourceAt(LocalDateTime value) { lastSourceAt = value; }
+    public Long getPreviousChapterId() { return previousChapterId; }
+    public void setPreviousChapterId(Long value) { previousChapterId = value; }
+    public Long getNextChapterId() { return nextChapterId; }
+    public void setNextChapterId(Long value) { nextChapterId = value; }
 }

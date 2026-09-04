@@ -6,66 +6,35 @@
       <h2>时光画卷</h2>
       <p>把一段段日子放远一点看，成长往往藏在那些当时没有察觉的转弯里。</p>
     </section>
+    <section v-if="candidates.length" class="candidate-panel" aria-live="polite">
+      <div class="section-heading"><span class="section-kicker">需要你确认</span><h3>可能是新的阶段</h3></div>
+      <div v-for="candidate in candidates" :key="candidate.id" class="candidate-item">
+        <div><strong>{{ candidate.suggestedStartDate }} 起</strong><p>{{ candidate.reason }}</p><span>涉及 {{ candidate.sourceDiaryIds.length + candidate.sourceEventIds.length }} 条记录</span></div>
+        <div class="candidate-actions"><button type="button" class="text-button" @click="rejectCandidate(candidate.id)">暂不分开</button><button type="button" class="primary-button" @click="acceptCandidate(candidate.id)">接受新阶段</button></div>
+      </div>
+    </section>
     <section class="chapter-list" aria-live="polite">
       <div v-if="loading" class="state">正在翻阅你的时光...</div>
       <div v-else-if="error" class="state error">{{ error }}</div>
       <div v-else-if="chapters.length === 0" class="state">还没有足够长的一段故事。继续记录，章节会慢慢长出来。</div>
-      <article v-for="(chapter, index) in chapters" :key="chapter.id" class="chapter-entry">
+      <div v-else-if="currentChapter" class="chapter-group current-group"><p class="group-label">当前阶段</p><article class="chapter-entry" :key="currentChapter.id">
+        <div class="chapter-marker"><span>今</span></div>
+        <div class="chapter-body"><LifeChapterContent :chapter="currentChapter" :expanded-id="expandedId" :versions-id="versionsId" :versions="versions" :refreshing-id="refreshingId" @toggle-sources="toggleSources" @toggle-versions="toggleVersions" @refresh="refreshChapter" @open-diary="openDiary" @open-events="openEvents" /></div>
+      </article></div>
+      <div v-if="historyChapters.length" class="chapter-group"><p class="group-label">更早阶段</p><article v-for="(chapter, index) in historyChapters" :key="chapter.id" class="chapter-entry">
         <div class="chapter-marker"><span>{{ String(index + 1).padStart(2, '0') }}</span></div>
-        <div class="chapter-body">
-          <div class="chapter-period">{{ chapter.startDate }} — {{ chapter.endDate }} · {{ chapter.diaryCount }} 篇日记</div>
-          <h3>{{ chapter.title }}</h3>
-          <div class="chapter-meta">
-            <span>第 {{ chapter.currentVersion || 1 }} 版</span>
-            <span v-if="chapter.lastGeneratedAt">最近更新 {{ chapter.lastGeneratedAt }}</span>
-            <span v-else-if="chapter.updatedAt">最近更新 {{ chapter.updatedAt }}</span>
-            <span v-if="chapter.generationStatus === 'DIRTY' || chapter.generationStatus === 'GENERATING'" class="status updating">正在更新</span>
-            <span v-else-if="chapter.generationStatus === 'FAILED'" class="status failed">更新失败，已保留上一版</span>
-          </div>
-          <p class="chapter-summary">{{ chapter.themeSummary }}</p>
-          <p v-if="chapter.growthReflection" class="chapter-reflection">{{ chapter.growthReflection }}</p>
-          <div v-if="chapter.dominantMoods?.length" class="mood-row">
-            <span v-for="mood in chapter.dominantMoods" :key="mood">{{ mood }}</span>
-          </div>
-          <p v-if="chapter.generationStatus === 'FAILED' && chapter.lastGenerationError" class="chapter-error">{{ chapter.lastGenerationError }}</p>
-          <div class="chapter-actions">
-            <button type="button" class="text-button" @click="toggleSources(chapter.id)">
-              {{ expandedId === chapter.id ? '收起来源' : `查看来源（${(chapter.diarySources?.length || 0) + (chapter.eventSources?.length || 0)}）` }}
-            </button>
-            <button type="button" class="text-button" :disabled="refreshingId === chapter.id" @click="refreshChapter(chapter)">
-              {{ refreshingId === chapter.id ? '已提交更新' : '更新这一章' }}
-            </button>
-            <button v-if="(chapter.currentVersion || 0) > 1" type="button" class="text-button" @click="toggleVersions(chapter.id)">
-              {{ versionsId === chapter.id ? '收起历史' : '查看历史版本' }}
-            </button>
-          </div>
-          <div v-if="expandedId === chapter.id" class="source-list">
-            <div v-for="source in chapter.diarySources" :key="source.id" class="source-item">
-              <div><span class="source-date">{{ source.date }}</span><span class="source-excerpt">{{ source.excerpt || source.summary || '这篇日记暂无摘要' }}</span></div>
-              <button type="button" class="source-link" @click="router.push(`/diary/${source.id}`)">查看日记 →</button>
-            </div>
-            <div v-for="source in chapter.eventSources" :key="`event-${source.id}`" class="source-item">
-              <div><span class="source-date">{{ source.startDate }}</span><span class="source-excerpt">重要事件：{{ source.title }}</span></div>
-              <button type="button" class="source-link" @click="router.push('/life-events')">查看事件 →</button>
-            </div>
-            <span v-if="!chapter.diarySources?.length && !chapter.eventSources?.length" class="empty-source">暂无来源</span>
-          </div>
-          <div v-if="versionsId === chapter.id" class="version-list">
-            <div v-for="version in versions[chapter.id] || []" :key="version.version" class="version-item">
-              <strong>第 {{ version.version }} 版 · {{ version.createdAt }}</strong>
-              <span>{{ version.title }}</span>
-            </div>
-          </div>
-        </div>
-      </article>
+        <div class="chapter-body"><LifeChapterContent :chapter="chapter" :expanded-id="expandedId" :versions-id="versionsId" :versions="versions" :refreshing-id="refreshingId" @toggle-sources="toggleSources" @toggle-versions="toggleVersions" @refresh="refreshChapter" @open-diary="openDiary" @open-events="openEvents" /></div>
+      </article></div>
+      <div v-if="gaps.length" class="gaps"><p class="group-label">记录较少的时间段</p><div v-for="gap in gaps" :key="`${gap.startDate}-${gap.endDate}`">{{ gap.startDate }} - {{ gap.endDate }}<span>这段时间暂时没有足够记录</span></div></div>
     </section>
   </main>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import AppHeader from '../components/AppHeader.vue'
-import { lifeChapterApi, type LifeChapter } from '../api/life'
+import LifeChapterContent from '../components/LifeChapterContent.vue'
+import { lifeChapterApi, type LifeChapter, type LifeChapterVersion, type LifeTimelineCandidate } from '../api/life'
 import { useRouter } from 'vue-router'
 
 const chapters = ref<LifeChapter[]>([])
@@ -73,21 +42,33 @@ const loading = ref(true)
 const error = ref('')
 const expandedId = ref<number | null>(null)
 const versionsId = ref<number | null>(null)
-const versions = ref<Record<number, Awaited<ReturnType<typeof lifeChapterApi.versions>>['data']['data']>>({})
+const versions = ref<Record<number, LifeChapterVersion[]>>({})
 const refreshingId = ref<number | null>(null)
+const candidates = ref<LifeTimelineCandidate[]>([])
+const gaps = ref<{ startDate: string; endDate: string }[]>([])
 const router = useRouter()
+const currentChapter = computed(() => chapters.value.find(chapter => chapter.isOpen))
+const historyChapters = computed(() => chapters.value.filter(chapter => !chapter.isOpen))
 
 async function loadChapters() {
-  chapters.value = (await lifeChapterApi.list()).data.data || []
+  const timeline = (await lifeChapterApi.timeline({ includeGaps: true, size: 50 })).data.data
+  chapters.value = timeline?.stages || []
+  gaps.value = timeline?.gaps || []
+  candidates.value = (await lifeChapterApi.candidates()).data.data || []
 }
 
 function toggleSources(id: number) { expandedId.value = expandedId.value === id ? null : id }
 
 async function toggleVersions(id: number) {
   if (versionsId.value === id) { versionsId.value = null; return }
-  if (!versions.value[id]) versions.value[id] = (await lifeChapterApi.versions(id)).data.data || []
+  if (!versions.value[id]) versions.value[id] = (await lifeChapterApi.timelineVersions(id)).data.data || []
   versionsId.value = id
 }
+
+async function acceptCandidate(id: number) { await lifeChapterApi.acceptCandidate(id); await loadChapters() }
+async function rejectCandidate(id: number) { await lifeChapterApi.rejectCandidate(id); await loadChapters() }
+function openDiary(id: number) { router.push(`/diary/${id}`) }
+function openEvents() { router.push('/life-events') }
 
 async function refreshChapter(chapter: LifeChapter) {
   refreshingId.value = chapter.id
@@ -112,6 +93,8 @@ onMounted(async () => {
 .eyebrow { margin: 0 0 10px; color: var(--color-primary); font-size: 11px; font-weight: 700; letter-spacing: .14em; }
 .life-intro h2 { margin: 0 0 8px; color: var(--color-text); font-family: var(--font-display); font-size: 2.3rem; }
 .life-intro p:last-child { max-width: 560px; margin: 0; color: var(--color-text-secondary); line-height: 1.7; }
+.candidate-panel { max-width: 860px; margin: 0 auto 34px; padding: 18px 24px; border: 1px solid var(--color-border); background: var(--color-surface-soft); }
+.section-heading { display: flex; align-items: baseline; gap: 12px; }.section-heading h3 { margin: 0; color: var(--color-text); font-family: var(--font-display); font-size: 1.3rem; }.section-kicker, .group-label { color: var(--color-primary); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }.candidate-item { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 0 4px; border-top: 1px solid var(--color-border); }.candidate-item:first-of-type { margin-top: 14px; }.candidate-item p { margin: 6px 0; color: var(--color-text-secondary); }.candidate-item span { color: var(--color-text-muted); font-size: 12px; }.candidate-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }.primary-button { padding: 8px 14px; border: 0; background: var(--color-primary); color: var(--color-on-primary); cursor: pointer; font: inherit; font-size: 12px; }.group-label { margin: 0; padding: 0 0 8px; }.chapter-group { max-width: none; margin: 0; padding: 0; }.current-group { margin-bottom: 24px; }.gaps { max-width: none; margin: 30px 0; padding: 0; }.gaps > div { display: flex; justify-content: space-between; gap: 20px; padding: 12px 0; border-top: 1px solid var(--color-border); color: var(--color-text-muted); font-size: 12px; }.gaps span { color: var(--color-text-secondary); }
 .chapter-list { max-width: 860px; margin: 0 auto 70px; padding: 0 24px; }
 .chapter-entry { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 22px; padding: 28px 0 34px; border-top: 1px solid var(--color-border); }
 .chapter-marker { display: flex; justify-content: center; }
@@ -135,5 +118,16 @@ onMounted(async () => {
 .source-date { display: inline-block; min-width: 90px; color: var(--color-text-muted); }
 .source-excerpt, .version-item span { color: var(--color-text-secondary); }
 .empty-source { color: var(--color-text-muted); font-size: 12px; }
-@media (max-width: 620px) { .source-item { align-items: flex-start; flex-direction: column; gap: 5px; } .source-date { min-width: auto; margin-right: 8px; } }
+@media (max-width: 620px) {
+  .chapter-list { padding: 0 16px; }
+  .candidate-item, .gaps > div { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .chapter-entry { grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 22px 0 28px; }
+  .chapter-marker span { width: 32px; height: 32px; font-size: 10px; }
+  .chapter-body h3 { margin-top: 8px; font-size: 1.35rem; line-height: 1.35; }
+  .chapter-period, .chapter-meta { line-height: 1.55; }
+  .chapter-summary, .chapter-reflection, .collecting-note { max-width: none; }
+  .chapter-actions { gap: 12px 16px; }
+  .source-item { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .source-date { min-width: auto; margin-right: 8px; }
+}
 </style>

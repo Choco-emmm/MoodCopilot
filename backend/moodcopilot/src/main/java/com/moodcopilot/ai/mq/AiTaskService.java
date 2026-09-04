@@ -280,7 +280,7 @@ public class AiTaskService {
             DiaryEntity diary = new DiaryEntity();
             diary.setId(Long.valueOf(task.getAggregateId()));
             diary.setAnalysisStatus("failed");
-            diary.setAnalysisError(error == null ? task.getLastError() : error);
+            diary.setAnalysisError(truncate(error == null ? task.getLastError() : error, 1000));
             diaryMapper.updateById(diary);
             log.warn("日记分析任务最终失败，已更新日记失败状态，diaryId={}，taskStatus={}",
                     task.getAggregateId(), task.getStatus());
@@ -332,6 +332,7 @@ public class AiTaskService {
             case AiTaskMessage.TYPE_LIFE_EVENT_EXTRACTION -> RabbitMqConfig.LIFE_EVENT_QUEUE;
             case AiTaskMessage.TYPE_GRAPH_EXTRACTION -> RabbitMqConfig.GRAPH_QUEUE;
             case AiTaskMessage.TYPE_LIFE_CHAPTER_REFRESH -> RabbitMqConfig.LIFE_CHAPTER_QUEUE;
+            case AiTaskMessage.TYPE_TIMELINE_RECOMPUTE -> RabbitMqConfig.LIFE_CHAPTER_QUEUE;
             case AiTaskMessage.TYPE_DIARY_RAG_INDEX, AiTaskMessage.TYPE_GRAPH_RAG_INDEX,
                     AiTaskMessage.TYPE_MEMORY_RAG_INDEX -> RabbitMqConfig.RAG_QUEUE;
             case AiTaskMessage.TYPE_REPORT_INVALIDATION -> RabbitMqConfig.REPORT_QUEUE;

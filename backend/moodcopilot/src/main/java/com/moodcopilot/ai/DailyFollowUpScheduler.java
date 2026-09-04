@@ -5,6 +5,8 @@ import com.moodcopilot.common.RateLimitException;
 import com.moodcopilot.diary.DiaryAnalysis;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.entity.DiaryEntity;
+import com.moodcopilot.entity.UserLifeEventEntity;
+import com.moodcopilot.event.LifeEventService;
 import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.mapper.UserMapper;
@@ -13,16 +15,21 @@ import com.moodcopilot.security.RateLimitService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.LinkedHashSet;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 @Component
 public class DailyFollowUpScheduler {
@@ -31,6 +38,8 @@ public class DailyFollowUpScheduler {
 
     private static final String SENT_KEY_PREFIX = "dailyfu:sent:";
     private static final Duration SENT_TTL = Duration.ofHours(26);
+    private static final DefaultRedisScript<Long> RELEASE_DAILY_CLAIM = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end", Long.class);
 
     private final UserMapper userMapper;
     private final DiaryMapper diaryMapper;
@@ -39,14 +48,19 @@ public class DailyFollowUpScheduler {
     private final NotificationService notificationService;
     private final RateLimitService rateLimitService;
     private final StringRedisTemplate redisTemplate;
+    private final LifeEventService lifeEventService;
+    private final ZoneId eventTimeZone;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public DailyFollowUpScheduler(UserMapper userMapper,
             DiaryMapper diaryMapper,
             DiaryAnalysisMapper diaryAnalysisMapper,
             AiAnalysisService aiAnalysisService,
             NotificationService notificationService,
             RateLimitService rateLimitService,
-            StringRedisTemplate redisTemplate) {
+            StringRedisTemplate redisTemplate,
+            LifeEventService lifeEventService,
+            @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId) {
         this.userMapper = userMapper;
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
@@ -54,6 +68,20 @@ public class DailyFollowUpScheduler {
         this.notificationService = notificationService;
         this.rateLimitService = rateLimitService;
         this.redisTemplate = redisTemplate;
+        this.lifeEventService = lifeEventService;
+        this.eventTimeZone = parseTimeZone(timeZoneId);
+    }
+
+    /** 兼容不需要事件回访的旧单元测试构造方式。 */
+    public DailyFollowUpScheduler(UserMapper userMapper,
+            DiaryMapper diaryMapper,
+            DiaryAnalysisMapper diaryAnalysisMapper,
+            AiAnalysisService aiAnalysisService,
+            NotificationService notificationService,
+            RateLimitService rateLimitService,
+            StringRedisTemplate redisTemplate) {
+        this(userMapper, diaryMapper, diaryAnalysisMapper, aiAnalysisService, notificationService,
+                rateLimitService, redisTemplate, null, "Asia/Shanghai");
     }
 
     /**
@@ -62,27 +90,59 @@ public class DailyFollowUpScheduler {
      */
     @Scheduled(cron = "0 0 * * * *")
     public void sendDailyFollowUp() {
-        int currentHour = LocalDateTime.now().getHour();
+        LocalDateTime now = LocalDateTime.now(eventTimeZone);
+        int currentHour = now.getHour();
         log.info("每日跟进定时任务触发，currentHour={}", currentHour);
 
-        List<Long> userIds = userMapper.findActiveUsersWithDiariesYesterday();
+        LinkedHashSet<Long> userIdSet = new LinkedHashSet<>(userMapper.findActiveUsersWithDiariesYesterday());
+        userIdSet.addAll(userMapper.findUsersWithDueLifeEvents(now));
+        List<Long> userIds = new ArrayList<>(userIdSet);
         if (userIds.isEmpty()) {
             log.info("没有需要发送每日通知的用户");
             return;
         }
 
-        String today = LocalDate.now().toString();
+        String today = now.toLocalDate().toString();
         int sent = 0;
         int skipped = 0;
         for (Long userId : userIds) {
+            String dailyClaim = null;
+            boolean notificationPersisted = false;
             try {
+                // 事件回访和普通陪伴共用每日闸门，保证同一天最多一条系统主动消息。
+                dailyClaim = claimDailySend(userId, today);
+                if (dailyClaim == null) {
+                    continue;
+                }
+                Optional<UserLifeEventEntity> event = lifeEventService == null
+                        ? Optional.empty() : lifeEventService.getPendingEventForFollowUp(userId);
+                if (event.isPresent()) {
+                    UserLifeEventEntity pending = event.get();
+                    LocalDateTime scheduledAt = pending.getNextFollowUpAt();
+                    if (scheduledAt == null) scheduledAt = now;
+                    if (lifeEventService.claimFollowUp(userId, pending.getId(), scheduledAt)) {
+                        String reason = pending.getFollowUpReason();
+                        String message = "我想起你提到的「" + pending.getTitle() + "" +
+                                "」，现在方便和我聊聊近况吗？" +
+                                (reason == null || reason.isBlank() ? "" : "\n" + reason);
+                        notificationPersisted = notificationService.notifyDailyFollowUp(userId, pending.getId(), message);
+                        if (!notificationPersisted) {
+                            lifeEventService.releaseFollowUpClaim(pending.getId(), scheduledAt);
+                            log.warn("事件回访通知未落库，保留回访计划，userId={}，eventId={}", userId, pending.getId());
+                            continue;
+                        }
+                        boolean recorded = lifeEventService.recordFollowUpSent(userId, pending.getId(), scheduledAt);
+                        if (!recorded) {
+                            log.info("事件回访通知已落库但计划已变化，未推进旧回访状态，userId={}，eventId={}", userId, pending.getId());
+                        }
+                        sent++;
+                        log.info("事件回访通知已发送，userId={}，eventId={}，scheduledAt={}", userId, pending.getId(), scheduledAt);
+                    }
+                    continue;
+                }
                 if (!isPreferredHour(userId, currentHour)) {
                     continue;
                 }
-                if (alreadySentToday(userId, today)) {
-                    continue;
-                }
-
                 try {
                     rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.ANALYSIS);
                 } catch (RateLimitException e) {
@@ -134,11 +194,18 @@ public class DailyFollowUpScheduler {
                 String message = String.format(
                         "%s！已连续记录 %d 天，昨天是「%s」。\n\n%s", greeting, streak, yesterdayMood, coaching);
 
-                notificationService.notifyDailyFollowUp(userId, message);
-                markSentToday(userId, today);
+                notificationPersisted = notificationService.notifyDailyFollowUp(userId, message);
+                if (!notificationPersisted) {
+                    log.warn("每日陪伴通知未落库，userId={}，允许后续重试", userId);
+                    continue;
+                }
                 sent++;
             } catch (Exception e) {
                 log.warn("用户 {} 每日通知生成失败: {}", userId, e.getMessage());
+            } finally {
+                if (!notificationPersisted && dailyClaim != null) {
+                    releaseDailyClaim(userId, today, dailyClaim);
+                }
             }
         }
         log.info("每日跟进通知完成: 发送 {} 条, 额度不足跳过 {} 人", sent, skipped);
@@ -163,19 +230,25 @@ public class DailyFollowUpScheduler {
         return "晚上好";
     }
 
-    private boolean alreadySentToday(long userId, String today) {
+    private String claimDailySend(long userId, String today) {
+        if (redisTemplate == null) return "local-test-claim";
+        String key = SENT_KEY_PREFIX + userId + ":" + today;
+        String token = UUID.randomUUID().toString();
         try {
-            return Boolean.TRUE.equals(redisTemplate.hasKey(SENT_KEY_PREFIX + userId + ":" + today));
+            return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, token, SENT_TTL)) ? token : null;
         } catch (Exception e) {
-            return false;
+            log.warn("每日通知闸门抢占失败，userId={}", userId, e);
+            return null;
         }
     }
 
-    private void markSentToday(long userId, String today) {
+    private void releaseDailyClaim(long userId, String today, String token) {
+        if (redisTemplate == null || token == null) return;
         try {
-            redisTemplate.opsForValue().set(SENT_KEY_PREFIX + userId + ":" + today, "1", SENT_TTL);
+            redisTemplate.execute(RELEASE_DAILY_CLAIM,
+                    java.util.List.of(SENT_KEY_PREFIX + userId + ":" + today), token);
         } catch (Exception e) {
-            log.debug("标记今日已发送失败, userId={}", userId, e);
+            log.debug("释放每日通知闸门失败, userId={}", userId, e);
         }
     }
 
@@ -210,5 +283,14 @@ public class DailyFollowUpScheduler {
             log.debug("连续天数缓存写入失败, userId={}", userId, e);
         }
         return streak;
+    }
+
+    private ZoneId parseTimeZone(String timeZoneId) {
+        try {
+            return timeZoneId == null || timeZoneId.isBlank() ? ZoneId.of("Asia/Shanghai") : ZoneId.of(timeZoneId.trim());
+        } catch (Exception e) {
+            log.warn("事件回访时区配置无效，回退到 Asia/Shanghai: {}", timeZoneId);
+            return ZoneId.of("Asia/Shanghai");
+        }
     }
 }

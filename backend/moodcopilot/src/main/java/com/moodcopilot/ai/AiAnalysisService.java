@@ -245,7 +245,11 @@ public class AiAnalysisService {
             if (key.isBlank() || attributeValue.isBlank()) {
                 continue;
             }
-            String memoryType = signalString(item.get("memoryType"));
+            String memoryType = signalString(item.get("memoryType")).toLowerCase(java.util.Locale.ROOT);
+            if (!MemorySafetyPolicy.isSupportedType(memoryType)) {
+                log.warn("忽略主分析返回的非法记忆类型，memoryType={}，attributeKey={}", memoryType, key);
+                continue;
+            }
             String assertionType = signalString(item.get("assertionType"));
             String evidence = signalString(item.get("evidence"));
             Double confidence = signalDouble(item.get("confidence"));

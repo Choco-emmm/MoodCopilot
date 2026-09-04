@@ -8,6 +8,7 @@ import org.springframework.util.DigestUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.time.LocalDate;
 
 @Service
 public class AiTaskProducer {
@@ -71,6 +72,13 @@ public class AiTaskProducer {
         taskService.enqueue(userId, AiTaskMessage.TYPE_LIFE_CHAPTER_REFRESH, String.valueOf(chapterId),
                 sourceSnapshotHash, null, "chapter:" + chapterId + ":refresh:" + sourceSnapshotHash,
                 Map.of(), null);
+    }
+
+    public void submitTimelineRecomputeTask(Long userId, LocalDate affectedDate, String sourceSnapshot) {
+        String date = affectedDate.toString();
+        taskService.enqueue(userId, AiTaskMessage.TYPE_TIMELINE_RECOMPUTE, date, sourceSnapshot,
+                null, "timeline:" + userId + ":" + date + ":" + sourceSnapshot,
+                Map.of("affectedDate", date), null);
     }
 
     private void submit(long userId, String taskType, long diaryId, String analysisVersion,

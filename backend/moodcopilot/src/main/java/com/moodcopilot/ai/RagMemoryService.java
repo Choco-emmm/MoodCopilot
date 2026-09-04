@@ -75,6 +75,7 @@ public class RagMemoryService {
     public static final String SOURCE_MUSIC = "music";
     public static final String SOURCE_IMAGE = "image";
     public static final String SOURCE_GRAPH = "graph";
+    public static final String SOURCE_CHAPTER = "chapter";
 
     private final String embeddingApiUrl;
     private final String embeddingApiKey;
@@ -339,6 +340,26 @@ public class RagMemoryService {
      */
     public void indexUserProfile(long userId, List<UserProfileMemoryEntity> memories) {
         indexUserProfile(userId, memories, System.currentTimeMillis());
+    }
+
+    public void indexLifeChapter(long userId, long chapterId, String content, String updatedAt) {
+        if (content == null || content.isBlank()) return;
+        String key = "chapter:" + userId + ":" + chapterId;
+        String fingerprint = DigestUtils.md5DigestAsHex((chapterId + "|" + content).getBytes(StandardCharsets.UTF_8));
+        if (fingerprint.equals(readHashValue(KEY_PREFIX + key, "content_hash"))) {
+            log.info("RAG 阶段摘要未变化，跳过向量化 userId={} chapterId={}", userId, chapterId);
+            return;
+        }
+        float[] vector = embed(content);
+        if (vector == null || vector.length == 0) throw new IllegalStateException("阶段摘要 embedding 为空");
+        storeEmbedding(key, userId, SOURCE_CHAPTER, content, vector,
+                Map.of("chapter_id", String.valueOf(chapterId), "content_hash", fingerprint,
+                        "chapter_updated_at", updatedAt == null ? "" : updatedAt));
+        log.info("RAG 阶段摘要已索引 userId={} chapterId={}", userId, chapterId);
+    }
+
+    public void deleteLifeChapter(long userId, long chapterId) {
+        redis.delete(KEY_PREFIX + "chapter:" + userId + ":" + chapterId);
     }
 
     public void indexUserProfile(long userId, List<UserProfileMemoryEntity> memories, long snapshotAt) {

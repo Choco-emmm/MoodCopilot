@@ -4,7 +4,7 @@
     <section class="life-intro">
       <div>
         <p class="eyebrow">PENDING THREADS</p>
-        <h2>重要事件</h2>
+        <div class="title-with-info"><h2>重要事件</h2><button class="info-button" type="button" aria-label="了解重要事件回访规则" title="了解重要事件回访规则" @click="eventInfoOpen = true">i</button></div>
         <p>那些还在心里占着位置的事，值得被记住，也值得有人回来问一句。</p>
       </div>
       <button class="add-button" type="button" @click="openCreate">＋ 添加事件</button>
@@ -17,11 +17,13 @@
       <article v-for="event in events" :key="event.id" class="event-entry">
         <div class="event-date">
           <strong>{{ formatSchedule(event) }}</strong>
-          <span>{{ statusLabel(event.status) }}</span>
+          <span>{{ statusLabel(event) }}</span>
+          <span v-if="phaseLabel(event.temporalPhase)">{{ phaseLabel(event.temporalPhase) }}</span>
         </div>
         <div class="event-body">
           <h3>{{ event.title }}</h3>
           <p v-if="event.description">{{ event.description }}</p>
+          <p v-if="event.followUpReason && event.status === 'PENDING'" class="event-meta">适合之后再聊：{{ event.followUpReason }}</p>
           <button v-if="event.diaryIds?.length" class="event-meta event-meta-link" type="button" title="查看关联日记" @click="openLinkedDiary(event)">
             关联 {{ event.diaryCount ?? event.diaryIds.length }} 篇日记 <span aria-hidden="true">↗</span>
           </button>
@@ -37,6 +39,18 @@
     </section>
 
     <button v-if="undoEvent" class="undo-toast" type="button" @click="undoFollowUp">已标记为已跟进 · <span>撤销</span></button>
+
+    <div v-if="eventInfoOpen" class="modal-backdrop" @click.self="eventInfoOpen = false">
+      <section class="info-dialog" role="dialog" aria-modal="true" aria-labelledby="event-info-title">
+        <div class="editor-header"><div><p class="eyebrow">FOLLOW-UP</p><h3 id="event-info-title">事件回访怎么安排</h3></div><button class="close-button" type="button" aria-label="关闭" @click="eventInfoOpen = false">×</button></div>
+        <div class="info-content">
+          <p>MoodCopilot 会根据事件填写的日期和时间，在合适的时候回来问问你。</p>
+          <p>只有到达设定时间的事件才会进入待回访；没有具体时间的事件，会按日期判断。</p>
+          <p>标记为“已跟进”后，这件事会保留在记录中，但不会再次自动提醒。你也可以随时恢复为“待跟进”。</p>
+        </div>
+        <div class="info-actions"><button class="save-button" type="button" @click="eventInfoOpen = false">知道了</button></div>
+      </section>
+    </div>
 
     <div v-if="editorOpen" class="modal-backdrop" @click.self="closeEditor">
       <section class="event-editor" role="dialog" aria-modal="true" aria-labelledby="event-editor-title">
@@ -105,6 +119,7 @@ const saving = ref(false)
 const selectedDiaryIds = ref<number[]>([])
 const form = ref<LifeEventPayload>({ title: '', description: '', targetDate: '', endDate: '', startTime: '', endTime: '', diaryIds: [] })
 const undoEvent = ref<LifeEvent | null>(null)
+const eventInfoOpen = ref(false)
 let undoTimer: ReturnType<typeof setTimeout> | undefined
 
 onMounted(loadEvents)
@@ -168,7 +183,8 @@ async function saveEvent() {
 function formatDate(value: string) { if (!value) return '未定日期'; const parts = value.split('-'); return parts.length === 3 ? `${Number(parts[1])}月${Number(parts[2])}日` : value }
 function localDate() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}` }
 function formatSchedule(event: LifeEvent) { let text = formatDate(event.targetDate); if (event.endDate) text += ` - ${formatDate(event.endDate)}`; if (event.startTime) { text += ` ${event.startTime}`; if (event.endTime) text += ` - ${event.endTime}` } return text }
-function statusLabel(status: string) { return status === 'PENDING' ? '待跟进' : '已跟进' }
+function statusLabel(event: LifeEvent) { return event.status === 'PENDING' ? (event.followUpCompleted ? '本轮已完成' : '待跟进') : '暂不再提醒' }
+function phaseLabel(phase?: string) { return phase === 'UPCOMING' ? '即将发生' : phase === 'ONGOING' ? '正在经历' : phase === 'PAST' ? '已经发生' : '' }
 function chatAbout(event: LifeEvent) { router.push({ name: 'chat', state: { eventId: event.id } }) }
 function openLinkedDiary(event: LifeEvent) { const id = event.lastDiaryId ?? event.diaryIds?.[0]; if (id) router.push({ name: 'diary-detail', params: { id } }) }
 async function updateStatus(event: LifeEvent, status: 'PENDING' | 'FOLLOWED_UP') { try { const response = await lifeEventApi.updateStatus(event.id, status); if (response.data.data) Object.assign(event, response.data.data); return true } catch { error.value = '状态更新失败，请稍后再试。'; return false } }
@@ -181,9 +197,9 @@ function restore(event: LifeEvent) { void updateStatus(event, 'PENDING') }
 .life-page { min-height: 100vh; }
 .life-intro { max-width: 860px; margin: 42px auto 28px; padding: 0 24px; display: flex; align-items: end; justify-content: space-between; gap: 20px; }
 .eyebrow { margin: 0 0 10px; color: var(--color-primary); font-size: 11px; font-weight: 700; letter-spacing: .14em; }
-.life-intro h2 { margin: 0 0 8px; color: var(--color-text); font-family: var(--font-display); font-size: 2.3rem; }
+.title-with-info { display: flex; align-items: center; gap: 10px; }.life-intro h2 { margin: 0 0 8px; color: var(--color-text); font-family: var(--font-display); font-size: 2.3rem; }.info-button { display: inline-grid; width: 22px; height: 22px; place-items: center; margin-bottom: 5px; border: 1px solid var(--color-primary); border-radius: 50%; background: transparent; color: var(--color-primary); cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; line-height: 1; }.info-button:hover, .info-button:focus-visible { background: var(--color-primary); color: var(--color-on-primary); }
 .life-intro p:last-child { max-width: 560px; margin: 0; color: var(--color-text-secondary); line-height: 1.7; }
-.add-button, .save-button, .secondary-button { border: 1px solid var(--color-primary); border-radius: 5px; padding: 9px 13px; background: var(--color-primary); color: #fff; cursor: pointer; font: inherit; font-size: 13px; white-space: nowrap; }
+.add-button, .save-button, .secondary-button { border: 1px solid var(--color-primary); border-radius: 5px; padding: 9px 13px; background: var(--color-primary); color: var(--color-on-primary); cursor: pointer; font: inherit; font-size: 13px; white-space: nowrap; }
 .event-list { max-width: 860px; margin: 0 auto 70px; padding: 0 24px; }
 .event-entry { display: grid; grid-template-columns: 160px minmax(0, 1fr) auto; gap: 22px; align-items: start; padding: 24px 0; border-top: 1px solid var(--color-border); }
 .event-date { display: flex; flex-direction: column; gap: 6px; color: var(--color-text-muted); font-size: 12px; }
@@ -193,8 +209,9 @@ function restore(event: LifeEvent) { void updateStatus(event, 'PENDING') }
 .event-meta { color: var(--color-text-muted); font-size: 12px; }.event-meta-link { display: inline-flex; gap: 4px; padding: 0; border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font: inherit; font-size: 12px; }
 .event-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }.text-button { border: 0; padding: 7px 0 7px 12px; background: transparent; color: var(--color-text-muted); cursor: pointer; font: inherit; font-size: 12px; white-space: nowrap; }.text-button.primary { color: var(--color-primary); font-weight: 650; }
 .state { padding: 42px 0; color: var(--color-text-muted); text-align: center; }.state.error, .editor-error { color: var(--color-error); }
-.undo-toast { position: fixed; right: 24px; bottom: 24px; z-index: 20; border: 1px solid var(--color-border); border-radius: 6px; padding: 11px 14px; background: var(--color-surface, #fff); color: var(--color-text); box-shadow: 0 8px 24px rgba(0,0,0,.12); cursor: pointer; font: inherit; font-size: 13px; }.undo-toast span { color: var(--color-primary); font-weight: 700; }
-.modal-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 24px; background: rgba(18, 25, 20, .42); }.event-editor { width: min(660px, 100%); max-height: min(760px, 92vh); overflow: auto; border: 1px solid var(--color-border); border-radius: 8px; padding: 26px; background: var(--color-surface); box-shadow: 0 18px 60px rgba(0,0,0,.2); }.editor-header, .picker-heading, .editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.editor-header h3 { margin: 0; color: var(--color-text); font-family: var(--font-display); font-size: 1.5rem; }.close-button { border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; font-size: 26px; }.editor-form { display: grid; gap: 16px; margin-top: 24px; }.editor-form label { display: grid; gap: 7px; color: var(--color-text-secondary); font-size: 12px; }.editor-form input, .editor-form textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--color-border); border-radius: 4px; padding: 10px; background: var(--color-bg); color: var(--color-text); font: inherit; font-size: 14px; }.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }.diary-picker { border-top: 1px solid var(--color-border); padding-top: 16px; }.picker-heading strong { color: var(--color-text); font-size: 13px; }.picker-heading span, .picker-hint, .picker-empty { color: var(--color-text-muted); font-size: 12px; }.picker-hint { margin: 7px 0 12px; }.diary-option { display: flex !important; grid-template-columns: none !important; grid-template-rows: none !important; grid-auto-flow: column; align-items: start; gap: 10px !important; padding: 10px 0; border-top: 1px solid var(--color-border); }.diary-option input { width: auto; margin-top: 3px; }.diary-option span { display: grid; gap: 3px; }.diary-option strong { color: var(--color-text); font-size: 12px; }.diary-option small { color: var(--color-text-secondary); line-height: 1.5; }.editor-error { margin: 14px 0 0; font-size: 12px; }.editor-actions { justify-content: flex-end; margin-top: 24px; }.secondary-button { border-color: var(--color-border); background: transparent; color: var(--color-text-secondary); }.save-button:disabled { opacity: .55; cursor: wait; }
+.undo-toast { position: fixed; right: 24px; bottom: 24px; z-index: 20; border: 1px solid var(--color-border); border-radius: 6px; padding: 11px 14px; background: var(--color-surface); color: var(--color-text); box-shadow: var(--shadow-lg); cursor: pointer; font: inherit; font-size: 13px; }.undo-toast span { color: var(--color-primary); font-weight: 700; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 24px; background: var(--color-overlay); }.event-editor { width: min(660px, 100%); max-height: min(760px, 92vh); overflow: auto; border: 1px solid var(--color-border); border-radius: 8px; padding: 26px; background: var(--color-surface); box-shadow: var(--shadow-xl); }.editor-header, .picker-heading, .editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.editor-header h3 { margin: 0; color: var(--color-text); font-family: var(--font-display); font-size: 1.5rem; }.close-button { border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; font-size: 26px; }.editor-form { display: grid; gap: 16px; margin-top: 24px; }.editor-form label { display: grid; gap: 7px; color: var(--color-text-secondary); font-size: 12px; }.editor-form input, .editor-form textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--color-border); border-radius: 4px; padding: 10px; background: var(--color-bg); color: var(--color-text); font: inherit; font-size: 14px; }.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }.diary-picker { border-top: 1px solid var(--color-border); padding-top: 16px; }.picker-heading strong { color: var(--color-text); font-size: 13px; }.picker-heading span, .picker-hint, .picker-empty { color: var(--color-text-muted); font-size: 12px; }.picker-hint { margin: 7px 0 12px; }.diary-option { display: flex !important; grid-template-columns: none !important; grid-template-rows: none !important; grid-auto-flow: column; align-items: start; gap: 10px !important; padding: 10px 0; border-top: 1px solid var(--color-border); }.diary-option input { width: auto; margin-top: 3px; }.diary-option span { display: grid; gap: 3px; }.diary-option strong { color: var(--color-text); font-size: 12px; }.diary-option small { color: var(--color-text-secondary); line-height: 1.5; }.editor-error { margin: 14px 0 0; font-size: 12px; }.editor-actions { justify-content: flex-end; margin-top: 24px; }.secondary-button { border-color: var(--color-border); background: transparent; color: var(--color-text-secondary); }.save-button:disabled { opacity: .55; cursor: wait; }
+.info-dialog { width: min(480px, 100%); border: 1px solid var(--color-border); border-radius: 8px; padding: 26px; background: var(--color-surface); box-shadow: var(--shadow-xl); }.info-content { margin-top: 22px; color: var(--color-text-secondary); line-height: 1.75; }.info-content p { margin: 0 0 12px; }.info-content p:last-child { margin-bottom: 0; }.info-actions { display: flex; justify-content: flex-end; margin-top: 24px; }
 .diary-filters { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr)) auto; gap: 7px; margin-bottom: 10px; }
 .diary-filters input { min-width: 0; border: 1px solid var(--color-border); border-radius: 4px; padding: 8px; background: var(--color-bg); color: var(--color-text); font: inherit; font-size: 12px; }
 .diary-filters button, .load-more-diaries { border: 1px solid var(--color-border); border-radius: 4px; padding: 8px 10px; background: transparent; color: var(--color-primary); cursor: pointer; font: inherit; font-size: 12px; white-space: nowrap; }

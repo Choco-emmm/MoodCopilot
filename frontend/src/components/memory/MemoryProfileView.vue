@@ -13,15 +13,29 @@
     </div>
     <p class="memory-desc">这里保存 MoodCopilot 从日记和聊天中整理出的个人记忆。近期状态仅用于当前关怀参考，不会作为核心长期画像。</p>
     <section v-if="candidates.length" class="candidate-section" aria-label="待确认记忆">
-      <div class="candidate-head"><span>待确认的记忆</span><small>这些是 AI 的推断，确认后才会进入正式画像</small></div>
+      <div class="candidate-head">
+        <div class="candidate-head-main">
+          <div class="candidate-title-row">
+            <span class="candidate-title">待确认的记忆</span>
+            <span class="candidate-count">{{ candidates.length }} 条</span>
+          </div>
+          <small>这些内容还没有进入正式画像，请确认哪些值得长期保留。</small>
+        </div>
+        <span class="candidate-summary">
+          {{ candidateGroups.length }} 个属性<template v-if="candidateConflictGroupCount"> · {{ candidateConflictGroupCount }} 个属性有不同候选</template>
+        </span>
+      </div>
       <div v-for="group in candidateGroups" :key="group.key" class="candidate-group">
       <div v-if="group.hasConflict" class="candidate-conflict-note">同一属性存在不同候选，请分别确认；系统不会替你合并冲突内容。</div>
       <div v-for="candidate in group.items" :key="candidate.id" class="candidate-item">
         <div class="candidate-copy">
-          <strong>{{ candidate.attributeKey }} <n-tag v-if="isSafetyState(candidate)" size="small" type="warning">近期状态</n-tag></strong>
-          <span>{{ candidate.attributeValue }}</span>
+          <div class="candidate-label-row">
+            <strong>{{ candidate.attributeKey }}</strong>
+            <n-tag v-if="isSafetyState(candidate)" size="small" type="warning">近期状态</n-tag>
+          </div>
+          <span class="candidate-value">{{ candidate.attributeValue }}</span>
           <small>{{ isSafetyState(candidate) ? '这是需要关注的近期状态，不属于核心长期画像。' : '确认后，这条内容才会进入正式画像。' }}</small>
-          <small>已有 {{ candidate.evidenceCount || 0 }} 条依据</small>
+          <span class="candidate-evidence-count">已有 {{ candidate.evidenceCount || 0 }} 条依据</span>
         </div>
         <div class="candidate-actions">
           <n-button size="small" secondary @click="toggleCandidateDetails(candidate.id)">{{ candidateDetailsId === candidate.id ? '收起依据' : '查看依据' }}</n-button>
@@ -45,7 +59,9 @@
                     <span>{{ evidenceDateLabel(item) }}</span>
                     <span>{{ sourceTypeLabel(item) }}</span>
                   </div>
-                  <p class="memory-evidence-text">{{ evidenceDisplayText(item) }}</p>
+                  <p class="memory-evidence-label">{{ isDiaryEvidence(item) ? '日记摘录' : '聊天内容' }}</p>
+                  <blockquote v-if="isDiaryEvidence(item)" class="memory-evidence-text memory-evidence-quote">{{ evidenceDisplayText(item) }}</blockquote>
+                  <p v-else class="memory-evidence-text">{{ evidenceDisplayText(item) }}</p>
                   <div v-if="item.sourceDiaryId || item.sourceConversationId" class="evidence-source-link">
                     <span>{{ item.sourceDiaryId ? '来自这篇日记' : '来自这段聊天' }}</span>
                     <button v-if="item.sourceDiaryId" type="button" class="evidence-diary-open" @click="openDiary(item.sourceDiaryId)">打开原日记 <span aria-hidden="true">→</span></button>
@@ -144,7 +160,9 @@
                   <span>{{ evidenceDateLabel(item) }}</span>
                   <span>{{ sourceTypeLabel(item) }}</span>
                 </div>
-                <p class="memory-evidence-text">{{ evidenceDisplayText(item) }}</p>
+                <p class="memory-evidence-label">{{ isDiaryEvidence(item) ? '日记摘录' : '聊天内容' }}</p>
+                <blockquote v-if="isDiaryEvidence(item)" class="memory-evidence-text memory-evidence-quote">{{ evidenceDisplayText(item) }}</blockquote>
+                <p v-else class="memory-evidence-text">{{ evidenceDisplayText(item) }}</p>
                 <div v-if="item.sourceDiaryId || item.sourceConversationId" class="evidence-source-link">
                   <span>{{ item.sourceDiaryId ? '来自这篇日记' : '来自这段聊天' }}</span>
                   <button v-if="item.sourceDiaryId" type="button" class="evidence-diary-open" @click="openDiary(item.sourceDiaryId)">打开原日记 <span aria-hidden="true">→</span></button>
@@ -221,6 +239,7 @@ const candidateGroups = computed(() => {
   }
   return [...groups.values()]
 })
+const candidateConflictGroupCount = computed(() => candidateGroups.value.filter(group => group.hasConflict).length)
 
 onMounted(() => {
   loadMemories()
@@ -507,16 +526,25 @@ function cancelEditMemory() {
   margin: 0 0 16px 0;
   line-height: 1.5;
 }
-.candidate-section { margin: 18px 0 22px; padding: 14px 16px; border: 1px solid var(--color-border); border-left: 3px solid var(--color-primary); background: color-mix(in srgb, var(--color-primary) 4%, transparent); }
-.candidate-head { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; color: var(--color-text); font-size: 14px; font-weight: 700; }
-.candidate-head small, .candidate-copy small { color: var(--color-text-secondary); font-size: 12px; font-weight: 400; line-height: 1.5; }
-.candidate-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-top: 1px solid var(--color-border); }
-.candidate-group + .candidate-group { border-top: 1px solid var(--color-border); }
-.candidate-conflict-note { padding: 8px 0 0; color: var(--color-warning); font-size: 12px; }
+.candidate-section { margin: 18px 0 22px; padding: 16px; border: 1px solid var(--color-border); border-left: 3px solid var(--color-primary); background: color-mix(in srgb, var(--color-primary) 4%, transparent); }
+.candidate-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 14px; color: var(--color-text); }
+.candidate-head-main { min-width: 0; }
+.candidate-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.candidate-title { font-size: 15px; font-weight: 700; }
+.candidate-count { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border: 1px solid color-mix(in srgb, var(--color-primary) 32%, var(--color-border)); border-radius: var(--radius-full); background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface)); color: var(--color-primary); font-size: 12px; font-weight: 700; line-height: 1; }
+.candidate-head small, .candidate-copy small { display: block; color: var(--color-text-secondary); font-size: 12px; font-weight: 400; line-height: 1.5; }
+.candidate-head-main > small { margin-top: 5px; }
+.candidate-summary { flex: 0 0 auto; color: var(--color-text-muted); font-size: 12px; line-height: 1.5; text-align: right; }
+.candidate-group { display: flex; flex-direction: column; gap: 8px; }
+.candidate-group + .candidate-group { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border); }
+.candidate-conflict-note { padding: 2px 0 1px; color: var(--color-warning); font-size: 12px; line-height: 1.5; }
+.candidate-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
 .candidate-details { flex-basis: 100%; width: 100%; margin-top: 10px; padding: 10px 0 0; border-top: 1px dashed var(--color-border); color: var(--color-text-secondary); font-size: 12px; }
-.candidate-copy { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.candidate-copy { display: flex; min-width: 0; flex: 1 1 240px; flex-direction: column; gap: 4px; }
+.candidate-label-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .candidate-copy strong { color: var(--color-text); font-size: 13px; }
-.candidate-copy span { color: var(--color-text); font-size: 13px; line-height: 1.5; }
+.candidate-value { color: var(--color-text); font-size: 14px; font-weight: 600; line-height: 1.55; }
+.candidate-evidence-count { color: var(--color-text-muted); font-size: 12px; line-height: 1.4; }
 .candidate-actions { display: flex; flex-shrink: 0; gap: 6px; }
 .memory-details { width: 100%; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border); color: var(--color-text-secondary); font-size: 12px; line-height: 1.5; }
 .memory-detail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -531,7 +559,12 @@ function cancelEditMemory() {
 .memory-evidence-meta { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; color: var(--color-text-secondary); font-size: 11px; line-height: 1.35; }
 .memory-evidence-meta span:first-child { color: var(--color-text); font-variant-numeric: tabular-nums; font-weight: 600; }
 .memory-evidence-meta span + span { color: var(--color-text-muted); }
+.memory-evidence-label { margin: 0 0 4px; color: var(--color-text-muted); font-size: 11px; font-weight: 600; letter-spacing: 0; line-height: 1.4; }
 .memory-evidence-text { margin: 0 0 6px; color: var(--color-text); font-size: 13px; line-height: 1.55; }
+.memory-evidence-label, .memory-evidence-text { grid-column: 2; }
+.memory-evidence-quote { position: relative; margin-left: 2px; padding: 9px 12px 9px 14px; border-left: 3px solid color-mix(in srgb, var(--color-primary) 55%, var(--color-border)); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface)); color: var(--color-text-secondary); quotes: '"' '"'; }
+.memory-evidence-quote::before { content: open-quote; color: var(--color-primary); font-size: 18px; font-weight: 700; line-height: 0; vertical-align: -3px; }
+.memory-evidence-quote::after { content: close-quote; color: var(--color-primary); font-size: 18px; font-weight: 700; line-height: 0; vertical-align: -3px; }
 .evidence-source-link { display: flex; grid-column: 2; align-items: center; gap: 8px; min-width: 0; color: var(--color-text-secondary); }
 .evidence-source-link > span { min-width: 0; overflow: hidden; color: var(--color-text-secondary); text-overflow: ellipsis; white-space: nowrap; }
 .evidence-diary-open, .memory-history-toggle { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; line-height: 1.4; }
@@ -639,9 +672,13 @@ function cancelEditMemory() {
 .flex-end-gap-12 { display: flex; gap: 12px; justify-content: flex-end; }
 
 @media (max-width: 640px) {
+  .candidate-head { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .candidate-summary { text-align: left; }
+  .candidate-actions { width: 100%; flex-wrap: wrap; }
   .memory-evidence-item { grid-template-columns: 1fr; row-gap: 6px; }
   .memory-evidence-meta { flex-direction: row; align-items: center; gap: 8px; }
   .memory-evidence-meta span + span { padding-left: 8px; border-left: 1px solid var(--color-border-strong); }
+  .memory-evidence-label, .memory-evidence-text { grid-column: 1; }
   .evidence-source-link { grid-column: 1; }
   .memory-detail-heading { flex-direction: column; gap: 4px; }
 }

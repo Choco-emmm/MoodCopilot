@@ -120,10 +120,20 @@
         <text class="quote-text">{{ activeQuote }}</text>
         <view class="quote-close" @click="clearQuote">×</view>
       </view>
+      <view v-if="eventReference" class="quote-preview-bar event-reference-preview fade-in">
+        <text class="quote-icon">⌁</text>
+        <text class="quote-text">事件：{{ eventReference.title }}</text>
+        <view class="quote-close" @click="clearEventReference">×</view>
+      </view>
       
       <view class="chat-input-bar">
-        <view class="quote-action-btn hover-scale" @click="openDiarySelector">
-          <text class="quote-action-icon">+</text>
+        <view class="reference-actions">
+          <view class="quote-action-btn hover-scale" @click="openDiarySelector">
+            <text class="quote-action-icon">+</text>
+          </view>
+          <view class="event-quote-action-btn hover-scale" @click="openEventSelector">
+            <text class="quote-action-icon">⌁</text>
+          </view>
         </view>
         <input 
           class="chat-input" 
@@ -140,6 +150,30 @@
         >
           发送
         </button>
+      </view>
+    </view>
+
+    <!-- 引用事件选择面板 -->
+    <view class="diary-selector-mask fade-in" v-if="showEventSelector" @click="showEventSelector = false">
+      <view class="diary-selector-sheet" @click.stop>
+        <view class="sheet-header">
+          <text class="sheet-title">选择事件</text>
+          <text class="sheet-close" @click="showEventSelector = false">×</text>
+        </view>
+        <scroll-view scroll-y class="sheet-content">
+          <view v-if="loadingEvents" class="sheet-loading">加载中...</view>
+          <view v-else-if="recentEvents.length === 0" class="sheet-empty">暂无重要事件</view>
+          <view
+            v-else
+            v-for="event in recentEvents"
+            :key="event.id"
+            class="sheet-diary-item hover-scale"
+            @click="selectEventForQuote(event)"
+          >
+            <text class="sheet-diary-date">{{ event.targetDate || '时间未填写' }}</text>
+            <text class="sheet-diary-content">{{ event.title }}</text>
+          </view>
+        </scroll-view>
       </view>
     </view>
 
@@ -203,10 +237,14 @@ const currentConversationTitle = computed(() => {
 });
 
 const showDiarySelector = ref(false);
+const showEventSelector = ref(false);
 const recentDiaries = ref<any[]>([]);
+const recentEvents = ref<any[]>([]);
 const loadingDiaries = ref(false);
+const loadingEvents = ref(false);
 const isLoggedIn = ref(hasLoginToken());
 const activeEventId = ref<number | null>(null);
+const eventReference = ref<{ id: number; title: string } | null>(null);
 const useReasoning = ref(false);
 const chatModelOptions = ['普通对话', '深度思考'];
 
@@ -238,7 +276,7 @@ const formatDate = (isoString: string) => {
 };
 
 onMounted(() => {
-  restorePendingEvent();
+  void restorePendingEvent();
   const pendingConversationId = readPendingConversation();
   if (isLoggedIn.value) {
     initConversation(pendingConversationId);
@@ -248,13 +286,25 @@ onMounted(() => {
   }
 });
 
-function restorePendingEvent() {
+async function restorePendingEvent() {
   const storedEventId = Number(uni.getStorageSync('pendingLifeEventId'));
   if (Number.isFinite(storedEventId) && storedEventId > 0) {
     activeEventId.value = storedEventId;
     uni.removeStorageSync('pendingLifeEventId');
+    try {
+      const res = await get<any>(`/api/life-events/${storedEventId}`);
+      const event = res.code === 200 ? res.data : null;
+      eventReference.value = event ? { id: storedEventId, title: event.title } : { id: storedEventId, title: `事件 #${storedEventId}` };
+    } catch {
+      eventReference.value = { id: storedEventId, title: `事件 #${storedEventId}` };
+    }
   }
 }
+
+const clearEventReference = () => {
+  activeEventId.value = null;
+  eventReference.value = null;
+};
 
 function readPendingConversation(): number | null {
   const storedId = Number(uni.getStorageSync('pendingChatConversationId'));
@@ -262,7 +312,7 @@ function readPendingConversation(): number | null {
 }
 
 onShow(() => {
-  restorePendingEvent();
+  void restorePendingEvent();
   const pendingConversationId = readPendingConversation();
   if (pendingConversationId && conversations.value.some(conv => conv.id === pendingConversationId)) {
     uni.removeStorageSync('pendingChatConversationId');
@@ -301,12 +351,36 @@ const openDiarySelector = async () => {
   }
 };
 
+const openEventSelector = async () => {
+  if (!isLoggedIn.value) {
+    requireLogin();
+    return;
+  }
+  showEventSelector.value = true;
+  loadingEvents.value = true;
+  try {
+    const res = await get('/api/life-events');
+    if (res.code === 200) recentEvents.value = res.data || [];
+  } catch (e) {
+    console.error('获取事件失败', e);
+    recentEvents.value = [];
+  } finally {
+    loadingEvents.value = false;
+  }
+};
+
 const selectDiaryForQuote = (diary: any) => {
   const dateStr = formatDate(diary.createdAt);
   const plain = diary.content ? extractPlainText(diary.content) : '一段没有文字的记录';
   const prefix = `关于我的这篇日记（${dateStr}）：\n\n`;
   setQuote(prefix + plain);
   showDiarySelector.value = false;
+};
+
+const selectEventForQuote = (event: any) => {
+  activeEventId.value = Number(event.id);
+  eventReference.value = { id: Number(event.id), title: event.title || '重要事件' };
+  showEventSelector.value = false;
 };
 
 const handleLongPress = (msg: Message) => {
@@ -474,6 +548,7 @@ const sendMessage = async () => {
   } finally {
     isWaiting.value = false;
     activeEventId.value = null;
+    eventReference.value = null;
     scrollToBottom();
     if (isFirstUserMessage && conversationId.value) {
       void waitForConversationTitle(conversationId.value);
@@ -976,7 +1051,8 @@ const scrollToBottom = (target?: 'waiting') => {
 .chat-model-picker { padding: 7rpx 12rpx; border: 1rpx solid var(--theme-border); border-radius: 6rpx; color: var(--theme-primary); font-size: 22rpx; }
 .chat-model-arrow { margin-left: 6rpx; color: var(--theme-text-placeholder); }
 .chat-input-bar { gap: 14rpx; padding: 18rpx 26rpx; }
-.quote-action-btn { display: flex; width: 62rpx; height: 62rpx; flex: 0 0 62rpx; align-items: center; justify-content: center; border: 1rpx solid var(--theme-border); border-radius: 6rpx; color: var(--theme-primary); }
+.reference-actions { display: flex; gap: 8rpx; flex: 0 0 auto; }
+.quote-action-btn, .event-quote-action-btn { display: flex; width: 62rpx; height: 62rpx; flex: 0 0 62rpx; align-items: center; justify-content: center; border: 1rpx solid var(--theme-border); border-radius: 6rpx; color: var(--theme-primary); }
 .quote-action-icon { font-size: 34rpx; line-height: 1; }
 .chat-input { height: 64rpx; padding: 0 20rpx; border-radius: 6rpx; background: var(--theme-bg); font-size: 26rpx; }
 .send-btn { height: 64rpx; padding: 0 24rpx; border-radius: 6rpx; font-size: 25rpx; line-height: 64rpx; }

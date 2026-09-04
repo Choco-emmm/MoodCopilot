@@ -167,15 +167,20 @@
             :can-retry="!!lastReplyRequest"
             :references="references"
             :recent-diaries="recentDiaryOptions"
+            :recent-events="recentEventOptions"
             :recent-diaries-loading="recentDiariesLoading"
+            :recent-events-loading="recentEventsLoading"
             :recent-diaries-error="recentDiariesError"
+            :recent-events-error="recentEventsError"
             @send="send"
             @send-enter="handleDraftEnter"
             @update:use-reasoning="useReasoning = $event"
             @retry="retryLastReply"
             @remove-ref="removeRef"
             @add-diary-ref="addDiaryRef"
+            @add-event-ref="addEventRef"
             @load-recent-diaries="loadRecentDiaryOptions"
+            @load-recent-events="loadRecentEventOptions"
             @focus="handleDraftFocus"
           />
         </div>
@@ -205,6 +210,8 @@ const {
   send, retryLastReply, removeRef,
   recentDiaryOptions, recentDiariesLoading, recentDiariesError,
   addDiaryRef, loadRecentDiaryOptions,
+  recentEventOptions, recentEventsLoading, recentEventsError,
+  addEventRef, loadRecentEventOptions,
   quickStarters, quickStartersLoading, useQuickStarter,
   msgBox, chatInputArea,
   handleDraftFocus, handleDraftEnter, goToDiary,
@@ -1137,7 +1144,73 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 
 @media (max-width: 600px) {
   .chat-features-index {
+    justify-content: flex-start;
+    gap: 8px;
     padding: 10px 14px 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    white-space: nowrap;
   }
+
+  .chat-features-index::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chat-shell {
+    width: 100%;
+    max-width: 100vw;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .chat-window,
+  .chat-messages,
+  .chat-input-area {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .chat-mobile-conv {
+    min-width: 0;
+    padding: 2px 0;
+  }
+
+  .chat-mobile-conv-select {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .chat-messages {
+    overflow-x: hidden;
+    padding: 14px 10px !important;
+  }
+
+  :deep(.msg-item) {
+    min-width: 0;
+    gap: 8px;
+  }
+
+  :deep(.msg-wrapper),
+  :deep(.msg-item.ai .msg-wrapper) {
+    min-width: 0;
+    max-width: calc(100% - 44px) !important;
+  }
+
+  :deep(.chat-bubble) {
+    min-width: 0;
+    max-width: 100% !important;
+    padding: 12px 14px !important;
+    overflow-wrap: anywhere;
+  }
+
+  :deep(.md-content) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
 }
 </style>

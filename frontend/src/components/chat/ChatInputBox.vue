@@ -9,12 +9,18 @@
     <ReferenceBar
       :items="references"
       :recent-diaries="recentDiaries"
+      :recent-events="recentEvents"
       :loading="recentDiariesLoading"
+      :events-loading="recentEventsLoading"
       :error-message="recentDiariesError"
+      :events-error-message="recentEventsError"
       @remove="$emit('remove-ref', $event)"
       @add="$emit('add-diary-ref', $event)"
-      @retry="$emit('load-recent-diaries')"
-      @open="$emit('load-recent-diaries')"
+      @retry-diaries="$emit('load-recent-diaries')"
+      @open-diaries="$emit('load-recent-diaries')"
+      @add-event="$emit('add-event-ref', $event)"
+      @retry-events="$emit('load-recent-events')"
+      @open-events="$emit('load-recent-events')"
     />
     <div class="chat-input-row">
       <n-input
@@ -59,8 +65,11 @@ defineProps<{
   canRetry: boolean
   references: any[]
   recentDiaries: any[]
+  recentEvents: any[]
   recentDiariesLoading: boolean
+  recentEventsLoading: boolean
   recentDiariesError: string | null
+  recentEventsError: string | null
 }>()
 
 defineEmits<{
@@ -71,7 +80,9 @@ defineEmits<{
   (e: 'retry'): void
   (e: 'remove-ref', idx: number): void
   (e: 'add-diary-ref', item: any): void
+  (e: 'add-event-ref', eventId: string): void
   (e: 'load-recent-diaries'): void
+  (e: 'load-recent-events'): void
   (e: 'focus'): void
 }>()
 </script>
@@ -95,14 +106,32 @@ defineEmits<{
 
 @media (max-width: 640px) {
   .chat-input-row {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-items: stretch;
+  }
+
+  .chat-input-row :deep(.n-input) {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-width: 0;
+    width: 100%;
   }
 
   .chat-model-select {
-    min-width: 92px;
-    width: 92px;
-    padding: 0 22px 0 6px;
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    padding: 0 22px 0 10px;
     font-size: 11px;
+  }
+
+  .chat-input-row :deep(.n-button) {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 72px;
+    width: auto;
   }
 }
 </style>

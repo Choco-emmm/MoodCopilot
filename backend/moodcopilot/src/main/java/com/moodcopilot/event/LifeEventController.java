@@ -7,7 +7,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import org.springframework.format.annotation.DateTimeFormat;
 
 @RestController
@@ -83,16 +85,20 @@ public class LifeEventController {
             return ApiResponse.ok(Map.of("hasPending", false));
         }
         var e = eventOpt.get();
-        return ApiResponse.ok(Map.of(
-                "hasPending", true,
-                "eventId", e.getId(),
-                "title", e.getTitle(),
-                "targetDate", e.getTargetDate() != null ? e.getTargetDate().toString() : "",
-                "endDate", e.getEndDate() != null ? e.getEndDate().toString() : "",
-                "startTime", e.getStartTime() != null ? e.getStartTime().toString() : "",
-                "endTime", e.getEndTime() != null ? e.getEndTime().toString() : "",
-                "description", e.getDescription() != null ? e.getDescription() : "",
-                "suggestedGreeting", "我一直惦记着你关于 " + e.getTitle() + " 的事，一切还顺利吗？"));
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("hasPending", true);
+        result.put("eventId", e.getId());
+        result.put("title", e.getTitle());
+        result.put("targetDate", e.getTargetDate() != null ? e.getTargetDate().toString() : "");
+        result.put("endDate", e.getEndDate() != null ? e.getEndDate().toString() : "");
+        result.put("startTime", e.getStartTime() != null ? e.getStartTime().toString() : "");
+        result.put("endTime", e.getEndTime() != null ? e.getEndTime().toString() : "");
+        result.put("description", e.getDescription() != null ? e.getDescription() : "");
+        result.put("temporalPhase", lifeEventService.currentTemporalPhase(e));
+        result.put("nextFollowUpAt", e.getNextFollowUpAt() == null ? null : e.getNextFollowUpAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+        result.put("followUpReason", e.getFollowUpReason());
+        result.put("suggestedGreeting", "我一直惦记着你关于 " + e.getTitle() + " 的事，一切还顺利吗？");
+        return ApiResponse.ok(result);
     }
 
     @PostMapping("/{id}/mark-followed-up")

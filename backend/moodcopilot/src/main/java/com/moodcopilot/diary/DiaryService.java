@@ -349,7 +349,7 @@ public class DiaryService {
             DiaryEntity failed = new DiaryEntity();
             failed.setId(diaryId);
             failed.setAnalysisStatus("failed");
-            failed.setAnalysisError(e.getMessage() == null ? "AI 任务提交失败" : e.getMessage());
+            failed.setAnalysisError(truncateAnalysisError(e.getMessage(), "AI 任务提交失败"));
             diaryMapper.updateById(failed);
             throw e;
         }
@@ -378,7 +378,7 @@ public class DiaryService {
             DiaryEntity limited = new DiaryEntity();
             limited.setId(diaryId);
             limited.setAnalysisStatus(useReasoning ? "failed_limit" : "skipped_quota");
-            limited.setAnalysisError(e.getMessage());
+            limited.setAnalysisError(truncateAnalysisError(e.getMessage(), "额度不足"));
             diaryMapper.updateById(limited);
             return buildDiaryView(diaryMapper.selectById(diaryId), false)
                     .withAnalysisStatus(limited.getAnalysisStatus());
@@ -520,13 +520,14 @@ public class DiaryService {
                     (content == null ? "" : content).getBytes(java.nio.charset.StandardCharsets.UTF_8));
             aiTaskProducer.submitAnalysisPostProcessTasks(diaryId, userId, analysisVersion,
                     useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", parentTaskId);
+            // 主分析成功即可进入动态时间线；画像、图谱等后处理失败不应阻断阶段归属。
+            lifeChapterService.markDirtyForDiary(userId, diaryId);
             log.info("日记分析后处理任务已创建，diaryId={}，userId={}，analysisVersion={}", diaryId, userId, analysisVersion);
         } catch (Exception e) {
             DiaryEntity failed = new DiaryEntity();
             failed.setId(diaryId);
             failed.setAnalysisStatus("failed");
-            failed.setAnalysisError(e.getMessage() == null ? "AI 分析失败" :
-                    e.getMessage().substring(0, Math.min(1000, e.getMessage().length())));
+            failed.setAnalysisError(truncateAnalysisError(e.getMessage(), "AI 分析失败"));
             diaryMapper.updateById(failed);
             log.error("日记 AI 分析异步任务失败，diaryId={}，userId={}，错误信息={}", diaryId, userId, e.getMessage(), e);
             throw e;
@@ -2411,6 +2412,11 @@ public class DiaryService {
         if (trimmed.isEmpty())
             return null;
         return trimmed.length() > maxLen ? trimmed.substring(0, maxLen) : trimmed;
+    }
+
+    private String truncateAnalysisError(String message, String fallback) {
+        String value = message == null || message.isBlank() ? fallback : message.trim();
+        return value.length() > 1000 ? value.substring(0, 1000) : value;
     }
 
     private boolean areSameImageList(List<String> a, List<String> b) {

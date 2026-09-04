@@ -11,6 +11,8 @@ export interface ChatReference {
   content: string
   fullContent: string
   diaryId?: number
+  eventId?: number
+  sourceType?: 'diary' | 'event'
   type?: 'quote'
   quoteAuthor?: string
   displayContent?: string

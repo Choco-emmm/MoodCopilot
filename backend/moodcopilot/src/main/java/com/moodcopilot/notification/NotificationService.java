@@ -141,21 +141,43 @@ public class NotificationService {
         }
     }
 
-    public void notifyDailyFollowUp(Long recipientUserId, String message) {
+    /**
+     * Returns true after the notification row has been persisted. A websocket
+     * delivery failure must not cause the scheduler to create a duplicate row
+     * on its next attempt.
+     */
+    public boolean notifyDailyFollowUp(Long recipientUserId, String message) {
+        return notifyDailyFollowUp(recipientUserId, null, message);
+    }
+
+    /**
+     * Creates a daily follow-up notification with an optional private life-event
+     * target. The target lets clients open the correct chat context without
+     * trying to infer an event from human-readable notification text.
+     */
+    public boolean notifyDailyFollowUp(Long recipientUserId, Long lifeEventId, String message) {
+        NotificationEntity n = new NotificationEntity();
         try {
-            NotificationEntity n = new NotificationEntity();
             n.setRecipientUserId(recipientUserId);
             n.setActorUserId(null);
+            n.setLifeEventId(lifeEventId);
             n.setType("SYSTEM");
             n.setMessage(message);
             n.setIsMarkdown(true);
             n.setIsRead(false);
             n.setCreatedAt(LocalDateTime.now());
             notificationMapper.insert(n);
-            notificationWebSocketHandler.pushNotification(recipientUserId, n);
         } catch (Exception e) {
             log.warn("Failed to create daily follow-up notification", e);
+            return false;
         }
+        try {
+            notificationWebSocketHandler.pushNotification(recipientUserId, n);
+        } catch (Exception e) {
+            log.warn("Daily follow-up notification persisted but websocket delivery failed, recipientUserId={}",
+                    recipientUserId, e);
+        }
+        return true;
     }
 
     public void notifyEncouragement(Long diaryId, Long recipientUserId, String message) {
