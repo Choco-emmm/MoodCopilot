@@ -70,6 +70,7 @@ public class ContextPlanner {
                 .limit(15)
                 .map(memory -> memoryItem(userId, memory, true))
                 .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        markMemoryConflicts(coreItems);
 
         // The compatibility argument can also contain an explicitly selected event context.
         // Keep that context, but never treat the whole serialized memory prompt as one fact.
@@ -91,7 +92,20 @@ public class ContextPlanner {
                 .sorted(Comparator.comparing(this::updatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(10)
                 .map(memory -> memoryItem(userId, memory))
-                .toList();
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        markMemoryConflicts(shortTerm);
+
+        // Keep a small, current set of ordinary formal memories available to the planner.
+        // They are lower priority than core memories and can be displaced by explicit
+        // references, but must not disappear merely because they are not core memories.
+        List<ContextItem> ordinaryFormal = currentMemories.stream()
+                .filter(this::isEligibleFormal)
+                .filter(memory -> !Boolean.TRUE.equals(memory.getIsCore()))
+                .sorted(Comparator.comparing(this::updatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(10)
+                .map(memory -> memoryItem(userId, memory))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        markMemoryConflicts(ordinaryFormal);
 
         List<ContextItem> userReferences = references == null ? List.of() : references.stream()
                 .filter(value -> value != null && !value.isBlank())
@@ -103,11 +117,13 @@ public class ContextPlanner {
                         null, ContextSource.TrustLevel.AUTHORITATIVE, userId), 1D, 40, false))
                 .toList();
 
+        List<ContextItem> selectedRetrieved = new ArrayList<>(ordinaryFormal);
+        selectedRetrieved.addAll(filterRetrieved(retrievedContext, userId));
         ContextEnvelope envelope = new ContextEnvelope(
                 java.util.UUID.randomUUID().toString(), conversationId, userId,
                 purpose == null ? ContextPurpose.CHAT : purpose, Instant.now(), PLANNER_VERSION,
                 coreItems, shortTerm, userReferences,
-                filterRetrieved(retrievedContext, userId), List.of(), List.of());
+                filterRetrieved(selectedRetrieved, userId), List.of(), List.of());
         if (metadataRecorder != null) metadataRecorder.record(envelope);
         return new ContextPlan(promptRenderer.render(envelope), envelope);
     }
@@ -119,8 +135,9 @@ public class ContextPlanner {
                 .filter(item -> item.source().userId() != null && item.source().userId() == userId)
                 .filter(item -> !item.content().isBlank())
                 .filter(item -> isAllowedSource(item.source().sourceType()))
+                .filter(item -> isAuthorizedSource(item.source()))
                 .sorted(Comparator.comparingInt(ContextItem::priority).reversed()
-                        .thenComparingDouble(ContextItem::relevanceScore))
+                        .thenComparing(Comparator.comparingDouble(ContextItem::relevanceScore).reversed()))
                 .filter(new java.util.function.Predicate<>() {
                     private final Set<String> seen = new HashSet<>();
 
@@ -142,6 +159,38 @@ public class ContextPlanner {
         return !normalized.contains("candidate") && !normalized.contains("rejected")
                 && !normalized.contains("expired") && !normalized.contains("superseded")
                 && !normalized.contains("deleted");
+    }
+
+    private boolean isAuthorizedSource(ContextSource source) {
+        if (source == null || source.sourceId() == null || source.sourceId().isBlank()) return false;
+        String sourceType = source.sourceType().toLowerCase(java.util.Locale.ROOT);
+        String authorType = source.authorType().toLowerCase(java.util.Locale.ROOT);
+        return !sourceType.contains("assistant") && !authorType.contains("assistant");
+    }
+
+    private void markMemoryConflicts(List<ContextItem> items) {
+        if (items == null || items.size() < 2) return;
+        java.util.Map<String, Set<String>> valuesByKey = new java.util.HashMap<>();
+        for (ContextItem item : items) {
+            if (item == null || item.source() == null || !"FORMAL_MEMORY".equalsIgnoreCase(item.source().sourceType())) {
+                continue;
+            }
+            String[] parts = item.content().split("：", 2);
+            if (parts.length == 2) {
+                valuesByKey.computeIfAbsent(parts[0], ignored -> new HashSet<>()).add(parts[1]);
+            }
+        }
+        if (valuesByKey.values().stream().noneMatch(values -> values.size() > 1)) return;
+        for (int i = 0; i < items.size(); i++) {
+            ContextItem item = items.get(i);
+            if (item == null || item.source() == null || !"FORMAL_MEMORY".equalsIgnoreCase(item.source().sourceType())) {
+                continue;
+            }
+            String[] parts = item.content().split("：", 2);
+            if (parts.length == 2 && valuesByKey.getOrDefault(parts[0], Set.of()).size() > 1) {
+                items.set(i, new ContextItem(item.content(), item.source(), item.relevanceScore(), item.priority(), true));
+            }
+        }
     }
 
     private boolean isEligibleFormal(UserProfileMemoryEntity memory) {
@@ -170,9 +219,10 @@ public class ContextPlanner {
         Instant eventTime = updated == null ? null : updated.atZone(businessTimeZone).toInstant();
         return new ContextItem(content, new ContextSource(
                 "FORMAL_MEMORY", String.valueOf(memory.getId()), "user",
-                core ? "structured_memory" : "short_term_state",
+                "short_term_state".equalsIgnoreCase(memory.getMemoryType()) ? "short_term_state" : "structured_memory",
                 eventTime, null, ContextSource.TrustLevel.AUTHORITATIVE, userId),
-                memory.getConfidence() == null ? 0.5D : memory.getConfidence(), core ? 50 : 30, false);
+                memory.getConfidence() == null ? 0.5D : memory.getConfidence(),
+                core ? 50 : ("short_term_state".equalsIgnoreCase(memory.getMemoryType()) ? 30 : 35), false);
     }
 
     private String extractEventContext(String value) {

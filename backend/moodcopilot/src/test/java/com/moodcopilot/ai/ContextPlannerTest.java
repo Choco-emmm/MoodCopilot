@@ -12,7 +12,7 @@ import static org.mockito.Mockito.when;
 class ContextPlannerTest {
 
     @Test
-    void planKeepsSourcesSeparatedAndExcludesNonShortTermMemoriesFromShortTermBlock() {
+    void planKeepsSourcesSeparatedAndIncludesOrdinaryFormalMemoryOutsideShortTermBlock() {
         MemoryOrchestrator orchestrator = mock(MemoryOrchestrator.class);
         UserProfileMemoryEntity shortTerm = new UserProfileMemoryEntity();
         shortTerm.setMemoryType("short_term_state");
@@ -39,6 +39,33 @@ class ContextPlannerTest {
         assertTrue(context.contains("召回的历史经历"));
         assertTrue(context.contains("<conversation_context>"));
         assertTrue(!context.contains("<long_term_memory>"));
-        assertTrue(!context.contains("社交偏好"));
+        assertTrue(context.contains("社交偏好：偏好安静交流"));
+    }
+
+    @Test
+    void keepsOrdinaryFormalMemoryAndMarksConflictingValues() {
+        MemoryOrchestrator orchestrator = mock(MemoryOrchestrator.class);
+        UserProfileMemoryEntity first = memory(1L, "工作方式", "偏好独立完成");
+        UserProfileMemoryEntity second = memory(2L, "工作方式", "偏好团队协作");
+        when(orchestrator.current(7L)).thenReturn(List.of(first, second));
+
+        String context = new ContextPlanner(orchestrator).planEnvelope(
+                7L, null, "", List.of(), List.of(), ContextPurpose.CHAT).context();
+
+        assertTrue(context.contains("工作方式：偏好独立完成"));
+        assertTrue(context.contains("工作方式：偏好团队协作"));
+        assertTrue(context.contains("conflict=\"true\""));
+    }
+
+    private UserProfileMemoryEntity memory(Long id, String key, String value) {
+        UserProfileMemoryEntity memory = new UserProfileMemoryEntity();
+        memory.setId(id);
+        memory.setUserId(7L);
+        memory.setAttributeKey(key);
+        memory.setAttributeValue(value);
+        memory.setMemoryType("preference");
+        memory.setIsCore(false);
+        memory.setStatus("active");
+        return memory;
     }
 }
