@@ -37,7 +37,7 @@
         <textarea class="modal-textarea" v-model="newColDesc" placeholder="描述（可选）" maxlength="100" />
         <view class="modal-actions">
           <button class="cancel-btn" @click="showCreateModal = false">取消</button>
-          <button class="confirm-btn" :disabled="!newColName.trim()" @click="createCollection">创建</button>
+          <button class="confirm-btn" :loading="creating" :disabled="!newColName.trim() || creating" @click="createCollection">创建</button>
         </view>
       </view>
     </view>
@@ -59,6 +59,7 @@ const hasMore = ref(true);
 const showCreateModal = ref(false);
 const newColName = ref('');
 const newColDesc = ref('');
+const creating = ref(false);
 
 onLoad(() => {
   fetchCollections();
@@ -94,7 +95,8 @@ const fetchCollections = async (isLoadMore = false) => {
 const loadMore = () => fetchCollections(true);
 
 const createCollection = async () => {
-  if (!newColName.value.trim()) return;
+  if (!newColName.value.trim() || creating.value) return;
+  creating.value = true;
   try {
     const res = await post('/api/collections', {
       name: newColName.value.trim(),
@@ -109,11 +111,13 @@ const createCollection = async () => {
     }
   } catch (e) {
     uni.showToast({ title: '创建失败', icon: 'none' });
+  } finally {
+    creating.value = false;
   }
 };
 
 const openCollection = (id: number) => {
-  uni.showToast({ title: '即将支持查看合集内容', icon: 'none' });
+  uni.navigateTo({ url: `/pages/collections/detail?id=${id}` });
 };
 
 </script>

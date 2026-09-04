@@ -698,7 +698,7 @@ function getAvatarStyle(name: string) {
   flex: 1;
   font-weight: 600;
   box-shadow: 0 2px 6px rgba(74, 124, 98, 0.02);
-  transition: all var(--duration-fast) var(--ease-out);
+  transition: color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
 }
 
 .action-btn-pill:active {
@@ -777,7 +777,7 @@ function getAvatarStyle(name: string) {
   cursor: pointer;
   border-radius: 16px;
   font-weight: 500;
-  transition: all var(--duration-fast) var(--ease-out);
+  transition: color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
 }
 
 .sort-btn:hover {
@@ -798,3 +798,4 @@ function getAvatarStyle(name: string) {
   }
 }
 </style>
+

@@ -463,7 +463,7 @@ onMounted(() => {
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
   font-family: var(--font-body);
 }
 
@@ -723,7 +723,7 @@ onMounted(() => {
   padding: 10px 12px;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
   border: 1px solid transparent;
 }
 
@@ -752,7 +752,7 @@ onMounted(() => {
   flex-shrink: 0;
   font-size: 11px;
   color: var(--color-primary);
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
   margin-top: 2px;
 }
 
@@ -851,3 +851,4 @@ onMounted(() => {
   }
 }
 </style>
+

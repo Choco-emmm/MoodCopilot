@@ -14,12 +14,13 @@ export interface DiaryImageMetaPayload {
 }
 
 export const diaryApi = {
-  create: (data: { content: string; visibility: string; musicMeta?: any; images?: string[]; imageMeta?: DiaryImageMetaPayload[]; analyze?: boolean }) => api.post('/diaries', data),
-  update: (id: number, data: { content: string; visibility: string; isPinned?: boolean; musicMeta?: any; images?: string[]; imageMeta?: DiaryImageMetaPayload[]; analyze?: boolean }) => api.put(`/diaries/${id}`, data),
+  create: (data: { content: string; visibility: string; musicMeta?: any; images?: string[]; imageMeta?: DiaryImageMetaPayload[]; analyze?: boolean; useReasoning?: boolean }) => api.post('/diaries', data),
+  update: (id: number, data: { content: string; visibility: string; isPinned?: boolean; musicMeta?: any; images?: string[]; imageMeta?: DiaryImageMetaPayload[]; analyze?: boolean; useReasoning?: boolean }) => api.put(`/diaries/${id}`, data),
   mine: (page = 1, size = 20) => api.get('/diaries/mine', { params: { page, size } }),
   byUser: (userId: number, page = 1, size = 20) => api.get(`/diaries/user/${userId}`, { params: { page, size } }),
   public: (page = 1, size = 20) => api.get('/diaries/public', { params: { page, size } }),
   get: (id: number) => api.get(`/diaries/${id}`),
+  retryAnalysis: (id: number, useReasoning = false) => api.post(`/diaries/${id}/analysis/retry`, { useReasoning }),
   similar: (id: number, limit = 3) => api.get(`/diaries/${id}/similar`, { params: { limit } }),
   addComment: (id: number, content: string, parentCommentId?: number) =>
     api.post(`/diaries/${id}/comments`, { content, parentCommentId: parentCommentId ?? null }),
@@ -43,6 +44,13 @@ export const diaryApi = {
 
 export const memoryApi = {
   getAll: () => api.get('/memory'),
+  getDetail: (id: number) => api.get(`/memory/${id}`),
+  getCandidates: (status = 'PENDING', page = 1, size = 20, sort = 'updatedAt') => api.get('/memory/candidates', { params: { status, page, size, sort } }),
+  getCandidateEvidence: (id: number) => api.get(`/memory/candidates/${id}/evidence`),
+  approveCandidate: (id: number) => api.post(`/memory/candidates/${id}/approve`),
+  rejectCandidate: (id: number) => api.post(`/memory/candidates/${id}/reject`),
+  getHistory: (id: number) => api.get(`/memory/${id}/history`),
+  getEvidence: (id: number) => api.get(`/memory/${id}/evidence`),
   forget: (id: number) => api.delete(`/memory/${id}`),
   update: (id: number, data: { attributeValue: string; isCore?: boolean }) => api.put(`/memory/${id}`, data),
   previewConsolidate: () => api.post('/memory/consolidate/preview'),

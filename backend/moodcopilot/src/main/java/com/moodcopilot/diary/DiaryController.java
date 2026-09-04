@@ -47,11 +47,15 @@ public class DiaryController {
             log.info("用户主动关闭AI分析，diaryId={}，userId={}", diary.id(), diary.authorUserId());
         } else if (user != null) {
             try {
-                rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
+                if (request.isUseReasoning()) {
+                    rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REASONING);
+                } else {
+                    rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
+                }
                 diary = diary.withAnalysisStatus("analyzing");
-                diaryService.submitAiAnalysisTask(diary.id(), diary.authorUserId());
+                diaryService.submitAiAnalysisTask(diary.id(), diary.authorUserId(), request.isUseReasoning());
             } catch (RateLimitException e) {
-                diary = diary.withAnalysisStatus("skipped_quota");
+                diary = diary.withAnalysisStatus(request.isUseReasoning() ? "failed_limit" : "skipped_quota");
                 log.info("AI分析限额已满，跳过分析，diaryId={}，userId={}", diary.id(), diary.authorUserId());
             }
         }
@@ -151,6 +155,12 @@ public class DiaryController {
     @GetMapping("/{id}")
     public ApiResponse<DiaryView> get(@PathVariable("id") long id) {
         return ApiResponse.ok(diaryService.get(id));
+    }
+
+    @PostMapping("/{id}/analysis/retry")
+    public ApiResponse<DiaryView> retryAnalysis(@PathVariable long id,
+                                                  @RequestBody(required = false) RetryAnalysisRequest request) {
+        return ApiResponse.ok(diaryService.retryAnalysis(id, request != null && request.isUseReasoning()));
     }
 
     @GetMapping("/{id}/similar")

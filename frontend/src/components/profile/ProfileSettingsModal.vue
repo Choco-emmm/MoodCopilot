@@ -896,7 +896,7 @@ onBeforeUnmount(() => {
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   font-family: var(--font-body);
 }
 
@@ -954,7 +954,7 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   font-size: 14.5px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
 }
 
 .danger-btn:hover {
@@ -1011,7 +1011,7 @@ onBeforeUnmount(() => {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
   font-family: inherit;
 }
 .theme-mode-btn:hover {
@@ -1073,7 +1073,7 @@ onBeforeUnmount(() => {
   padding: 10px 6px 8px;
   border-radius: 14px;
   border: 2px solid transparent;
-  transition: all 0.25s var(--ease-out, ease);
+  transition: color 0.25s var(--ease-out, ease), background-color 0.25s var(--ease-out, ease), border-color 0.25s var(--ease-out, ease), opacity 0.25s var(--ease-out, ease), transform 0.25s var(--ease-out, ease);
   position: relative;
 }
 .theme-item:hover {
@@ -1196,4 +1196,5 @@ onBeforeUnmount(() => {
   --n-placeholder-color: var(--color-text-muted) !important;
 }
 </style>
+
 

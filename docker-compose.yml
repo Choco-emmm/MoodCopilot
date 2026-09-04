@@ -9,8 +9,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
       MYSQL_DATABASE: mood_copilot_db
-    expose:
-      - "3306"
+    ports:
+      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     deploy:
@@ -32,8 +32,8 @@ services:
 
   redis:
     image: redis/redis-stack-server:latest
-    expose:
-      - "6379"
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
     deploy:
@@ -48,7 +48,34 @@ services:
       interval: 10s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:-moodcopilot}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-moodcopilot}
+    expose:
+      - "5672"
+      - "15672"
+    ports:
+      - "127.0.0.1:5672:5672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 6
+      start_period: 20s
+
   backend:
+    image: ghcr.io/${REGISTRY_OWNER:-choco-emmm}/moodcopilot-backend:${IMAGE_TAG:-latest}
     build: ./backend/moodcopilot
     expose:
       - "18080"
@@ -62,6 +89,9 @@ services:
       DB_USERNAME: root
       DB_PASSWORD: ${DB_PASSWORD:-root}
       REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-moodcopilot}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-moodcopilot}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY}
       JWT_SECRET: ${JWT_SECRET}
@@ -71,11 +101,13 @@ services:
       OSS_SECRET_KEY: ${OSS_SECRET_KEY}
       VISION_API_KEY: ${VISION_API_KEY}
       VISION_MODEL: ${VISION_MODEL:-qwen3-vl-flash}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://moodcopilot.dpdns.org,http://localhost:5173}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
       MAIL_HOST: ${MAIL_HOST:-smtp.qq.com}
       MAIL_PORT: ${MAIL_PORT:-465}
       MAIL_USERNAME: ${MAIL_USERNAME:-your-email@qq.com}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-your-smtp-auth-code}
+      WX_APP_ID: ${WX_APP_ID}
+      WX_APP_SECRET: ${WX_APP_SECRET}
     deploy:
       resources:
         limits:
@@ -92,19 +124,33 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   frontend:
-    build: ./frontend
+    image: nginx:alpine
+    container_name: moodcopilot-icp-shell
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./icp-shell:/usr/share/nginx/html:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
     restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
+
+  web:
+    image: ghcr.io/${REGISTRY_OWNER:-choco-emmm}/moodcopilot-frontend:${IMAGE_TAG:-latest}
+    build: ./frontend
+    container_name: moodcopilot-web
+    expose:
+      - "3000"
+    restart: unless-stopped
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
 
 volumes:
   mysql_data:
   uploads_data:
   redis_data:
+  rabbitmq_data:

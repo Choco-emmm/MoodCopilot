@@ -39,6 +39,18 @@ const router = createRouter({
       meta: { requiresAuth: true, keepAlive: true },
     },
     {
+      path: '/life-events',
+      name: 'life-events',
+      component: () => import('../pages/LifeEventsPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/life-chapters',
+      name: 'life-chapters',
+      component: () => import('../pages/LifeChaptersPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/report',
       name: 'report',
       component: () => import('../pages/ReportPage.vue'),
@@ -110,6 +122,12 @@ const router = createRouter({
       name: 'admin-reports',
       component: () => import('../pages/AdminReportsPage.vue'),
       meta: { requiresAuth: true, requiresAdmin: true, keepAlive: true },
+    },
+    {
+      path: '/admin/announcements',
+      name: 'admin-announcements',
+      component: () => import('../pages/AdminAnnouncementsPage.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
     },
   ],
   scrollBehavior(to, from, savedPosition) {

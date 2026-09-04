@@ -1,6 +1,7 @@
 package com.moodcopilot.ai;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.DiaryKnowledgeGraphEntity;
 import com.moodcopilot.entity.UserEntity;
@@ -17,8 +18,11 @@ import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,26 +31,10 @@ public class GraphConsolidationService {
     private static final Logger log = LoggerFactory.getLogger(GraphConsolidationService.class);
 
     private static final String CONSOLIDATION_PROMPT = """
-            你是一个 AI 知识图谱整理专家。下面是一位用户长期积累的情绪与心理关系网络（三元组）。
-            由于是分多次提取的，其中可能包含重复的因果链、纯事件流水账、或者可以被概括的琐碎关联。
-
-            你的任务是将这些关联进行合并、去重和提纯，剔除没有情绪深度的连结，输出一份高度精简、结构清晰的全新图谱。
-
-            【整理规则】
-            1. 情绪导向：图谱的终极目的是分析“触发源”到“用户内心感受/情绪状态”的联系。如果原三元组只是纯客观事实或行为流水账（如“去操场->看到人”、“朋友->挂贴吧”），请直接删除，不予保留。
-            2. 规范实体命名并合并同类项：将相似的触发源或情绪统一命名。例如将“晚上熬夜”、“熬夜工作”统一合并为“熬夜”；将“稍微有点心烦”、“暴躁”合并归类为更核心的情绪词如“烦躁”。
-            3. 实体提纯：确保 head 节点是精炼的触发源（如某个人物、某个具体场景、某类事件），tail 节点是具体的情绪或心理状态（如“焦虑”、“内耗”、“释怀”）。坚决剔除毫无关联或纯粹记录他人情绪的节点。
-            4. 压缩与精炼路径：如果存在“触发事件A -> 行为B”，以及“行为B -> 情绪C”，可将其合并为“触发事件A -> 情绪C”。避免图谱过度冗长。
-
-            【严格格式要求】
-            只输出合法 JSON，**绝不要**输出 markdown 格式代码块（不要有 ```json 标签），**绝不要**有任何多余解释或开头语。
-            JSON 格式必须是：
-            {
-              "triples": [
-                {"headEntity": "...", "relation": "...", "tailEntity": "...", "tailPolarity": 1},
-                {"headEntity": "...", "relation": "...", "tailEntity": "...", "tailPolarity": -1}
-              ]
-            }
+            你是一个可审计的图谱去重助手。只允许合并完全相同或明确同义的三元组，不得删除事实、改写因果含义或合并相反极性。
+            每个结果必须带上来自输入的 sourceTripleIds 和 sourceDiaryIds。无法证明重复的关系请原样保留，不要输出新的无来源事实。
+            只输出 JSON：{"triples":[{"headEntity":"...","relation":"...","tailEntity":"...","tailPolarity":1,"sourceTripleIds":[1,2],"sourceDiaryIds":[10,11],"operation":"MERGE"}]}
+            operation 只能是 MERGE、DEDUP、NORMALIZE。不要输出 markdown 或解释文字。
             """;
 
     private final ChatClient chatClient;
@@ -85,7 +73,10 @@ public class GraphConsolidationService {
     public record ConsolidatedTriple(@JsonProperty("headEntity") String headEntity,
             @JsonProperty("relation") String relation,
             @JsonProperty("tailEntity") String tailEntity,
-            @JsonProperty("tailPolarity") Integer tailPolarity) {
+            @JsonProperty("tailPolarity") Integer tailPolarity,
+            @JsonProperty("sourceTripleIds") List<Long> sourceTripleIds,
+            @JsonProperty("sourceDiaryIds") List<Long> sourceDiaryIds,
+            @JsonProperty("operation") String operation) {
     }
 
     public List<ConsolidatedTriple> previewConsolidation(Long userId) {
@@ -116,7 +107,7 @@ public class GraphConsolidationService {
         try {
             String cleanedJson = JsonUtils.cleanJson(json);
             ConsolidatedGraphResponse response = objectMapper.readValue(cleanedJson, ConsolidatedGraphResponse.class);
-            return response.triples();
+            return sanitize(userId, existing, response.triples());
         } catch (Exception e) {
             log.error("Failed to parse LLM response for graph consolidation", e);
             throw new RuntimeException("AI 返回格式错误，请稍后重试");
@@ -126,41 +117,58 @@ public class GraphConsolidationService {
     public void applyConsolidation(Long userId, List<ConsolidatedTriple> newTriples) {
         List<DiaryKnowledgeGraphEntity> existing = graphService.getTriplesForUser(userId);
         LocalDateTime now = LocalDateTime.now();
-        Map<String, DiaryKnowledgeGraphEntity> existingBySignature = existing.stream()
-                .collect(Collectors.toMap(this::tripleSignature, entity -> entity, (left, right) -> left,
-                        LinkedHashMap::new));
-
-        // 删除旧的 RAG 向量
-        for (DiaryKnowledgeGraphEntity old : existing) {
-            ragMemoryService.deleteKnowledgeGraph(old.getId());
-        }
+        Map<String, DiaryKnowledgeGraphEntity> existingBySignature = existing.stream().collect(Collectors.toMap(
+                this::tripleSignature, entity -> entity, (left, right) -> left, LinkedHashMap::new));
+        List<DiaryKnowledgeGraphEntity> changed = new ArrayList<>();
 
         transactionOperations.execute(status -> {
-            for (DiaryKnowledgeGraphEntity old : existing) {
-                graphMapper.deleteById(old.getId());
-            }
-
-            for (ConsolidatedTriple t : newTriples) {
+            for (ConsolidatedTriple t : newTriples == null ? List.<ConsolidatedTriple>of() : newTriples) {
+                List<DiaryKnowledgeGraphEntity> sources = existing.stream()
+                        .filter(e -> t.sourceTripleIds() != null && t.sourceTripleIds().contains(e.getId()))
+                        .toList();
+                if (sources.isEmpty()) continue;
+                Set<Integer> polarities = sources.stream().map(e -> e.getTailPolarity() == null ? 0 : e.getTailPolarity()).collect(Collectors.toSet());
+                if (polarities.size() > 1) continue;
                 DiaryKnowledgeGraphEntity entity = new DiaryKnowledgeGraphEntity();
                 entity.setUserId(userId);
-                entity.setDiaryId(-1L); // Indicates consolidated
+                entity.setDiaryId(-1L);
                 entity.setHeadEntity(trimTo(t.headEntity(), 64));
                 entity.setRelation(trimTo(t.relation(), 64));
                 entity.setTailEntity(trimTo(t.tailEntity(), 64));
                 entity.setTailPolarity(t.tailPolarity() != null ? t.tailPolarity() : 0);
                 DiaryKnowledgeGraphEntity matched = existingBySignature.get(tripleSignature(entity));
-                entity.setCreatedAt(matched != null && matched.getCreatedAt() != null ? matched.getCreatedAt() : now);
-                graphMapper.insert(entity);
+                DiaryKnowledgeGraphEntity target = matched;
+                if (target == null) {
+                    target = entity;
+                    target.setCreatedAt(now);
+                    target.setStatus("active");
+                    target.setSourceTripleIds(toJsonIds(sources.stream().map(DiaryKnowledgeGraphEntity::getId).toList()));
+                    target.setSourceDiaryIds(toJsonIds(sources.stream().map(DiaryKnowledgeGraphEntity::getDiaryId).filter(id -> id != null && id > 0).distinct().toList()));
+                    graphMapper.insert(target);
+                } else {
+                    target.setSourceTripleIds(toJsonIds(unionIds(target.getSourceTripleIds(), sources.stream().map(DiaryKnowledgeGraphEntity::getId).toList())));
+                    target.setSourceDiaryIds(toJsonIds(unionIds(target.getSourceDiaryIds(), sources.stream().map(DiaryKnowledgeGraphEntity::getDiaryId).filter(id -> id != null && id > 0).toList())));
+                    graphMapper.updateById(target);
+                }
+                existingBySignature.put(tripleSignature(target), target);
+                changed.add(target);
+                for (DiaryKnowledgeGraphEntity source : sources) {
+                    if (source.getId().equals(target.getId())) continue;
+                    source.setStatus("superseded");
+                    source.setSupersededById(target.getId());
+                    graphMapper.updateById(source);
+                    ragMemoryService.deleteKnowledgeGraph(source.getId());
+                }
             }
             return null;
         });
 
-        // 重新向量化
-        List<DiaryKnowledgeGraphEntity> latest = graphService.getTriplesForUser(userId);
-        for (DiaryKnowledgeGraphEntity entity : latest) {
+        for (DiaryKnowledgeGraphEntity entity : changed) {
             ragMemoryService.indexKnowledgeGraph(userId, entity.getDiaryId(), entity.getId(),
                     entity.getHeadEntity(), entity.getRelation(), entity.getTailEntity());
         }
+
+        List<DiaryKnowledgeGraphEntity> latest = graphService.getTriplesForUser(userId);
 
         UserEntity user = userMapper.selectById(userId);
         if (user != null && !Boolean.FALSE.equals(user.getProfileNotifyEnabled())) {
@@ -171,9 +179,39 @@ public class GraphConsolidationService {
 
     private String buildPrompt(List<DiaryKnowledgeGraphEntity> existing) {
         return "现有图谱三元组：\n" + existing.stream()
-                .map(t -> t.getHeadEntity() + " --(" + t.getRelation() + ")--> " + t.getTailEntity() + " [极性:"
+                .map(t -> "tripleId=" + t.getId() + " diaryId=" + t.getDiaryId() + " " + t.getHeadEntity() + " --(" + t.getRelation() + ")--> " + t.getTailEntity() + " [极性:"
                         + (t.getTailPolarity() == null ? 0 : t.getTailPolarity()) + "]")
                 .collect(Collectors.joining("\n"));
+    }
+
+    private List<ConsolidatedTriple> sanitize(Long userId, List<DiaryKnowledgeGraphEntity> existing,
+                                               List<ConsolidatedTriple> triples) {
+        Set<Long> owned = existing.stream().map(DiaryKnowledgeGraphEntity::getId).collect(Collectors.toSet());
+        List<ConsolidatedTriple> result = new ArrayList<>();
+        for (ConsolidatedTriple t : triples == null ? List.<ConsolidatedTriple>of() : triples) {
+            if (t == null || t.headEntity() == null || t.relation() == null || t.tailEntity() == null) continue;
+            List<Long> ids = t.sourceTripleIds() == null ? List.of() : t.sourceTripleIds().stream().filter(owned::contains).distinct().toList();
+            if (ids.isEmpty()) continue;
+            List<Long> diaries = existing.stream().filter(e -> ids.contains(e.getId())).map(DiaryKnowledgeGraphEntity::getDiaryId)
+                    .filter(id -> id != null && id > 0).distinct().toList();
+            result.add(new ConsolidatedTriple(trimTo(t.headEntity(), 64), trimTo(t.relation(), 64), trimTo(t.tailEntity(), 64),
+                    t.tailPolarity() == null ? 0 : t.tailPolarity(), ids, diaries,
+                    t.operation() == null ? "DEDUP" : t.operation().toUpperCase(java.util.Locale.ROOT)));
+        }
+        return result;
+    }
+
+    private String toJsonIds(List<Long> ids) {
+        try { return objectMapper.writeValueAsString(ids == null ? List.of() : ids); }
+        catch (Exception e) { throw new IllegalStateException("图谱来源序列化失败", e); }
+    }
+
+    private List<Long> unionIds(String json, List<Long> additional) {
+        Set<Long> ids = new LinkedHashSet<>();
+        try { if (json != null && !json.isBlank()) for (JsonNode id : objectMapper.readTree(json)) ids.add(id.asLong()); }
+        catch (Exception ignored) { }
+        if (additional != null) ids.addAll(additional);
+        return new ArrayList<>(ids);
     }
 
     private String trimTo(String val, int maxLen) {

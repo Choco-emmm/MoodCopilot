@@ -1,62 +1,64 @@
 <template>
   <n-config-provider :theme="naiveTheme" :theme-overrides="dynamicThemeOverrides" :locale="zhCN" :date-locale="dateZhCN">
-    <n-notification-provider>
-      <n-message-provider>
-        <MessageEnvironment />
-        <router-view v-slot="{ Component, route }">
-          <keep-alive>
-            <component :is="Component" v-if="route.meta.keepAlive" :key="route.name" />
-          </keep-alive>
-          <component :is="Component" v-if="!route.meta.keepAlive" :key="route.fullPath" />
-        </router-view>
+    <n-dialog-provider>
+      <n-notification-provider>
+        <n-message-provider>
+          <MessageEnvironment />
+          <router-view v-slot="{ Component, route }">
+            <keep-alive>
+              <component :is="Component" v-if="route.meta.keepAlive" :key="route.name" />
+            </keep-alive>
+            <component :is="Component" v-if="!route.meta.keepAlive" :key="route.fullPath" />
+          </router-view>
 
-        <!-- 全局任务中心 FAB -->
-        <router-link
-          v-if="showTaskFab"
-          to="/task-center"
-          class="global-task-fab"
-          :class="{ 'has-dot': !taskStore.checkInState.todaySigned }"
-          title="任务中心"
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <line x1="3" y1="9" x2="21" y2="9"/>
-            <line x1="9" y1="21" x2="9" y2="9"/>
-          </svg>
-        </router-link>
+          <!-- 全局任务中心 FAB -->
+          <router-link
+            v-if="showTaskFab"
+            to="/task-center"
+            class="global-task-fab"
+            :class="{ 'has-dot': !taskStore.checkInState.todaySigned }"
+            title="任务中心"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="3" y1="9" x2="21" y2="9"/>
+              <line x1="9" y1="21" x2="9" y2="9"/>
+            </svg>
+          </router-link>
 
-        <n-modal :show="store.showGlobalAnalysisModal" :mask-closable="false" @update:show="onGlobalModalUpdate">
-          <div class="analysis-modal">
-            <div class="modal-header">
-              <h3>分析完成</h3>
-              <button class="modal-close" @click="store.closeAnalysisModal()">&times;</button>
-            </div>
-            <template v-if="store.globalAnalysisDiary?.analysis">
-              <div class="modal-mood">
-                <n-tag :type="moodTagType(store.globalAnalysisDiary.analysis.moodLabel)" size="medium">
-                  {{ store.globalAnalysisDiary.analysis.moodLabel }}
-                </n-tag>
-                <span class="mood-intensity">强度 {{ '★'.repeat(store.globalAnalysisDiary.analysis.moodIntensity) }}{{ '☆'.repeat(5 - store.globalAnalysisDiary.analysis.moodIntensity) }}</span>
+          <n-modal :show="store.showGlobalAnalysisModal" :mask-closable="false" @update:show="onGlobalModalUpdate">
+            <div class="analysis-modal">
+              <div class="modal-header">
+                <h3>分析完成</h3>
+                <button class="modal-close" @click="store.closeAnalysisModal()">&times;</button>
               </div>
-              <template v-if="store.globalAnalysisDiary.analysis.secondaryMoods?.length">
-                <div class="modal-secondary">
-                  <n-tag v-for="m in store.globalAnalysisDiary.analysis.secondaryMoods" :key="m" size="small" :bordered="true">
-                    {{ m }}
+              <template v-if="store.globalAnalysisDiary?.analysis">
+                <div class="modal-mood">
+                  <n-tag :type="moodTagType(store.globalAnalysisDiary.analysis.moodLabel)" size="medium">
+                    {{ store.globalAnalysisDiary.analysis.moodLabel }}
                   </n-tag>
+                  <span class="mood-intensity">强度 {{ '★'.repeat(store.globalAnalysisDiary.analysis.moodIntensity) }}{{ '☆'.repeat(5 - store.globalAnalysisDiary.analysis.moodIntensity) }}</span>
                 </div>
+                <template v-if="store.globalAnalysisDiary.analysis.secondaryMoods?.length">
+                  <div class="modal-secondary">
+                    <n-tag v-for="m in store.globalAnalysisDiary.analysis.secondaryMoods" :key="m" size="small" :bordered="true">
+                      {{ m }}
+                    </n-tag>
+                  </div>
+                </template>
+                <p class="modal-summary">{{ store.globalAnalysisDiary.analysis.summary }}</p>
+                <p class="modal-feedback">{{ truncatedFeedback }}</p>
               </template>
-              <p class="modal-summary">{{ store.globalAnalysisDiary.analysis.summary }}</p>
-              <p class="modal-feedback">{{ truncatedFeedback }}</p>
-            </template>
-            <div class="modal-actions">
-              <n-button @click="store.closeAnalysisModal()">关闭</n-button>
-              <n-button type="primary" @click="goToDetail">查看完整分析</n-button>
+              <div class="modal-actions">
+                <n-button @click="store.closeAnalysisModal()">关闭</n-button>
+                <n-button type="primary" @click="goToDetail">查看完整分析</n-button>
+              </div>
             </div>
-          </div>
-        </n-modal>
-        <GlobalConsolidationModals />
-      </n-message-provider>
-    </n-notification-provider>
+          </n-modal>
+          <GlobalConsolidationModals />
+        </n-message-provider>
+      </n-notification-provider>
+    </n-dialog-provider>
   </n-config-provider>
 </template>
 

@@ -464,7 +464,13 @@ async function createCustom() {
   if (!startDate.value || !endDate.value) return
   creating.value = true
   try {
-    const iso = (ts: number) => new Date(ts).toISOString().split('T')[0]
+    const iso = (ts: number) => {
+      const d = new Date(ts);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const d2 = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d2}`;
+    };
     await summaryApi.create({ startDate: iso(startDate.value), endDate: iso(endDate.value) })
     startDate.value = null
     endDate.value = null
@@ -553,7 +559,7 @@ function formatGeneratedAt(value?: string | Date | null) {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
+  transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
   position: absolute;
   right: 0;
 }
@@ -586,7 +592,7 @@ function formatGeneratedAt(value?: string | Date | null) {
   font-weight: 600;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
 }
 
 .tab-btn.active {
@@ -646,7 +652,7 @@ function formatGeneratedAt(value?: string | Date | null) {
   justify-content: center;
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
 }
 
 .nav-arrow:hover {
@@ -1234,3 +1240,4 @@ function formatGeneratedAt(value?: string | Date | null) {
   text-align: right;
 }
 </style>
+

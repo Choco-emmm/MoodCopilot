@@ -75,11 +75,15 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(
                                 "/api/health",
+                                "/api/vthread/**",
                                 "/api/auth/register",
                                 "/api/auth/login",
                                 "/api/auth/wx-login",
                                 "/api/auth/send-code",
+                                "/api/auth/reset-password/send-code",
+                                "/api/auth/reset-password",
                                 "/api/auth/captcha/**",
+                                "/api/announcements/active",
                                 "/api/uploads/**",
                                 "/uploads/**",
                                 "/swagger-ui.html",

@@ -4,10 +4,13 @@ export interface Result<T = any> {
   data: T;
 }
 
-// 自动根据开发环境/生产环境切换域名
-export const BASE_URL = import.meta.env.DEV 
-  ? 'http://localhost:18080' 
-  : 'https://api.yourdomain.com'; // TODO: 替换为实际上线的域名
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+const isWeChatMiniProgram = typeof globalThis !== 'undefined' && 'wx' in globalThis;
+const defaultBaseUrl = import.meta.env.DEV && !isWeChatMiniProgram
+  ? 'http://localhost:18080'
+  : 'https://moodcopilot.top';
+
+export const BASE_URL = (configuredBaseUrl || defaultBaseUrl).replace(/\/+$/, '');
 
 export const getFullUrl = (url: string | undefined | null): string => {
   if (!url) return '';
@@ -16,17 +19,93 @@ export const getFullUrl = (url: string | undefined | null): string => {
   return url;
 };
 
+// 队列，用于存储在刷新 token 期间过来的请求
+let isRefreshing = false;
+let requestsQueue: any[] = [];
+
+// 执行队列中的请求
+const processQueue = (error: Error | null, token?: string) => {
+  requestsQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  requestsQueue = [];
+};
+
+// 微信静默登录
+const silentLogin = (): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    if (!isWeChatMiniProgram) {
+      reject(new Error('Not in WeChat'));
+      return;
+    }
+    uni.login({
+      provider: 'weixin',
+      success: (loginRes) => {
+        if (!loginRes.code) return reject(new Error('No login code'));
+        uni.request({
+          url: BASE_URL + '/api/auth/wx-login',
+          method: 'POST',
+          data: { code: loginRes.code },
+          header: { 'Content-Type': 'application/json' },
+          success: (res: any) => {
+            if (res.statusCode === 200 && res.data?.code === 200 && res.data?.data?.token) {
+              const newToken = res.data.data.token;
+              uni.setStorageSync('token', newToken);
+              resolve(newToken);
+            } else {
+              reject(new Error('Silent login failed'));
+            }
+          },
+          fail: (err) => reject(err)
+        });
+      },
+      fail: (err) => reject(err)
+    });
+  });
+};
+
 // 统一的错误与未授权处理逻辑
-const handleResponseError = (statusCode: number, dataMessage?: string, defaultMsg: string = '请求失败') => {
+const extractErrorMessage = (value: unknown): string => {
+  if (typeof value === 'string') return value.trim();
+  if (Array.isArray(value)) {
+    return value
+      .map(item => extractErrorMessage(item))
+      .filter(Boolean)
+      .join('；');
+  }
+  if (value && typeof value === 'object') {
+    const payload = value as Record<string, unknown>;
+    for (const key of ['message', 'error', 'detail', 'msg']) {
+      const message = extractErrorMessage(payload[key]);
+      if (message) return message;
+    }
+  }
+  return '';
+};
+
+const handleResponseError = (statusCode: number, dataMessage?: unknown, defaultMsg: string = '请求失败') => {
   if (statusCode === 401) {
     uni.removeStorageSync('token');
     uni.showToast({ title: '请先登录', icon: 'none' });
     uni.$emit('unauthorized');
-    return new Error('Unauthorized');
+    const error = new Error('Unauthorized') as Error & { statusCode?: number };
+    error.statusCode = statusCode;
+    return error;
   } else {
-    const msg = dataMessage || defaultMsg;
+    const serverMessage = extractErrorMessage(dataMessage);
+    const msg = [500, 502, 503, 504].includes(statusCode)
+      ? '服务暂时不可用，请稍后再试'
+      : statusCode === 404
+        ? '功能暂时不可用，请稍后再试'
+        : serverMessage || (statusCode === 429 ? '请求额度已用完，请稍后再试' : defaultMsg);
     uni.showToast({ title: msg, icon: 'none' });
-    return new Error(msg);
+    const error = new Error(msg) as Error & { statusCode?: number };
+    error.statusCode = statusCode;
+    return error;
   }
 };
 
@@ -37,34 +116,59 @@ export const request = <T = any>(
   header?: any
 ): Promise<Result<T>> => {
   return new Promise((resolve, reject) => {
-    const token = uni.getStorageSync('token');
-    const customHeader: any = {
-      ...header,
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      customHeader['Authorization'] = `Bearer ${token}`;
-    }
+    const performRequest = (currentToken: string) => {
+      const customHeader: any = {
+        ...header,
+        'Content-Type': 'application/json',
+      };
+      if (currentToken) {
+        customHeader['Authorization'] = `Bearer ${currentToken}`;
+      }
 
-    uni.request({
-      url: BASE_URL + url,
-      method,
-      data,
-      header: customHeader,
-      success: (res: any) => {
-        if (res.statusCode === 200) {
-          const result = res.data as Result<T>;
-          if (result.code === 0) result.code = 200;
-          resolve(result);
-        } else {
-          reject(handleResponseError(res.statusCode, res.data?.message));
-        }
-      },
-      fail: (err) => {
-        uni.showToast({ title: '网络错误，请稍后重试', icon: 'none' });
-        reject(err);
-      },
-    });
+      uni.request({
+        url: BASE_URL + url,
+        method,
+        data,
+        header: customHeader,
+        success: (res: any) => {
+          if (res.statusCode === 200) {
+            const result = res.data as Result<T>;
+            if (result.code === 0) result.code = 200;
+            resolve(result);
+          } else if (res.statusCode === 401 && isWeChatMiniProgram) {
+            // 静默登录续期逻辑
+            if (!isRefreshing) {
+              isRefreshing = true;
+              silentLogin().then(newToken => {
+                isRefreshing = false;
+                processQueue(null, newToken);
+                performRequest(newToken); // 重试当前请求
+              }).catch(err => {
+                isRefreshing = false;
+                processQueue(err);
+                reject(handleResponseError(401, '登录已过期，请重新登录'));
+              });
+            } else {
+              // 已经在刷新，加入队列等待
+              requestsQueue.push({
+                resolve: (newToken: string) => performRequest(newToken),
+                reject: (err: any) => reject(err)
+              });
+            }
+          } else {
+            reject(handleResponseError(res.statusCode, res.data?.message));
+          }
+        },
+        fail: (err) => {
+          const error = new Error('网络错误，请稍后重试') as Error & { statusCode?: number };
+          error.statusCode = 0;
+          uni.showToast({ title: error.message, icon: 'none' });
+          reject(error);
+        },
+      });
+    };
+
+    performRequest(uni.getStorageSync('token'));
   });
 };
 
@@ -111,8 +215,10 @@ export const upload = <T = any>(url: string, filePath: string, name: string = 'f
         }
       },
       fail: (err) => {
-        uni.showToast({ title: '网络错误', icon: 'none' });
-        reject(err);
+        const error = new Error('网络错误，请稍后重试') as Error & { statusCode?: number };
+        error.statusCode = 0;
+        uni.showToast({ title: error.message, icon: 'none' });
+        reject(error);
       },
     });
   });

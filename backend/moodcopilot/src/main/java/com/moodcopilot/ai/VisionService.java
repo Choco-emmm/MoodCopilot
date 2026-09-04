@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -13,6 +14,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import com.moodcopilot.oss.OssService;
@@ -38,6 +41,7 @@ public class VisionService {
     private final String apiUrl;
     private final String model;
     private final String ocrModel;
+    private final int ocrMaxTokens;
     private final boolean enableOcr;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
@@ -48,15 +52,23 @@ public class VisionService {
             @Value("${moodcopilot.vision.api-url:https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions}") String apiUrl,
             @Value("${moodcopilot.vision.model:qwen3-vl-flash}") String model,
             @Value("${moodcopilot.vision.ocr-model:qwen-vl-ocr}") String ocrModel,
+            @Value("${moodcopilot.vision.ocr-max-tokens:2048}") int ocrMaxTokens,
             @Value("${moodcopilot.vision.enable-ocr-for-text-images:true}") boolean enableOcr,
+            @Value("${moodcopilot.ai.http-timeout-seconds:90}") int httpTimeoutSeconds,
             ObjectMapper objectMapper,
             @Lazy OssService ossService) {
         this.apiKey = apiKey != null ? apiKey.trim() : "";
         this.apiUrl = apiUrl;
         this.model = model;
         this.ocrModel = ocrModel;
+        this.ocrMaxTokens = ocrMaxTokens > 0 ? ocrMaxTokens : 2048;
         this.enableOcr = enableOcr;
-        this.restClient = RestClient.builder().build();
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofSeconds(Math.max(1, httpTimeoutSeconds)));
+        this.restClient = RestClient.builder().requestFactory(requestFactory).build();
         this.objectMapper = objectMapper;
         this.ossService = ossService;
     }
@@ -164,8 +176,9 @@ public class VisionService {
     private String analyzeWithOcr(String imageUrl, int index) {
         try {
             String finalUrl = fetchImageAsBase64Uri(imageUrl);
-            String prompt = "请直接提取并输出这张图片中所有可见的文字内容（包括手写文字、印刷文字、屏幕文字）。" +
-                    "只输出原文，不要添加任何解释、评价或描述。如果图片中没有文字，请输出「无文字」。";
+            String prompt = "请逐字提取并输出这张图片中所有可见的文字内容（包括手写文字、印刷文字、屏幕文字、海报标题、正文、按钮、日期、地点和联系方式）。" +
+                    "请按照从上到下、从左到右的阅读顺序完整输出，保留原有换行和段落；禁止概括、改写、补全、合并或省略任何文字，尤其不要漏掉海报下方和角落里的小字。" +
+                    "只输出识别到的原文，不要添加解释、评价或描述。如果图片中没有文字，请输出‘无文字’。";
 
             Map<String, Object> userMsg = Map.of("role", "user", "content", List.of(
                     Map.of("type", "text", "text", prompt),
@@ -173,7 +186,7 @@ public class VisionService {
             Map<String, Object> body = Map.of(
                     "model", ocrModel,
                     "messages", List.of(userMsg),
-                    "max_tokens", 200,
+                    "max_tokens", ocrMaxTokens,
                     "temperature", 0.01);
 
             String response = restClient.post()
@@ -192,6 +205,10 @@ public class VisionService {
             List<Map<String, Object>> choices = (List<Map<String, Object>>) parsed.get("choices");
             if (choices == null || choices.isEmpty())
                 return "";
+            Object finishReason = choices.get(0).get("finish_reason");
+            if ("length".equals(finishReason)) {
+                log.warn("VLM OCR 输出达到 max_tokens 限制 index={} maxTokens={}", index, ocrMaxTokens);
+            }
             @SuppressWarnings("unchecked")
             Map<String, Object> msg = (Map<String, Object>) choices.get(0).get("message");
             if (msg == null)

@@ -15,26 +15,26 @@
 /* 颜色变量 */
 
 /* 行为相关颜色 */
-$uni-color-primary: #007aff;
-$uni-color-success: #4cd964;
-$uni-color-warning: #f0ad4e;
-$uni-color-error: #dd524d;
+$uni-color-primary: var(--theme-primary);
+$uni-color-success: var(--theme-primary);
+$uni-color-warning: var(--theme-accent);
+$uni-color-error: var(--theme-accent);
 
 /* 文字基本颜色 */
 $uni-text-color: var(--theme-text-primary); // 基本色
-$uni-text-color-inverse: #fff; // 反色
+$uni-text-color-inverse: var(--theme-text-on-primary); // 反色
 $uni-text-color-grey: var(--theme-text-placeholder); // 辅助灰色，如加载更多的提示信息
-$uni-text-color-placeholder: #808080;
-$uni-text-color-disable: #c0c0c0;
+$uni-text-color-placeholder: var(--theme-text-placeholder);
+$uni-text-color-disable: var(--theme-text-placeholder);
 
 /* 背景颜色 */
-$uni-bg-color: #fff;
-$uni-bg-color-grey: #f8f8f8;
-$uni-bg-color-hover: #f1f1f1; // 点击状态颜色
-$uni-bg-color-mask: rgba(0, 0, 0, 0.4); // 遮罩颜色
+$uni-bg-color: var(--theme-surface);
+$uni-bg-color-grey: var(--theme-bg);
+$uni-bg-color-hover: var(--theme-surface-hover); // 点击状态颜色
+$uni-bg-color-mask: var(--theme-overlay); // 遮罩颜色
 
 /* 边框颜色 */
-$uni-border-color: #c8c7cc;
+$uni-border-color: var(--theme-border);
 
 /* 尺寸变量 */
 
@@ -68,9 +68,9 @@ $uni-spacing-col-lg: 12px;
 $uni-opacity-disabled: 0.3; // 组件禁用态的透明度
 
 /* 文章场景相关 */
-$uni-color-title: #2c405a; // 文章标题颜色
+$uni-color-title: var(--theme-text-primary); // 文章标题颜色
 $uni-font-size-title: 20px;
-$uni-color-subtitle: #555; // 二级标题颜色
+$uni-color-subtitle: var(--theme-text-secondary); // 二级标题颜色
 $uni-font-size-subtitle: 18px;
-$uni-color-paragraph: #3f536e; // 文章段落颜色
+$uni-color-paragraph: var(--theme-text-secondary); // 文章段落颜色
 $uni-font-size-paragraph: 15px;

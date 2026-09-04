@@ -4,6 +4,7 @@ import { authApi } from '../api'
 import { normalizeResourceUrl } from '../utils/resource'
 import { logWarn } from '../utils/logger'
 import { getStoredToken, clearAuthStorage } from '../utils/auth'
+import { resetLoginRedirectState } from '../api/core'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(getStoredToken())
@@ -102,6 +103,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function applyAuthData(data: any) {
+    resetLoginRedirectState()
     token.value = data.token
     userId.value = data.userId
     displayName.value = data.displayName
@@ -150,6 +152,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout() {
+    resetLoginRedirectState()
     token.value = null
     userId.value = null
     displayName.value = null

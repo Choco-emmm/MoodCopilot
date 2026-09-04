@@ -2,9 +2,9 @@
   <view class="profile-page" :style="globalThemeStyle">
     <GlobalUI :tabIndex="3" />
     <view class="header clean-bg">
-      <view class="user-info fade-in">
+      <view class="user-info fade-in" @click="isLoggedIn && openEditProfile()">
         <view class="avatar">
-          <image :src="getFullUrl(userInfo?.avatar) || `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23999999'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E`" class="avatar-icon" mode="aspectFill" />
+          <image :src="userAvatarUrl" class="avatar-icon" mode="aspectFill" />
         </view>
         <view class="user-detail">
           <view style="display: flex; align-items: center; gap: 12rpx;">
@@ -13,7 +13,7 @@
           <text v-if="isLoggedIn && quotaInfo" class="level-text">Lv.{{ quotaInfo.level }} 用户</text>
         </view>
       </view>
-      <view v-if="!isLoggedIn" class="login-btn hover-scale" @click="handleWechatLogin">
+      <view v-if="!isLoggedIn" class="login-btn hover-scale" @click="showLoginWithoutContinuation">
         登录以体验更多功能
       </view>
     </view>
@@ -24,7 +24,7 @@
       <view class="card quota-card glass-card smooth-shadow" v-if="quotaInfo" @click="showQuotaModal = true">
         <view class="quota-header">
           <text class="quota-header-title">当前配额</text>
-          <text class="quota-header-link">查看配额表 ></text>
+          <text class="quota-header-link">查看配额表 ❯</text>
         </view>
         <view class="quota-item">
           <text class="quota-label">当前经验值</text>
@@ -61,6 +61,12 @@
       </view>
       <view class="card action-card hover-scale smooth-shadow" @click="goToSummaries" style="margin-bottom: 24rpx;">
         <text class="action-text">📊 情绪报告</text>
+      </view>
+      <view class="card action-card hover-scale smooth-shadow" @click="goToLifeEvents" style="margin-bottom: 24rpx;">
+        <text class="action-text">🧵 重要事件</text>
+      </view>
+      <view class="card action-card hover-scale smooth-shadow" @click="goToLifeChapters" style="margin-bottom: 24rpx;">
+        <text class="action-text">📜 时光画卷</text>
       </view>
       <view class="card action-card hover-scale smooth-shadow" @click="goToCollections" style="margin-bottom: 24rpx;">
         <text class="action-text">📁 我的合集</text>
@@ -212,7 +218,7 @@
         <view class="quota-modal-desc">
           <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">AI 分析：</text>发布或修改日记时自动触发（含基础配图提炼）。</text></view>
           <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">图片分析：</text>聊天时向 AI 追问图片内的具体文字、细节（基础提炼未涵盖的内容）时才触发。</text></view>
-          <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">深度思考：</text>当您的问题涉及复杂心理分析、建议或情绪梳理时，后台智能路由会自动为您开启长链路推演。</text></view>
+          <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">深度思考：</text>发送聊天或分析日记前可手动选择，适合复杂心理分析、建议或情绪梳理。</text></view>
           <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">共鸣检索：</text>功能加紧开发中，敬请期待...</text></view>
         </view>
         
@@ -230,18 +236,13 @@
 <script setup lang="ts">
 import GlobalUI from '@/components/GlobalUI.vue';
 import { themeOptions, currentTheme, themeMode, defaultLightTheme, defaultDarkTheme, setThemeMode, setSpecificTheme } from '@/stores/theme';
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 
 import { get, post, upload, getFullUrl } from '@/utils/request';
-import { connectWebSocket, disconnectWebSocket } from '@/utils/socket';
+import { connectWebSocket } from '@/utils/socket';
+import { showLoginWithoutContinuation } from '@/stores/login';
+import { logout as authLogout } from '@/stores/user';
 
-
-
-
-
-uni.$on('themeChanged', () => {
-  
-});
 
 const showQuotaModal = ref(false);
 
@@ -266,6 +267,10 @@ const darkThemeOptions = computed(() => themeOptions.filter(t => !!t.dark));
 const isLoggedIn = ref(false);
 const quotaInfo = ref<any>(null);
 const userInfo = ref<any>(null);
+
+const userAvatarUrl = computed(() => {
+  return getFullUrl(userInfo.value?.avatar) || `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzk5OTk5OSI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==`;
+});
 
 const showEditProfileModal = ref(false);
 const editForm = ref({
@@ -339,6 +344,14 @@ const goToSummaries = () => {
   uni.navigateTo({ url: '/pages/summaries/summaries' });
 };
 
+const goToLifeEvents = () => {
+  uni.navigateTo({ url: '/pages/life-events/life-events' });
+};
+
+const goToLifeChapters = () => {
+  uni.navigateTo({ url: '/pages/life-chapters/life-chapters' });
+};
+
 const goToGrowth = () => {
   if (checkLoginStatus()) uni.navigateTo({ url: '/pages/growth/growth' });
 };
@@ -357,12 +370,15 @@ const goToSettings = () => {
 
 onMounted(() => {
   checkLoginStatus();
-  uni.$on('unauthorized', () => {
-    handleLogout();
-  });
+  uni.$on('login-success', checkLoginStatus);
   uni.$on('profileUpdated', () => {
     fetchUserInfo();
   });
+});
+
+onUnmounted(() => {
+  uni.$off('login-success');
+  uni.$off('profileUpdated');
 });
 
 const checkLoginStatus = () => {
@@ -375,8 +391,11 @@ const checkLoginStatus = () => {
   } else {
     isLoggedIn.value = false;
     quotaInfo.value = null;
+    userInfo.value = null;
   }
+  return isLoggedIn.value;
 };
+
 
 const fetchQuotaInfo = async () => {
   if (!isLoggedIn.value) return;
@@ -395,7 +414,7 @@ const fetchUserInfo = async () => {
   try {
     const res = await get('/api/auth/me');
     if (res.code === 200 && res.data) {
-      userInfo.value = res.data.user;
+      userInfo.value = res.data.user || res.data;
     }
   } catch (e) {
     console.error('Failed to fetch user info', e);
@@ -419,12 +438,10 @@ const handleWechatLogin = () => {
             fetchUserInfo();
             uni.$emit('refreshFeed'); // Refresh home feed
             
-            // Auto-open profile edit if default user
-            if (result.data.user && result.data.user.nickname && result.data.user.nickname.startsWith('微信用户')) {
-              setTimeout(() => {
-                openEditProfile();
-              }, 600);
-            }
+            // Always open profile edit upon explicit login for user confirmation
+            setTimeout(() => {
+              openEditProfile();
+            }, 600);
           } else {
             uni.showToast({ title: '登录失败', icon: 'none' });
           }
@@ -438,12 +455,11 @@ const handleWechatLogin = () => {
   });
 };
 
-const handleLogout = () => {
-  uni.removeStorageSync('token');
-  uni.removeStorageSync('userInfo');
+const handleLogout = async () => {
+  await authLogout();
   isLoggedIn.value = false;
   quotaInfo.value = null;
-  disconnectWebSocket(); // Disconnect WS on logout
+  userInfo.value = null;
   uni.$emit('refreshFeed');
   uni.showToast({ title: '已退出', icon: 'none' });
 };
@@ -562,10 +578,10 @@ const fetchQuota = async () => {
 
 .card {
   background-color: var(--theme-surface);
-  border-radius: 4rpx;
+  border-radius: 24rpx;
   padding: 32rpx;
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0,0,0,0.05);
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0,0,0,0.02);
 }
 
 .quota-card {
@@ -933,7 +949,7 @@ const fetchQuota = async () => {
   justify-content: center;
   padding: 16rpx 0;
   border-radius: 4rpx;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   color: var(--theme-text-secondary);
 }
 
@@ -1005,7 +1021,7 @@ const fetchQuota = async () => {
   align-items: center;
   gap: 12rpx;
   opacity: 0.7;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
 }
 
 .theme-item.active {
@@ -1018,7 +1034,7 @@ const fetchQuota = async () => {
   border-radius: 45rpx;
   padding: 6rpx;
   border: 4rpx solid transparent;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
 }
 
 .theme-item.active .theme-preview {

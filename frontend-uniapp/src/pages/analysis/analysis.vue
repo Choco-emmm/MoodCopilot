@@ -2,12 +2,23 @@
   <scroll-view scroll-y class="analysis-page" :style="globalThemeStyle">
     <GlobalUI :tabIndex="1" />
     <view class="header">
-      <text class="title">洞察 Insights</text>
-      <text class="subtitle">✨ AI 为你整理记忆，发现那些被遗忘的情绪角落。</text>
+      <text class="title">洞察</text>
+      <text class="subtitle">把一段时间的报告和重要记忆放在同一个入口。</text>
+      <view class="insight-entry-switch">
+        <view class="insight-entry active">
+          <text class="entry-kicker">当前</text>
+          <text>记忆中心</text>
+        </view>
+        <view class="insight-entry" @click="goToReports">
+          <text class="entry-kicker">按时间回顾</text>
+          <text>情绪报告</text>
+          <text class="entry-arrow">›</text>
+        </view>
+      </view>
     </view>
 
     <!-- 情绪周报 -->
-    <view class="section">
+    <view v-if="showLegacyReports" class="section">
       <text class="section-title">本周情绪报告</text>
       
       <view v-if="loadingReport" class="loading-state">
@@ -85,7 +96,7 @@
     </view>
 
     <!-- 往期月度总结 -->
-    <view class="section">
+    <view v-if="showLegacyReports" class="section">
       <text class="section-title">往期月度总结</text>
       
       <view v-if="loadingSummaries" class="loading-state">
@@ -96,7 +107,7 @@
         <view class="card summary-card" v-for="summary in monthlySummaries" :key="summary.id">
           <text class="summary-title">{{ summary.title }}</text>
           <text class="summary-date">{{ summary.startDate }} 至 {{ summary.endDate }}</text>
-          <text class="block-content">{{ summary.aiSummary }}</text>
+          <rich-text class="block-content" :nodes="parseMarkdown(summary.aiSummary)"></rich-text>
         </view>
       </view>
       
@@ -107,41 +118,108 @@
 
     <!-- 个人记忆 -->
     <view class="section">
-      <text class="section-title">你的专属记忆</text>
-      <text class="section-desc">AI 悄悄为你记录下的点点滴滴。</text>
+      <view class="section-title-row">
+        <text class="section-title">你的专属记忆</text>
+        <button class="section-action" @click="previewConsolidate" :loading="isConsolidating">整理记忆</button>
+      </view>
+      <text class="section-desc">这里保存你的个人记忆；近期状态只用于当前关怀参考，不会作为核心长期画像。</text>
       
       <view v-if="loadingMemory" class="loading-state">
         <text>正在提取记忆...</text>
       </view>
+      <view v-else-if="memoryError" class="card inline-error-card">
+        <text class="empty-text">正式记忆暂时无法加载</text>
+        <text class="inline-error-detail">请稍后重试</text>
+        <button class="inline-retry-btn" @click="fetchMemory">重新加载</button>
+      </view>
       
       <view v-else-if="memories.length > 0">
-        <view class="memory-waterfall">
-          <view v-for="m in memories" :key="m.id" class="memory-polaroid" @click="openEditMemory(m)">
-            <view class="pin"></view>
-            <view class="item-actions">
+        <view class="memory-list">
+          <view v-for="m in memories" :key="m.id" class="memory-row" @click="openEditMemory(m)">
+            <view class="memory-row-main">
+              <view class="memory-row-head">
+                <text class="memory-key">{{ m.attributeKey }}</text>
+                <text v-if="isSafetyState(m)" class="safety-badge">近期状态</text>
+                <text v-else-if="m.isCore" class="core-badge">核心</text>
+              </view>
+              <text class="memory-value">{{ memoryPreview(m.attributeValue) }}</text>
+              <view class="memory-source-row">
+                <text class="memory-source-label">{{ sourceTypeLabel(m) }}</text>
+                <text v-if="diarySourcesFor(m).length" class="memory-source-preview">{{ diarySourceLabel(diarySourcesFor(m)[0]) }}</text><text v-if="diarySourcesFor(m).length" class="memory-source-link" @click.stop="openMemoryDiarySources(m)">查看关联日记{{ diarySourcesFor(m).length > 1 ? `（${diarySourcesFor(m).length}）` : '' }} →</text>
+                <text v-if="conversationIdsFor(m).length" class="memory-source-link" @click.stop="openMemorySource(null, conversationIdsFor(m)[0])">查看关联会话 →</text>
+                <text v-if="!diaryIdsFor(m).length && !conversationIdsFor(m).length" class="memory-source-empty">暂无原始来源</text>
+              </view>
+              <text v-if="m.updatedAt || m.updateTime" class="memory-updated">最近更新 {{ formatMemoryTime(m.updatedAt || m.updateTime) }}</text>
+            </view>
+            <view class="memory-row-actions">
+              <text class="memory-edit" @click.stop="openMemoryDetails(m)">依据</text>
+              <text class="memory-edit">编辑</text>
               <text class="del-btn" @click.stop="deleteMemory(m.id)">×</text>
             </view>
-            <text class="memory-key">{{ m.attributeKey }}</text>
-            <view class="memory-divider"></view>
-            <text class="memory-value">{{ m.attributeValue }}</text>
-            <text v-if="m.isCore" class="core-badge">★ 核心记忆</text>
           </view>
         </view>
-        <button class="consolidate-btn" @click="previewConsolidate" :loading="isConsolidating">整理与巩固记忆</button>
       </view>
       
       <view v-else class="card empty-card">
         <text class="empty-text">AI 正在努力了解你，多写点日记给它线索吧。</text>
       </view>
+      <view class="candidate-section">
+        <view class="candidate-title">待确认的记忆</view>
+        <text class="candidate-desc">AI 的推断需要你确认后才会进入正式画像。</text>
+        <view v-if="loadingCandidates" class="loading-state candidate-loading-state"><text>正在加载待确认记忆...</text></view>
+        <view v-else-if="candidateError" class="inline-error-card candidate-error-card">
+          <text class="empty-text">待确认记忆暂时无法加载</text>
+          <text class="inline-error-detail">请稍后重试，正式记忆不受影响</text>
+          <button class="inline-retry-btn" @click="fetchCandidates">重新加载</button>
+        </view>
+        <view v-else-if="candidates.length === 0" class="candidate-empty">暂无待确认记忆</view>
+        <view v-else v-for="group in candidateGroups" :key="group.key" class="candidate-group">
+          <text v-if="group.hasConflict" class="candidate-conflict-note">同一属性存在不同候选，请分别确认。</text>
+          <view v-for="candidate in group.items" :key="candidate.id" class="candidate-row">
+            <view class="candidate-copy"><text class="candidate-key">{{ candidate.attributeKey }}</text><text class="candidate-value">{{ candidate.attributeValue }}</text><text class="candidate-evidence">{{ isSafetyState(candidate) ? '这是需要关注的近期状态，不属于核心长期画像。' : (candidate.evidenceSummary || '暂无证据摘要') }}</text><text class="candidate-evidence">已有 {{ candidate.evidenceCount || 0 }} 条依据 · {{ sourceTypeLabel(candidate) }}</text><text v-if="diarySourcesFor(candidate).length" class="candidate-source-preview">{{ diarySourceLabel(diarySourcesFor(candidate)[0]) }}</text><text v-if="diarySourcesFor(candidate).length" class="candidate-source-link" @click.stop="openMemoryDiarySources(candidate)">查看关联日记{{ diarySourcesFor(candidate).length > 1 ? `（${diarySourcesFor(candidate).length}）` : '' }} →</text><text v-else-if="conversationIdsFor(candidate).length" class="candidate-source-link" @click.stop="openMemorySource(null, conversationIdsFor(candidate)[0])">查看关联会话 →</text><text v-else class="candidate-evidence">暂无原始来源</text></view>
+            <view class="candidate-actions"><text :class="['candidate-approve', { 'candidate-action-disabled': candidateActionId === candidate.id }]" @click="approveCandidate(candidate.id)">确认</text><text :class="['candidate-reject', { 'candidate-action-disabled': candidateActionId === candidate.id }]" @click="rejectCandidate(candidate.id)">拒绝</text></view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="modal-overlay" v-if="showMemoryDetailsModal" @click="showMemoryDetailsModal = false">
+      <view class="modal-content" @click.stop>
+        <text class="modal-title">记忆依据与历史</text>
+        <scroll-view scroll-y class="preview-list">
+          <view v-if="memoryDetailsLoading" class="empty-text">正在加载...</view>
+          <template v-else>
+            <view v-for="item in memoryEvidence" :key="`e-${item.id}`" class="preview-item">
+              <text class="preview-key">{{ item.evidenceDate || '未标日期' }}</text>
+              <text class="preview-value">{{ item.evidenceText }}</text>
+              <text v-if="item.sourceDiaryId" class="memory-source-link" @click="openMemorySource(item.sourceDiaryId, null)">查看关联日记 →</text>
+            </view>
+            <view v-for="item in historicalMemoryVersions" :key="`h-${item.id}`" class="preview-item">
+              <text class="preview-key">历史版本 · {{ memoryStatusLabel(item.status) }}</text>
+              <text class="preview-value">{{ item.attributeValue }}</text>
+            </view>
+            <text v-if="!memoryEvidence.length && !historicalMemoryVersions.length" class="empty-text">这条记忆没有保存可展示的原始依据。</text>
+          </template>
+        </scroll-view>
+        <view class="modal-actions"><button class="cancel-btn" @click="showMemoryDetailsModal = false">关闭</button></view>
+      </view>
     </view>
 
     <!-- 关系图谱 -->
     <view class="section">
-      <text class="section-title">羁绊图谱</text>
+      <view class="section-title-row">
+        <text class="section-title">羁绊图谱</text>
+        <button class="section-action" @click="previewGraphConsolidate" :loading="isGraphConsolidating">整理图谱</button>
+      </view>
       <text class="section-desc">在你的世界里，谁是常客？</text>
       
       <view v-if="loadingGraph" class="loading-state">
         <text>正在连接图谱...</text>
+      </view>
+      <view v-else-if="graphError" class="card inline-error-card">
+        <text class="empty-text">关系图谱暂时无法加载</text>
+        <text class="inline-error-detail">请稍后重试</text>
+        <button class="inline-retry-btn" @click="fetchGraph">重新加载</button>
       </view>
       
       <view v-else-if="triples.length > 0" class="graph-container">
@@ -200,12 +278,33 @@
           
           <view class="edit-switch-row">
             <text class="edit-label">设为核心记忆</text>
-            <switch :checked="editMemoryForm.isCore" @change="editMemoryForm.isCore = $event.detail.value" color="#d4a373" style="transform: scale(0.8);" />
+            <switch v-if="!isSafetyState(editMemoryForm)" :checked="editMemoryForm.isCore" @change="handleCoreMemoryChange" color="#d4a373" style="transform: scale(0.8);" />
+            <text v-else class="safety-edit-note">近期状态不可设为核心长期画像</text>
           </view>
         </view>
         <view class="modal-actions">
           <button class="cancel-btn" @click="showEditMemoryModal = false">取消</button>
           <button class="confirm-btn" @click="saveMemory">保存</button>
+        </view>
+      </view>
+    </view>
+
+    <!-- Graph Consolidation Modal -->
+    <view class="modal-overlay" v-if="showGraphConsolidateModal" @click="closeGraphConsolidateModal">
+      <view class="modal-content" @click.stop>
+        <text class="modal-title">图谱整理预览</text>
+        <scroll-view scroll-y class="preview-list">
+          <view v-if="previewGraphTriples.length === 0" class="empty-text">
+            没有需要整理的关联。
+          </view>
+          <view v-else v-for="(t, idx) in previewGraphTriples" :key="idx" class="preview-item">
+            <text class="preview-key">{{ t.headEntity }} -- {{ t.relation }}</text>
+            <text class="preview-value">{{ t.tailEntity }}</text>
+          </view>
+        </scroll-view>
+        <view class="modal-actions">
+          <button class="cancel-btn" @click="closeGraphConsolidateModal" :disabled="isGraphApplying">取消</button>
+          <button class="confirm-btn" @click="applyGraphConsolidate" :loading="isGraphApplying" :disabled="previewGraphTriples.length === 0 || isGraphApplying">确认应用</button>
         </view>
       </view>
     </view>
@@ -236,28 +335,45 @@
 <script setup lang="ts">
 import GlobalUI from '@/components/GlobalUI.vue';
 
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { get, post, put, del } from '@/utils/request';
 import { parseMarkdown } from '@/utils/markdown';
-
-
-
-
-
-uni.$on('themeChanged', () => {
-  
-});
+import { hasLoginToken, requireLogin } from '@/stores/login';
 
 const loadingReport = ref(false);
 const weeklyReport = ref<any>(null);
 const isGenerating = ref(false);
+const showLegacyReports = false;
 
 const loadingMemory = ref(false);
 const memories = ref<any[]>([]);
+const memoryError = ref(false);
+const candidates = ref<any[]>([]);
+const loadingCandidates = ref(false);
+const candidateError = ref(false);
+const candidateActionId = ref<number | null>(null);
+const showMemoryDetailsModal = ref(false);
+const memoryDetailsLoading = ref(false);
+const memoryEvidence = ref<any[]>([]);
+const memoryHistory = ref<any[]>([]);
+const activeMemoryDetailsId = ref<number | null>(null);
+const historicalMemoryVersions = computed(() => memoryHistory.value.filter(item => item.id !== activeMemoryDetailsId.value));
+const candidateGroups = computed(() => {
+  const groups = new Map<string, { key: string; items: any[]; hasConflict: boolean }>();
+  for (const candidate of candidates.value) {
+    const key = candidate.candidateGroupKey || `${candidate.memoryType || 'memory'}:${candidate.attributeKey}`;
+    const group = groups.get(key) || { key, items: [] as any[], hasConflict: false };
+    group.items.push(candidate);
+    group.hasConflict = group.hasConflict || Boolean(candidate.hasConflict);
+    groups.set(key, group);
+  }
+  return Array.from(groups.values());
+});
 
 const loadingGraph = ref(false);
 const triples = ref<any[]>([]);
+const graphError = ref(false);
 
 const loadingSummaries = ref(false);
 const monthlySummaries = ref<any[]>([]);
@@ -266,23 +382,51 @@ const isConsolidating = ref(false);
 const showConsolidateModal = ref(false);
 const previewMemories = ref<any[]>([]);
 
+const isGraphConsolidating = ref(false);
+const isGraphApplying = ref(false);
+const showGraphConsolidateModal = ref(false);
+const previewGraphTriples = ref<any[]>([]);
+const isLoggedIn = ref(hasLoginToken());
+
 const loadAllData = async () => {
-  fetchReport();
   fetchMemory();
+  fetchCandidates();
   fetchGraph();
-  fetchSummaries();
 };
 
 onMounted(() => {
-  loadAllData();
+  if (isLoggedIn.value) loadAllData();
+  uni.$on('login-success', loadAfterLogin);
+  uni.$on('refreshMemory', fetchMemory);
+  uni.$on('refreshGraph', fetchGraph);
+  uni.$on('refreshAnalysis', refreshAnalysisData);
 });
 
+onUnmounted(() => {
+  uni.$off('login-success', loadAfterLogin);
+  uni.$off('refreshMemory', fetchMemory);
+  uni.$off('refreshGraph', fetchGraph);
+  uni.$off('refreshAnalysis', refreshAnalysisData);
+});
+
+function refreshAnalysisData() {
+  if (isLoggedIn.value) loadAllData();
+}
+
+function loadAfterLogin() {
+  isLoggedIn.value = true;
+  loadAllData();
+}
+
 onPullDownRefresh(async () => {
+  if (!isLoggedIn.value) {
+    uni.stopPullDownRefresh();
+    return;
+  }
   await Promise.all([
-    fetchReport(),
     fetchMemory(),
-    fetchGraph(),
-    fetchSummaries()
+    fetchCandidates(),
+    fetchGraph()
   ]);
   uni.stopPullDownRefresh();
 });
@@ -317,26 +461,170 @@ const generateReport = async () => {
 
 const fetchMemory = () => {
   loadingMemory.value = true;
+  memoryError.value = false;
   return get('/api/memory')
     .then((res: any) => {
       loadingMemory.value = false;
       if (res.code === 200) {
         memories.value = res.data || [];
+      } else {
+        memoryError.value = true;
       }
     })
-    .catch(() => loadingMemory.value = false);
+    .catch(() => {
+      loadingMemory.value = false;
+      memoryError.value = true;
+    });
+};
+
+const fetchCandidates = () => {
+  loadingCandidates.value = true;
+  candidateError.value = false;
+  return get('/api/memory/candidates?status=PENDING&page=1&size=20&sort=updatedAt')
+    .then((res: any) => {
+      if (res.code === 200) {
+        candidates.value = Array.isArray(res.data) ? res.data : (res.data?.content || []);
+      } else {
+        candidateError.value = true;
+      }
+    })
+    .catch(() => {
+      candidateError.value = true;
+    })
+    .finally(() => {
+      loadingCandidates.value = false;
+    });
+};
+
+const diaryIdsFor = (item: any): number[] => Array.from(new Set([...(item.sourceDiaryIds || []), item.sourceDiaryId].filter(Boolean).map(Number)));
+type DiarySourcePreview = { id: number; createdAt?: string | null; excerpt?: string | null };
+const diarySourcesFor = (item: any): DiarySourcePreview[] => {
+  const previews = Array.isArray(item.sourceDiaryPreviews) ? item.sourceDiaryPreviews.filter((source: any) => source?.id) : [];
+  return previews.length ? previews : diaryIdsFor(item).map(id => ({ id }));
+};
+const diarySourceLabel = (source: DiarySourcePreview): string => {
+  const date = source.createdAt ? formatDiarySourceDate(source.createdAt) : '日期未知';
+  return `${date} · “${source.excerpt?.trim() || '打开查看日记内容'}”`;
+};
+const formatDiarySourceDate = (value: string): string => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.replace('T', ' ').slice(0, 10);
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+const conversationIdsFor = (item: any): number[] => Array.from(new Set([...(item.sourceConversationIds || []), item.sourceConversationId].filter(Boolean).map(Number)));
+const sourceTypeLabel = (item: any): string => {
+  if (diaryIdsFor(item).length) return '来自日记';
+  if (conversationIdsFor(item).length) return '来自聊天';
+  if (item.sourceType === 'USER_ACTION') return '用户整理';
+  if (item.sourceType === 'explicit') return '用户确认';
+  if (item.sourceType === 'system') return '系统整理';
+  return '暂无原始来源';
+};
+const formatMemoryTime = (value: string | null | undefined): string => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).replace('T', ' ').slice(0, 16);
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const openMemoryDetails = async (memory: any) => {
+  activeMemoryDetailsId.value = memory.id;
+  showMemoryDetailsModal.value = true;
+  memoryDetailsLoading.value = true;
+  memoryEvidence.value = [];
+  memoryHistory.value = [];
+  try {
+    const [evidence, history] = await Promise.all([
+      get(`/api/memory/${memory.id}/evidence`),
+      get(`/api/memory/${memory.id}/history`)
+    ]);
+    memoryEvidence.value = evidence.code === 200 ? evidence.data || [] : [];
+    memoryHistory.value = history.code === 200 ? history.data || [] : [];
+  } catch (e) {
+    uni.showToast({ title: '依据加载失败', icon: 'none' });
+  } finally {
+    memoryDetailsLoading.value = false;
+  }
+};
+
+const approveCandidate = async (id: number) => {
+  if (candidateActionId.value !== null) return;
+  candidateActionId.value = id;
+  try {
+    const res = await post(`/api/memory/candidates/${id}/approve`);
+    if (res.code === 200) {
+      candidates.value = candidates.value.filter(candidate => candidate.id !== id);
+      await Promise.all([fetchMemory(), fetchCandidates()]);
+      showMemoryDetailsModal.value = false;
+      activeMemoryDetailsId.value = null;
+      memoryEvidence.value = [];
+      memoryHistory.value = [];
+      uni.showToast({ title: '记忆已确认', icon: 'success' });
+    }
+  } catch (e) {
+    uni.showToast({ title: '确认失败，请稍后再试', icon: 'none' });
+  } finally {
+    candidateActionId.value = null;
+  }
+};
+
+const openMemorySource = (diaryId: number | null, conversationId: number | null) => {
+  if (diaryId) {
+    uni.navigateTo({ url: `/pages/detail/detail?id=${diaryId}` });
+    return;
+  }
+  if (conversationId) {
+    uni.setStorageSync('pendingChatConversationId', conversationId);
+    uni.switchTab({ url: '/pages/chat/chat' });
+  }
+};
+
+const openMemoryDiarySources = (item: any) => {
+  const sources = diarySourcesFor(item);
+  if (sources.length === 1) {
+    openMemorySource(sources[0].id, null);
+    return;
+  }
+  uni.showActionSheet({
+    itemList: sources.map(source => diarySourceLabel(source)),
+    success: (result) => openMemorySource(sources[result.tapIndex].id, null)
+  });
+};
+
+const rejectCandidate = async (id: number) => {
+  if (candidateActionId.value !== null) return;
+  candidateActionId.value = id;
+  try {
+    const res = await post(`/api/memory/candidates/${id}/reject`);
+    if (res.code === 200) {
+      candidates.value = candidates.value.filter(candidate => candidate.id !== id);
+      uni.showToast({ title: '已拒绝', icon: 'none' });
+    }
+  } catch (e) {
+    uni.showToast({ title: '拒绝失败，请稍后再试', icon: 'none' });
+  } finally {
+    candidateActionId.value = null;
+  }
 };
 
 const fetchGraph = () => {
   loadingGraph.value = true;
+  graphError.value = false;
   return get('/api/graph/triples')
     .then((res: any) => {
       loadingGraph.value = false;
       if (res.code === 200) {
         triples.value = res.data || [];
+      } else {
+        graphError.value = true;
       }
     })
-    .catch(() => loadingGraph.value = false);
+    .catch(() => {
+      loadingGraph.value = false;
+      graphError.value = true;
+    });
 };
 
 const fetchSummaries = () => {
@@ -352,6 +640,10 @@ const fetchSummaries = () => {
 };
 
 const previewConsolidate = async () => {
+  if (!isLoggedIn.value) {
+    requireLogin();
+    return;
+  }
   if (isConsolidating.value) return;
   isConsolidating.value = true;
   try {
@@ -380,11 +672,72 @@ const applyConsolidate = async () => {
   }
 };
 
+const previewGraphConsolidate = async () => {
+  if (!isLoggedIn.value) {
+    requireLogin();
+    return;
+  }
+  if (isGraphConsolidating.value) return;
+  isGraphConsolidating.value = true;
+  try {
+    const res = await post('/api/graph/consolidate/preview');
+    if (res.code === 200) {
+      previewGraphTriples.value = res.data || [];
+      showGraphConsolidateModal.value = true;
+    }
+  } catch (e: any) {
+    uni.showToast({ title: e.message || '预览失败', icon: 'none' });
+  } finally {
+    isGraphConsolidating.value = false;
+  }
+};
+
+const memoryPreview = (value: string) => {
+  const compact = String(value || '').replace(/\s+/g, ' ').trim();
+  return compact.length > 76 ? `${compact.slice(0, 76)}...` : compact;
+};
+
+const goToReports = () => {
+  requireLogin(() => uni.navigateTo({ url: '/pages/summaries/summaries' }));
+};
+
+const closeGraphConsolidateModal = () => {
+  if (!isGraphApplying.value) {
+    showGraphConsolidateModal.value = false;
+  }
+};
+
+const applyGraphConsolidate = async () => {
+  if (isGraphApplying.value || previewGraphTriples.value.length === 0) return;
+  isGraphApplying.value = true;
+  try {
+    const triples = previewGraphTriples.value.map((triple) => ({ ...triple }));
+    const res = await post('/api/graph/consolidate/apply', triples);
+    if (res.code === 200) {
+      uni.showToast({ title: '图谱已整理', icon: 'success' });
+      showGraphConsolidateModal.value = false;
+      fetchGraph();
+    }
+  } catch (e) {
+    uni.showToast({ title: '应用失败', icon: 'none' });
+  } finally {
+    isGraphApplying.value = false;
+  }
+};
+
 const showEditMemoryModal = ref(false);
 const editMemoryForm = ref<any>({});
 
+const handleCoreMemoryChange = (event: any) => {
+  editMemoryForm.value.isCore = event.detail.value;
+};
+
+const isSafetyState = (item: any) => /自杀|自残|轻生|想死|不想活|结束生命|伤害自己|割腕|跳楼|心理危机|危机干预/.test(`${item?.attributeKey || ''} ${item?.attributeValue || ''}`);
+const memoryStatusLabel = (status: string) => ({ active: '当前有效', superseded: '历史版本', expired: '已过期', rejected: '已拒绝' } as Record<string, string>)[status] || '历史记录';
+
 const openEditMemory = (m: any) => {
   editMemoryForm.value = { ...m };
+  if (isSafetyState(m)) editMemoryForm.value.isCore = false;
   showEditMemoryModal.value = true;
 };
 
@@ -392,7 +745,7 @@ const saveMemory = async () => {
   try {
     const res = await put(`/api/memory/${editMemoryForm.value.id}`, {
       attributeValue: editMemoryForm.value.attributeValue,
-      isCore: editMemoryForm.value.isCore
+      isCore: isSafetyState(editMemoryForm.value) ? false : editMemoryForm.value.isCore
     });
     if (res.code === 200) {
       uni.showToast({ title: '修改成功', icon: 'success' });
@@ -495,6 +848,74 @@ const deleteTriple = (id: number) => {
   color: var(--theme-text-secondary);
   line-height: 1.6;
 }
+
+.insight-entry-switch {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12rpx;
+  margin-top: 30rpx;
+}
+
+.insight-entry {
+  position: relative;
+  min-height: 106rpx;
+  padding: 19rpx 18rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: 8rpx;
+  background: var(--theme-surface);
+  color: var(--theme-text-primary);
+  font-size: 27rpx;
+  font-weight: 650;
+  box-sizing: border-box;
+}
+
+.insight-entry.active {
+  border-color: rgba(var(--theme-primary-rgb), .32);
+  background: rgba(var(--theme-primary-rgb), .055);
+  color: var(--theme-primary);
+}
+
+.entry-kicker {
+  display: block;
+  margin-bottom: 7rpx;
+  color: var(--theme-text-placeholder);
+  font-size: 19rpx;
+  font-weight: 400;
+}
+
+.entry-arrow {
+  position: absolute;
+  right: 18rpx;
+  bottom: 18rpx;
+  color: var(--theme-primary);
+  font-size: 33rpx;
+  font-weight: 300;
+  line-height: .7;
+}
+
+/* Memory center: a compact list keeps long memories readable without exposing full text. */
+.memory-waterfall { display: none; }
+.memory-list { display: flex; flex-direction: column; gap: 12rpx; }
+.memory-row { display: flex; min-height: 114rpx; align-items: center; gap: 18rpx; padding: 21rpx 20rpx; border: 1rpx solid var(--theme-border); border-radius: 7rpx; background: var(--theme-surface); box-sizing: border-box; }
+.memory-row:active { background: rgba(var(--theme-primary-rgb), .045); }
+.memory-row-main { min-width: 0; flex: 1; }
+.memory-row-head { display: flex; align-items: center; gap: 9rpx; }
+.memory-key { overflow: hidden; color: var(--theme-text-primary); font-size: 25rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.memory-value { display: -webkit-box; overflow: hidden; margin-top: 9rpx; color: var(--theme-text-secondary); font-size: 22rpx; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.memory-source-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10rpx; margin-top: 8rpx; font-size: 20rpx; }
+.memory-source-label, .memory-source-empty { color: var(--theme-text-placeholder); }
+.memory-source-preview, .candidate-source-preview { display: block; overflow: hidden; margin-top: 7rpx; color: var(--theme-text-secondary); font-size: 19rpx; text-overflow: ellipsis; white-space: nowrap; }
+.memory-source-link { color: var(--theme-primary); }
+.memory-updated { display: block; margin-top: 6rpx; color: var(--theme-text-placeholder); font-size: 19rpx; }
+.candidate-group + .candidate-group { margin-top: 12rpx; }
+.candidate-conflict-note { display: block; margin: 8rpx 0; color: #a46a24; font-size: 20rpx; }
+.candidate-source-link { display: block; margin-top: 6rpx; color: var(--theme-primary); font-size: 20rpx; }
+.core-badge { padding: 3rpx 9rpx; border-radius: 4rpx; background: rgba(var(--theme-primary-rgb), .1); color: var(--theme-primary); font-size: 18rpx; line-height: 1.4; white-space: nowrap; }
+.safety-badge { padding: 3rpx 9rpx; border-radius: 4rpx; background: rgba(210, 125, 65, .12); color: #b56b35; font-size: 18rpx; line-height: 1.4; white-space: nowrap; }
+.safety-edit-note { color: var(--theme-text-secondary); font-size: 21rpx; }
+.memory-row-actions { display: flex; align-items: center; gap: 12rpx; }
+.memory-edit { color: var(--theme-primary); font-size: 21rpx; }
+.memory-row-actions .del-btn { position: static; display: flex; width: 38rpx; height: 38rpx; align-items: center; justify-content: center; margin: 0; border: 1rpx solid var(--theme-border); border-radius: 50%; background: transparent; color: var(--theme-text-placeholder); font-size: 27rpx; line-height: 1; box-shadow: none; }
 
 .section {
   margin-bottom: 64rpx;
@@ -683,13 +1104,13 @@ const deleteTriple = (id: number) => {
 
 /* Memory Styles */
 .memory-waterfall {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+  column-count: 2;
+  column-gap: 24rpx;
 }
 
 .memory-polaroid {
-  width: 48%;
+  break-inside: avoid;
+  width: 100%;
   background-color: var(--theme-surface);
   padding: 32rpx 24rpx;
   border-radius: 8rpx;
@@ -740,23 +1161,12 @@ const deleteTriple = (id: number) => {
   font-size: 28rpx;
   color: var(--theme-text-primary);
   line-height: 1.6;
-  text-align: center;
+  text-align: justify;
+  text-align-last: center;
+  word-break: break-all;
   display: block;
 }
 
-.core-badge {
-  position: absolute;
-  bottom: -20rpx;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #f9ca24;
-  color: #fff;
-  font-size: 20rpx;
-  padding: 4rpx 12rpx;
-  border-radius: 20rpx;
-  white-space: nowrap;
-  box-shadow: 0 4rpx 10rpx rgba(249, 202, 36, 0.3);
-}
 
 /* Graph Styles */
 .graph-container {
@@ -806,15 +1216,26 @@ const deleteTriple = (id: number) => {
 /* Edit Styles */
 .item-actions {
   position: absolute;
-  top: 10rpx;
-  right: 16rpx;
+  top: -20rpx;
+  right: -16rpx;
   z-index: 2;
+  background-color: var(--theme-surface);
+  border-radius: 50%;
+  width: 44rpx;
+  height: 44rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.15);
+  border: 1px solid var(--theme-border);
 }
 
 .del-btn {
-  font-size: 36rpx;
-  color: #c4c0b8;
-  padding: 10rpx;
+  font-size: 32rpx;
+  color: var(--theme-text-placeholder);
+  padding: 0;
+  line-height: 1;
+  margin-top: -4rpx;
 }
 
 .edit-form {
@@ -983,5 +1404,48 @@ const deleteTriple = (id: number) => {
   margin: 0;
 }
 .confirm-btn::after { border: none; }
-</style>
 
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.section-title-row .section-title {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.section-action {
+  flex: 0 0 auto;
+  min-width: 136rpx;
+  height: 56rpx;
+  margin: 0;
+  padding: 0 16rpx;
+  border: 1rpx solid rgba(var(--theme-primary-rgb), .3);
+  border-radius: 6rpx;
+  background: rgba(var(--theme-primary-rgb), .06);
+  box-sizing: border-box;
+  color: var(--theme-primary);
+  font-size: 22rpx;
+  font-weight: 600;
+  line-height: 54rpx;
+}
+
+.section-action::after { border: none; }
+.section-action:active { background: rgba(var(--theme-primary-rgb), .13); }
+
+/* Keep memory rows compact even though legacy card styles above share class names. */
+.memory-list { display: flex; flex-direction: column; gap: 12rpx; }
+.memory-row { display: flex; min-height: 114rpx; align-items: center; gap: 18rpx; padding: 21rpx 20rpx; border: 1rpx solid var(--theme-border); border-radius: 7rpx; background: var(--theme-surface); box-sizing: border-box; }
+.memory-row:active { background: rgba(var(--theme-primary-rgb), .045); }
+.memory-row-main { min-width: 0; flex: 1; }
+.memory-row-head { display: flex; align-items: center; gap: 9rpx; }
+.memory-key { overflow: hidden; color: var(--theme-text-primary); font-size: 25rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.memory-value { display: -webkit-box; overflow: hidden; margin-top: 9rpx; color: var(--theme-text-secondary); font-size: 22rpx; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.core-badge { padding: 3rpx 9rpx; border-radius: 4rpx; background: rgba(var(--theme-primary-rgb), .1); color: var(--theme-primary); font-size: 18rpx; line-height: 1.4; white-space: nowrap; }
+.memory-row-actions { display: flex; align-items: center; gap: 12rpx; }
+.memory-edit { color: var(--theme-primary); font-size: 21rpx; }
+.memory-row-actions .del-btn { position: static; display: flex; width: 38rpx; height: 38rpx; align-items: center; justify-content: center; margin: 0; border: 1rpx solid var(--theme-border); border-radius: 50%; background: transparent; color: var(--theme-text-placeholder); font-size: 27rpx; line-height: 1; box-shadow: none; }
+</style>

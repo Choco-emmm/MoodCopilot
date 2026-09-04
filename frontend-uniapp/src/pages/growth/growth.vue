@@ -103,7 +103,7 @@ const handleTaskAction = async (task: any) => {
   } else if (task.field === 'diary') {
     uni.switchTab({ url: '/pages/index/index' });
   } else if (task.field === 'chat') {
-    uni.navigateTo({ url: '/pages/chat/chat' });
+    uni.switchTab({ url: '/pages/chat/chat' });
   }
 };
 

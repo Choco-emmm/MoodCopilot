@@ -8,16 +8,6 @@
           <h2>通知</h2>
           <p class="notification-page-subtitle">查看最新互动与系统提醒。</p>
         </div>
-        <n-button
-          v-if="hasUnread"
-          size="small"
-          secondary
-          :loading="markingAll"
-          :disabled="markingAll"
-          @click="() => handleMarkAllRead()"
-        >
-          全部标为已读
-        </n-button>
       </div>
 
       <div v-if="notif.loading && notif.items.length === 0" class="empty-state compact">
@@ -40,7 +30,7 @@
           v-for="item in notif.items"
           :key="item.id"
           class="notif-item notification-page-item"
-          :class="{ unread: !item.isRead || initialUnreadIds.has(item.id) }"
+          :class="{ unread: !item.isRead }"
           @click="handleNotifClick(item)"
         >
           <div
@@ -69,34 +59,40 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onActivated, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton, NEmpty, NSpin } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import { useNotificationStore, type Notification } from '../stores/notification'
 import { renderSafeMarkdown } from '../utils/markdown'
+import { lifeEventApi } from '../api'
+import { setPendingChatEventContext } from '../utils/chatContext'
 
 const router = useRouter()
 const notif = useNotificationStore()
 
 const expandedNotificationIds = ref<number[]>([])
-const initialUnreadIds = ref<Set<number>>(new Set())
-const markingAll = ref(false)
 const loadingMore = ref(false)
 const page = ref(1)
 const hasMore = ref(true)
 const PAGE_SIZE = 20
-const hasUnread = computed(() => notif.items.some((item) => !item.isRead) || initialUnreadIds.value.size > 0)
-
 onMounted(() => {
   notif.connectRealtime()
   expandedNotificationIds.value = []
-  initialUnreadIds.value = new Set()
-  void notif.fetchUnreadCount(true)
-  void loadNotifications(true)
+  void refreshNotifications()
 })
 
-function handleNotifClick(item: Notification) {
+onActivated(() => {
+  void refreshNotifications()
+})
+
+async function refreshNotifications() {
+  expandedNotificationIds.value = []
+  await notif.fetchUnreadCount(true)
+  await loadNotifications(true)
+}
+
+async function handleNotifClick(item: Notification) {
   if (!item.isRead) {
     void notif.markRead(item.id).catch(() => {})
   }
@@ -110,6 +106,28 @@ function handleNotifClick(item: Notification) {
   }
   if (item.type === 'GRAPH_UPDATED') {
     router.push({ path: '/ai-memory', query: { tab: 'graph' } })
+    return
+  }
+  if (item.lifeEventId) {
+    const context: Record<string, unknown> = { eventId: item.lifeEventId }
+    try {
+      const response = await lifeEventApi.get(item.lifeEventId)
+      const event = response.data.data
+      if (event) {
+        Object.assign(context, {
+          title: event.title,
+          description: event.description,
+          targetDate: event.targetDate,
+          endDate: event.endDate,
+          startTime: event.startTime,
+          endTime: event.endTime,
+        })
+      }
+    } catch {
+      // The chat page can still resolve the event context from eventId.
+    }
+    setPendingChatEventContext(context as any)
+    router.push('/chat')
     return
   }
   if (item.type === 'SYSTEM' && !item.diaryId) {
@@ -132,16 +150,7 @@ async function loadNotifications(reset = false) {
       return
     }
     
-    notif.items.forEach(item => {
-      if (!item.isRead) {
-        initialUnreadIds.value.add(item.id)
-      }
-    })
-    
     hasMore.value = loaded >= PAGE_SIZE
-    if (notif.unreadCount > 0) {
-      void notif.markAllRead()
-    }
     return
   }
 
@@ -150,12 +159,6 @@ async function loadNotifications(reset = false) {
   if (loaded == null) {
     return
   }
-  
-  notif.items.forEach(item => {
-    if (!item.isRead) {
-      initialUnreadIds.value.add(item.id)
-    }
-  })
   
   page.value = nextPage
   hasMore.value = loaded >= PAGE_SIZE
@@ -168,17 +171,6 @@ async function loadMore() {
     await loadNotifications(false)
   } finally {
     loadingMore.value = false
-  }
-}
-
-async function handleMarkAllRead() {
-  if (markingAll.value) return
-  markingAll.value = true
-  try {
-    await notif.markAllRead()
-    initialUnreadIds.value.clear()
-  } finally {
-    markingAll.value = false
   }
 }
 

@@ -9,10 +9,16 @@ public record CreateDiaryRequest(
         MusicMeta musicMeta,
         java.util.List<String> images,
         java.util.List<DiaryImageMeta> imageMeta,
-        Boolean analyze // null or true = 开启AI分析; false = 用户主动关闭
+        Boolean analyze, // null or true = 开启AI分析; false = 用户主动关闭
+        Boolean useReasoning // true = 使用深度推理模型分析
 ) {
     /** 是否开启 AI 分析：未传或 true 视为开启 */
     public boolean isAnalyze() {
         return analyze == null || analyze;
+    }
+
+    /** 是否使用深度推理模型：未传视为 false */
+    public boolean isUseReasoning() {
+        return Boolean.TRUE.equals(useReasoning);
     }
 }

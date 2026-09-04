@@ -50,16 +50,21 @@ export const chatApi = {
   getWelcomeTopics: () => api.get('/chat/welcome-topics'),
   getHistory: (id: number) => api.get(`/chat/conversations/${id}/history`),
   saveHistory: (id: number, messages: any[]) => api.put(`/chat/conversations/${id}/history`, { messages }),
-  reply: (id: number, message: string, references: string[] = []) =>
-    api.post(`/chat/conversations/${id}/reply`, { message, references }),
+  reply: (id: number, message: string, references: string[] = [], useReasoning = false, eventId?: number) =>
+    api.post(`/chat/conversations/${id}/reply`, { message, references, useReasoning, ...(eventId ? { eventId } : {}) }),
+  compressConversation: (id: number) =>
+    api.post<{ compressed: boolean; message: string; summary?: string }>(`/chat/conversations/${id}/compress`),
   replyStream: async (
     id: number,
     message: string,
     references: string[],
+    useReasoning: boolean,
+    eventId: number | undefined,
     onChunk: (text: string) => void,
     ctrl: AbortController,
     onReferences?: (items: Array<{ type: string; diaryId: string; date: string; snippet: string }>) => void,
     onToolReferences?: (items: Array<{ type: string; diaryId?: string; date: string; snippet: string; toolName: string }>) => void,
+    onStatus?: (status: { stage: string; message: string }) => void,
   ): Promise<void> => {
     const token = localStorage.getItem('token')
     let doneReceived = false
@@ -70,14 +75,16 @@ export const chatApi = {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ message, references }),
+        body: JSON.stringify({ message, references, useReasoning, ...(eventId ? { eventId } : {}) }),
         signal: ctrl.signal,
         openWhenHidden: true,
         onmessage(event) {
           const raw = event.data
           try {
             const msg = JSON.parse(raw)
-            if (msg.type === 'references') {
+            if (msg.type === 'status') {
+              onStatus?.({ stage: msg.stage, message: msg.message })
+            } else if (msg.type === 'references') {
               onReferences?.(msg.items ?? [])
             } else if (msg.type === 'tool_references') {
               onToolReferences?.(msg.items ?? [])

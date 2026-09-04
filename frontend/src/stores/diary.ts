@@ -32,7 +32,8 @@ export interface Diary {
   musicMeta?: MusicMeta | null
   images?: string[] | null
   imageMeta?: DiaryImageMetaPayload[] | null
-  analysisStatus?: string | null // "analyzing" | "complete" | "skipped_quota" | "skipped_user"
+  analysisStatus?: string | null // "analyzing" | "complete" | "failed" | "cancelled" | "skipped_quota" | "failed_limit" | "skipped_user"
+  analysisError?: string | null
   createdAt: string
   resonanceCount: number
   likedByMe?: boolean
@@ -60,7 +61,7 @@ export const useDiaryStore = defineStore('diary', () => {
   const loading = ref(false)
   const saving = ref(false)
   const errorMessage = ref<string | null>(null)
-  const analysisStatus = ref<'idle' | 'saved' | 'analyzing' | 'complete' | 'failed'>('idle')
+  const analysisStatus = ref<'idle' | 'saved' | 'analyzing' | 'complete' | 'failed' | 'failed_limit' | 'skipped_quota' | 'skipped_user'>('idle')
 
   watch(analysisStatus, (val) => {
     if (val === 'complete' || val === 'failed') {
@@ -81,6 +82,13 @@ export const useDiaryStore = defineStore('diary', () => {
   let analysisPollTimer: ReturnType<typeof setInterval> | null = null
   let analysisPollAttempts = 0
   const ANALYSIS_POLL_MAX_ATTEMPTS = 60
+
+  function setUiAnalysisStatus(status: string | null | undefined) {
+    const allowed = ['analyzing', 'complete', 'failed', 'failed_limit', 'skipped_quota', 'skipped_user'] as const
+    analysisStatus.value = allowed.includes(status as typeof allowed[number])
+      ? status as typeof analysisStatus.value
+      : 'failed'
+  }
 
   // ── Helpers ──
 
@@ -144,19 +152,21 @@ export const useDiaryStore = defineStore('diary', () => {
 
   // ── Create / Update / Delete ──
 
-  async function createDiary(content: string, visibility: string, musicMeta?: MusicMeta, analyze = true, images?: string[], imageMeta?: DiaryImageMetaPayload[]) {
+  async function createDiary(content: string, visibility: string, musicMeta?: MusicMeta, analyze = true, images?: string[], imageMeta?: DiaryImageMetaPayload[], useReasoning = false) {
     saving.value = true
     errorMessage.value = null
     try {
-      const res = await diaryApi.create({ content, visibility, musicMeta, images, imageMeta, analyze })
+      const res = await diaryApi.create({ content, visibility, musicMeta, images, imageMeta, analyze, useReasoning })
       const diary = normalize(res.data.data)
       activeDiary.value = diary
 
-      if (diary.analysisStatus === 'skipped_quota') {
-        analysisStatus.value = 'complete'
-        errorMessage.value = '今日 AI 分析次数已用完，日记已保存'
+      if (diary.analysisStatus === 'skipped_quota' || diary.analysisStatus === 'failed_limit') {
+        setUiAnalysisStatus(diary.analysisStatus)
+        errorMessage.value = diary.analysisStatus === 'failed_limit'
+          ? '深度思考额度已用完，日记已保存，可稍后重新获取分析'
+          : '今日 AI 分析次数已用完，日记已保存'
       } else if (diary.analysisStatus === 'skipped_user') {
-        analysisStatus.value = 'complete'
+        analysisStatus.value = 'skipped_user'
       } else {
         analysisStatus.value = diary.analysis == null ? 'analyzing' : 'complete'
       }
@@ -166,10 +176,10 @@ export const useDiaryStore = defineStore('diary', () => {
         tryExpToast('diary', `写日记 ${bonus} EXP`)
       }
       await fetchDiaries()
-      if (diary.analysisStatus === 'skipped_quota' || diary.analysisStatus === 'skipped_user') {
+      if (diary.analysisStatus === 'skipped_quota' || diary.analysisStatus === 'failed_limit' || diary.analysisStatus === 'skipped_user') {
         replaceIn(myDiaries, { ...diary, analysisStatus: diary.analysisStatus } as Diary)
       }
-      if (diary.analysis == null && diary.analysisStatus !== 'skipped_quota' && diary.analysisStatus !== 'skipped_user') {
+      if (diary.analysis == null && diary.analysisStatus !== 'skipped_quota' && diary.analysisStatus !== 'failed_limit' && diary.analysisStatus !== 'skipped_user') {
         window.$message?.success('已保存，MoodCopilot 正在分析中...', { duration: 5000 })
         pollAnalysis(diary.id)
       }
@@ -184,18 +194,20 @@ export const useDiaryStore = defineStore('diary', () => {
     }
   }
 
-  async function updateDiary(id: number, content: string, visibility: string, musicMeta?: MusicMeta, images?: string[], analyze = true, imageMeta?: DiaryImageMetaPayload[]) {
+  async function updateDiary(id: number, content: string, visibility: string, musicMeta?: MusicMeta, images?: string[], analyze = true, imageMeta?: DiaryImageMetaPayload[], useReasoning = false) {
     saving.value = true
     errorMessage.value = null
     try {
-      const res = await diaryApi.update(id, { content, visibility, musicMeta, images, imageMeta, analyze })
+      const res = await diaryApi.update(id, { content, visibility, musicMeta, images, imageMeta, analyze, useReasoning })
       const updated = normalize(res.data.data)
 
-      if (updated.analysisStatus === 'skipped_quota') {
-        analysisStatus.value = 'complete'
-        errorMessage.value = '今日 AI 分析次数已用完，日记修改已保存'
+      if (updated.analysisStatus === 'skipped_quota' || updated.analysisStatus === 'failed_limit') {
+        setUiAnalysisStatus(updated.analysisStatus)
+        errorMessage.value = updated.analysisStatus === 'failed_limit'
+          ? '深度思考额度已用完，日记修改已保存，可稍后重新获取分析'
+          : '今日 AI 分析次数已用完，日记修改已保存'
       } else if (updated.analysisStatus === 'skipped_user') {
-        analysisStatus.value = 'complete'
+        analysisStatus.value = 'skipped_user'
       } else {
         analysisStatus.value = updated.analysis == null ? 'analyzing' : 'complete'
       }
@@ -205,7 +217,7 @@ export const useDiaryStore = defineStore('diary', () => {
         activeDiary.value = updated
       }
 
-      if (updated.analysis == null && updated.analysisStatus !== 'skipped_quota' && updated.analysisStatus !== 'skipped_user') {
+      if (updated.analysis == null && updated.analysisStatus !== 'skipped_quota' && updated.analysisStatus !== 'failed_limit' && updated.analysisStatus !== 'skipped_user') {
         window.$message?.success('日记已修改，MoodCopilot 正在重新分析中...', { duration: 5000 })
         pollAnalysis(updated.id)
       }
@@ -242,6 +254,19 @@ export const useDiaryStore = defineStore('diary', () => {
       try {
         const res = await diaryApi.get(diaryId)
         const updated = normalize(res.data.data)
+        if (updated.analysisStatus === 'failed' || updated.analysisStatus === 'failed_limit'
+          || updated.analysisStatus === 'skipped_quota' || updated.analysisStatus === 'skipped_user') {
+          if (activeDiary.value?.id === diaryId) activeDiary.value = updated
+          mergeDiary(updated)
+          analysisStatus.value = updated.analysisStatus === 'failed_limit'
+            ? 'failed_limit'
+            : updated.analysisStatus === 'skipped_quota'
+              ? 'skipped_quota'
+              : updated.analysisStatus === 'skipped_user' ? 'skipped_user' : 'failed'
+          errorMessage.value = updated.analysisError || 'AI 分析没有完成，请选择模型后重试'
+          clearAnalysisPollTimer()
+          return
+        }
         if (updated.analysis != null) {
           if (activeDiary.value?.id === diaryId) {
             activeDiary.value = updated
@@ -254,8 +279,11 @@ export const useDiaryStore = defineStore('diary', () => {
         }
       } catch (e) {
         logWarn('diary', '轮询分析结果失败', diaryId, e)
-        analysisStatus.value = 'failed'
-        clearAnalysisPollTimer()
+        if (analysisPollAttempts >= ANALYSIS_POLL_MAX_ATTEMPTS) {
+          analysisStatus.value = 'failed'
+          errorMessage.value = '暂时无法读取分析进度，请稍后重新打开日记查看'
+          clearAnalysisPollTimer()
+        }
       }
     }, 2000)
   }
@@ -267,21 +295,30 @@ export const useDiaryStore = defineStore('diary', () => {
     analysisPollAttempts = 0
   }
 
-  async function refreshAnalysis(diaryId: number) {
+  async function refreshAnalysis(diaryId: number, useReasoning = false) {
     analysisStatus.value = 'analyzing'
+    errorMessage.value = null
     try {
-      const res = await diaryApi.get(diaryId)
+      const res = await diaryApi.retryAnalysis(diaryId, useReasoning)
       const updated = normalize(res.data.data)
       activeDiary.value = updated
       mergeDiary(updated)
+      if (updated.analysisStatus === 'analyzing' && !updated.analysis) {
+        pollAnalysis(diaryId)
+        return updated
+      }
       analysisStatus.value = updated.analysis ? 'complete' : 'failed'
+      errorMessage.value = updated.analysisError || null
       if (updated.analysis) {
         globalAnalysisDiary.value = updated
         showGlobalAnalysisModal.value = true
       }
+      return updated
     } catch (e) {
       logWarn('diary', '刷新分析失败', diaryId, e)
       analysisStatus.value = 'failed'
+      errorMessage.value = '重新分析提交失败，请稍后再试'
+      throw e
     }
   }
 

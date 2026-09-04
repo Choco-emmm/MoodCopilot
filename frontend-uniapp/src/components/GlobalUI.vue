@@ -1,5 +1,7 @@
 <template>
   <view class="global-ui">
+    <GlobalAnnouncement />
+    <GlobalLoginSheet />
     <!-- Top Right Popups (Memory / Graph) -->
     <view class="popups-container">
       <view 
@@ -44,6 +46,8 @@ import { onShow } from '@dcloudio/uni-app';
 import { popups, currentModal, removePopup, closeModal } from '@/stores/globalUI';
 import { currentTheme } from '@/stores/theme';
 import CustomTabBar from './CustomTabBar.vue';
+import GlobalAnnouncement from './GlobalAnnouncement.vue';
+import GlobalLoginSheet from './GlobalLoginSheet.vue';
 
 const props = defineProps<{
   tabIndex?: number
@@ -93,6 +97,7 @@ const viewDetails = () => {
   }
   closeModal();
 };
+
 </script>
 
 <style scoped>

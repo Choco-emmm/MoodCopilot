@@ -93,7 +93,7 @@ const switchTab = (url: string, index: number) => {
 
 .tab-bar-border {
   height: 1px;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--theme-border);
   width: 100%;
 }
 

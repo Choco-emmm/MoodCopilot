@@ -27,6 +27,21 @@ spring:
           max-idle: 20
           min-idle: 5
           time-between-eviction-runs: 30s
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:moodcopilot}
+    password: ${RABBITMQ_PASSWORD:moodcopilot}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        default-requeue-rejected: false
+        prefetch: ${RABBITMQ_PREFETCH:5}
+        retry:
+          enabled: false
   #数据库的连接信息
   datasource:
     #    url: jdbc:mysql://localhost:3306/dems
@@ -53,6 +68,7 @@ spring:
       time-to-live: 120000
       cache-null-values: false
   ai:
+    http-timeout-seconds: ${AI_HTTP_TIMEOUT_SECONDS:90}
     retry:
       max-attempts: 5
       backoff:
@@ -93,7 +109,7 @@ spring:
     time-zone: Asia/Shanghai
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 86400000
+  expiration: 2592000000
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:https://moodcopilot.dpdns.org,http://localhost:5173,http://localhost:5174}
 captcha:
@@ -108,16 +124,31 @@ oss:
   access-key: ${OSS_ACCESS_KEY:}
   secret-key: ${OSS_SECRET_KEY:}
 moodcopilot:
+  time-zone: ${MOODCOPILOT_TIME_ZONE:Asia/Shanghai}
+  rag:
+    embedding:
+      connect-timeout-ms: ${RAG_EMBEDDING_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${RAG_EMBEDDING_READ_TIMEOUT_MS:15000}
+      max-retries: ${RAG_EMBEDDING_MAX_RETRIES:2}
+      circuit-failure-threshold: ${RAG_EMBEDDING_CIRCUIT_FAILURE_THRESHOLD:5}
+      circuit-open-seconds: ${RAG_EMBEDDING_CIRCUIT_OPEN_SECONDS:30}
+      query-cache-max-size: ${RAG_EMBEDDING_QUERY_CACHE_MAX_SIZE:1000}
+      query-cache-ttl-seconds: ${RAG_EMBEDDING_QUERY_CACHE_TTL_SECONDS:600}
   vision:
     api-key: ${VISION_API_KEY:}
     api-url: ${VISION_API_URL:https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions}
     model: ${VISION_MODEL:qwen3-vl-flash}
     ocr-model: ${VISION_OCR_MODEL:qwen-vl-ocr-latest}
+    ocr-max-tokens: ${VISION_OCR_MAX_TOKENS:2048}
     enable-ocr-for-text-images: ${VISION_ENABLE_OCR:true}
   wechat:
     miniapp:
       app-id: ${WX_APP_ID:}
       app-secret: ${WX_APP_SECRET:}
+timeline:
+  max-gap-days: ${TIMELINE_MAX_GAP_DAYS:14}
+  min-evidence-count: ${TIMELINE_MIN_EVIDENCE_COUNT:3}
+  boundary-confidence-threshold: ${TIMELINE_BOUNDARY_CONFIDENCE_THRESHOLD:0.85}
 #Mybatis相关配置
 mybatis-plus:
   map-underscore-to-camel-case: true

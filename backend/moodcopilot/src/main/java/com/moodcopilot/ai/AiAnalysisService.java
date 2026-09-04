@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.time.LocalDate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
@@ -25,22 +26,27 @@ public class AiAnalysisService {
     private static final Logger log = LoggerFactory.getLogger(AiAnalysisService.class);
 
     private final ChatClient analysisChatClient;
+    private final DeepSeekReasoningClient reasoningClient;
     private final ObjectMapper objectMapper;
     private final com.moodcopilot.config.AiPromptProperties aiPrompts;
     private final MemoryExtractionService memoryExtractionService;
     private final RagMemoryService ragMemoryService;
+    private final ContextPlanner contextPlanner;
 
     @Autowired
     private StringRedisTemplate redisTemplate;
 
-    public AiAnalysisService(ChatClient analysisChatClient, ObjectMapper objectMapper, com.moodcopilot.config.AiPromptProperties aiPrompts,
+    public AiAnalysisService(ChatClient analysisChatClient, DeepSeekReasoningClient reasoningClient, ObjectMapper objectMapper, com.moodcopilot.config.AiPromptProperties aiPrompts,
                              @org.springframework.context.annotation.Lazy MemoryExtractionService memoryExtractionService,
-                             @org.springframework.context.annotation.Lazy RagMemoryService ragMemoryService) {
+                             @org.springframework.context.annotation.Lazy RagMemoryService ragMemoryService,
+                             @org.springframework.context.annotation.Lazy ContextPlanner contextPlanner) {
         this.analysisChatClient = analysisChatClient;
+        this.reasoningClient = reasoningClient;
         this.objectMapper = objectMapper;
         this.aiPrompts = aiPrompts;
         this.memoryExtractionService = memoryExtractionService;
         this.ragMemoryService = ragMemoryService;
+        this.contextPlanner = contextPlanner;
     }
 
     public DiaryAnalysis analyze(Long userId, String content) {
@@ -84,22 +90,35 @@ public class AiAnalysisService {
     }
 
     public DiaryAnalysis analyze(Long userId, String content, com.moodcopilot.entity.MusicMeta musicMeta) {
-        return analyze(userId, content, musicMeta, null);
+        return analyze(userId, content, musicMeta, null, false);
     }
 
     public DiaryAnalysis analyze(Long userId, String content, com.moodcopilot.entity.MusicMeta musicMeta, String imageDescriptions) {
+        return analyze(userId, content, musicMeta, imageDescriptions, false);
+    }
+
+    public DiaryAnalysis analyze(Long userId, String content, com.moodcopilot.entity.MusicMeta musicMeta, String imageDescriptions, boolean useReasoning) {
+        return analyzeWithMemorySignals(userId, content, musicMeta, imageDescriptions, useReasoning).analysis();
+    }
+
+    /**
+     * Runs the diary analysis once and keeps the optional memory signals for the asynchronous memory task.
+     * The existing analyze methods intentionally expose only the public diary analysis result.
+     */
+    public DiaryAnalysisResult analyzeWithMemorySignals(Long userId, String content,
+            com.moodcopilot.entity.MusicMeta musicMeta, String imageDescriptions, boolean useReasoning) {
+        long totalStartedAt = System.nanoTime();
         StringBuilder sb = new StringBuilder();
         if (userId != null) {
             try {
                 String coreMemory = memoryExtractionService.buildCoreUserMemoryPrompt(userId);
-                if (coreMemory != null && !coreMemory.isBlank()) {
-                    sb.append("[长期画像]\n").append(coreMemory).append("\n\n");
-                }
-                String ragContext = ragMemoryService.buildRagContext(userId, content, 5, RagMemoryService.SOURCE_DIARY);
-                if (ragContext != null && !ragContext.isBlank()) {
-                    sb.append("[近期相关记忆]\n").append(ragContext).append("\n");
-                    sb.append("这是用户近期的相关历史日记，请结合前因后果进行分析。\n\n");
-                }
+                RagQuery ragQuery = new RagQuery(userId, "diary_analysis",
+                        RagQueryBuilder.diaryQueryText(content, musicMeta),
+                        List.of(RagMemoryService.SOURCE_DIARY), null, 5, ContextPurpose.DIARY_ANALYSIS);
+                List<ContextItem> retrieved = ragMemoryService.retrieveContextItems(ragQuery);
+                ContextPlanner.ContextPlan contextPlan = contextPlanner.planEnvelope(userId, null, coreMemory,
+                        List.of(), retrieved, ContextPurpose.DIARY_ANALYSIS);
+                sb.append(contextPlan.context()).append("\n\n");
             } catch (Exception e) {
                 log.warn("Failed to retrieve memory contexts for user {}: {}", userId, e.getMessage());
             }
@@ -125,34 +144,60 @@ public class AiAnalysisService {
         }
 
         String userPrompt = sb.toString();
-        // log.info("AI 日记分析上下文:\n{}", userPrompt); // 包含完整日记内容，已注释保护隐私
 
         int maxRetries = 3;
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            long modelStartedAt = System.nanoTime();
             try {
-                String json = analysisChatClient.prompt()
-                        .system(aiPrompts.getAnalysisSystemPrompt())
-                        .user(userPrompt)
-                        .call()
-                        .content();
-                return parseAiResponse(json);
+                String json;
+                if (useReasoning) {
+                    json = reasoningClient.generate(aiPrompts.getAnalysisSystemPrompt(), userPrompt);
+                } else {
+                    json = analysisChatClient.prompt()
+                            .system(aiPrompts.getAnalysisSystemPrompt())
+                            .user(userPrompt)
+                            .call()
+                            .content();
+                }
+                DiaryAnalysisResult parsed = parseAiResponse(json);
+                log.info("日记 AI 模型调用完成，model={}，attempt={}，durationMs={}，promptLength={}，responseLength={}，totalDurationMs={}",
+                        useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", attempt,
+                        elapsedMillis(modelStartedAt), userPrompt.length(), json == null ? 0 : json.length(),
+                        elapsedMillis(totalStartedAt));
+                return parsed;
             } catch (JsonProcessingException e) {
                 if (attempt < maxRetries) {
-                    log.warn("AI analysis JSON parsing failed, retrying (attempt {}/{}): {}", attempt, maxRetries, e.getMessage());
+                    log.warn("日记 AI 响应解析失败，将重试，model={}，attempt={}/{}, modelDurationMs={}，error={}",
+                            useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", attempt, maxRetries,
+                            elapsedMillis(modelStartedAt), e.getMessage());
                 } else {
-                    log.error("AI analysis JSON parsing failed finally after {} attempts: {}", maxRetries, e.getMessage());
-                    return keywordAnalyze(content);
+                    log.error("日记 AI 响应解析最终失败，model={}，attempts={}，modelDurationMs={}，totalDurationMs={}，error={}",
+                            useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", maxRetries,
+                            elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt), e.getMessage());
+                    throw new IllegalStateException("AI 分析响应无法解析", e);
                 }
             } catch (Exception e) {
-                log.warn("AI analysis failed, falling back to keyword analysis: {}", e.getMessage());
-                return keywordAnalyze(content);
+                if (attempt < maxRetries) {
+                    log.warn("日记 AI 模型调用失败，将重试，model={}，attempt={}/{}, modelDurationMs={}，totalDurationMs={}，error={}",
+                            useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", attempt, maxRetries,
+                            elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt), e.getMessage());
+                    continue;
+                }
+                log.error("日记 AI 模型调用最终失败，model={}，attempts={}，modelDurationMs={}，totalDurationMs={}，error={}",
+                        useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", attempt,
+                        elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt), e.getMessage());
+                throw new IllegalStateException("AI 分析调用失败", e);
             }
         }
-        return keywordAnalyze(content);
+        throw new IllegalStateException("AI 分析调用失败");
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
     }
 
     @SuppressWarnings("unchecked")
-    private DiaryAnalysis parseAiResponse(String json) throws JsonProcessingException {
+    private DiaryAnalysisResult parseAiResponse(String json) throws JsonProcessingException {
         Map<String, Object> map = objectMapper.readValue(JsonUtils.cleanJson(json), Map.class);
         String moodLabel = sanitizeString(map.get("moodLabel"), "复杂");
         int moodIntensity = 3;
@@ -176,19 +221,85 @@ public class AiAnalysisService {
         String summary = sanitizeString(map.get("summary"), "这是一篇关于心情记录的日记。");
         String feedback = sanitizeString(map.get("feedback"), "感谢你的记录，你的每一点感受都很重要。");
         List<String> safeSecondary = (secondaryMoods != null) ? secondaryMoods : List.of();
+        List<MemorySignal> memorySignals = parseMemorySignals(map.get("memorySignals"));
 
         // 若 AI 未返回 valence/arousal，根据标签估算
         if (valence == null) valence = estimateValence(moodLabel, moodIntensity);
         if (arousal == null) arousal = estimateArousal(moodLabel, moodIntensity);
 
-        return new DiaryAnalysis(moodLabel, Math.min(5, Math.max(1, moodIntensity)),
-                valence, arousal,
-                topicLabels, safeSecondary, summary, feedback);
+        return new DiaryAnalysisResult(
+                new DiaryAnalysis(moodLabel, Math.min(5, Math.max(1, moodIntensity)),
+                        valence, arousal, topicLabels, safeSecondary, summary, feedback),
+                memorySignals);
+    }
+
+    private List<MemorySignal> parseMemorySignals(Object raw) {
+        if (!(raw instanceof List<?> values)) {
+            return List.of();
+        }
+        List<MemorySignal> signals = new ArrayList<>();
+        for (Object value : values) {
+            if (!(value instanceof Map<?, ?> item)) {
+                continue;
+            }
+            String key = signalString(item.get("attributeKey"));
+            String attributeValue = signalString(item.get("attributeValue"));
+            if (key.isBlank() || attributeValue.isBlank()) {
+                continue;
+            }
+            String memoryType = signalString(item.get("memoryType")).toLowerCase(java.util.Locale.ROOT);
+            if (!MemorySafetyPolicy.isSupportedType(memoryType)) {
+                log.warn("忽略主分析返回的非法记忆类型，memoryType={}，attributeKey={}", memoryType, key);
+                continue;
+            }
+            String assertionType = signalString(item.get("assertionType"));
+            String evidence = signalString(item.get("evidence"));
+            Double confidence = signalDouble(item.get("confidence"));
+            Boolean isCore = item.get("isCore") instanceof Boolean b ? b : Boolean.FALSE;
+            signals.add(new MemorySignal(key, attributeValue, memoryType, assertionType, confidence, evidence,
+                    signalDate(item.get("validFrom")), signalDate(item.get("validUntil")), isCore));
+            if (signals.size() >= 8) {
+                break;
+            }
+        }
+        return List.copyOf(signals);
+    }
+
+    private String signalString(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private Double signalDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        try {
+            return value == null ? null : Double.valueOf(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private LocalDate signalDate(Object value) {
+        if (value == null || String.valueOf(value).isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(String.valueOf(value));
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     // ── Knowledge Graph Extraction ──
 
     public record KnowledgeTriple(String head, String relation, String tail, Integer tailPolarity) {}
+
+    public record DiaryAnalysisResult(DiaryAnalysis analysis, List<MemorySignal> memorySignals) {
+        public DiaryAnalysisResult {
+            memorySignals = memorySignals == null ? List.of() : List.copyOf(memorySignals);
+        }
+    }
 
     public List<KnowledgeTriple> extractKnowledgeGraph(String content) {
         return extractKnowledgeGraph(content, null, null);
@@ -394,8 +505,13 @@ public class AiAnalysisService {
             prompt.append("\n");
         }
         try {
+            // 周月报场景下按需注入 CBT 认知透视技能，帮助洞察部分温和松动思维盲区
+            String systemPrompt = aiPrompts.getReportGuidanceSystemPrompt();
+            if (aiPrompts.getCbtCognitiveSkillPrompt() != null && !aiPrompts.getCbtCognitiveSkillPrompt().isBlank()) {
+                systemPrompt = systemPrompt + "\n\n" + aiPrompts.getCbtCognitiveSkillPrompt();
+            }
             String json = analysisChatClient.prompt()
-                    .system(aiPrompts.getReportGuidanceSystemPrompt())
+                    .system(systemPrompt)
                     .user(prompt.toString())
                     .call()
                     .content();
@@ -524,6 +640,69 @@ public class AiAnalysisService {
             log.warn("AI coaching failed: {}", e.getMessage());
             String topMood = topMood(analyses);
             return "你最近的情绪以「" + topMood + "」为主。先别急着评判自己，试着把此刻最真实的感受写成一句话。";
+        }
+    }
+
+    public String generateUrgentComfort(Long userId, String diaryContent, String moodLabel, int moodIntensity,
+            String summary, String feedback, boolean isCrisis) {
+        StringBuilder userPrompt = new StringBuilder();
+        if (userId != null) {
+            try {
+                String coreMemory = memoryExtractionService.buildCoreUserMemoryPrompt(userId);
+                if (coreMemory != null && !coreMemory.isBlank()) {
+                    userPrompt.append("【用户长期画像】\n").append(coreMemory).append("\n\n");
+                }
+            } catch (Exception e) {
+                log.warn("Failed to get core memory for urgent comfort: {}", e.getMessage());
+            }
+        }
+        userPrompt.append("【用户刚写下的日记】\n").append(diaryContent != null && !diaryContent.isBlank() ? diaryContent : "（用户未输入正文）").append("\n\n");
+        userPrompt.append("【日记情绪分析】\n主要情绪：").append(moodLabel != null ? moodLabel : "未知").append("，情绪强度：").append(moodIntensity).append("/5\n");
+        if (summary != null && !summary.isBlank()) {
+            userPrompt.append("AI摘要：").append(summary).append("\n");
+        }
+        if (feedback != null && !feedback.isBlank()) {
+            userPrompt.append("AI初步反馈：").append(feedback).append("\n");
+        }
+
+        String systemPrompt = """
+                你是一个极具共情力、温柔、坚定而专业的心理陪伴助手（MoodCopilot）。
+                用户刚刚写下了一篇透露出极其沉重、痛苦、无助或危机情绪的日记。
+                请根据用户的日记内容和背景，为用户写一段发自肺腑的、温暖且具有力量的陪伴关怀寄语（150-280字）。
+
+                核心原则：
+                1. 深度看见与接纳：精准体会用户在日记中所经历的具体痛苦、委屈或困境，用真诚温暖的语气告诉他「我看见了你的不容易，此时此刻我就在这里陪着你」；
+                2. 绝不说教与否定：严禁使用空洞的“加油”、“看开点”、“明天会更好”、“一切都会过去的”等廉价安慰，也不要给复杂宏大的行动建议；
+                3. 给予安全的托底感：让用户感到他的所有脆弱与眼泪都是被允许的，不用勉强自己立刻坚强；
+                4. 自然真诚：使用自然的分段和温和的语气，排版舒适。
+                """;
+
+        try {
+            String comfort = analysisChatClient.prompt()
+                    .system(systemPrompt)
+                    .user(userPrompt.toString())
+                    .call()
+                    .content();
+
+            StringBuilder result = new StringBuilder();
+            result.append(comfort.trim());
+
+            if (isCrisis) {
+                result.append("\n\n---\n\n💙 **如果你现在感到非常痛苦、难以支撑，请记得还有人在乎你，随时可以寻求专业的倾听与支持：**\n")
+                        .append("• **全国希望24小时生命危机干预热线**：`400-161-9995`\n")
+                        .append("• **北京心理危机研究与干预中心**：`010-82951332`\n")
+                        .append("• **共青团青少年心理援助热线**：`12355`\n")
+                        .append("• **全国妇联妇女儿童心理服务热线**：`12338`\n\n")
+                        .append("*无论发生什么，你的感受都是重要的，请多给自己一点时间。*");
+            }
+            return result.toString();
+        } catch (Exception e) {
+            log.error("Failed to generate AI urgent comfort: {}", e.getMessage());
+            String fallback = "看见你刚才写下的日记，能感受到你现在正在经历一段非常不容易的时刻。请允许自己先停下来喘口气，不用逼自己立刻好起来。我就在这里陪着你。";
+            if (isCrisis) {
+                fallback += "\n\n---\n\n💙 **如果你此刻感到难以支撑，请随时拨打免费心理支持热线：**\n• 全国心理危机干预热线：`400-161-9995`\n• 青少年倾听热线：`12355`";
+            }
+            return fallback;
         }
     }
 
@@ -735,17 +914,26 @@ public class AiAnalysisService {
 
     public static Integer estimateValence(String moodLabel, int intensity) {
         if ("平静".equals(moodLabel)) return 10;
+        if ("绝望".equals(moodLabel) || "崩溃".equals(moodLabel)) return -90;
         int base = List.of("喜悦", "期待", "兴奋", "自豪", "轻松", "平静", "感恩", "满足").contains(moodLabel) ? 60 : -60;
         return base + (base > 0 ? (intensity - 3) * 15 : -(intensity - 3) * 15);
     }
 
     public static Integer estimateArousal(String moodLabel, int intensity) {
         if ("平静".equals(moodLabel)) return -10;
+        if ("绝望".equals(moodLabel)) return -50;
+        if ("崩溃".equals(moodLabel)) return 80;
         int base = List.of("喜悦", "期待", "兴奋", "自豪", "烦躁", "愤怒", "焦虑", "害怕").contains(moodLabel) ? 60 : -60;
         return base + (base > 0 ? (intensity - 3) * 15 : -(intensity - 3) * 15);
     }
 
     private String pickMood(String content) {
+        // 极端危机
+        if (containsAny(content, "想死", "死", "不想活", "活不下去", "结束生命", "离开这个世界", "绝望"))
+            return "绝望";
+        if (containsAny(content, "崩溃", "受不了", "要死了", "逼疯", "疯了"))
+            return "崩溃";
+
         // 积极 / 高能量
         if (containsAny(content, "兴奋", "激动", "热血", "雀跃"))
             return "兴奋";
@@ -830,6 +1018,7 @@ public class AiAnalysisService {
         // Base intensity determined by mood category
         int base = switch (mood) {
             // High-arousal moods tend to be more intense
+            case "绝望", "崩溃" -> 5;
             case "愤怒", "害怕", "恐慌" -> 3;
             case "焦虑", "兴奋", "委屈", "难过" -> 3;
             case "烦躁", "孤独", "迷茫" -> 2;
@@ -858,7 +1047,10 @@ public class AiAnalysisService {
     }
 
     private String summarize(String content) {
-        String compact = content.replaceAll("\\s+", " ");
+        if (content == null) return "";
+        String plainText = content.replaceAll("<[^>]+>", ""); // 剥离 HTML 标签
+        plainText = plainText.replaceAll("&[a-zA-Z0-9#]+;", " "); // 替换 HTML 实体
+        String compact = plainText.replaceAll("\\s+", " ").trim();
         if (compact.length() <= 48)
             return compact;
         return compact.substring(0, 48) + "...";
@@ -867,6 +1059,9 @@ public class AiAnalysisService {
     private String feedbackFor(String mood, List<String> topics) {
         String topic = topics.get(0);
         return switch (mood) {
+            // 极度消极
+            case "绝望", "崩溃" -> "看到你写下这些，我感到深深的心疼。请记住你的感受非常重要，如果有需要，随时都可以寻求专业的支持与倾听，不用一个人硬撑。";
+            
             // 积极 / 高能量
             case "喜悦" -> "这份喜悦值得被好好收藏，它是你生活里真实的光亮。";
             case "期待" -> "有所期待本身就是一种温柔的力量，让它慢慢滋养你。";
@@ -884,6 +1079,7 @@ public class AiAnalysisService {
             case "愤怒" -> "愤怒背后往往藏着在意，先深呼吸，等情绪降温后再看看它想告诉你什么。";
             case "焦虑" -> "你正在承受一些不确定感，可以先把最小的一步从脑子里拿出来。";
             case "害怕" -> "害怕不是软弱，它是你在面对未知时本能的保护机制。慢慢来，不用逼自己。";
+
 
             // 消极 / 低能量
             case "疲惫" -> "今天已经消耗了你不少能量，休息不是退后，是在保护自己。";

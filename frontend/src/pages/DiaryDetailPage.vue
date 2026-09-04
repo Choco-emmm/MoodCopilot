@@ -629,7 +629,7 @@ function ensureCommentInputVisible() {
   background: color-mix(in oklab, var(--color-primary) 4%, var(--color-surface));
   border: 1px solid color-mix(in oklab, var(--color-primary) 10%, transparent);
   text-decoration: none;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
 }
 
 .collection-card-item:hover {
@@ -652,3 +652,4 @@ function ensureCommentInputVisible() {
   border-radius: 3px;
 }
 </style>
+

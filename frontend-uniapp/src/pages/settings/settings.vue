@@ -2,25 +2,23 @@
   <view class="settings-page" :style="globalThemeStyle">
     <GlobalUI />
     <view class="header">
-      <text class="page-title">个人设置</text>
+      <text class="page-title">数据合并</text>
+      <text class="page-subtitle">把已有账户的数据带回微信小程序</text>
     </view>
 
-    <view class="form-container" v-if="!loading">
-      <view class="form-item email-item" @click="showEmailModal = true">
-        <text class="label">绑定邮箱</text>
-        <view class="email-right">
-          <text class="email-text" :class="{ 'is-bound': originalEmail }">{{ originalEmail || '未绑定' }}</text>
-          <text class="arrow">›</text>
-        </view>
-      </view>
+    <view v-if="loading" class="loading-state">正在检查账户状态...</view>
+    <view v-else class="merge-content">
+      <view class="merge-note"><text class="note-mark">M</text><view><text class="note-title">继续使用已有记录</text><text class="note-text">绑定邮箱后，可将该邮箱账户下的日记、记忆与成长数据合并到当前微信账户。</text></view></view>
+      <view class="merge-sheet" @click="showEmailModal = true"><view><text class="row-label">合并邮箱</text><text class="row-hint">{{ originalEmail || '尚未绑定，可随时开始' }}</text></view><view class="merge-action"><text>{{ originalEmail ? '更换' : '去绑定' }}</text><text class="arrow">›</text></view></view>
+      <text class="privacy-note">不会公开你的邮箱或日记内容。若该邮箱已有账户，验证完成后将合并为同一个账号。</text>
     </view>
 
     <!-- Email Modal -->
     <view class="modal-overlay" v-if="showEmailModal" @click="showEmailModal = false">
       <view class="modal-content" @click.stop>
-        <text class="modal-title">{{ originalEmail ? '更换绑定邮箱' : '绑定邮箱' }}</text>
+        <text class="modal-title">{{ originalEmail ? '更换合并邮箱' : '验证并合并账户' }}</text>
         <view class="email-form">
-          <input class="modal-input" v-model="bindForm.email" placeholder="输入真实邮箱" />
+          <input class="modal-input" v-model="bindForm.email" placeholder="输入已有账户的邮箱" />
           <view class="code-row">
             <input class="modal-input code-input" v-model="bindForm.code" placeholder="验证码" />
             <button class="code-btn" :disabled="countdown > 0" @click="sendBindCode">{{ countdown > 0 ? `${countdown}s` : '获取验证码' }}</button>
@@ -28,7 +26,7 @@
         </view>
         <view class="modal-actions">
           <button class="cancel-btn" @click="showEmailModal = false">取消</button>
-          <button class="confirm-btn" @click="submitBindEmail">确认绑定</button>
+          <button class="confirm-btn" @click="submitBindEmail">确认合并</button>
         </view>
       </view>
     </view>
@@ -37,20 +35,11 @@
 
 <script setup lang="ts">
 
-import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { get, post, upload, getFullUrl } from '@/utils/request';
+import { ref, onMounted, onUnmounted } from 'vue';
+import { get, post } from '@/utils/request';
 import GlobalUI from '@/components/GlobalUI.vue';
-import { themeOptions, defaultLightTheme, defaultDarkTheme } from '@/stores/theme';
 
 const loading = ref(true);
-const isSubmitting = ref(false);
-
-const form = ref({
-  avatar: '',
-  displayName: '',
-  nickname: '',
-  signature: ''
-});
 
 const originalEmail = ref('');
 const countdown = ref(0);
@@ -59,6 +48,15 @@ const showEmailModal = ref(false);
 const bindForm = ref({
   email: '',
   code: ''
+});
+
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
+
+onUnmounted(() => {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
 });
 
 
@@ -71,11 +69,8 @@ const fetchProfile = async () => {
   try {
     const res = await get('/api/auth/me');
     if (res.code === 200 && res.data) {
-      form.value.avatar = res.data.user.avatar || '';
-      form.value.displayName = res.data.user.displayName || '';
-      form.value.nickname = res.data.user.nickname || '';
-      form.value.signature = res.data.user.signature || '';
-      let email = res.data.user.email || '';
+      const u = res.data.user || res.data;
+      let email = u.email || '';
       if (email.includes('@wx.com')) {
         email = '';
       }
@@ -89,32 +84,6 @@ const fetchProfile = async () => {
   }
 };
 
-const changeAvatar = () => {
-  uni.chooseImage({
-    count: 1,
-    sizeType: ['compressed'],
-    sourceType: ['album', 'camera'],
-    success: async (res) => {
-      const tempFilePath = res.tempFilePaths[0];
-      uni.showLoading({ title: '上传中...' });
-      try {
-        const uploadRes: any = await upload('/api/auth/avatar', tempFilePath);
-        if (uploadRes.code === 200 && uploadRes.data && uploadRes.data.avatar) {
-          form.value.avatar = uploadRes.data.avatar;
-          uni.showToast({ title: '上传成功', icon: 'success' });
-        } else {
-          uni.showToast({ title: uploadRes.message || '上传失败', icon: 'none' });
-        }
-      } catch (e) {
-        console.error(e);
-        uni.showToast({ title: '上传失败', icon: 'none' });
-      } finally {
-        uni.hideLoading();
-      }
-    }
-  });
-};
-
 const sendBindCode = async () => {
   if (!bindForm.value.email.trim() || countdown.value > 0) return;
   uni.showLoading({ title: '发送中' });
@@ -123,9 +92,12 @@ const sendBindCode = async () => {
     if (res.code === 200) {
       uni.showToast({ title: '已发送', icon: 'success' });
       countdown.value = 60;
-      const timer = setInterval(() => {
+      countdownTimer = setInterval(() => {
         countdown.value--;
-        if (countdown.value <= 0) clearInterval(timer);
+        if (countdown.value <= 0) {
+          if (countdownTimer) clearInterval(countdownTimer);
+          countdownTimer = null;
+        }
       }, 1000);
     } else {
       uni.showToast({ title: res.message || '发送失败', icon: 'none' });
@@ -168,44 +140,6 @@ const submitBindEmail = async () => {
   }
 };
 
-const saveSettings = async () => {
-  if (isSubmitting.value) return;
-  if (!form.value.displayName.trim()) {
-    uni.showToast({ title: '账号ID不能为空', icon: 'none' });
-    return;
-  }
-  if (!form.value.nickname.trim()) {
-    uni.showToast({ title: '昵称不能为空', icon: 'none' });
-    return;
-  }
-  
-  isSubmitting.value = true;
-  uni.showLoading({ title: '保存中...' });
-  try {
-    const res = await post('/api/auth/update-profile', {
-      avatar: form.value.avatar,
-      displayName: form.value.displayName.trim(),
-      nickname: form.value.nickname.trim(),
-      signature: form.value.signature.trim()
-    });
-    
-    if (res.code === 200) {
-      uni.showToast({ title: '保存成功', icon: 'success' });
-      uni.$emit('profileUpdated');
-      setTimeout(() => {
-        uni.navigateBack();
-      }, 1000);
-    } else {
-      uni.showToast({ title: res.message || '保存失败', icon: 'none' });
-    }
-  } catch (e) {
-    uni.showToast({ title: '保存失败', icon: 'none' });
-  } finally {
-    isSubmitting.value = false;
-    uni.hideLoading();
-  }
-};
-
 </script>
 
 <style scoped>
@@ -216,6 +150,18 @@ const saveSettings = async () => {
   box-sizing: border-box;
 }
 
+.loading-state { padding: 160rpx 0; text-align: center; color: var(--theme-text-secondary); font-size: 28rpx; }
+.merge-content { padding-top: 8rpx; }
+.merge-note { display: flex; gap: 20rpx; padding: 30rpx; background: rgba(var(--theme-primary-rgb), .07); border-left: 4rpx solid var(--theme-primary); }
+.note-mark { display: flex; width: 56rpx; height: 56rpx; align-items: center; justify-content: center; background: var(--theme-primary); color: #fff; font-family: "Noto Serif SC", serif; font-size: 30rpx; flex-shrink: 0; }
+.note-title { display: block; color: var(--theme-text-primary); font-family: "Noto Serif SC", serif; font-size: 32rpx; }
+.note-text { display: block; margin-top: 8rpx; color: var(--theme-text-secondary); font-size: 25rpx; line-height: 1.65; }
+.merge-sheet { display: flex; align-items: center; justify-content: space-between; margin-top: 36rpx; padding: 30rpx; background: var(--theme-surface); border: 1px solid var(--theme-border); border-radius: 8rpx; box-shadow: 0 10rpx 26rpx rgba(32, 32, 29, .035); }
+.row-label { display: block; color: var(--theme-text-primary); font-size: 30rpx; font-weight: 600; }
+.row-hint { display: block; margin-top: 6rpx; color: var(--theme-text-placeholder); font-size: 24rpx; }
+.merge-action { display: flex; align-items: center; gap: 8rpx; color: var(--theme-primary); font-size: 26rpx; }
+.privacy-note { display: block; margin: 26rpx 8rpx; color: var(--theme-text-placeholder); font-size: 23rpx; line-height: 1.65; }
+
 .header {
   margin-top: 20rpx;
   margin-bottom: 60rpx;
@@ -225,29 +171,6 @@ const saveSettings = async () => {
   font-size: 48rpx;
   font-weight: bold;
   color: var(--theme-text-primary);
-}
-
-.form-container {
-  background-color: var(--theme-surface);
-  border-radius: 24rpx;
-  padding: 0 32rpx;
-  box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.02);
-  margin-bottom: 60rpx;
-}
-
-.form-item {
-  display: flex;
-  align-items: center;
-  padding: 32rpx 0;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
-}
-
-.form-item:last-child {
-  border-bottom: none;
-}
-
-.avatar-item, .email-item {
-  justify-content: space-between;
 }
 
 .email-right {
@@ -265,24 +188,6 @@ const saveSettings = async () => {
   color: var(--theme-primary);
 }
 
-.label {
-  width: 160rpx;
-  font-size: 32rpx;
-  color: var(--theme-text-primary);
-  font-weight: 500;
-}
-
-.input-field, .textarea-field {
-  flex: 1;
-  font-size: 30rpx;
-  color: var(--theme-text-primary);
-  text-align: right;
-}
-
-.textarea-field {
-  min-height: 40rpx;
-  padding: 10rpx 0;
-}
 
 .code-btn {
   font-size: 26rpx;
@@ -316,6 +221,8 @@ const saveSettings = async () => {
   border-radius: 50%;
   margin-right: 16rpx;
 }
+.page-subtitle { display: block; margin-top: 8rpx; color: var(--theme-text-secondary); font-size: 27rpx; }
+.avatar-fallback { display: flex; align-items: center; justify-content: center; background: var(--theme-primary); color: #fff; font-size: 32rpx; font-weight: 600; }
 
 .arrow {
   font-size: 40rpx;
@@ -323,6 +230,7 @@ const saveSettings = async () => {
 }
 
 .submit-btn {
+  margin-top: 48rpx;
   background-color: var(--theme-primary);
   color: var(--theme-surface);
   border-radius: 999rpx;

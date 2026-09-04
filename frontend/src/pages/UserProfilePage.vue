@@ -999,7 +999,7 @@ function handleProfileUpdated() {
   color: var(--color-text-secondary);
   cursor: pointer;
   font-family: var(--font-body);
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
 }
 
 .editorial-head-action:hover {
@@ -1241,7 +1241,7 @@ function handleProfileUpdated() {
 
 .fade-slide-enter-active,
 .fade-slide-leave-active {
-  transition: all 0.25s var(--ease-out);
+  transition: color 0.25s var(--ease-out), background-color 0.25s var(--ease-out), border-color 0.25s var(--ease-out), opacity 0.25s var(--ease-out), transform 0.25s var(--ease-out);
 }
 
 .fade-slide-enter-from,
@@ -1250,3 +1250,4 @@ function handleProfileUpdated() {
   transform: translateY(-8px);
 }
 </style>
+

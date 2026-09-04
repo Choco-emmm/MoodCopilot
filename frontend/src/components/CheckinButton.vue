@@ -62,7 +62,7 @@ function handleClick() {
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
   flex-shrink: 0;
 }
 
@@ -98,3 +98,4 @@ function handleClick() {
   .nav-checkin-btn { padding: 0 10px; font-size: 12px; height: 30px; gap: 4px; width: auto; min-width: max-content; }
 }
 </style>
+

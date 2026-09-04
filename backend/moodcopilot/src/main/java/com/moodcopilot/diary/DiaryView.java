@@ -28,18 +28,19 @@ public record DiaryView(
                 java.util.List<String> images,
                 String analysisStatus,
                 List<DiaryComment> comments,
-                int commentCount) {
+                int commentCount,
+                String analysisError) {
 
         public DiaryView withAnalysisStatus(String status) {
                 return new DiaryView(id, authorUserId, authorName, authorAvatar, authorLevel, authorRole,
                                 content, visibility, analysis, createdAt, resonanceCount, likedByMe,
-                                isPinned, musicMeta, images, status, comments, commentCount);
+                                isPinned, musicMeta, images, status, comments, commentCount, analysisError);
         }
 
         public DiaryView withLikedByMe(boolean liked) {
                 return new DiaryView(id, authorUserId, authorName, authorAvatar, authorLevel, authorRole,
                                 content, visibility, analysis, createdAt, resonanceCount, liked,
-                                isPinned, musicMeta, images, analysisStatus, comments, commentCount);
+                                isPinned, musicMeta, images, analysisStatus, comments, commentCount, analysisError);
         }
 
         static DiaryView from(DiaryEntity diary, DiaryAnalysisEntity analysis, List<DiaryCommentEntity> comments,
@@ -111,9 +112,11 @@ public record DiaryView(
                                 Boolean.TRUE.equals(diary.getIsPinned()),
                                 sanitizeMusicMeta(diary.getMusicMeta(), includePrivateInsights),
                                 diary.getImages(),
-                                viewAnalysis != null ? "complete" : null,
+                                diary.getAnalysisStatus() != null ? diary.getAnalysisStatus()
+                                                : (viewAnalysis != null ? "complete" : null),
                                 buildCommentTree(comments, commentAuthorNames),
-                                commentCount);
+                                commentCount,
+                                includePrivateInsights ? diary.getAnalysisError() : null);
         }
 
         static DiaryView from(DiaryEntity diary, List<DiaryCommentEntity> comments, String authorAvatar,
@@ -147,7 +150,7 @@ public record DiaryView(
                                 diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
                                 Boolean.TRUE.equals(diary.getIsPinned()),
                                 sanitizeMusicMeta(diary.getMusicMeta(), false), diary.getImages(),
-                                va != null ? "complete" : null, List.of(), commentCount);
+                                va != null ? "complete" : null, List.of(), commentCount, null);
         }
 
         static DiaryView fromPublicFeedForAuthor(DiaryEntity diary, DiaryAnalysisEntity analysis,
@@ -161,7 +164,7 @@ public record DiaryView(
                                 diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
                                 Boolean.TRUE.equals(diary.getIsPinned()), sanitizeMusicMeta(diary.getMusicMeta(), true),
                                 diary.getImages(),
-                                va != null ? "complete" : null, List.of(), commentCount);
+                                va != null ? "complete" : null, List.of(), commentCount, null);
         }
 
         /** Feed 模式个人视图：无评论列表、裁切内容、完整分析 */
@@ -176,7 +179,7 @@ public record DiaryView(
                                 diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
                                 Boolean.TRUE.equals(diary.getIsPinned()), sanitizeMusicMeta(diary.getMusicMeta(), true),
                                 diary.getImages(),
-                                va != null ? "complete" : null, List.of(), commentCount);
+                                va != null ? "complete" : null, List.of(), commentCount, null);
         }
 
         private static DiaryAnalysis buildAnalysisView(DiaryAnalysisEntity analysis, boolean includePrivateInsights) {

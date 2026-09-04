@@ -1,60 +1,130 @@
 package com.moodcopilot.ai.mq;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moodcopilot.config.RabbitMqConfig;
 import com.moodcopilot.diary.DiaryService;
+import com.moodcopilot.ai.AiPostProcessService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.moodcopilot.event.LifeChapterService;
+import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.data.redis.connection.stream.MapRecord;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.stream.StreamListener;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+
 @Service
-public class AiTaskConsumer implements StreamListener<String, MapRecord<String, String, String>> {
+public class AiTaskConsumer {
     private static final Logger log = LoggerFactory.getLogger(AiTaskConsumer.class);
-
-    private final ObjectMapper objectMapper;
+    private final AiTaskService taskService;
     private final DiaryService diaryService;
-    private final StringRedisTemplate redisTemplate;
+    private final AiPostProcessService postProcessService;
+    private final LifeChapterService lifeChapterService;
 
-    public AiTaskConsumer(ObjectMapper objectMapper, @Lazy DiaryService diaryService, StringRedisTemplate redisTemplate) {
-        this.objectMapper = objectMapper;
+    public AiTaskConsumer(AiTaskService taskService, @Lazy DiaryService diaryService,
+                          AiPostProcessService postProcessService, LifeChapterService lifeChapterService) {
+        this.taskService = taskService;
         this.diaryService = diaryService;
-        this.redisTemplate = redisTemplate;
+        this.postProcessService = postProcessService;
+        this.lifeChapterService = lifeChapterService;
     }
 
-    @Override
-    public void onMessage(MapRecord<String, String, String> message) {
-        String recordId = message.getId().getValue();
-        try {
-            String payload = message.getValue().get("payload");
-            if (payload == null) {
-                log.warn("收到空 payload 的消息，直接忽略: {}", recordId);
-                ack(recordId);
+    @RabbitListener(queues = RabbitMqConfig.ANALYSIS_QUEUE, containerFactory = "aiHeavyRabbitListenerContainerFactory")
+    public void consumeAnalysis(AiTaskMessage message, Message raw, Channel channel,
+                                @Header(AmqpHeaders.DELIVERY_TAG) long tag) throws Exception {
+        consume(message, channel, tag);
+    }
+
+    @RabbitListener(queues = {RabbitMqConfig.MEMORY_QUEUE, RabbitMqConfig.LIFE_EVENT_QUEUE,
+            RabbitMqConfig.GRAPH_QUEUE, RabbitMqConfig.LIFE_CHAPTER_QUEUE}, containerFactory = "aiHeavyRabbitListenerContainerFactory")
+    public void consumeHeavyPostProcess(AiTaskMessage message, Message raw, Channel channel,
+                                    @Header(AmqpHeaders.DELIVERY_TAG) long tag) throws Exception {
+        consume(message, channel, tag);
+    }
+
+    @RabbitListener(queues = {RabbitMqConfig.RAG_QUEUE, RabbitMqConfig.REPORT_QUEUE,
+            RabbitMqConfig.NOTIFICATION_QUEUE}, containerFactory = "aiLightRabbitListenerContainerFactory")
+    public void consumeLightPostProcess(AiTaskMessage message, Message raw, Channel channel,
+                                    @Header(AmqpHeaders.DELIVERY_TAG) long tag) throws Exception {
+        consume(message, channel, tag);
+    }
+
+    private void consume(AiTaskMessage message, Channel channel, long tag) throws Exception {
+        if (message == null || message.taskId() == null) {
+            channel.basicAck(tag, false);
+            return;
+        }
+        AiTaskEntity task = taskService.claimForRun(message.taskId());
+        if (task == null) {
+            // Dispatcher publishes after claiming a short RUNNING lease. A broker delivery can
+            // arrive before the publisher-confirm callback updates the row to PUBLISHED.
+            // Requeue that message instead of ACKing it and losing the only delivery.
+            if (taskService.isDispatching(message.taskId())) {
+                channel.basicNack(tag, false, true);
                 return;
             }
-
-            AiTaskMessage task = objectMapper.readValue(payload, AiTaskMessage.class);
-            log.info("开始消费 AI 任务: {} (recordId={})", task.taskType(), recordId);
-
-            if (AiTaskMessage.TYPE_DIARY_ANALYSIS.equals(task.taskType())) {
-                // 同步执行任务，抛出异常则不执行 ack
-                diaryService.runAiAnalysisSync(task.diaryId(), task.userId());
+            log.info("忽略已处理或已租约占用的重复 AI 消息，taskId={}", message.taskId());
+            channel.basicAck(tag, false);
+            return;
+        }
+        long executionStartedAt = System.nanoTime();
+        long queueWaitMs = task.getPublishedAt() == null || task.getStartedAt() == null
+                ? -1L
+                : Math.max(0L, Duration.between(task.getPublishedAt(), task.getStartedAt()).toMillis());
+        try {
+            if (AiTaskMessage.TYPE_DIARY_ANALYSIS.equals(task.getTaskType())) {
+                long diaryId = Long.parseLong(task.getAggregateId());
+                boolean useReasoning = Boolean.parseBoolean(taskService.payloadValue(task, "useReasoning"));
+                diaryService.runAiAnalysisSync(diaryId, task.getUserId(), useReasoning, task.getTaskId());
+            } else if (AiTaskMessage.TYPE_LIFE_CHAPTER_REFRESH.equals(task.getTaskType())) {
+                long chapterId = Long.parseLong(task.getAggregateId());
+                lifeChapterService.refreshChapterTask(task.getUserId(), chapterId, task.getAnalysisVersion());
+            } else if (AiTaskMessage.TYPE_TIMELINE_RECOMPUTE.equals(task.getTaskType())) {
+                lifeChapterService.recomputeTimeline(task.getUserId(), java.time.LocalDate.parse(task.getAggregateId()), task.getAnalysisVersion());
             } else {
-                log.warn("未知的任务类型: {}", task.taskType());
+                long diaryId = Long.parseLong(task.getAggregateId());
+                postProcessService.process(task.getTaskType(), diaryId, task.getUserId(),
+                        task.getAnalysisVersion(), task.getTaskId());
             }
-
-            // 成功处理后，手动 ACK 确认
-            ack(recordId);
+            taskService.markSucceeded(task.getTaskId(), task.getLeaseOwner());
+            channel.basicAck(tag, false);
+            log.info("AI 任务处理完成，taskId={}，taskType={}，queueWaitMs={}，executionDurationMs={}",
+                    task.getTaskId(), task.getTaskType(), queueWaitMs, elapsedMillis(executionStartedAt));
         } catch (Exception e) {
-            // 如果报错，不进行 ack，它会留在 Pending 列表中，稍后可重试
-            log.error("处理 AI 任务失败 (recordId={}): {}", recordId, e.getMessage(), e);
+            if (isUnrecoverable(e)) {
+                taskService.markDeadLetter(task.getTaskId(), task.getLeaseOwner(), e);
+            } else {
+                taskService.markFailed(task.getTaskId(), task.getLeaseOwner(), e);
+            }
+            if (AiTaskMessage.TYPE_LIFE_CHAPTER_REFRESH.equals(task.getTaskType())
+                    && (isUnrecoverable(e) || task.getAttempts() >= task.getMaxAttempts())) {
+                lifeChapterService.markGenerationFailed(task.getUserId(), Long.valueOf(task.getAggregateId()),
+                        task.getAnalysisVersion(), e.getMessage());
+            }
+            channel.basicAck(tag, false);
+            log.error("AI 任务处理失败，已写入任务状态，taskId={}，taskType={}，queueWaitMs={}，executionDurationMs={}，error={}",
+                    task.getTaskId(), task.getTaskType(), queueWaitMs, elapsedMillis(executionStartedAt), e.getMessage(), e);
         }
     }
 
-    private void ack(String recordId) {
-        // Note: acknowledge in Spring Data Redis takes (key, group, recordId) 
-        redisTemplate.opsForStream().acknowledge(AiTaskProducer.STREAM_KEY, "ai-group", recordId);
+    private long elapsedMillis(long startedAt) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+    }
+
+    private boolean isUnrecoverable(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof JsonProcessingException || current instanceof NumberFormatException
+                    || current instanceof IllegalArgumentException || current instanceof DuplicateKeyException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }

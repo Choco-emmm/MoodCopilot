@@ -9,9 +9,10 @@
         v-for="conv in conversations"
         :key="conv.id"
         :class="['conv-item', { active: conv.id === activeConvId }]"
-        @click="$emit('select', conv.id)"
       >
-        <span class="conv-title">{{ conv.title }}</span>
+        <button class="conv-select" type="button" @click="$emit('select', conv.id)">
+          <span class="conv-title">{{ displayConversationTitle(conv.title, conv.id) }}</span>
+        </button>
         <button
           class="conv-delete"
           @click.stop="$emit('delete', conv.id)"
@@ -23,6 +24,8 @@
 </template>
 
 <script setup lang="ts">
+import { displayConversationTitle } from '../../utils/chatTitle'
+
 export interface Conversation {
   id: number
   title: string
@@ -100,8 +103,6 @@ defineEmits<{
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  padding: 12px 16px;
-  cursor: pointer;
   border-bottom: 1px solid color-mix(in oklab, var(--color-primary) 5%, transparent);
   transition: background 0.15s;
 }
@@ -110,12 +111,29 @@ defineEmits<{
   background: color-mix(in oklab, var(--color-primary) 4%, transparent);
 }
 
+.conv-select {
+  min-width: 0;
+  padding: 12px 0 12px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.conv-select:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
 .conv-item.active {
   background: color-mix(in oklab, var(--color-primary) 10%, transparent);
   box-shadow: inset 2px 0 0 var(--color-primary);
 }
 
 .conv-title {
+  display: block;
   font-size: 0.85rem;
   color: var(--color-text);
   overflow: hidden;

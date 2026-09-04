@@ -225,7 +225,7 @@ useInfiniteScroll(sentinel, () => {
   font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.25s var(--ease-out);
+  transition: color 0.25s var(--ease-out), background-color 0.25s var(--ease-out), border-color 0.25s var(--ease-out), opacity 0.25s var(--ease-out), transform 0.25s var(--ease-out);
   letter-spacing: 0.03em;
 }
 
@@ -280,3 +280,4 @@ useInfiniteScroll(sentinel, () => {
   }
 }
 </style>
+

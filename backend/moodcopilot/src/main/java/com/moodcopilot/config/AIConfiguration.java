@@ -36,11 +36,15 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Scope;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import reactor.netty.http.client.HttpClient;
+import io.netty.channel.ChannelOption;
 import reactor.core.publisher.Mono;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -50,6 +54,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.List;
+import java.time.Duration;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -327,7 +332,10 @@ public class AIConfiguration {
                                     }
                                     if (!graphIds.isEmpty()) {
                                         LambdaQueryWrapper<DiaryKnowledgeGraphEntity> wrapper = new LambdaQueryWrapper<DiaryKnowledgeGraphEntity>()
-                                                .in(DiaryKnowledgeGraphEntity::getId, graphIds);
+                                                .eq(DiaryKnowledgeGraphEntity::getUserId, userId)
+                                                .in(DiaryKnowledgeGraphEntity::getId, graphIds)
+                                                .and(w -> w.isNull(DiaryKnowledgeGraphEntity::getStatus)
+                                                        .or().eq(DiaryKnowledgeGraphEntity::getStatus, "active"));
                                         java.util.Map<Long, DiaryKnowledgeGraphEntity> byId = new java.util.LinkedHashMap<>();
                                         for (DiaryKnowledgeGraphEntity t : diaryKnowledgeGraphMapper.selectList(wrapper)) {
                                             byId.put(t.getId(), t);
@@ -404,9 +412,18 @@ public class AIConfiguration {
      */
     @Bean
     @Scope("prototype")
-    public WebClient.Builder webClientBuilder(com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+    public WebClient.Builder webClientBuilder(
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper,
+            @Value("${moodcopilot.ai.http-timeout-seconds:90}") int httpTimeoutSeconds) {
         log.info("注册 AI WebClient.Builder（含 content-null 拦截过滤器）");
-        WebClient.Builder builder = WebClient.builder();
+        int timeoutSeconds = Math.max(1, httpTimeoutSeconds);
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10_000)
+                .responseTimeout(Duration.ofSeconds(timeoutSeconds));
+        WebClient.Builder builder = WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .filter((request, next) -> next.exchange(request)
+                        .timeout(Duration.ofSeconds(timeoutSeconds)));
         return builder.filter((request, next) -> {
 
             // 1. 声明数据捕获容器

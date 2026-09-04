@@ -13,6 +13,12 @@
         <input type="checkbox" v-model="analyze" />
         <span>AI 分析我的情绪</span>
       </label>
+      <div v-if="analyze" class="composer-model-choice" role="radiogroup" aria-label="选择分析模型">
+        <label v-for="option in analysisModelOptions" :key="option.label" class="composer-model-option">
+          <input type="radio" v-model="useReasoning" :value="option.value" />
+          <span>{{ option.label }}</span>
+        </label>
+      </div>
       <div class="composer-visibility">
         <button
           v-for="opt in visibilityOptions"
@@ -221,9 +227,15 @@
     <div v-if="store.analysisStatus !== 'idle'" class="composer-status">
       <template v-if="store.analysisStatus === 'analyzing'">已保存，MoodCopilot 正在分析中...</template>
       <template v-else-if="store.analysisStatus === 'complete'">分析完成</template>
+      <template v-else-if="store.analysisStatus === 'skipped_quota'">日记已保存，今日分析次数已用完。</template>
+      <template v-else-if="store.analysisStatus === 'failed_limit'">日记已保存，深度思考额度已用完。</template>
+      <template v-else-if="store.analysisStatus === 'skipped_user'">日记已保存，AI 分析已关闭。</template>
       <template v-else-if="store.analysisStatus === 'failed'">
         分析结果暂时没有更新。
-        <button v-if="store.activeDiary" class="composer-inline-link" @click="store.refreshAnalysis(store.activeDiary.id)">重新获取分析结果</button>
+        <template v-if="store.activeDiary">
+          <button class="composer-inline-link" @click="store.refreshAnalysis(store.activeDiary.id, false)">普通分析</button>
+          <button class="composer-inline-link" @click="store.refreshAnalysis(store.activeDiary.id, true)">深度思考</button>
+        </template>
       </template>
     </div>
 
@@ -289,6 +301,14 @@ const draftNotice = ref(initialDraftNotice)
 const draftSavedAt = ref('')
 const visibility = ref<'PRIVATE' | 'PUBLIC'>(props.initialVisibility || 'PRIVATE')
 const analyze = ref(true)
+const useReasoning = ref(false)
+const analysisModelOptions = [
+  { value: false, label: '极速分析' },
+  { value: true, label: '深度思考' },
+]
+watch(analyze, (enabled) => {
+  if (!enabled) useReasoning.value = false
+})
 
 const collections = ref<any[]>([])
 const selectedCollections = ref<number[]>([])
@@ -836,10 +856,10 @@ async function handleSave() {
 
     if (isEditMode.value) {
       diaryId = props.editId!
-      await store.updateDiary(diaryId, content, visibility.value, musicPayload, imagesPayload, analyze.value && contentChanged.value, imageMetaPayload)
+      await store.updateDiary(diaryId, content, visibility.value, musicPayload, imagesPayload, analyze.value && contentChanged.value, imageMetaPayload, useReasoning.value)
       router.push(`/diary/${diaryId}`)
     } else {
-      await store.createDiary(content, visibility.value, musicPayload, analyze.value, imagesPayload, imageMetaPayload)
+      await store.createDiary(content, visibility.value, musicPayload, analyze.value, imagesPayload, imageMetaPayload, useReasoning.value)
       diaryId = store.activeDiary?.id!
       htmlContent.value = ''
       draft.value = ''
@@ -955,7 +975,7 @@ async function handleSave() {
   font-weight: 600;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   font-family: inherit;
 }
 
@@ -990,7 +1010,7 @@ async function handleSave() {
   color: var(--color-text-muted);
   font-size: 0.82rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   font-family: inherit;
 }
 
@@ -1086,7 +1106,7 @@ async function handleSave() {
   padding: 10px 12px;
   border-radius: 10px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
   border: 1px solid transparent;
 }
 
@@ -1116,7 +1136,7 @@ async function handleSave() {
   flex-shrink: 0;
   font-size: 11px;
   color: var(--color-primary);
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
 }
 
 .composer-collection-modal-item.selected .composer-collection-checkbox {
@@ -1175,7 +1195,7 @@ async function handleSave() {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
   font-family: inherit;
 }
 
@@ -1216,7 +1236,7 @@ async function handleSave() {
   color: var(--color-text);
   font-size: 14px;
   font-family: inherit;
-  outline: none;
+  outline: 2px solid transparent; outline-offset: 2px;
   margin-bottom: 10px;
   transition: border-color 0.2s;
 }
@@ -1238,7 +1258,7 @@ async function handleSave() {
   color: var(--color-text);
   font-size: 13px;
   font-family: inherit;
-  outline: none;
+  outline: 2px solid transparent; outline-offset: 2px;
   resize: none;
   margin-bottom: 14px;
   transition: border-color 0.2s;
@@ -1312,7 +1332,7 @@ async function handleSave() {
   font-weight: 600;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   font-family: inherit;
 }
 
@@ -1375,7 +1395,7 @@ async function handleSave() {
 .composer-editor :deep(.w-e-bar-item button) {
   color: var(--color-text-muted);
   border-radius: 8px;
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
 }
 
 .composer-editor :deep(.w-e-bar-item button:hover) {
@@ -1463,7 +1483,7 @@ async function handleSave() {
   color: var(--color-text-muted);
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   font-family: inherit;
 }
 
@@ -1487,7 +1507,7 @@ async function handleSave() {
   border: 1.5px solid var(--color-border);
   border-radius: 12px;
   font-size: 0.85rem;
-  outline: none;
+  outline: 2px solid transparent; outline-offset: 2px;
   background: var(--color-surface);
   color: var(--color-text);
   font-family: inherit;
@@ -1628,7 +1648,7 @@ async function handleSave() {
   cursor: pointer;
   color: var(--color-text-muted);
   font-size: 0.7rem;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   gap: 2px;
 }
 
@@ -1849,3 +1869,4 @@ async function handleSave() {
   }
 }
 </style>
+

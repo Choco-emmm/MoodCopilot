@@ -347,7 +347,7 @@ async function handleSubmit() {
   color: var(--color-text);
   font-size: 14px;
   font-family: inherit;
-  outline: none;
+  outline: 2px solid transparent; outline-offset: 2px;
   margin-bottom: 10px;
   transition: border-color 0.2s;
 }
@@ -369,7 +369,7 @@ async function handleSubmit() {
   color: var(--color-text);
   font-size: 13px;
   font-family: inherit;
-  outline: none;
+  outline: 2px solid transparent; outline-offset: 2px;
   resize: none;
   margin-bottom: 14px;
   transition: border-color 0.2s;
@@ -401,7 +401,7 @@ async function handleSubmit() {
   font-weight: 600;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   font-family: inherit;
 }
 
@@ -524,7 +524,7 @@ async function handleSubmit() {
   cursor: pointer;
   color: var(--color-text-muted);
   font-size: 12px;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   gap: 4px;
 }
 
@@ -625,3 +625,4 @@ async function handleSubmit() {
   gap: 10px;
 }
 </style>
+
