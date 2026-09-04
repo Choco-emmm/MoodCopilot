@@ -22,4 +22,13 @@ class MemorySafetyPolicyTest {
                 MemorySafetyPolicy.normalizeType("preference", "社交偏好", "喜欢和熟悉的人单独相处"));
         assertTrue(MemorySafetyPolicy.allowCore("preference", "社交偏好", "喜欢和熟悉的人单独相处"));
     }
+
+    @Test
+    void generatedImageDescriptionCannotBeTheOnlyDiaryEvidence() {
+        String diary = "今天拍了一张照片，心情不错";
+        String imageDescription = "画面中出现一辆红色跑车";
+
+        assertFalse(MemoryExtractionService.isUserEvidenceGrounded(imageDescription, diary));
+        assertTrue(MemoryExtractionService.isUserEvidenceGrounded("心情不错", diary));
+    }
 }

@@ -20,53 +20,41 @@
         <div class="candidate-copy">
           <strong>{{ candidate.attributeKey }} <n-tag v-if="isSafetyState(candidate)" size="small" type="warning">近期状态</n-tag></strong>
           <span>{{ candidate.attributeValue }}</span>
-          <small>{{ isSafetyState(candidate) ? '这是需要关注的近期状态，不属于核心长期画像。' : (candidate.evidenceSummary || '暂无证据摘要') }}</small>
+          <small>{{ isSafetyState(candidate) ? '这是需要关注的近期状态，不属于核心长期画像。' : '确认后，这条内容才会进入正式画像。' }}</small>
           <small>已有 {{ candidate.evidenceCount || 0 }} 条依据</small>
-          <div class="memory-source-row">
-            <span class="memory-source-label">{{ sourceTypeLabel(candidate) }}</span>
-            <div v-if="diarySourcesFor(candidate).length === 1" class="source-diary-card">
-              <div class="source-diary-copy">
-                <span class="source-diary-date">{{ diarySourceDate(diarySourcesFor(candidate)[0]) }}</span>
-                <span class="source-diary-excerpt">“{{ diarySourceExcerpt(diarySourcesFor(candidate)[0]) }}”</span>
-              </div>
-              <n-button text type="primary" size="tiny" class="source-diary-open" @click="openDiary(diarySourcesFor(candidate)[0].id)">查看日记 <span aria-hidden="true">→</span></n-button>
-            </div>
-            <n-popover v-if="diarySourcesFor(candidate).length > 1" trigger="click" placement="bottom-start">
-              <template #trigger>
-                <n-button secondary type="primary" size="tiny" class="source-diary-trigger">
-                  <span>关联日记 {{ diarySourcesFor(candidate).length }} 篇</span>
-                  <span aria-hidden="true">查看 →</span>
-                </n-button>
-              </template>
-              <div class="source-popover-list">
-                <n-button v-for="diary in diarySourcesFor(candidate)" :key="diary.id" text type="primary" size="small" class="source-diary-option" @click="openDiary(diary.id)">
-                  <span class="source-option-date">{{ diarySourceDate(diary) }}</span>
-                  <span class="source-option-excerpt">“{{ diarySourceExcerpt(diary) }}”</span>
-                  <span class="source-option-arrow" aria-hidden="true">→</span>
-                </n-button>
-              </div>
-            </n-popover>
-            <n-button v-if="conversationIdsFor(candidate).length" text type="primary" size="tiny" @click="openConversation(conversationIdsFor(candidate)[0])">查看关联会话 →</n-button>
-            <span v-if="!diaryIdsFor(candidate).length && !conversationIdsFor(candidate).length" class="memory-source-empty">暂无原始来源</span>
-          </div>
         </div>
         <div class="candidate-actions">
           <n-button size="small" secondary @click="toggleCandidateDetails(candidate.id)">{{ candidateDetailsId === candidate.id ? '收起依据' : '查看依据' }}</n-button>
           <n-button size="small" secondary type="primary" @click="approveCandidate(candidate.id)">确认</n-button>
-          <n-button size="small" secondary @click="rejectCandidate(candidate.id)">拒绝</n-button>
+          <n-button size="small" secondary :loading="rejectingCandidateId === candidate.id" :disabled="rejectingCandidateId !== null" @click="confirmRejectCandidate(candidate)">拒绝</n-button>
         </div>
         <div v-if="candidateDetailsId === candidate.id" class="candidate-details">
           <span v-if="candidateDetailsLoading">正在加载依据...</span>
           <template v-else>
-            <div v-for="item in candidateEvidence" :key="item.id" class="memory-detail-line">
-              <span>{{ item.evidenceDate || '未标日期' }}</span>
-              <small>{{ item.evidenceText }}</small>
-              <div v-if="item.sourceDiaryId" class="evidence-source-link">
-                <span>{{ diarySourceExcerpt(item.sourceDiaryPreview || { id: item.sourceDiaryId }) }}</span>
-                <n-button text type="primary" size="tiny" @click="openDiary(item.sourceDiaryId)">查看日记 →</n-button>
+            <section class="memory-evidence-section">
+              <div class="memory-detail-heading">
+                <div>
+                  <div class="memory-detail-title">形成依据</div>
+                  <p class="memory-detail-hint">这些是帮助 AI 形成这条候选记忆的原始记录，可打开来源进行核对。</p>
+                </div>
+                <span v-if="candidateEvidence.length" class="memory-detail-count">{{ candidateEvidence.length }} 条记录</span>
               </div>
-            </div>
-            <span v-if="!candidateEvidence.length">暂无可展示的依据。</span>
+              <div v-if="candidateEvidence.length" class="memory-evidence-list">
+                <article v-for="item in candidateEvidence" :key="item.id" class="memory-evidence-item">
+                  <div class="memory-evidence-meta">
+                    <span>{{ evidenceDateLabel(item) }}</span>
+                    <span>{{ sourceTypeLabel(item) }}</span>
+                  </div>
+                  <p class="memory-evidence-text">{{ evidenceDisplayText(item) }}</p>
+                  <div v-if="item.sourceDiaryId || item.sourceConversationId" class="evidence-source-link">
+                    <span>{{ item.sourceDiaryId ? '来自这篇日记' : '来自这段聊天' }}</span>
+                    <button v-if="item.sourceDiaryId" type="button" class="evidence-diary-open" @click="openDiary(item.sourceDiaryId)">打开原日记 <span aria-hidden="true">→</span></button>
+                    <button v-else type="button" class="evidence-diary-open" @click="openConversation(item.sourceConversationId)">打开聊天 <span aria-hidden="true">→</span></button>
+                  </div>
+                </article>
+              </div>
+              <div v-else class="memory-detail-muted">暂时没有可展示的原始记录。</div>
+            </section>
           </template>
         </div>
       </div>
@@ -146,29 +134,30 @@
             <div class="memory-detail-heading">
               <div>
                 <div class="memory-detail-title">形成依据</div>
-                <p class="memory-detail-hint">这些是帮助 AI 形成这条记忆的原始记录，可打开日记进行核对。</p>
+                <p class="memory-detail-hint">这些是帮助 AI 形成这条记忆的原始记录，可打开来源进行核对。</p>
               </div>
               <span v-if="memoryEvidenceById[m.id]?.length" class="memory-detail-count">{{ memoryEvidenceById[m.id].length }} 条记录</span>
             </div>
             <div v-if="memoryEvidenceById[m.id]?.length" class="memory-evidence-list">
               <article v-for="item in memoryEvidenceById[m.id]" :key="`e-${item.id}`" class="memory-evidence-item">
                 <div class="memory-evidence-meta">
-                  <span>{{ item.evidenceDate || '日期未记录' }}</span>
+                  <span>{{ evidenceDateLabel(item) }}</span>
                   <span>{{ sourceTypeLabel(item) }}</span>
                 </div>
-                <p class="memory-evidence-text">{{ item.evidenceText }}</p>
-                <div v-if="item.sourceDiaryId" class="evidence-source-link">
-                  <span>{{ diarySourceExcerpt(item.sourceDiaryPreview || { id: item.sourceDiaryId }) }}</span>
-                  <n-button text type="primary" size="tiny" class="evidence-diary-open" @click="openDiary(item.sourceDiaryId)">打开日记 <span aria-hidden="true">→</span></n-button>
+                <p class="memory-evidence-text">{{ evidenceDisplayText(item) }}</p>
+                <div v-if="item.sourceDiaryId || item.sourceConversationId" class="evidence-source-link">
+                  <span>{{ item.sourceDiaryId ? '来自这篇日记' : '来自这段聊天' }}</span>
+                  <button v-if="item.sourceDiaryId" type="button" class="evidence-diary-open" @click="openDiary(item.sourceDiaryId)">打开原日记 <span aria-hidden="true">→</span></button>
+                  <button v-else type="button" class="evidence-diary-open" @click="openConversation(item.sourceConversationId)">打开聊天 <span aria-hidden="true">→</span></button>
                 </div>
               </article>
             </div>
             <div v-else class="memory-detail-muted">暂时没有可展示的原始记录。</div>
           </section>
           <section v-if="historicalVersions(m.id).length" class="memory-history-section">
-            <n-button text type="primary" size="small" class="memory-history-toggle" @click="toggleHistory(m.id)">
+            <button type="button" class="memory-history-toggle" @click="toggleHistory(m.id)">
               {{ expandedHistoryIds.has(m.id) ? '收起版本变化' : `查看版本变化（${historicalVersions(m.id).length}）` }}
-            </n-button>
+            </button>
             <div v-if="expandedHistoryIds.has(m.id)" class="memory-history-list">
               <article v-for="item in historicalVersions(m.id)" :key="`h-${item.id}`" class="memory-history-item">
                 <p class="memory-history-value">{{ item.attributeValue }}</p>
@@ -213,6 +202,7 @@ const candidates = ref<any[]>([])
 const candidateDetailsId = ref<number | null>(null)
 const candidateDetailsLoading = ref(false)
 const candidateEvidence = ref<any[]>([])
+const rejectingCandidateId = ref<number | null>(null)
 const expandedMemoryIds = ref<Set<number>>(new Set())
 const detailsLoadingIds = ref<Set<number>>(new Set())
 const memoryDetailsErrorIds = ref<Set<number>>(new Set())
@@ -258,26 +248,29 @@ function diaryIdsFor(item: any): number[] {
 
 type DiarySourcePreview = { id: number; createdAt?: string | null; excerpt?: string | null }
 
-function diarySourcesFor(item: any): DiarySourcePreview[] {
-  const previews = Array.isArray(item.sourceDiaryPreviews)
-    ? item.sourceDiaryPreviews.filter((source: any) => source?.id)
-    : []
-  return previews.length ? previews : diaryIdsFor(item).map(id => ({ id }))
-}
-
-function diarySourceDate(source: DiarySourcePreview): string {
-  return source.createdAt ? formatDiarySourceDate(source.createdAt) : '日期未知'
-}
-
 function diarySourceExcerpt(source: DiarySourcePreview): string {
   return source.excerpt?.trim() || '打开查看日记内容'
 }
 
-function formatDiarySourceDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value.replace('T', ' ').slice(0, 10)
-  const pad = (part: number) => String(part).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+function isDiaryEvidence(item: any): boolean {
+  const sourceType = String(item?.sourceType || '').toLowerCase()
+  return diaryIdsFor(item).length > 0 || sourceType === 'diary_inferred' || sourceType === 'diary'
+}
+
+function evidenceDateLabel(item: any): string {
+  const diaryCreatedAt = item?.sourceDiaryPreview?.createdAt
+  if (diaryCreatedAt) return String(diaryCreatedAt).replace('T', ' ').slice(0, 10)
+  if (item?.evidenceDate) return String(item.evidenceDate).slice(0, 10)
+  return isDiaryEvidence(item) ? '日记日期未记录' : '日期未记录'
+}
+
+function evidenceDisplayText(item: any): string {
+  if (isDiaryEvidence(item)) {
+    return item.sourceDiaryPreview
+      ? diarySourceExcerpt(item.sourceDiaryPreview)
+      : '原始日记内容暂不可查看'
+  }
+  return item.evidenceText?.trim() || '暂无可展示的原始记录'
 }
 
 function conversationIdsFor(item: any): number[] {
@@ -285,7 +278,7 @@ function conversationIdsFor(item: any): number[] {
 }
 
 function sourceTypeLabel(item: any): string {
-  if (diaryIdsFor(item).length) return '来自日记'
+  if (isDiaryEvidence(item)) return '来自日记'
   if (conversationIdsFor(item).length) return '来自聊天'
   if (item.sourceType === 'USER_ACTION') return '用户整理'
   if (item.sourceType === 'explicit') return '用户确认'
@@ -308,9 +301,33 @@ async function approveCandidate(id: number) {
   window.$message?.success('记忆已确认')
 }
 
+function confirmRejectCandidate(candidate: any) {
+  dialog.warning({
+    title: '拒绝这条候选记忆？',
+    content: `拒绝后，这条内容不会进入正式画像，但相关依据和历史记录仍会保留。系统会暂时记住你不希望 AI 自动添加这条内容，避免近期再次提出；之后你明确表达新的事实时，仍可以重新建立。${candidate?.attributeKey ? `\n\n当前候选：${candidate.attributeKey}` : ''}`,
+    positiveText: '确认拒绝',
+    negativeText: '取消',
+    positiveButtonProps: { type: 'warning' },
+    onPositiveClick: () => rejectCandidate(candidate.id),
+  })
+}
+
 async function rejectCandidate(id: number) {
-  await memoryApi.rejectCandidate(id)
-  candidates.value = candidates.value.filter(candidate => candidate.id !== id)
+  if (rejectingCandidateId.value !== null) return
+  rejectingCandidateId.value = id
+  try {
+    await memoryApi.rejectCandidate(id)
+    candidates.value = candidates.value.filter(candidate => candidate.id !== id)
+    if (candidateDetailsId.value === id) {
+      candidateDetailsId.value = null
+      candidateEvidence.value = []
+    }
+    window.$message?.success('已拒绝，这条内容近期不会再被自动加入')
+  } catch (e) {
+    logWarn('memory', '拒绝候选记忆失败', id, e)
+  } finally {
+    rejectingCandidateId.value = null
+  }
 }
 
 async function toggleCandidateDetails(id: number) {
@@ -495,7 +512,7 @@ function cancelEditMemory() {
 .candidate-head small, .candidate-copy small { color: var(--color-text-secondary); font-size: 12px; font-weight: 400; line-height: 1.5; }
 .candidate-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-top: 1px solid var(--color-border); }
 .candidate-group + .candidate-group { border-top: 1px solid var(--color-border); }
-.candidate-conflict-note { padding: 8px 0 0; color: #9a6a1f; font-size: 12px; }
+.candidate-conflict-note { padding: 8px 0 0; color: var(--color-warning); font-size: 12px; }
 .candidate-details { flex-basis: 100%; width: 100%; margin-top: 10px; padding: 10px 0 0; border-top: 1px dashed var(--color-border); color: var(--color-text-secondary); font-size: 12px; }
 .candidate-copy { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
 .candidate-copy strong { color: var(--color-text); font-size: 13px; }
@@ -515,12 +532,13 @@ function cancelEditMemory() {
 .memory-evidence-meta span:first-child { color: var(--color-text); font-variant-numeric: tabular-nums; font-weight: 600; }
 .memory-evidence-meta span + span { color: var(--color-text-muted); }
 .memory-evidence-text { margin: 0 0 6px; color: var(--color-text); font-size: 13px; line-height: 1.55; }
-.evidence-source-link { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--color-text-secondary); }
+.evidence-source-link { display: flex; grid-column: 2; align-items: center; gap: 8px; min-width: 0; color: var(--color-text-secondary); }
 .evidence-source-link > span { min-width: 0; overflow: hidden; color: var(--color-text-secondary); text-overflow: ellipsis; white-space: nowrap; }
-:deep(.evidence-diary-open.n-button--primary-type.n-button--text-type) { --n-color: transparent !important; --n-color-hover: transparent !important; --n-color-pressed: transparent !important; --n-color-focus: transparent !important; --n-text-color: var(--color-primary) !important; --n-text-color-hover: var(--color-primary-hover) !important; --n-text-color-pressed: var(--color-primary-hover) !important; --n-text-color-focus: var(--color-primary) !important; flex: 0 0 auto; padding: 0 !important; font-size: 12px; font-weight: 600; }
-:deep(.evidence-diary-open .n-button__content), :deep(.evidence-diary-open .n-button__content *) { color: var(--color-primary) !important; }
+.evidence-diary-open, .memory-history-toggle { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; line-height: 1.4; }
+.evidence-diary-open:hover, .memory-history-toggle:hover { color: var(--color-primary-hover); text-decoration: underline; text-underline-offset: 3px; }
+.evidence-diary-open:focus-visible, .memory-history-toggle:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
 .memory-history-section { padding-top: 10px; border-top: 1px solid var(--color-border); }
-.memory-history-toggle { padding: 0 !important; font-size: 12px; }
+.memory-history-toggle { padding: 0; }
 .memory-history-list { display: flex; flex-direction: column; margin-top: 9px; border-top: 1px solid var(--color-border); }
 .memory-history-item { padding: 9px 0; border-bottom: 1px solid var(--color-border); }
 .memory-history-value { margin: 0 0 3px; color: var(--color-text); font-size: 13px; line-height: 1.5; }
@@ -543,7 +561,7 @@ function cancelEditMemory() {
   background: var(--color-surface);
   border: none;
   border-radius: var(--radius-xl);
-  box-shadow: 0 10px 30px -10px rgba(0,0,0,0.03);
+  box-shadow: var(--shadow-md);
   transition: all var(--duration-normal) var(--ease-out);
   align-self: start;
   width: 100%;
@@ -551,11 +569,11 @@ function cancelEditMemory() {
 }
 .memory-item:hover {
   transform: translateY(-4px);
-  box-shadow: 0 20px 40px -10px rgba(0,0,0,0.06);
+  box-shadow: var(--shadow-lg);
 }
 @media (prefers-color-scheme: dark) {
   .memory-item:hover {
-    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.2);
+    box-shadow: var(--shadow-xl);
   }
 }
 .memory-content {
@@ -576,77 +594,7 @@ function cancelEditMemory() {
   line-height: 1.6;
   white-space: pre-wrap;
 }
-.memory-source-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--color-text-secondary); font-size: 12px; }
-.memory-source-label { flex: 0 0 auto; color: var(--color-text-secondary); font-size: 12px; font-weight: 600; }
-.memory-source-empty { color: var(--color-text-light); }
 .memory-updated { color: var(--color-text-light); font-size: 12px; }
-.source-diary-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  max-width: 100%;
-  padding: 5px 8px;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, var(--color-border));
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
-}
-.source-diary-copy { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
-.source-diary-date { flex: 0 0 auto; color: var(--color-text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; font-weight: 600; }
-.source-diary-excerpt { max-width: 260px; overflow: hidden; color: var(--color-text); text-overflow: ellipsis; white-space: nowrap; }
-:deep(.source-diary-open.n-button--primary-type.n-button--text-type) {
-  --n-color: transparent !important;
-  --n-color-hover: transparent !important;
-  --n-color-pressed: transparent !important;
-  --n-color-focus: transparent !important;
-  --n-text-color: var(--color-primary) !important;
-  --n-text-color-hover: var(--color-primary-hover) !important;
-  --n-text-color-pressed: var(--color-primary-hover) !important;
-  --n-text-color-focus: var(--color-primary) !important;
-  flex: 0 0 auto;
-  padding: 0 !important;
-  font-size: 12px;
-  font-weight: 600;
-}
-:deep(.source-diary-open .n-button__content), :deep(.source-diary-open .n-button__content *) { color: var(--color-primary) !important; }
-:deep(.source-diary-trigger) {
-  --n-color: var(--color-primary-light) !important;
-  --n-color-hover: var(--color-primary-light) !important;
-  --n-color-pressed: var(--color-primary-light) !important;
-  --n-color-focus: var(--color-primary-light) !important;
-  --n-text-color: var(--color-primary) !important;
-  --n-text-color-hover: var(--color-primary-hover) !important;
-  --n-text-color-pressed: var(--color-primary-hover) !important;
-  --n-text-color-focus: var(--color-primary) !important;
-  --n-border: 1px solid var(--color-border-strong) !important;
-  --n-border-hover: 1px solid var(--color-primary) !important;
-  --n-border-pressed: 1px solid var(--color-primary) !important;
-  --n-border-focus: 1px solid var(--color-primary) !important;
-  background-color: var(--color-primary-light) !important;
-  color: var(--color-text) !important;
-  gap: 8px;
-  padding: 4px 8px !important;
-  border-radius: 6px;
-  font-size: 12px;
-}
-:deep(.source-diary-trigger:hover),
-:deep(.source-diary-trigger:focus),
-:deep(.source-diary-trigger:active),
-:deep(.source-diary-trigger.n-button--pressed) {
-  background-color: color-mix(in oklab, var(--color-primary-light) 70%, var(--color-primary) 30%) !important;
-  color: var(--color-text) !important;
-}
-:deep(.source-diary-trigger .n-button__content) { justify-content: space-between; gap: 10px; color: var(--color-text) !important; }
-:deep(.source-diary-trigger .n-button__content *) { color: var(--color-text) !important; }
-:deep(.source-diary-trigger span:last-child) { color: var(--color-primary) !important; font-weight: 700; }
-.source-popover-list { display: flex; flex-direction: column; gap: 5px; width: min(360px, 70vw); }
-.source-diary-option { width: 100%; min-height: 36px; padding: 7px 9px !important; border: 1px solid transparent; border-radius: 5px; background: var(--color-surface); color: var(--color-text) !important; white-space: normal; text-align: left; }
-.source-diary-option:hover { border-color: var(--color-border-strong); background: var(--color-primary-light); }
-.source-diary-option :deep(.n-button__content) { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 8px; width: 100%; text-align: left; }
-.source-diary-option :deep(.n-button__content), .source-diary-option :deep(.n-button__content *) { color: var(--color-text) !important; }
-.source-option-date { color: var(--color-text-secondary) !important; font-size: 11px; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
-.source-option-excerpt { overflow: hidden; color: var(--color-text) !important; text-overflow: ellipsis; white-space: nowrap; }
-.source-option-arrow { color: var(--color-primary) !important; font-weight: 700; }
 .memory-safety-note { display: block; margin-top: 8px; color: var(--color-text-secondary); font-size: 12px; font-weight: 400; line-height: 1.5; }
 .memory-edit-input {
   margin-top: 8px;
@@ -694,6 +642,7 @@ function cancelEditMemory() {
   .memory-evidence-item { grid-template-columns: 1fr; row-gap: 6px; }
   .memory-evidence-meta { flex-direction: row; align-items: center; gap: 8px; }
   .memory-evidence-meta span + span { padding-left: 8px; border-left: 1px solid var(--color-border-strong); }
+  .evidence-source-link { grid-column: 1; }
   .memory-detail-heading { flex-direction: column; gap: 4px; }
 }
 

@@ -88,6 +88,29 @@ class MemoryOrchestratorTest {
     }
 
     @Test
+    void fabricatedExplicitExcerptCannotBecomeFormalAfterEvidenceFallback() {
+        UserProfileMemoryMapper memoryMapper = mock(UserProfileMemoryMapper.class);
+        UserMemoryCandidateMapper candidateMapper = mock(UserMemoryCandidateMapper.class);
+        UserMemoryEvidenceMapper evidenceMapper = mock(UserMemoryEvidenceMapper.class);
+        UserMemoryRejectionMapper rejectionMapper = mock(UserMemoryRejectionMapper.class);
+        when(rejectionMapper.selectCount(any())).thenReturn(0L);
+        when(candidateMapper.selectOne(any())).thenReturn(null);
+        when(evidenceMapper.selectCount(any())).thenReturn(0L);
+        when(evidenceMapper.selectList(any())).thenReturn(List.of());
+        when(memoryMapper.selectList(any())).thenReturn(List.of());
+        MemoryOrchestrator orchestrator = new MemoryOrchestrator(memoryMapper, candidateMapper, evidenceMapper,
+                rejectionMapper, mock(RagMemoryService.class), new ObjectMapper());
+
+        orchestrator.processExtractedMemories(7L,
+                List.of(new MemoryExtractionService.MemoryAttribute("社交偏好", "偏好独处", false,
+                        "preference", "explicit", .99, "模型编造的证据", null, null)),
+                "diary_inferred", 12L, null, "我喜欢安静的地方", null);
+
+        verify(candidateMapper).insert(any(UserMemoryCandidateEntity.class));
+        verify(memoryMapper, never()).insert(any(UserProfileMemoryEntity.class));
+    }
+
+    @Test
     void equivalentApprovedCandidateAbsorbsPendingCandidateWithoutDuplicatePromotion() {
         UserProfileMemoryMapper memoryMapper = mock(UserProfileMemoryMapper.class);
         UserMemoryCandidateMapper candidateMapper = mock(UserMemoryCandidateMapper.class);

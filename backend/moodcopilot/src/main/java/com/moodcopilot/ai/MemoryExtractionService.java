@@ -7,11 +7,14 @@ import com.moodcopilot.entity.MusicMeta;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.entity.UserProfileMemoryEntity;
 import com.moodcopilot.mapper.DiaryMapper;
+import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.mapper.UserProfileMemoryMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
@@ -22,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -114,11 +118,13 @@ public class MemoryExtractionService {
     private final ObjectMapper objectMapper;
     private final TransactionOperations transactionOperations;
     private final DiaryMapper diaryMapper;
+    private final DiaryAnalysisMapper diaryAnalysisMapper;
     private final UserMapper userMapper;
     private final StringRedisTemplate redisTemplate;
     private final RagMemoryService ragMemoryService;
     private final NotificationService notificationService;
     private final MemoryOrchestrator memoryOrchestrator;
+    private final ZoneId businessTimeZone;
 
     public MemoryExtractionService(ChatClient analysisChatClient,
             UserProfileMemoryMapper userProfileMemoryMapper,
@@ -130,16 +136,64 @@ public class MemoryExtractionService {
             RagMemoryService ragMemoryService,
             NotificationService notificationService,
             MemoryOrchestrator memoryOrchestrator) {
+        this(analysisChatClient, userProfileMemoryMapper, objectMapper, transactionOperations, diaryMapper, null,
+                userMapper, redisTemplate, ragMemoryService, notificationService, memoryOrchestrator,
+                "Asia/Shanghai");
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public MemoryExtractionService(ChatClient analysisChatClient,
+            UserProfileMemoryMapper userProfileMemoryMapper,
+            ObjectMapper objectMapper,
+            TransactionOperations transactionOperations,
+            DiaryMapper diaryMapper,
+            DiaryAnalysisMapper diaryAnalysisMapper,
+            UserMapper userMapper,
+            StringRedisTemplate redisTemplate,
+            RagMemoryService ragMemoryService,
+            NotificationService notificationService,
+            MemoryOrchestrator memoryOrchestrator,
+            @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId) {
         this.analysisChatClient = analysisChatClient;
         this.userProfileMemoryMapper = userProfileMemoryMapper;
         this.objectMapper = objectMapper;
         this.transactionOperations = transactionOperations;
         this.diaryMapper = diaryMapper;
+        this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.userMapper = userMapper;
         this.redisTemplate = redisTemplate;
         this.ragMemoryService = ragMemoryService;
         this.notificationService = notificationService;
         this.memoryOrchestrator = memoryOrchestrator;
+        this.businessTimeZone = parseZoneId(timeZoneId);
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void migrateLegacyProfileRagIndex() {
+        try {
+            Set<Long> userIds = userProfileMemoryMapper.selectList(
+                    new LambdaQueryWrapper<UserProfileMemoryEntity>()
+                            .select(UserProfileMemoryEntity::getUserId)
+                            .eq(UserProfileMemoryEntity::getStatus, "active")).stream()
+                    .map(UserProfileMemoryEntity::getUserId)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+            Map<Long, List<UserProfileMemoryEntity>> grouped = userIds.stream()
+                    .collect(Collectors.toMap(userId -> userId, memoryOrchestrator::current,
+                            (left, right) -> left, java.util.LinkedHashMap::new));
+            ragMemoryService.migrateLegacyProfileIndex(grouped);
+        } catch (Exception e) {
+            log.error("RAG 画像旧索引迁移准备失败，下次启动将重试: {}", e.getMessage(), e);
+        }
+    }
+
+    private ZoneId parseZoneId(String value) {
+        try {
+            return value == null || value.isBlank() ? ZoneId.of("Asia/Shanghai") : ZoneId.of(value.trim());
+        } catch (RuntimeException e) {
+            log.warn("记忆迁移业务时区配置无效，使用 Asia/Shanghai: {}", value);
+            return ZoneId.of("Asia/Shanghai");
+        }
     }
 
     /**
@@ -161,6 +215,22 @@ public class MemoryExtractionService {
 
     public void extractAndSyncMemoryForDiary(Long userId, Long diaryId, String diaryContent,
             MusicMeta musicMeta, String imageDescriptions, LocalDate evidenceDate) {
+        com.moodcopilot.entity.DiaryAnalysisEntity analysis = diaryAnalysisMapper.selectById(diaryId);
+        if (analysis != null && analysis.getMemorySignalsJson() != null) {
+            List<MemoryAttribute> attributes = analysis.getMemorySignalsJson().stream()
+                    .map(signal -> new MemoryAttribute(signal.attributeKey(), signal.attributeValue(), signal.isCore(),
+                            signal.memoryType(), signal.assertionType(), signal.confidence(), signal.evidence(),
+                            signal.validFrom(), signal.validUntil()))
+                    .toList();
+            List<MemoryAttribute> sanitized = retainUserGroundedAttributes(
+                    sanitizeAttributes(attributes), buildUserEvidence(diaryContent, musicMeta));
+            memoryOrchestrator.processExtractedMemories(userId, sanitized, "diary_inferred", diaryId, null,
+                    buildUserEvidence(diaryContent, musicMeta), evidenceDate);
+            log.info("已复用日记主分析中的记忆信号，userId={}，diaryId={}，signalCount={}", userId, diaryId,
+                    sanitized.size());
+            return;
+        }
+        log.info("日记缺少已保存的记忆信号，使用兼容抽取流程，userId={}，diaryId={}", userId, diaryId);
         extractAndSyncMemory(UserIdSource.diary(userId, diaryId, evidenceDate), diaryContent, musicMeta,
                 imageDescriptions);
     }
@@ -168,33 +238,94 @@ public class MemoryExtractionService {
     private void extractAndSyncMemory(UserIdSource source, String diaryContent, MusicMeta musicMeta,
             String imageDescriptions) {
         Long userId = source.userId();
+        long totalStartedAt = System.nanoTime();
         try {
             List<UserProfileMemoryEntity> existing = listUserMemories(userId);
-            log.info("开始提取长期画像，userId={}，旧属性数={}，日记长度={}，hasMusic={}，hasImages={}", userId, existing.size(),
-                    diaryContent == null ? 0 : diaryContent.length(), musicMeta != null, imageDescriptions != null && !imageDescriptions.isBlank());
+            log.info("开始提取长期画像，userId={}，diaryId={}，旧属性数={}，日记长度={}，hasMusic={}，hasImages={}",
+                    userId, source.diaryId(), existing.size(), diaryContent == null ? 0 : diaryContent.length(),
+                    musicMeta != null, imageDescriptions != null && !imageDescriptions.isBlank());
             // RAG 检索与当前日记语义相关的历史内容，帮助 LLM 发现跨日记的模式
+            long ragStartedAt = System.nanoTime();
             String ragContext = ragMemoryService.buildRagContext(userId, diaryContent, 3,
                     RagMemoryService.SOURCE_DIARY);
+            long ragDurationMs = elapsedMillis(ragStartedAt);
             String prompt = buildExtractionUserPrompt(diaryContent, existing, ragContext, musicMeta, imageDescriptions);
+            long modelStartedAt = System.nanoTime();
             String json = analysisChatClient.prompt()
                     .system(MEMORY_EXTRACTION_PROMPT)
                     .user(prompt)
                     .call()
                     .content();
+            long modelDurationMs = elapsedMillis(modelStartedAt);
             String cleanedJson = JsonUtils.cleanJson(json);
             if (cleanedJson.isEmpty()) {
                 log.warn("用户 {} 画像提取未返回有效的 JSON，返回原始内容: \n{}", userId, json);
                 return;
             }
             MemoryExtractionResponse response = objectMapper.readValue(cleanedJson, MemoryExtractionResponse.class);
-            List<MemoryAttribute> sanitizedAttributes = sanitizeAttributes(response.attributes());
+            List<MemoryAttribute> sanitizedAttributes = retainUserGroundedAttributes(
+                    sanitizeAttributes(response.attributes()), buildUserEvidence(diaryContent, musicMeta));
             memoryOrchestrator.processExtractedMemories(userId, sanitizedAttributes, source.sourceType(),
                     source.diaryId(), source.conversationId(), diaryContent, source.evidenceDate());
-            log.info("长期画像提取完成，userId={}，新属性数={}，旧属性数={}", userId, sanitizedAttributes.size(), existing.size());
+            log.info("长期画像提取完成，userId={}，diaryId={}，新属性数={}，旧属性数={}，ragDurationMs={}，modelDurationMs={}，totalDurationMs={}，promptLength={}，responseLength={}",
+                    userId, source.diaryId(), sanitizedAttributes.size(), existing.size(), ragDurationMs, modelDurationMs,
+                    elapsedMillis(totalStartedAt), prompt.length(), json == null ? 0 : json.length());
         } catch (Exception e) {
-            log.warn("长记忆提取失败，userId={}: {}", userId, e.getMessage(), e);
+            log.warn("长记忆提取失败，userId={}，diaryId={}，totalDurationMs={}，error={}", userId, source.diaryId(),
+                    elapsedMillis(totalStartedAt), e.getMessage(), e);
             throw new IllegalStateException("长期记忆提取失败", e);
         }
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+    }
+
+    private String buildUserEvidence(String diaryContent, MusicMeta musicMeta) {
+        StringBuilder evidence = new StringBuilder(diaryContent == null ? "" : diaryContent);
+        if (musicMeta != null && musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
+            if (evidence.length() > 0) evidence.append("\n");
+            evidence.append(musicMeta.getUserLyric());
+        }
+        return evidence.toString();
+    }
+
+    /**
+     * 图片描述是模型生成的中间结果，不能单独成为长期记忆的事实依据。
+     * 只有能回溯到用户正文或用户主动选择歌词的信号，才允许进入记忆编排器。
+     */
+    private List<MemoryAttribute> retainUserGroundedAttributes(List<MemoryAttribute> attributes, String userEvidence) {
+        if (attributes == null || attributes.isEmpty()) {
+            return List.of();
+        }
+        return attributes.stream()
+                .filter(attribute -> {
+                    String evidence = normalizeForEvidence(attribute.evidence());
+                    boolean grounded = isUserEvidenceGrounded(attribute.evidence(), userEvidence);
+                    if (!grounded) {
+                        log.info("跳过无法回溯到用户内容的记忆信号，attributeKey={}，sourceEvidenceLength={}",
+                                attribute.attributeKey(), evidence.length());
+                    }
+                    return grounded;
+                })
+                .toList();
+    }
+
+    static boolean isUserEvidenceGrounded(String evidence, String source) {
+        String normalizedEvidence = normalizeForEvidence(evidence);
+        String normalizedSource = normalizeForEvidence(source);
+        return !normalizedEvidence.isBlank() && !normalizedSource.isBlank()
+                && (normalizedSource.contains(normalizedEvidence) || normalizedEvidence.contains(normalizedSource));
+    }
+
+    private static String normalizeForEvidence(String value) {
+        return value == null ? "" : value.replace('\r', ' ')
+                .replace('\n', ' ')
+                .replace('\t', ' ')
+                .replaceAll("\\p{Cntrl}", " ")
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase(java.util.Locale.ROOT);
     }
 
     /**
@@ -390,7 +521,7 @@ public class MemoryExtractionService {
 
     private void reindexUserProfile(long userId) {
         List<UserProfileMemoryEntity> latest = listUserMemories(userId);
-        ragMemoryService.indexUserProfile(userId, latest);
+        ragMemoryService.indexUserProfileAsync(userId, latest);
     }
 
     // ---- 私有方法 ----
@@ -502,7 +633,7 @@ public class MemoryExtractionService {
         return userMessage.length() <= 12 && CHAT_SMALL_TALK_PHRASES.contains(normalized);
     }
 
-    private List<MemoryAttribute> sanitizeAttributes(List<MemoryAttribute> attributes) {
+    public List<MemoryAttribute> sanitizeAttributes(List<MemoryAttribute> attributes) {
         if (attributes == null || attributes.isEmpty()) {
             return List.of();
         }
@@ -629,7 +760,7 @@ public class MemoryExtractionService {
     record MemoryExtractionResponse(List<MemoryAttribute> attributes) {
     }
 
-    record MemoryAttribute(String attributeKey, String attributeValue, Boolean isCore,
+    public record MemoryAttribute(String attributeKey, String attributeValue, Boolean isCore,
                            String memoryType, String assertionType, Double confidence, String evidence,
                            java.time.LocalDate validFrom, java.time.LocalDate validUntil) {
     }

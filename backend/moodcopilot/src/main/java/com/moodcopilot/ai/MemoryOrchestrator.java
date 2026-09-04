@@ -114,10 +114,13 @@ public class MemoryOrchestrator {
             Boolean requestedIsCore = allowCore ? attr.isCore() : Boolean.FALSE;
             String assertion = attr.assertionType() == null ? "inferred" : attr.assertionType().toLowerCase(Locale.ROOT);
             if (!Set.of("explicit", "inferred", "negated").contains(assertion)) assertion = "inferred";
-            String evidence = clean(attr.evidence(), 2000);
-            if (evidence.isBlank()) evidence = clean(defaultEvidence, 2000);
+            String modelEvidence = clean(attr.evidence(), 2000);
+            boolean evidenceGrounded = isEvidenceGrounded(safeSource, modelEvidence, defaultEvidence);
+            String evidence = modelEvidence;
+            evidence = groundEvidence(safeSource, evidence, defaultEvidence);
             String actualSource = "explicit".equals(safeSource)
-                    || ("explicit".equals(assertion) && verifiedExplicitEvidence(safeSource, evidence, defaultEvidence))
+                    || ("explicit".equals(assertion) && evidenceGrounded
+                    && verifiedExplicitEvidence(safeSource, modelEvidence, defaultEvidence))
                     ? "explicit" : safeSource;
 
             if ("DELETE_MARKER".equals(value)) {
@@ -181,7 +184,15 @@ public class MemoryOrchestrator {
                     evidence, date, attr.confidence(), evidenceQuality(attr));
             if (PENDING.equals(candidate.getStatus())) maybePromote(candidate);
         }
-        reindex(userId);
+        // 日记后处理已经会创建 MEMORY_RAG_INDEX 子任务。将画像索引交给该任务，
+        // 避免这里和子任务各自执行一次全量画像向量化；聊天和用户操作没有独立索引任务，仍即时更新。
+        boolean hasDedicatedDiaryRagTask = "diary_inferred".equals(safeSource) && sourceDiaryId != null;
+        if (!hasDedicatedDiaryRagTask) {
+            reindex(userId);
+        } else {
+            log.debug("日记来源画像索引延后到 MEMORY_RAG_INDEX 任务，userId={}，sourceDiaryId={}",
+                    userId, sourceDiaryId);
+        }
     }
 
     @Transactional
@@ -981,7 +992,7 @@ public class MemoryOrchestrator {
         return entity;
     }
 
-    private void reindex(long userId) { ragMemoryService.indexUserProfile(userId, current(userId)); }
+    private void reindex(long userId) { ragMemoryService.indexUserProfileAsync(userId, current(userId)); }
 
     private boolean verifiedExplicitEvidence(String source, String evidence, String sourceText) {
         if (!"diary_inferred".equals(source) && !"chat_candidate".equals(source)) return "explicit".equals(source);
@@ -990,6 +1001,30 @@ public class MemoryOrchestrator {
         String normalizedSource = normalize(sourceText);
         return (normalizedSource.contains(normalizedEvidence) || normalizedEvidence.contains(normalizedSource))
                 && containsExplicitUserMarker(normalizedSource);
+    }
+
+    /**
+     * 模型只能提供证据摘录，不能把自己的摘要或推理当作用户原话落库。
+     * 无法在用户输入中定位的摘录退回到完整用户输入，保证来源仍可审计。
+     */
+    private String groundEvidence(String source, String evidence, String sourceText) {
+        String grounded = clean(sourceText, 2000);
+        if (evidence.isBlank()) return grounded;
+        if (!("diary_inferred".equals(source) || "chat_candidate".equals(source))) return evidence;
+        if (grounded.isBlank()) return "";
+        String normalizedEvidence = normalize(evidence);
+        String normalizedSource = normalize(sourceText);
+        return normalizedSource.contains(normalizedEvidence) || normalizedEvidence.contains(normalizedSource)
+                ? evidence : grounded;
+    }
+
+    private boolean isEvidenceGrounded(String source, String evidence, String sourceText) {
+        if (evidence == null || evidence.isBlank() || sourceText == null || sourceText.isBlank()) return false;
+        if (!("diary_inferred".equals(source) || "chat_candidate".equals(source))) return true;
+        String normalizedEvidence = normalize(evidence);
+        String normalizedSource = normalize(sourceText);
+        return !normalizedEvidence.isBlank()
+                && (normalizedSource.contains(normalizedEvidence) || normalizedEvidence.contains(normalizedSource));
     }
 
     private boolean containsExplicitUserMarker(String source) {

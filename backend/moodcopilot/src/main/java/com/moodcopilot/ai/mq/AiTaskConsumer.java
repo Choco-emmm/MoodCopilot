@@ -16,6 +16,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+
 @Service
 public class AiTaskConsumer {
     private static final Logger log = LoggerFactory.getLogger(AiTaskConsumer.class);
@@ -63,6 +65,10 @@ public class AiTaskConsumer {
             channel.basicAck(tag, false);
             return;
         }
+        long executionStartedAt = System.nanoTime();
+        long queueWaitMs = task.getPublishedAt() == null || task.getStartedAt() == null
+                ? -1L
+                : Math.max(0L, Duration.between(task.getPublishedAt(), task.getStartedAt()).toMillis());
         try {
             if (AiTaskMessage.TYPE_DIARY_ANALYSIS.equals(task.getTaskType())) {
                 long diaryId = Long.parseLong(task.getAggregateId());
@@ -78,6 +84,8 @@ public class AiTaskConsumer {
             }
             taskService.markSucceeded(task.getTaskId(), task.getLeaseOwner());
             channel.basicAck(tag, false);
+            log.info("AI 任务处理完成，taskId={}，taskType={}，queueWaitMs={}，executionDurationMs={}",
+                    task.getTaskId(), task.getTaskType(), queueWaitMs, elapsedMillis(executionStartedAt));
         } catch (Exception e) {
             if (isUnrecoverable(e)) {
                 taskService.markDeadLetter(task.getTaskId(), task.getLeaseOwner(), e);
@@ -90,8 +98,13 @@ public class AiTaskConsumer {
                         task.getAnalysisVersion(), e.getMessage());
             }
             channel.basicAck(tag, false);
-            log.error("AI 任务处理失败，已写入任务状态，taskId={}", task.getTaskId(), e);
+            log.error("AI 任务处理失败，已写入任务状态，taskId={}，taskType={}，queueWaitMs={}，executionDurationMs={}，error={}",
+                    task.getTaskId(), task.getTaskType(), queueWaitMs, elapsedMillis(executionStartedAt), e.getMessage(), e);
         }
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
     }
 
     private boolean isUnrecoverable(Throwable error) {

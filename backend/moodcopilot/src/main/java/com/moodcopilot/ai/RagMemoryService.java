@@ -13,8 +13,11 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisCallback;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -23,11 +26,20 @@ import org.springframework.web.client.RestClient;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.springframework.util.DigestUtils;
 
 // TODO: 跨用户共鸣检索（RESONANCE）必须强制添加过滤条件，仅检索 Visibility=PUBLIC 的日记，严禁越权搜索他人私密日记。
 @Service
@@ -36,6 +48,27 @@ public class RagMemoryService {
     private static final Logger log = LoggerFactory.getLogger(RagMemoryService.class);
     private static final String INDEX_NAME = "idx:rag_v2";
     private static final String KEY_PREFIX = "rag:";
+    private static final String PROFILE_KEY_PREFIX = KEY_PREFIX + "profile:";
+    private static final String PROFILE_LOCK_PREFIX = KEY_PREFIX + "profile-lock:";
+    private static final String PROFILE_SCHEMA_KEY = KEY_PREFIX + "profile:index-schema-version";
+    private static final String PROFILE_SCHEMA_VERSION = "2";
+    private static final Duration PROFILE_LOCK_TTL = Duration.ofMinutes(5);
+    private static final long PROFILE_LOCK_RENEW_INTERVAL_SECONDS = 30L;
+    private static final DefaultRedisScript<Long> RELEASE_LOCK_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end", Long.class);
+    private static final DefaultRedisScript<Long> RENEW_LOCK_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) else return 0 end", Long.class);
+    private static final DefaultRedisScript<Long> WRITE_SNAPSHOT_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) ~= ARGV[1] then return 0 end "
+                    + "local current = redis.call('get', KEYS[2]) "
+                    + "if current and tonumber(current) > tonumber(ARGV[2]) then return 2 end "
+                    + "redis.call('set', KEYS[2], ARGV[2], 'EX', ARGV[3]) return 1", Long.class);
+    private static final ScheduledExecutorService PROFILE_LOCK_RENEWER =
+            Executors.newScheduledThreadPool(2, runnable -> {
+                Thread thread = new Thread(runnable, "rag-profile-lock-renewer");
+                thread.setDaemon(true);
+                return thread;
+            });
     private static final int IMAGE_CONTEXT_MAX_CHARS = 4096;
     public static final String SOURCE_DIARY = "diary";
     public static final String SOURCE_PROFILE = "profile";
@@ -51,7 +84,20 @@ public class RagMemoryService {
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
     private final DiaryMapper diaryMapper;
+    private final ZoneId businessTimeZone;
+    public RagMemoryService(
+            String embeddingApiUrl,
+            String embeddingApiKey,
+            String embeddingModel,
+            int embeddingDimension,
+            StringRedisTemplate redis,
+            ObjectMapper objectMapper,
+            DiaryMapper diaryMapper) {
+        this(embeddingApiUrl, embeddingApiKey, embeddingModel, embeddingDimension, redis, objectMapper, diaryMapper,
+                "Asia/Shanghai");
+    }
 
+    @org.springframework.beans.factory.annotation.Autowired
     public RagMemoryService(
             @Value("${spring.ai.rag.embedding.api-url}") String embeddingApiUrl,
             @Value("${spring.ai.rag.embedding.api-key:}") String embeddingApiKey,
@@ -59,7 +105,8 @@ public class RagMemoryService {
             @Value("${spring.ai.rag.embedding.dimension:1024}") int embeddingDimension,
             StringRedisTemplate redis,
             ObjectMapper objectMapper,
-            DiaryMapper diaryMapper) {
+            DiaryMapper diaryMapper,
+            @Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId) {
         this.embeddingApiUrl = embeddingApiUrl;
         this.embeddingApiKey = embeddingApiKey == null ? "" : embeddingApiKey.trim();
         this.embeddingModel = embeddingModel == null || embeddingModel.isBlank() ? "BAAI/bge-m3" : embeddingModel.trim();
@@ -68,6 +115,7 @@ public class RagMemoryService {
         this.objectMapper = objectMapper;
         this.restClient = RestClient.builder().build();
         this.diaryMapper = diaryMapper;
+        this.businessTimeZone = parseZoneId(timeZoneId);
     }
 
     @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
@@ -286,55 +334,137 @@ public class RagMemoryService {
     }
 
     /**
-     * 将用户长期画像按属性逐个索引到向量库（key: profile:{userId}:{attrKey}）。
+     * 将用户长期画像按 memoryId 逐个索引到向量库（key: profile:{userId}:{memoryId}）。
      * 每个属性独立存储，便于语义检索时精准匹配。
      */
-    @Async("aiExecutor")
     public void indexUserProfile(long userId, List<UserProfileMemoryEntity> memories) {
-        redis.delete(KEY_PREFIX + "profile:" + userId);
-        if (memories == null || memories.isEmpty()) {
-            List<String> keys = listProfileKeys(userId);
-            if (!keys.isEmpty()) {
-                redis.delete(keys);
-                log.info("RAG 画像已清空 userId={} deletedKeys={}", userId, keys.size());
-            }
-            return;
+        indexUserProfile(userId, memories, System.currentTimeMillis());
+    }
+
+    public void indexUserProfile(long userId, List<UserProfileMemoryEntity> memories, long snapshotAt) {
+        String lockKey = PROFILE_LOCK_PREFIX + userId;
+        String lockToken = UUID.randomUUID().toString();
+        if (!acquireLock(lockKey, lockToken)) {
+            log.warn("RAG 画像增量索引失败：获取用户锁超时 userId={}，等待任务重试", userId);
+            throw new IllegalStateException("画像 RAG 锁竞争超时，等待任务重试");
         }
+        AtomicBoolean ownershipLost = new AtomicBoolean(false);
+        ScheduledFuture<?> renewal = startLockRenewal(lockKey, lockToken, ownershipLost);
+        try {
+            if (!isLockOwned(lockKey, lockToken)) {
+                ownershipLost.set(true);
+                throw new IllegalStateException("画像 RAG 锁已失效，等待任务重试");
+            }
+            String storedSnapshot = redis.opsForValue().get(PROFILE_KEY_PREFIX + userId + ":snapshot");
+            if (storedSnapshot != null && parseLong(storedSnapshot) > snapshotAt) {
+                log.info("RAG 画像增量索引跳过：已有更新快照 userId={} incomingSnapshot={} storedSnapshot={}",
+                        userId, snapshotAt, storedSnapshot);
+                return;
+            }
+            if (!indexUserProfileLocked(userId, memories, snapshotAt, lockKey, lockToken, ownershipLost)) {
+                throw new IllegalStateException("画像 RAG 向量生成失败，等待任务重试");
+            }
+        } finally {
+            renewal.cancel(false);
+            releaseLock(lockKey, lockToken);
+        }
+    }
+
+    /**
+     * 用户主动编辑画像时使用异步包装；RabbitMQ 任务必须调用同步的 indexUserProfile，
+     * 让 embedding 和 Redis 写入完成后再确认消息。
+     */
+    @Async("aiExecutor")
+    public void indexUserProfileAsync(long userId, List<UserProfileMemoryEntity> memories) {
+        indexUserProfile(userId, memories);
+    }
+
+    private boolean indexUserProfileLocked(long userId, List<UserProfileMemoryEntity> memories, long snapshotAt,
+                                           String lockKey, String lockToken, AtomicBoolean ownershipLost) {
         List<String> existingKeys = listProfileKeys(userId);
-        Set<String> newKeys = new java.util.HashSet<>();
+        Set<String> desiredKeys = new java.util.HashSet<>();
         int indexed = 0;
-        for (UserProfileMemoryEntity m : memories) {
-            String attrKey = sanitizeKey(m.getAttributeKey());
-            String text = "用户长期画像 - " + m.getAttributeKey() + ": " + m.getAttributeValue();
-            float[] vec = embed(text);
-            if (vec != null) {
-                storeEmbedding("profile:" + userId + ":" + attrKey, userId, SOURCE_PROFILE, text, vec);
-                newKeys.add("profile:" + userId + ":" + attrKey);
+        int skipped = 0;
+        boolean complete = true;
+        if (memories != null) {
+            for (UserProfileMemoryEntity memory : memories) {
+                if (memory == null || memory.getId() == null) {
+                    continue;
+                }
+                if (!ensureLockOwnership(lockKey, lockToken, ownershipLost)) {
+                    complete = false;
+                    break;
+                }
+                String key = profileKey(userId, memory.getId());
+                desiredKeys.add(key);
+                String text = "用户长期画像 - " + memory.getAttributeKey() + ": " + memory.getAttributeValue();
+                String fingerprint = profileFingerprint(memory);
+                if (!needsProfileReindex(fingerprint, readHashValue(key, "content_hash"))) {
+                    skipped++;
+                    continue;
+                }
+                float[] vector = embed(text);
+                if (vector == null) {
+                    log.warn("RAG 画像增量索引失败：embedding 为空 userId={} memoryId={}", userId, memory.getId());
+                    complete = false;
+                    continue;
+                }
+                if (!ensureLockOwnership(lockKey, lockToken, ownershipLost)) {
+                    complete = false;
+                    break;
+                }
+                storeEmbedding("profile:" + userId + ":" + memory.getId(), userId, SOURCE_PROFILE, text, vector,
+                        Map.of("memory_id", String.valueOf(memory.getId()), "content_hash", fingerprint,
+                                "memory_updated_at", String.valueOf(memoryTimestamp(memory))));
                 indexed++;
             }
         }
         int deleted = 0;
-        for (String oldKey : existingKeys) {
-            if (!newKeys.contains(oldKey)) {
-                redis.delete(oldKey);
-                deleted++;
+        if (complete && ensureLockOwnership(lockKey, lockToken, ownershipLost)) {
+            for (String key : existingKeys) {
+                if (!key.equals(PROFILE_KEY_PREFIX + userId + ":snapshot") && !desiredKeys.contains(key)) {
+                    redis.delete(key);
+                    deleted++;
+                }
+            }
+        } else {
+            complete = false;
+        }
+        if (complete) {
+            if (!writeSnapshotIfNewer(userId, snapshotAt, lockKey, lockToken)) {
+                complete = false;
             }
         }
-        log.info("RAG 画像已更新 userId={} indexed={} deleted={}", userId, indexed, deleted);
+        if (complete) {
+            log.info("RAG 画像增量索引完成 userId={} indexed={} skipped={} deleted={} total={}", userId, indexed,
+                    skipped, deleted, desiredKeys.size());
+        } else {
+            log.warn("RAG 画像增量索引未完成，不更新快照，等待任务重试 userId={} indexed={} skipped={} deleted={} total={}",
+                    userId, indexed, skipped, deleted, desiredKeys.size());
+        }
+        return complete;
     }
 
     private List<String> listProfileKeys(long userId) {
-        String pattern = KEY_PREFIX + "profile:" + userId + ":*";
-        try {
-            var keys = redis.keys(pattern);
-            return keys != null ? new ArrayList<>(keys) : List.of();
-        } catch (Exception e) {
-            return List.of();
-        }
+        return scanKeys(PROFILE_KEY_PREFIX + userId + ":*");
     }
 
-    private String sanitizeKey(String raw) {
-        return raw.replaceAll("[^a-zA-Z0-9_\\-\\u4e00-\\u9fff]", "_");
+    private List<String> scanKeys(String pattern) {
+        try {
+            return redis.execute((RedisCallback<List<String>>) connection -> {
+                List<String> keys = new ArrayList<>();
+                ScanOptions options = ScanOptions.scanOptions().match(pattern).count(100).build();
+                try (Cursor<byte[]> cursor = connection.scan(options)) {
+                    while (cursor.hasNext()) {
+                        keys.add(new String(cursor.next(), StandardCharsets.UTF_8));
+                    }
+                }
+                return keys;
+            });
+        } catch (Exception e) {
+            log.warn("RAG 键扫描失败 pattern={}: {}", pattern, e.getMessage());
+            throw new IllegalStateException("RAG 键扫描失败", e);
+        }
     }
 
     /**
@@ -363,6 +493,11 @@ public class RagMemoryService {
     }
 
     private void storeEmbedding(String id, long userId, String sourceType, String content, float[] embedding) {
+        storeEmbedding(id, userId, sourceType, content, embedding, Map.of());
+    }
+
+    private void storeEmbedding(String id, long userId, String sourceType, String content, float[] embedding,
+            Map<String, String> metadata) {
         String key = KEY_PREFIX + id;
         byte[] rawKey = key.getBytes(StandardCharsets.UTF_8);
         byte[] vecBytes = floatsToBytes(embedding);
@@ -380,9 +515,136 @@ public class RagMemoryService {
             conn.hashCommands().hSet(rawKey, emb, vecBytes);
             conn.hashCommands().hSet(rawKey, cat,
                     String.valueOf(System.currentTimeMillis() / 1000).getBytes(StandardCharsets.UTF_8));
+            for (Map.Entry<String, String> entry : metadata.entrySet()) {
+                conn.hashCommands().hSet(rawKey, entry.getKey().getBytes(StandardCharsets.UTF_8),
+                        entry.getValue().getBytes(StandardCharsets.UTF_8));
+            }
             conn.expire(rawKey, 90 * 86400);
             return null;
         });
+    }
+
+    String profileKey(long userId, long memoryId) {
+        return PROFILE_KEY_PREFIX + userId + ":" + memoryId;
+    }
+
+    static boolean needsProfileReindex(String currentHash, String indexedHash) {
+        return indexedHash == null || !indexedHash.equals(currentHash);
+    }
+
+    String profileFingerprint(UserProfileMemoryEntity memory) {
+        String value = String.join("\u001f",
+                String.valueOf(memory.getId()),
+                String.valueOf(memory.getAttributeKey()),
+                String.valueOf(memory.getAttributeValue()),
+                String.valueOf(memory.getMemoryType()),
+                String.valueOf(Boolean.TRUE.equals(memory.getIsCore())),
+                String.valueOf(memory.getValidFrom()),
+                String.valueOf(memory.getValidUntil()),
+                String.valueOf(memory.getStatus()));
+        return DigestUtils.md5DigestAsHex(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private long memoryTimestamp(UserProfileMemoryEntity memory) {
+        if (memory.getUpdatedAt() != null) return memory.getUpdatedAt().atZone(businessTimeZone).toInstant().toEpochMilli();
+        if (memory.getUpdateTime() != null) return memory.getUpdateTime().atZone(businessTimeZone).toInstant().toEpochMilli();
+        return 0L;
+    }
+
+    private String readHashValue(String key, String field) {
+        byte[] rawKey = key.getBytes(StandardCharsets.UTF_8);
+        byte[] rawField = field.getBytes(StandardCharsets.UTF_8);
+        try {
+            byte[] value = redis.execute((RedisCallback<byte[]>) connection -> connection.hashCommands().hGet(rawKey, rawField));
+            return value == null ? null : new String(value, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            log.debug("RAG 画像元数据读取失败 key={} field={}: {}", key, field, e.getMessage());
+            return null;
+        }
+    }
+
+    private boolean acquireLock(String key, String token) {
+        for (int attempt = 0; attempt < 50; attempt++) {
+            if (Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(key, token, PROFILE_LOCK_TTL))) {
+                return true;
+            }
+            try {
+                Thread.sleep(100L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private ScheduledFuture<?> startLockRenewal(String key, String token, AtomicBoolean ownershipLost) {
+        return PROFILE_LOCK_RENEWER.scheduleAtFixedRate(() -> {
+            try {
+                if (!renewLock(key, token)) {
+                    ownershipLost.set(true);
+                    log.warn("RAG 画像锁续租失败，当前索引将停止写入 key={}", key);
+                }
+            } catch (Exception e) {
+                ownershipLost.set(true);
+                log.warn("RAG 画像锁续租异常，当前索引将停止写入 key={} error={}", key, e.getMessage());
+            }
+        }, PROFILE_LOCK_RENEW_INTERVAL_SECONDS, PROFILE_LOCK_RENEW_INTERVAL_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private boolean renewLock(String key, String token) {
+        Long renewed = redis.execute(RENEW_LOCK_SCRIPT, List.of(key), token,
+                String.valueOf(PROFILE_LOCK_TTL.toMillis()));
+        return Long.valueOf(1L).equals(renewed);
+    }
+
+    private boolean isLockOwned(String key, String token) {
+        return token.equals(redis.opsForValue().get(key));
+    }
+
+    private boolean ensureLockOwnership(String key, String token, AtomicBoolean ownershipLost) {
+        if (ownershipLost.get()) {
+            return false;
+        }
+        if (!isLockOwned(key, token)) {
+            ownershipLost.set(true);
+            log.warn("RAG 画像锁已失效，停止当前索引写入 key={}", key);
+            return false;
+        }
+        return true;
+    }
+
+    private boolean writeSnapshotIfNewer(long userId, long snapshotAt, String lockKey, String lockToken) {
+        String snapshotKey = PROFILE_KEY_PREFIX + userId + ":snapshot";
+        Long written = redis.execute(WRITE_SNAPSHOT_SCRIPT, List.of(lockKey, snapshotKey), lockToken,
+                String.valueOf(snapshotAt), String.valueOf(Duration.ofDays(90).toSeconds()));
+        // 2 means another completed index already published a newer snapshot; this run is safely obsolete.
+        return Long.valueOf(1L).equals(written) || Long.valueOf(2L).equals(written);
+    }
+
+    private void releaseLock(String key, String token) {
+        try {
+            redis.execute(RELEASE_LOCK_SCRIPT, List.of(key), token);
+        } catch (Exception e) {
+            log.warn("RAG 画像锁释放失败 key={}: {}", key, e.getMessage());
+        }
+    }
+
+    private ZoneId parseZoneId(String value) {
+        try {
+            return value == null || value.isBlank() ? ZoneId.of("Asia/Shanghai") : ZoneId.of(value.trim());
+        } catch (RuntimeException e) {
+            log.warn("RAG 业务时区配置无效，使用 Asia/Shanghai: {}", value);
+            return ZoneId.of("Asia/Shanghai");
+        }
+    }
+
+    private long parseLong(String value) {
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
     }
 
     /**
@@ -917,6 +1179,73 @@ public class RagMemoryService {
     }
 
     /**
+     * Converts the legacy attribute-key profile keys to memory-id keys exactly once.
+     * The caller supplies already-filtered current memories so this method does not query or expose other users' data.
+     */
+    public void migrateLegacyProfileIndex(Map<Long, List<UserProfileMemoryEntity>> grouped) {
+        if (embeddingApiKey.isBlank() || PROFILE_SCHEMA_VERSION.equals(redis.opsForValue().get(PROFILE_SCHEMA_KEY))) {
+            return;
+        }
+        String lockToken = UUID.randomUUID().toString();
+        if (!acquireLock(PROFILE_LOCK_PREFIX + "migration", lockToken)) {
+            log.warn("RAG 画像旧索引迁移跳过：获取迁移锁超时");
+            return;
+        }
+        AtomicBoolean migrationOwnershipLost = new AtomicBoolean(false);
+        ScheduledFuture<?> migrationRenewal = startLockRenewal(PROFILE_LOCK_PREFIX + "migration", lockToken,
+                migrationOwnershipLost);
+        try {
+            if (!ensureLockOwnership(PROFILE_LOCK_PREFIX + "migration", lockToken, migrationOwnershipLost)) {
+                log.warn("RAG 画像旧索引迁移终止：迁移锁已失效");
+                return;
+            }
+            List<String> oldKeys = scanKeys(PROFILE_KEY_PREFIX + "*");
+            if (!oldKeys.isEmpty()) {
+                redis.delete(oldKeys);
+            }
+            boolean complete = true;
+            if (grouped != null) {
+                for (Map.Entry<Long, List<UserProfileMemoryEntity>> entry : grouped.entrySet()) {
+                    if (entry.getKey() != null) {
+                        if (!ensureLockOwnership(PROFILE_LOCK_PREFIX + "migration", lockToken,
+                                migrationOwnershipLost)) {
+                            complete = false;
+                            break;
+                        }
+                        String userLockKey = PROFILE_LOCK_PREFIX + entry.getKey();
+                        String userLockToken = UUID.randomUUID().toString();
+                        if (!acquireLock(userLockKey, userLockToken)) {
+                            complete = false;
+                            log.warn("RAG 画像旧索引迁移跳过用户：获取画像锁超时 userId={}", entry.getKey());
+                            continue;
+                        }
+                        AtomicBoolean ownershipLost = new AtomicBoolean(false);
+                        ScheduledFuture<?> renewal = startLockRenewal(userLockKey, userLockToken, ownershipLost);
+                        try {
+                            complete &= indexUserProfileLocked(entry.getKey(), entry.getValue(), System.currentTimeMillis(),
+                                    userLockKey, userLockToken, ownershipLost);
+                        } finally {
+                            renewal.cancel(false);
+                            releaseLock(userLockKey, userLockToken);
+                        }
+                    }
+                }
+            }
+            if (complete) {
+                redis.opsForValue().set(PROFILE_SCHEMA_KEY, PROFILE_SCHEMA_VERSION);
+                log.info("RAG 画像旧索引迁移完成 userCount={} deletedKeys={}", grouped == null ? 0 : grouped.size(), oldKeys.size());
+            } else {
+                log.warn("RAG 画像旧索引迁移未完成，embedding 失败，下次启动将继续迁移");
+            }
+        } catch (Exception e) {
+            log.error("RAG 画像旧索引迁移失败，下次启动将重试: {}", e.getMessage(), e);
+        } finally {
+            migrationRenewal.cancel(false);
+            releaseLock(PROFILE_LOCK_PREFIX + "migration", lockToken);
+        }
+    }
+
+    /**
      * 批量回填已有日记的向量索引（管理员触发）。
      * 分块策略与日常增量 indexDiary 保持一致：≤500 字单块，>500 字按 400 字/块 + 50 字重叠切分。
      * @param items 待索引的 (userId, diaryId, content) 列表
@@ -999,12 +1328,17 @@ public class RagMemoryService {
                 continue;
             }
             for (UserProfileMemoryEntity m : entry.getValue()) {
+                if (m == null || m.getId() == null) {
+                    log.warn("批量画像向量化跳过无 ID 记忆 userId={} attributeKey={}", userId,
+                            m == null ? null : m.getAttributeKey());
+                    continue;
+                }
                 String text = "用户长期画像 - " + m.getAttributeKey() + ": " + m.getAttributeValue();
                 float[] vec = embed(text);
                 if (vec != null) {
-                    String attrKey = sanitizeKey(m.getAttributeKey());
-                    storeEmbedding("profile:" + userId + ":" + attrKey,
-                            userId, SOURCE_PROFILE, text, vec);
+                    storeEmbedding("profile:" + userId + ":" + m.getId(), userId, SOURCE_PROFILE, text, vec,
+                            Map.of("memory_id", String.valueOf(m.getId()), "content_hash", profileFingerprint(m),
+                                    "memory_updated_at", String.valueOf(memoryTimestamp(m))));
                     count++;
                 }
                 try {

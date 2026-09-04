@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.time.LocalDate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
@@ -94,6 +95,16 @@ public class AiAnalysisService {
     }
 
     public DiaryAnalysis analyze(Long userId, String content, com.moodcopilot.entity.MusicMeta musicMeta, String imageDescriptions, boolean useReasoning) {
+        return analyzeWithMemorySignals(userId, content, musicMeta, imageDescriptions, useReasoning).analysis();
+    }
+
+    /**
+     * Runs the diary analysis once and keeps the optional memory signals for the asynchronous memory task.
+     * The existing analyze methods intentionally expose only the public diary analysis result.
+     */
+    public DiaryAnalysisResult analyzeWithMemorySignals(Long userId, String content,
+            com.moodcopilot.entity.MusicMeta musicMeta, String imageDescriptions, boolean useReasoning) {
+        long totalStartedAt = System.nanoTime();
         StringBuilder sb = new StringBuilder();
         if (userId != null) {
             try {
@@ -134,6 +145,7 @@ public class AiAnalysisService {
 
         int maxRetries = 3;
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            long modelStartedAt = System.nanoTime();
             try {
                 String json;
                 if (useReasoning) {
@@ -145,24 +157,45 @@ public class AiAnalysisService {
                             .call()
                             .content();
                 }
-                return parseAiResponse(json);
+                DiaryAnalysisResult parsed = parseAiResponse(json);
+                log.info("日记 AI 模型调用完成，model={}，attempt={}，durationMs={}，promptLength={}，responseLength={}，totalDurationMs={}",
+                        useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", attempt,
+                        elapsedMillis(modelStartedAt), userPrompt.length(), json == null ? 0 : json.length(),
+                        elapsedMillis(totalStartedAt));
+                return parsed;
             } catch (JsonProcessingException e) {
                 if (attempt < maxRetries) {
-                    log.warn("AI analysis JSON parsing failed, retrying (attempt {}/{}): {}", attempt, maxRetries, e.getMessage());
+                    log.warn("日记 AI 响应解析失败，将重试，model={}，attempt={}/{}, modelDurationMs={}，error={}",
+                            useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", attempt, maxRetries,
+                            elapsedMillis(modelStartedAt), e.getMessage());
                 } else {
-                    log.error("AI analysis JSON parsing failed finally after {} attempts: {}", maxRetries, e.getMessage());
-                    return keywordAnalyze(content);
+                    log.error("日记 AI 响应解析最终失败，model={}，attempts={}，modelDurationMs={}，totalDurationMs={}，error={}",
+                            useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", maxRetries,
+                            elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt), e.getMessage());
+                    throw new IllegalStateException("AI 分析响应无法解析", e);
                 }
             } catch (Exception e) {
-                log.warn("AI analysis failed, falling back to keyword analysis: {}", e.getMessage());
-                return keywordAnalyze(content);
+                if (attempt < maxRetries) {
+                    log.warn("日记 AI 模型调用失败，将重试，model={}，attempt={}/{}, modelDurationMs={}，totalDurationMs={}，error={}",
+                            useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", attempt, maxRetries,
+                            elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt), e.getMessage());
+                    continue;
+                }
+                log.error("日记 AI 模型调用最终失败，model={}，attempts={}，modelDurationMs={}，totalDurationMs={}，error={}",
+                        useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", attempt,
+                        elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt), e.getMessage());
+                throw new IllegalStateException("AI 分析调用失败", e);
             }
         }
-        return keywordAnalyze(content);
+        throw new IllegalStateException("AI 分析调用失败");
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
     }
 
     @SuppressWarnings("unchecked")
-    private DiaryAnalysis parseAiResponse(String json) throws JsonProcessingException {
+    private DiaryAnalysisResult parseAiResponse(String json) throws JsonProcessingException {
         Map<String, Object> map = objectMapper.readValue(JsonUtils.cleanJson(json), Map.class);
         String moodLabel = sanitizeString(map.get("moodLabel"), "复杂");
         int moodIntensity = 3;
@@ -186,19 +219,81 @@ public class AiAnalysisService {
         String summary = sanitizeString(map.get("summary"), "这是一篇关于心情记录的日记。");
         String feedback = sanitizeString(map.get("feedback"), "感谢你的记录，你的每一点感受都很重要。");
         List<String> safeSecondary = (secondaryMoods != null) ? secondaryMoods : List.of();
+        List<MemorySignal> memorySignals = parseMemorySignals(map.get("memorySignals"));
 
         // 若 AI 未返回 valence/arousal，根据标签估算
         if (valence == null) valence = estimateValence(moodLabel, moodIntensity);
         if (arousal == null) arousal = estimateArousal(moodLabel, moodIntensity);
 
-        return new DiaryAnalysis(moodLabel, Math.min(5, Math.max(1, moodIntensity)),
-                valence, arousal,
-                topicLabels, safeSecondary, summary, feedback);
+        return new DiaryAnalysisResult(
+                new DiaryAnalysis(moodLabel, Math.min(5, Math.max(1, moodIntensity)),
+                        valence, arousal, topicLabels, safeSecondary, summary, feedback),
+                memorySignals);
+    }
+
+    private List<MemorySignal> parseMemorySignals(Object raw) {
+        if (!(raw instanceof List<?> values)) {
+            return List.of();
+        }
+        List<MemorySignal> signals = new ArrayList<>();
+        for (Object value : values) {
+            if (!(value instanceof Map<?, ?> item)) {
+                continue;
+            }
+            String key = signalString(item.get("attributeKey"));
+            String attributeValue = signalString(item.get("attributeValue"));
+            if (key.isBlank() || attributeValue.isBlank()) {
+                continue;
+            }
+            String memoryType = signalString(item.get("memoryType"));
+            String assertionType = signalString(item.get("assertionType"));
+            String evidence = signalString(item.get("evidence"));
+            Double confidence = signalDouble(item.get("confidence"));
+            Boolean isCore = item.get("isCore") instanceof Boolean b ? b : Boolean.FALSE;
+            signals.add(new MemorySignal(key, attributeValue, memoryType, assertionType, confidence, evidence,
+                    signalDate(item.get("validFrom")), signalDate(item.get("validUntil")), isCore));
+            if (signals.size() >= 8) {
+                break;
+            }
+        }
+        return List.copyOf(signals);
+    }
+
+    private String signalString(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private Double signalDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        try {
+            return value == null ? null : Double.valueOf(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private LocalDate signalDate(Object value) {
+        if (value == null || String.valueOf(value).isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(String.valueOf(value));
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     // ── Knowledge Graph Extraction ──
 
     public record KnowledgeTriple(String head, String relation, String tail, Integer tailPolarity) {}
+
+    public record DiaryAnalysisResult(DiaryAnalysis analysis, List<MemorySignal> memorySignals) {
+        public DiaryAnalysisResult {
+            memorySignals = memorySignals == null ? List.of() : List.copyOf(memorySignals);
+        }
+    }
 
     public List<KnowledgeTriple> extractKnowledgeGraph(String content) {
         return extractKnowledgeGraph(content, null, null);

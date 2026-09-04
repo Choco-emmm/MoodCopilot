@@ -9,6 +9,7 @@ import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.event.LifeEventService;
 import com.moodcopilot.event.LifeChapterService;
 import com.moodcopilot.mapper.DiaryKnowledgeGraphMapper;
+import com.moodcopilot.mapper.DiaryAnalysisMapper;
 import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.mapper.UserMapper;
 import com.moodcopilot.notification.NotificationService;
@@ -24,6 +25,7 @@ import java.util.Set;
 @Service
 public class AiPostProcessService {
     private final DiaryMapper diaryMapper;
+    private final DiaryAnalysisMapper diaryAnalysisMapper;
     private final DiaryKnowledgeGraphMapper graphMapper;
     private final AiAnalysisService aiAnalysisService;
     private final VisionService visionService;
@@ -42,7 +44,21 @@ public class AiPostProcessService {
                                 RagMemoryService ragMemoryService, NotificationService notificationService,
                                 UserMapper userMapper, TransactionTemplate transactionTemplate,
                                 AiTaskProducer aiTaskProducer, LifeChapterService lifeChapterService) {
+        this(diaryMapper, null, graphMapper, aiAnalysisService, visionService, memoryExtractionService,
+                lifeEventService, ragMemoryService, notificationService, userMapper, transactionTemplate,
+                aiTaskProducer, lifeChapterService);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AiPostProcessService(DiaryMapper diaryMapper, DiaryAnalysisMapper diaryAnalysisMapper,
+                                DiaryKnowledgeGraphMapper graphMapper,
+                                AiAnalysisService aiAnalysisService, VisionService visionService,
+                                MemoryExtractionService memoryExtractionService, LifeEventService lifeEventService,
+                                RagMemoryService ragMemoryService, NotificationService notificationService,
+                                UserMapper userMapper, TransactionTemplate transactionTemplate,
+                                AiTaskProducer aiTaskProducer, LifeChapterService lifeChapterService) {
         this.diaryMapper = diaryMapper;
+        this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.graphMapper = graphMapper;
         this.aiAnalysisService = aiAnalysisService;
         this.visionService = visionService;
@@ -70,7 +86,7 @@ public class AiPostProcessService {
         if (diary == null || Boolean.TRUE.equals(diary.getIsDeleted())) {
             throw new IllegalArgumentException("diary not found or not owned");
         }
-        String imageDescriptions = needsImageDescriptions(taskType) ? describeImages(diary) : "";
+        String imageDescriptions = needsImageDescriptions(taskType, diaryId) ? describeImages(diary) : "";
         switch (taskType) {
             case AiTaskMessage.TYPE_MEMORY_EXTRACTION -> {
                     memoryExtractionService.extractAndSyncMemoryForDiary(userId, diaryId, diary.getContent(),
@@ -101,8 +117,13 @@ public class AiPostProcessService {
         }
     }
 
-    private boolean needsImageDescriptions(String taskType) {
-        return AiTaskMessage.TYPE_MEMORY_EXTRACTION.equals(taskType)
+    private boolean needsImageDescriptions(String taskType, long diaryId) {
+        boolean memorySignalsAlreadySaved = false;
+        if (AiTaskMessage.TYPE_MEMORY_EXTRACTION.equals(taskType) && diaryAnalysisMapper != null) {
+            var analysis = diaryAnalysisMapper.selectById(diaryId);
+            memorySignalsAlreadySaved = analysis != null && analysis.getMemorySignalsJson() != null;
+        }
+        return (AiTaskMessage.TYPE_MEMORY_EXTRACTION.equals(taskType) && !memorySignalsAlreadySaved)
                 || AiTaskMessage.TYPE_DIARY_RAG_INDEX.equals(taskType)
                 || AiTaskMessage.TYPE_GRAPH_EXTRACTION.equals(taskType);
     }

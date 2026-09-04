@@ -74,6 +74,7 @@ public class AiTaskService {
                 .orderByAsc(AiTaskEntity::getCreatedAt).last("LIMIT 50"));
         for (AiTaskEntity task : due) {
             if (!claimForDispatch(task.getTaskId(), now)) continue;
+            long dispatchStartedAt = System.nanoTime();
             try {
                 AiTaskMessage message = new AiTaskMessage(task.getTaskId(), task.getUserId(),
                         task.getTaskType(), task.getAggregateId());
@@ -84,7 +85,7 @@ public class AiTaskService {
                 if (!confirm.isAck()) {
                     throw new IllegalStateException("RabbitMQ publisher confirm rejected: " + confirm.getReason());
                 }
-                taskMapper.update(null, new LambdaUpdateWrapper<AiTaskEntity>()
+                int published = taskMapper.update(null, new LambdaUpdateWrapper<AiTaskEntity>()
                         .eq(AiTaskEntity::getTaskId, task.getTaskId())
                         .eq(AiTaskEntity::getStatus, "RUNNING")
                         .eq(AiTaskEntity::getLeaseOwner, NODE_ID)
@@ -93,8 +94,17 @@ public class AiTaskService {
                         .set(AiTaskEntity::getLeaseOwner, null)
                         .set(AiTaskEntity::getLeaseUntil, null)
                         .set(AiTaskEntity::getPublishedAt, LocalDateTime.now()));
+                if (published == 1) {
+                    log.info("AI 任务投递确认成功，taskId={}，taskType={}，durationMs={}", task.getTaskId(),
+                            task.getTaskType(), elapsedMillis(dispatchStartedAt));
+                } else {
+                    log.warn("AI 任务已收到投递确认但状态未更新，taskId={}，taskType={}，durationMs={}",
+                            task.getTaskId(), task.getTaskType(), elapsedMillis(dispatchStartedAt));
+                }
             } catch (Exception e) {
                 markDispatchFailed(task.getTaskId(), e);
+                log.warn("AI 任务投递失败详情，taskId={}，taskType={}，durationMs={}，error={}", task.getTaskId(),
+                        task.getTaskType(), elapsedMillis(dispatchStartedAt), rootMessage(e), e);
             }
         }
     }
@@ -210,8 +220,8 @@ public class AiTaskService {
                     .set(AiTaskEntity::getFinishedAt, LocalDateTime.now());
         }
         if (taskMapper.update(null, update) == 1) {
-            log.warn("AI 任务投递失败，taskId={}，attempt={}，status={}", taskId, attempts + 1,
-                    attempts + 1 < maxAttempts ? "RETRY_WAIT" : "DEAD_LETTER");
+            log.warn("AI 任务投递失败，taskId={}，taskType={}，attempt={}，status={}，error={}", taskId,
+                    task.getTaskType(), attempts + 1, attempts + 1 < maxAttempts ? "RETRY_WAIT" : "DEAD_LETTER", message);
         }
     }
 
@@ -321,6 +331,7 @@ public class AiTaskService {
             case AiTaskMessage.TYPE_MEMORY_EXTRACTION -> RabbitMqConfig.MEMORY_QUEUE;
             case AiTaskMessage.TYPE_LIFE_EVENT_EXTRACTION -> RabbitMqConfig.LIFE_EVENT_QUEUE;
             case AiTaskMessage.TYPE_GRAPH_EXTRACTION -> RabbitMqConfig.GRAPH_QUEUE;
+            case AiTaskMessage.TYPE_LIFE_CHAPTER_REFRESH -> RabbitMqConfig.LIFE_CHAPTER_QUEUE;
             case AiTaskMessage.TYPE_DIARY_RAG_INDEX, AiTaskMessage.TYPE_GRAPH_RAG_INDEX,
                     AiTaskMessage.TYPE_MEMORY_RAG_INDEX -> RabbitMqConfig.RAG_QUEUE;
             case AiTaskMessage.TYPE_REPORT_INVALIDATION -> RabbitMqConfig.REPORT_QUEUE;
@@ -337,5 +348,20 @@ public class AiTaskService {
     private String truncate(String value, int max) {
         if (value == null) return "unknown error";
         return value.length() <= max ? value : value.substring(0, max);
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+    }
+
+    private String rootMessage(Throwable error) {
+        Throwable current = error;
+        Throwable last = error;
+        while (current != null) {
+            last = current;
+            current = current.getCause();
+        }
+        String message = last == null ? null : last.getMessage();
+        return truncate(message == null || message.isBlank() ? error.toString() : message, 1000);
     }
 }

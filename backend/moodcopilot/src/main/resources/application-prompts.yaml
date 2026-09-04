@@ -15,6 +15,8 @@ ai:
       - topicLabels: array of strings from [人际关系, 工作学习, 睡眠身体, 自我成长, 日常情绪]
       - summary: brief Chinese summary, max 48 characters
       - feedback: gentle, compassionate Chinese feedback, max 200 characters
+      - memorySignals: array of 0-8 high-value long-term memory signals. Return [] when there is no reliable long-term fact. Each item must contain attributeKey, attributeValue, memoryType, assertionType (explicit, inferred, or negated), confidence (0-1), evidence, validFrom, validUntil, and isCore.
+      - The evidence in memorySignals must be grounded in the user's diary text, user-selected lyrics, or user-provided image content. Never use your summary, feedback, recommendations, or other assistant-generated text as evidence. Mark a signal as explicit only when the user clearly states the fact; otherwise use inferred.
 
       If the diary includes a [音乐分享] block, treat the shared music (and especially any selected lyrics) as a crucial window into the user's inner state. Users often share lyrics that deeply resonate with their current mood or aesthetic preferences. Even if the user's own text is very short (e.g., "好听"), do not ignore the emotional weight of the song. Analyze the combined emotional impact of the user's text and the shared lyrics/music, allowing for higher emotional intensity if the shared content is emotionally charged.
 

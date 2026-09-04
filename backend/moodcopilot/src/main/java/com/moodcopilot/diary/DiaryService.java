@@ -475,8 +475,12 @@ public class DiaryService {
                     imageDescriptions == null ? 0 : imageDescriptions.length());
             log.info("日记分析阶段：开始情绪分析，diaryId={}，model={}", diaryId,
                     useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash");
-            DiaryAnalysis analysis = aiAnalysisService.analyze(userId, content, musicMeta, imageDescriptions, useReasoning);
-            log.info("日记分析阶段：情绪分析返回，diaryId={}", diaryId);
+            long analysisStartedAt = System.nanoTime();
+            AiAnalysisService.DiaryAnalysisResult analysisResult = aiAnalysisService.analyzeWithMemorySignals(
+                    userId, content, musicMeta, imageDescriptions, useReasoning);
+            DiaryAnalysis analysis = analysisResult.analysis();
+            log.info("日记分析阶段：情绪分析返回，diaryId={}，durationMs={}", diaryId,
+                    java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - analysisStartedAt));
 
             DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
             analysisEntity.setDiaryId(diaryId);
@@ -486,6 +490,7 @@ public class DiaryService {
             analysisEntity.setArousal(analysis.arousal());
             analysisEntity.setSecondaryMoodsJson(analysis.secondaryMoods());
             analysisEntity.setTopicLabelsJson(analysis.topicLabels());
+            analysisEntity.setMemorySignalsJson(analysisResult.memorySignals());
             analysisEntity.setSummary(analysis.summary());
             analysisEntity.setFeedback(analysis.feedback());
             analysisEntity.setCreatedAt(LocalDateTime.now());
