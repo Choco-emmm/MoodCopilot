@@ -124,6 +124,7 @@ oss:
   access-key: ${OSS_ACCESS_KEY:}
   secret-key: ${OSS_SECRET_KEY:}
 moodcopilot:
+  time-zone: ${MOODCOPILOT_TIME_ZONE:Asia/Shanghai}
   vision:
     api-key: ${VISION_API_KEY:}
     api-url: ${VISION_API_URL:https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions}

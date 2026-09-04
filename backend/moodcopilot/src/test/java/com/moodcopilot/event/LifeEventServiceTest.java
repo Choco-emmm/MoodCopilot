@@ -13,7 +13,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.lang.reflect.Method;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -83,5 +86,20 @@ class LifeEventServiceTest {
 
         org.junit.jupiter.api.Assertions.assertTrue(context.contains("AI摘要：AI 摘要"));
         org.junit.jupiter.api.Assertions.assertFalse(context.contains("原文片段："));
+    }
+
+    @Test
+    void crossDayEventWithoutEndTimeIsDueAtEndOfEndDate() throws Exception {
+        LifeEventService service = new LifeEventService(mock(UserLifeEventMapper.class), mock(DiaryMapper.class),
+                mock(DiaryAnalysisMapper.class), mock(ChatClient.class), new ObjectMapper(), mock(AiPromptProperties.class), null);
+        UserLifeEventEntity event = new UserLifeEventEntity();
+        event.setTargetDate(LocalDate.of(2026, 9, 4));
+        event.setEndDate(LocalDate.of(2026, 9, 6));
+        event.setStartTime(java.time.LocalTime.of(9, 0));
+
+        Method dueAt = LifeEventService.class.getDeclaredMethod("dueAt", UserLifeEventEntity.class);
+        dueAt.setAccessible(true);
+
+        assertEquals(LocalDateTime.of(2026, 9, 6, 23, 59, 59, 999_999_999), dueAt.invoke(service, event));
     }
 }

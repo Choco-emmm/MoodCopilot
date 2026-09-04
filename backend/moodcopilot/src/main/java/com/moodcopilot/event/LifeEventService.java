@@ -26,6 +26,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -53,6 +54,7 @@ public class LifeEventService {
             "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end", Long.class);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
+    private static final ZoneId DEFAULT_EVENT_TIME_ZONE = ZoneId.of("Asia/Shanghai");
 
     private final UserLifeEventMapper userLifeEventMapper;
     private final DiaryMapper diaryMapper;
@@ -61,13 +63,23 @@ public class LifeEventService {
     private final ObjectMapper objectMapper;
     private final AiPromptProperties aiPrompts;
     private final StringRedisTemplate redisTemplate;
+    private final ZoneId eventTimeZone;
 
     @Autowired
     public LifeEventService(UserLifeEventMapper userLifeEventMapper, DiaryMapper diaryMapper,
                             DiaryAnalysisMapper diaryAnalysisMapper,
                             @Qualifier("analysisChatClient") ChatClient analysisChatClient,
                             ObjectMapper objectMapper, AiPromptProperties aiPrompts,
-                            StringRedisTemplate redisTemplate) {
+                            StringRedisTemplate redisTemplate,
+                            @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId) {
+        this(userLifeEventMapper, diaryMapper, diaryAnalysisMapper, analysisChatClient, objectMapper,
+                aiPrompts, redisTemplate, parseTimeZone(timeZoneId));
+    }
+
+    private LifeEventService(UserLifeEventMapper userLifeEventMapper, DiaryMapper diaryMapper,
+                             DiaryAnalysisMapper diaryAnalysisMapper, ChatClient analysisChatClient,
+                             ObjectMapper objectMapper, AiPromptProperties aiPrompts,
+                             StringRedisTemplate redisTemplate, ZoneId eventTimeZone) {
         this.userLifeEventMapper = userLifeEventMapper;
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
@@ -75,13 +87,24 @@ public class LifeEventService {
         this.objectMapper = objectMapper;
         this.aiPrompts = aiPrompts;
         this.redisTemplate = redisTemplate;
+        this.eventTimeZone = eventTimeZone;
     }
 
     /** 兼容旧测试；生产 Bean 使用包含摘要 Mapper 和 Redis 的构造器。 */
     public LifeEventService(UserLifeEventMapper userLifeEventMapper, DiaryMapper diaryMapper,
                             ChatClient analysisChatClient, ObjectMapper objectMapper,
                             AiPromptProperties aiPrompts) {
-        this(userLifeEventMapper, diaryMapper, null, analysisChatClient, objectMapper, aiPrompts, null);
+        this(userLifeEventMapper, diaryMapper, null, analysisChatClient, objectMapper, aiPrompts,
+                null, DEFAULT_EVENT_TIME_ZONE);
+    }
+
+    /** 兼容直接构造 Service 的测试；生产环境通过配置注入事件时区。 */
+    public LifeEventService(UserLifeEventMapper userLifeEventMapper, DiaryMapper diaryMapper,
+                            DiaryAnalysisMapper diaryAnalysisMapper, ChatClient analysisChatClient,
+                            ObjectMapper objectMapper, AiPromptProperties aiPrompts,
+                            StringRedisTemplate redisTemplate) {
+        this(userLifeEventMapper, diaryMapper, diaryAnalysisMapper, analysisChatClient, objectMapper,
+                aiPrompts, redisTemplate, DEFAULT_EVENT_TIME_ZONE);
     }
 
     public record ExtractedLifeEvent(String title, String description, String targetDate,
@@ -451,11 +474,20 @@ public class LifeEventService {
         List<Long> ids = parseDiaryIds(entity.getDiaryIdsJson());
         return new LifeEventView(entity.getId(), entity.getTitle(), entity.getDescription(), date(entity.getTargetDate()), date(entity.getEndDate()), time(entity.getStartTime()), time(entity.getEndTime()), visibleStatus(entity.getStatus()), ids, ids.size(), entity.getLastDiaryId(), entity.getFollowUpNote(), value(entity.getCreatedAt()), value(entity.getUpdatedAt()));
     }
-    private boolean isDue(UserLifeEventEntity entity) { return entity.getTargetDate() != null && !dueAt(entity).isAfter(LocalDateTime.now()); }
+    private boolean isDue(UserLifeEventEntity entity) {
+        return entity.getTargetDate() != null && !dueAt(entity).isAfter(LocalDateTime.now(eventTimeZone));
+    }
     private LocalDateTime dueAt(UserLifeEventEntity entity) {
         LocalDate date = entity.getEndDate() == null ? entity.getTargetDate() : entity.getEndDate();
-        LocalTime time = entity.getEndTime() == null ? entity.getStartTime() : entity.getEndTime();
-        return time == null ? date.atStartOfDay() : date.atTime(time);
+        if (entity.getEndTime() != null) return date.atTime(entity.getEndTime());
+        if (entity.getEndDate() != null) return date.atTime(LocalTime.MAX);
+        if (entity.getStartTime() != null) return date.atTime(entity.getStartTime());
+        return date.atStartOfDay();
+    }
+
+    private static ZoneId parseTimeZone(String timeZoneId) {
+        if (timeZoneId == null || timeZoneId.isBlank()) return DEFAULT_EVENT_TIME_ZONE;
+        return ZoneId.of(timeZoneId.trim());
     }
     private String formatSchedule(UserLifeEventEntity entity) {
         String result = date(entity.getTargetDate());
