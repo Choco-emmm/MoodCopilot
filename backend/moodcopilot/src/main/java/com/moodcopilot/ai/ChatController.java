@@ -191,24 +191,42 @@ public class ChatController {
     private List<Map<String, String>> parseRagReferences(String ragCtx) {
         List<Map<String, String>> items = new ArrayList<>();
         if (ragCtx == null || ragCtx.isBlank()) return items;
-        Pattern itemPattern = Pattern.compile(
-                "<context_item type=\"(\\w+)\"(?: diary_id=\"(\\d+)\")?(?: date=\"([^\"]*)\")?>(.*?)</context_item>",
+        Pattern newItemPattern = Pattern.compile(
+                "<item\\s+source_type=\"([^\"]+)\"\\s+source_id=\"([^\"]*)\"(?:\\s+event_time=\"([^\"]*)\")?[^>]*>(.*?)</item>",
                 Pattern.DOTALL);
-        Matcher m = itemPattern.matcher(ragCtx);
-        while (m.find()) {
-            String type = m.group(1);
-            String diaryId = m.group(2) != null ? m.group(2) : "";
-            String date = m.group(3) != null ? m.group(3) : "";
-            String inner = m.group(4);
-            String snippet = extractAllTextContent(inner);
-            Map<String, String> item = new LinkedHashMap<>();
-            item.put("type", type);
-            item.put("diaryId", diaryId);
-            item.put("date", date);
-            item.put("snippet", snippet.length() > 120 ? snippet.substring(0, 120) + "…" : snippet);
-            items.add(item);
+        Matcher newItems = newItemPattern.matcher(ragCtx);
+        while (newItems.find()) {
+            addParsedReference(items, newItems.group(1), newItems.group(2), newItems.group(3), newItems.group(4));
+        }
+
+        Pattern legacyPattern = Pattern.compile(
+                "<context_item\\s+type=\"([^\"]+)\"(?:\\s+diary_id=\"(\\d+)\")?(?:\\s+date=\"([^\"]*)\")?[^>]*>(.*?)</context_item>",
+                Pattern.DOTALL);
+        Matcher legacyItems = legacyPattern.matcher(ragCtx);
+        while (legacyItems.find()) {
+            addParsedReference(items, legacyItems.group(1), legacyItems.group(2), legacyItems.group(3), legacyItems.group(4));
         }
         return items;
+    }
+
+    private void addParsedReference(List<Map<String, String>> items, String rawType, String sourceId,
+            String eventTime, String inner) {
+        String type = switch (rawType == null ? "" : rawType) {
+            case "USER_DIARY", "diary", "text_memory" -> "diary";
+            case "USER_PROVIDED_LYRICS", "music", "music_resonance" -> "music";
+            case "SYSTEM_IMAGE_CAPTION", "image", "image_memory" -> "image";
+            case "FORMAL_MEMORY", "profile_memory" -> "profile";
+            default -> rawType == null ? "unknown" : rawType;
+        };
+        String diaryId = "diary".equals(type) && sourceId != null && sourceId.matches("\\d+") ? sourceId : "";
+        String date = eventTime == null ? "" : eventTime;
+        String snippet = extractAllTextContent(inner);
+        Map<String, String> item = new LinkedHashMap<>();
+        item.put("type", type);
+        item.put("diaryId", diaryId);
+        item.put("date", date);
+        item.put("snippet", snippet.length() > 120 ? snippet.substring(0, 120) + "…" : snippet);
+        items.add(item);
     }
 
     /** 提取 XML 内层所有文本内容作为摘要，不再仅限第一个标签，避免遗漏日记正文 */

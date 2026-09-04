@@ -26,6 +26,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -56,6 +57,7 @@ public class MemoryOrchestrator {
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
     private final DiaryMapper diaryMapper;
+    private final ZoneId businessTimeZone;
 
     @Autowired
     public MemoryOrchestrator(UserProfileMemoryMapper memoryMapper,
@@ -65,7 +67,8 @@ public class MemoryOrchestrator {
                               RagMemoryService ragMemoryService,
                               ObjectMapper objectMapper,
                               NotificationService notificationService,
-                              DiaryMapper diaryMapper) {
+                              DiaryMapper diaryMapper,
+                              @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId) {
         this.memoryMapper = memoryMapper;
         this.candidateMapper = candidateMapper;
         this.evidenceMapper = evidenceMapper;
@@ -74,6 +77,7 @@ public class MemoryOrchestrator {
         this.objectMapper = objectMapper;
         this.notificationService = notificationService;
         this.diaryMapper = diaryMapper;
+        this.businessTimeZone = parseZoneId(timeZoneId);
     }
 
     /** 保留无通知依赖的构造入口，便于纯记忆规则单测隔离通知副作用。 */
@@ -85,7 +89,7 @@ public class MemoryOrchestrator {
                               ObjectMapper objectMapper,
                               NotificationService notificationService) {
         this(memoryMapper, candidateMapper, evidenceMapper, rejectionMapper, ragMemoryService,
-                objectMapper, notificationService, null);
+                objectMapper, notificationService, null, "Asia/Shanghai");
     }
 
     public MemoryOrchestrator(UserProfileMemoryMapper memoryMapper,
@@ -94,7 +98,8 @@ public class MemoryOrchestrator {
                               UserMemoryRejectionMapper rejectionMapper,
                               RagMemoryService ragMemoryService,
                               ObjectMapper objectMapper) {
-        this(memoryMapper, candidateMapper, evidenceMapper, rejectionMapper, ragMemoryService, objectMapper, null, null);
+        this(memoryMapper, candidateMapper, evidenceMapper, rejectionMapper, ragMemoryService,
+                objectMapper, null, null, "Asia/Shanghai");
     }
 
     @Transactional
@@ -103,7 +108,7 @@ public class MemoryOrchestrator {
                                          String defaultEvidence, LocalDate evidenceDate) {
         if (userId == null || attributes == null || attributes.isEmpty()) return;
         String safeSource = normalizeSource(sourceType);
-        LocalDate date = evidenceDate == null ? LocalDate.now() : evidenceDate;
+        LocalDate date = evidenceDate == null ? businessDate() : evidenceDate;
         for (MemoryExtractionService.MemoryAttribute attr : attributes) {
             if (attr == null) continue;
             String key = clean(attr.attributeKey(), 64);
@@ -223,8 +228,8 @@ public class MemoryOrchestrator {
     public void deleteFormal(long userId, long memoryId) {
         UserProfileMemoryEntity memory = ownedFormal(userId, memoryId);
         memory.setStatus("rejected");
-        memory.setValidUntil(LocalDate.now());
-        memory.setSupersededAt(LocalDateTime.now());
+        memory.setValidUntil(businessDate());
+        memory.setSupersededAt(businessNow());
         memory.setSupersededReason("USER_DELETED");
         memoryMapper.updateById(memory);
         addRejection(userId, memory.getMemoryType(), memory.getAttributeKey(), memory.getAttributeValue(), "USER_DELETED");
@@ -246,7 +251,7 @@ public class MemoryOrchestrator {
         next.setIsCore(isCore);
         memoryMapper.updateById(next);
         addEvidence(userId, next.getId(), null, "USER_ACTION", null, null,
-                "用户编辑长期记忆", LocalDate.now(), 1.0, 1.0);
+                "用户编辑长期记忆", businessDate(), 1.0, 1.0);
         reindex(userId);
     }
 
@@ -333,7 +338,7 @@ public class MemoryOrchestrator {
             old.setSupersededReason("USER_CONSOLIDATED");
             memoryMapper.updateById(old);
         }
-        processExtractedMemories(userId, attributes, "explicit", null, null, "用户确认整理长期画像", LocalDate.now());
+        processExtractedMemories(userId, attributes, "explicit", null, null, "用户确认整理长期画像", businessDate());
     }
 
     /**
@@ -354,8 +359,8 @@ public class MemoryOrchestrator {
                 for (UserProfileMemoryEntity source : sources) {
                     if ("short_term_state".equals(source.getMemoryType())) {
                         source.setStatus("expired");
-                        source.setValidUntil(LocalDate.now());
-                        source.setSupersededAt(LocalDateTime.now());
+                        source.setValidUntil(businessDate());
+                        source.setSupersededAt(businessNow());
                         source.setSupersededReason("USER_CONSOLIDATED_EXPIRED");
                         memoryMapper.updateById(source);
                     }
@@ -381,19 +386,19 @@ public class MemoryOrchestrator {
                         .eq(UserMemoryEvidenceEntity::getMemoryId, source.getId())
                         .set(UserMemoryEvidenceEntity::getMemoryId, target.getId()));
                 source.setStatus("superseded");
-                source.setValidUntil(target.getValidFrom() == null ? LocalDate.now() : target.getValidFrom());
-                source.setSupersededAt(LocalDateTime.now());
+                source.setValidUntil(target.getValidFrom() == null ? businessDate() : target.getValidFrom());
+                source.setSupersededAt(businessNow());
                 source.setSupersededReason("USER_CONSOLIDATED_DEDUP");
                 memoryMapper.updateById(source);
             }
             if (item.isCore() != null && MemorySafetyPolicy.allowCore(target.getMemoryType(), target.getAttributeKey(), target.getAttributeValue())) {
                 target.setIsCore(item.isCore());
-                target.setUpdatedAt(LocalDateTime.now());
-                target.setUpdateTime(LocalDateTime.now());
+                target.setUpdatedAt(businessNow());
+                target.setUpdateTime(businessNow());
                 memoryMapper.updateById(target);
             }
             addEvidence(userId, target.getId(), null, "USER_ACTION", null, null,
-                    "用户确认整理：" + item.operation(), LocalDate.now(), 1.0, 1.0);
+                    "用户确认整理：" + item.operation(), businessDate(), 1.0, 1.0);
         }
         reindex(userId);
     }
@@ -402,7 +407,7 @@ public class MemoryOrchestrator {
         return memoryMapper.selectList(new LambdaQueryWrapper<UserProfileMemoryEntity>()
                 .eq(UserProfileMemoryEntity::getUserId, userId)
                 .eq(UserProfileMemoryEntity::getStatus, ACTIVE)
-                .and(w -> w.isNull(UserProfileMemoryEntity::getValidUntil).or().ge(UserProfileMemoryEntity::getValidUntil, LocalDate.now()))
+                .and(w -> w.isNull(UserProfileMemoryEntity::getValidUntil).or().ge(UserProfileMemoryEntity::getValidUntil, businessDate()))
                 .orderByAsc(UserProfileMemoryEntity::getAttributeKey)).stream()
                 .filter(memory -> !isShortTermExpired(memory))
                 .map(memory -> {
@@ -635,7 +640,7 @@ public class MemoryOrchestrator {
         double rawScore = .40 * model + .25 * quality + .20 * dateCoverage + .15 * sourceDiversity
                 - contradictionPenalty;
         long ageDays = evidence.stream().map(UserMemoryEvidenceEntity::getEvidenceDate).filter(java.util.Objects::nonNull)
-                .mapToLong(d -> ChronoUnit.DAYS.between(d, LocalDate.now())).max().orElse(0);
+                .mapToLong(d -> ChronoUnit.DAYS.between(d, businessDate())).max().orElse(0);
         double effective = rawScore * Math.pow(2, -Math.max(0, ageDays) / halfLife(candidate.getMemoryType()));
         double threshold = switch (candidate.getMemoryType()) {
             case "preference", "relationship" -> .85;
@@ -776,20 +781,20 @@ public class MemoryOrchestrator {
         if (memory == null || !ACTIVE.equals(memory.getStatus())) return;
         memory.setConfidence(Math.max(memory.getConfidence() == null ? 0 : memory.getConfidence(),
                 confidence == null ? 0 : confidence));
-        memory.setLastEvidenceAt(LocalDateTime.now());
-        memory.setUpdatedAt(LocalDateTime.now());
-        memory.setUpdateTime(LocalDateTime.now());
+        memory.setLastEvidenceAt(businessNow());
+        memory.setUpdatedAt(businessNow());
+        memory.setUpdateTime(businessNow());
         memoryMapper.updateById(memory);
     }
 
     private UserProfileMemoryEntity saveFormal(Long userId, String key, String value, String type, String source,
                                                Long diaryId, Long conversationId, double confidence, LocalDate validFrom,
                                                String reason, Boolean requestedIsCore) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = businessNow();
         UserProfileMemoryEntity old = memoryMapper.selectOne(new LambdaQueryWrapper<UserProfileMemoryEntity>()
                 .eq(UserProfileMemoryEntity::getUserId, userId).eq(UserProfileMemoryEntity::getAttributeKey, key)
                 .eq(UserProfileMemoryEntity::getStatus, ACTIVE).last("LIMIT 1"));
-        if (old != null && old.getValidUntil() != null && old.getValidUntil().isBefore(LocalDate.now())) {
+        if (old != null && old.getValidUntil() != null && old.getValidUntil().isBefore(businessDate())) {
             old.setStatus("expired");
             old.setSupersededAt(now);
             old.setSupersededReason("VALID_UNTIL_REACHED");
@@ -813,7 +818,7 @@ public class MemoryOrchestrator {
         }
         if (old != null) {
             old.setStatus("superseded");
-            old.setValidUntil(validFrom == null ? LocalDate.now() : validFrom);
+            old.setValidUntil(validFrom == null ? businessDate() : validFrom);
             old.setSupersededAt(now);
             old.setSupersededReason(reason);
             memoryMapper.updateById(old);
@@ -829,7 +834,7 @@ public class MemoryOrchestrator {
         next.setSourceDiaryId(diaryId);
         next.setSourceConversationId(conversationId);
         next.setConfidence(confidence);
-        next.setValidFrom(validFrom == null ? LocalDate.now() : validFrom);
+        next.setValidFrom(validFrom == null ? businessDate() : validFrom);
         next.setLastEvidenceAt(now);
         next.setStatus(ACTIVE);
         next.setPreviousMemoryId(old == null ? null : old.getId());
@@ -860,14 +865,14 @@ public class MemoryOrchestrator {
                 .eq(UserMemoryRejectionEntity::getUserId, userId).eq(UserMemoryRejectionEntity::getNormalizedKey, normalize(key))
                 .eq(UserMemoryRejectionEntity::getMemoryType, type)
                 .eq(UserMemoryRejectionEntity::getNormalizedValue, normalize(value))
-                .gt(UserMemoryRejectionEntity::getExpiresAt, LocalDateTime.now())) > 0;
+                .gt(UserMemoryRejectionEntity::getExpiresAt, businessNow())) > 0;
     }
 
     private void addRejection(long userId, String type, String key, String value, String reason) {
         UserMemoryRejectionEntity rejection = new UserMemoryRejectionEntity();
         rejection.setUserId(userId); rejection.setMemoryType(type); rejection.setNormalizedKey(normalize(key));
         rejection.setNormalizedValue(normalize(value)); rejection.setRejectionType(reason);
-        rejection.setCreatedAt(LocalDateTime.now()); rejection.setExpiresAt(LocalDateTime.now().plusDays(REJECTION_DAYS));
+        rejection.setCreatedAt(businessNow()); rejection.setExpiresAt(businessNow().plusDays(REJECTION_DAYS));
         rejectionMapper.insert(rejection);
     }
 
@@ -876,7 +881,7 @@ public class MemoryOrchestrator {
                 .eq(UserProfileMemoryEntity::getUserId, userId).eq(UserProfileMemoryEntity::getAttributeKey, key)
                 .eq(UserProfileMemoryEntity::getStatus, ACTIVE).last("LIMIT 1"));
         if (old != null) {
-            old.setStatus("rejected"); old.setValidUntil(LocalDate.now()); old.setSupersededAt(LocalDateTime.now());
+            old.setStatus("rejected"); old.setValidUntil(businessDate()); old.setSupersededAt(businessNow());
             old.setSupersededReason(reason); memoryMapper.updateById(old);
             addRejection(userId, type, key, old.getAttributeValue(), reason);
         }
@@ -939,7 +944,7 @@ public class MemoryOrchestrator {
         if (target.getSourceDiaryId() == null) target.setSourceDiaryId(source.getSourceDiaryId());
         if (target.getSourceConversationId() == null) target.setSourceConversationId(source.getSourceConversationId());
         if (target.getValidFrom() == null || source.getValidFrom() != null && source.getValidFrom().isBefore(target.getValidFrom())) target.setValidFrom(source.getValidFrom());
-        target.setUpdatedAt(LocalDateTime.now());
+        target.setUpdatedAt(businessNow());
         candidateMapper.updateById(target);
 
         source.setStatus("MERGED");
@@ -1063,9 +1068,19 @@ public class MemoryOrchestrator {
         return text.contains("不再") || text.contains("不喜欢") || text.contains("不是") || text.contains("否认");
     }
     private double halfLife(String type) { return switch (type) { case "preference", "relationship" -> 180; case "habit" -> 90; case "pattern" -> 60; case "event" -> 30; default -> 7; }; }
+    private LocalDate businessDate() { return LocalDate.now(businessTimeZone); }
+    private LocalDateTime businessNow() { return LocalDateTime.now(businessTimeZone); }
+    private ZoneId parseZoneId(String value) {
+        try {
+            return value == null || value.isBlank() ? ZoneId.of("Asia/Shanghai") : ZoneId.of(value.trim());
+        } catch (RuntimeException e) {
+            log.warn("画像业务时区配置无效，使用 Asia/Shanghai: {}", value);
+            return ZoneId.of("Asia/Shanghai");
+        }
+    }
     private boolean isShortTermExpired(UserProfileMemoryEntity memory) {
         return "short_term_state".equals(memory.getMemoryType())
                 && memory.getLastEvidenceAt() != null
-                && memory.getLastEvidenceAt().plusDays(7).isBefore(LocalDateTime.now());
+                && memory.getLastEvidenceAt().plusDays(7).isBefore(businessNow());
     }
 }

@@ -18,6 +18,7 @@ class ContextPlannerTest {
         shortTerm.setMemoryType("short_term_state");
         shortTerm.setAttributeKey("当前状态");
         shortTerm.setAttributeValue("最近有些紧张");
+        shortTerm.setStatus("active");
         UserProfileMemoryEntity preference = new UserProfileMemoryEntity();
         preference.setMemoryType("preference");
         preference.setAttributeKey("社交偏好");
@@ -28,10 +29,16 @@ class ContextPlannerTest {
                 .plan(7L, "核心画像", List.of("用户引用的日记"), "召回的历史经历");
 
         String context = plan.context();
-        assertTrue(context.contains("<core_memory>\n核心画像\n</core_memory>"));
-        assertTrue(context.contains("<short_term_state>\n- 当前状态：最近有些紧张\n</short_term_state>"));
-        assertTrue(context.contains("<user_diary>\n用户引用的日记\n</user_diary>"));
-        assertTrue(context.contains("<retrieved_experiences>\n召回的历史经历\n</retrieved_experiences>"));
+        assertTrue(context.contains("<core_memory>"));
+        assertTrue(context.contains("核心画像"));
+        assertTrue(context.contains("<short_term_state>"));
+        assertTrue(context.contains("当前状态：最近有些紧张"));
+        assertTrue(context.contains("<user_references>"));
+        assertTrue(context.contains("用户引用的日记"));
+        assertTrue(context.contains("<retrieved_context purpose=\"CHAT\">"));
+        assertTrue(context.contains("召回的历史经历"));
+        assertTrue(context.contains("<conversation_context>"));
+        assertTrue(!context.contains("<long_term_memory>"));
         assertTrue(!context.contains("社交偏好"));
     }
 }

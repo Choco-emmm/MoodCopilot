@@ -31,19 +31,22 @@ public class AiAnalysisService {
     private final com.moodcopilot.config.AiPromptProperties aiPrompts;
     private final MemoryExtractionService memoryExtractionService;
     private final RagMemoryService ragMemoryService;
+    private final ContextPlanner contextPlanner;
 
     @Autowired
     private StringRedisTemplate redisTemplate;
 
     public AiAnalysisService(ChatClient analysisChatClient, DeepSeekReasoningClient reasoningClient, ObjectMapper objectMapper, com.moodcopilot.config.AiPromptProperties aiPrompts,
                              @org.springframework.context.annotation.Lazy MemoryExtractionService memoryExtractionService,
-                             @org.springframework.context.annotation.Lazy RagMemoryService ragMemoryService) {
+                             @org.springframework.context.annotation.Lazy RagMemoryService ragMemoryService,
+                             @org.springframework.context.annotation.Lazy ContextPlanner contextPlanner) {
         this.analysisChatClient = analysisChatClient;
         this.reasoningClient = reasoningClient;
         this.objectMapper = objectMapper;
         this.aiPrompts = aiPrompts;
         this.memoryExtractionService = memoryExtractionService;
         this.ragMemoryService = ragMemoryService;
+        this.contextPlanner = contextPlanner;
     }
 
     public DiaryAnalysis analyze(Long userId, String content) {
@@ -109,14 +112,13 @@ public class AiAnalysisService {
         if (userId != null) {
             try {
                 String coreMemory = memoryExtractionService.buildCoreUserMemoryPrompt(userId);
-                if (coreMemory != null && !coreMemory.isBlank()) {
-                    sb.append("[长期画像]\n").append(coreMemory).append("\n\n");
-                }
-                String ragContext = ragMemoryService.buildRagContext(userId, content, 5, RagMemoryService.SOURCE_DIARY);
-                if (ragContext != null && !ragContext.isBlank()) {
-                    sb.append("[近期相关记忆]\n").append(ragContext).append("\n");
-                    sb.append("这是用户近期的相关历史日记，请结合前因后果进行分析。\n\n");
-                }
+                RagQuery ragQuery = new RagQuery(userId, "diary_analysis",
+                        RagQueryBuilder.diaryQueryText(content, musicMeta),
+                        List.of(RagMemoryService.SOURCE_DIARY), null, 5, ContextPurpose.DIARY_ANALYSIS);
+                List<ContextItem> retrieved = ragMemoryService.retrieveContextItems(ragQuery);
+                ContextPlanner.ContextPlan contextPlan = contextPlanner.planEnvelope(userId, null, coreMemory,
+                        List.of(), retrieved, ContextPurpose.DIARY_ANALYSIS);
+                sb.append(contextPlan.context()).append("\n\n");
             } catch (Exception e) {
                 log.warn("Failed to retrieve memory contexts for user {}: {}", userId, e.getMessage());
             }

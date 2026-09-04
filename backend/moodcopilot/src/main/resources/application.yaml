@@ -125,6 +125,15 @@ oss:
   secret-key: ${OSS_SECRET_KEY:}
 moodcopilot:
   time-zone: ${MOODCOPILOT_TIME_ZONE:Asia/Shanghai}
+  rag:
+    embedding:
+      connect-timeout-ms: ${RAG_EMBEDDING_CONNECT_TIMEOUT_MS:3000}
+      read-timeout-ms: ${RAG_EMBEDDING_READ_TIMEOUT_MS:15000}
+      max-retries: ${RAG_EMBEDDING_MAX_RETRIES:2}
+      circuit-failure-threshold: ${RAG_EMBEDDING_CIRCUIT_FAILURE_THRESHOLD:5}
+      circuit-open-seconds: ${RAG_EMBEDDING_CIRCUIT_OPEN_SECONDS:30}
+      query-cache-max-size: ${RAG_EMBEDDING_QUERY_CACHE_MAX_SIZE:1000}
+      query-cache-ttl-seconds: ${RAG_EMBEDDING_QUERY_CACHE_TTL_SECONDS:600}
   vision:
     api-key: ${VISION_API_KEY:}
     api-url: ${VISION_API_URL:https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions}

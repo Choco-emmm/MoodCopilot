@@ -332,7 +332,10 @@ public class AIConfiguration {
                                     }
                                     if (!graphIds.isEmpty()) {
                                         LambdaQueryWrapper<DiaryKnowledgeGraphEntity> wrapper = new LambdaQueryWrapper<DiaryKnowledgeGraphEntity>()
-                                                .in(DiaryKnowledgeGraphEntity::getId, graphIds);
+                                                .eq(DiaryKnowledgeGraphEntity::getUserId, userId)
+                                                .in(DiaryKnowledgeGraphEntity::getId, graphIds)
+                                                .and(w -> w.isNull(DiaryKnowledgeGraphEntity::getStatus)
+                                                        .or().eq(DiaryKnowledgeGraphEntity::getStatus, "active"));
                                         java.util.Map<Long, DiaryKnowledgeGraphEntity> byId = new java.util.LinkedHashMap<>();
                                         for (DiaryKnowledgeGraphEntity t : diaryKnowledgeGraphMapper.selectList(wrapper)) {
                                             byId.put(t.getId(), t);

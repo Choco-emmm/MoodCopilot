@@ -246,8 +246,9 @@ public class MemoryExtractionService {
                     musicMeta != null, imageDescriptions != null && !imageDescriptions.isBlank());
             // RAG 检索与当前日记语义相关的历史内容，帮助 LLM 发现跨日记的模式
             long ragStartedAt = System.nanoTime();
-            String ragContext = ragMemoryService.buildRagContext(userId, diaryContent, 3,
-                    RagMemoryService.SOURCE_DIARY);
+            String ragQuery = RagQueryBuilder.diaryQueryText(diaryContent, musicMeta);
+            String ragContext = ragMemoryService.buildRagContext(userId, ragQuery, 3, null,
+                    ContextPurpose.DIARY_ANALYSIS, RagMemoryService.SOURCE_DIARY);
             long ragDurationMs = elapsedMillis(ragStartedAt);
             String prompt = buildExtractionUserPrompt(diaryContent, existing, ragContext, musicMeta, imageDescriptions);
             long modelStartedAt = System.nanoTime();

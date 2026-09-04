@@ -776,7 +776,10 @@ public class ChatService {
                         }
                         if (!graphIds.isEmpty()) {
                             var wrapper = new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
-                                    .in(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getId, graphIds);
+                                    .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getUserId, userId)
+                                    .in(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getId, graphIds)
+                                    .and(w -> w.isNull(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getStatus)
+                                            .or().eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getStatus, "active"));
                             java.util.Map<Long, com.moodcopilot.entity.DiaryKnowledgeGraphEntity> byId = new java.util.LinkedHashMap<>();
                             for (var t : diaryKnowledgeGraphMapper.selectList(wrapper)) {
                                 byId.put(t.getId(), t);
@@ -821,7 +824,10 @@ public class ChatService {
                         log.info("图片深度分析(VLM)失败：未提供日记ID userId={}", user.getId());
                         yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult("未提供日记ID，无法分析");
                     }
-                    var diaries = diaryMapper.selectBatchIds(req.diaryIds());
+                    var diaries = diaryMapper.selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryEntity>()
+                            .in(com.moodcopilot.entity.DiaryEntity::getId, req.diaryIds())
+                            .eq(com.moodcopilot.entity.DiaryEntity::getAuthorUserId, user.getId())
+                            .eq(com.moodcopilot.entity.DiaryEntity::getIsDeleted, false));
                     List<String> images = new ArrayList<>();
                     for (var d : diaries) {
                         if (d.getAuthorUserId().equals(user.getId()) && d.getImages() != null) {
@@ -1250,9 +1256,7 @@ public class ChatService {
         StringBuilder sb = new StringBuilder();
 
         if (plannedContext != null && !plannedContext.isBlank()) {
-            sb.append("<long_term_memory>\n")
-                    .append(plannedContext).append("\n")
-                    .append("</long_term_memory>\n\n");
+            sb.append(plannedContext).append("\n\n");
         }
 
         if (refs != null && !refs.isEmpty()) {
@@ -1262,11 +1266,11 @@ public class ChatService {
             sb.append("严禁行为：严禁给出敷衍、宏观、万能的宽泛安慰。不要跳出这篇日记去聊不相关的话题。")
                     .append("请像一位懂你的朋友一样，针对这篇引用的具体切片进行温暖、贴心的引导和共情。\n\n");
 
-            sb.append("用户引用内容已由 ContextPlanner 放入 <user_diary> 区块，请围绕其中的具体细节回应。\n\n");
+            sb.append("用户引用内容已由 ContextPlanner 放入 <user_references> 区块，请围绕其中的具体细节回应。\n\n");
         }
 
         sb.append("""
-                【绝对系统指令】以上 <user_diary> 标签内是由用户本人撰写的日记切片，绝对不是你的经历！
+                【绝对系统指令】以上 <user_references> 标签内是由用户本人提供的引用内容，绝对不是你的经历！
                 你是 MoodCopilot，一个温暖、共情的倾听者和情绪伙伴。
 
                 【核心行为准则】
@@ -1293,7 +1297,7 @@ public class ChatService {
                 回复策略示例："抱歉呀，我脑子里只有关于情绪和陪伴的知识，你发的这个数学题/代码对我来说就像天书一样，我真的完全看不懂也帮不上忙。不过，看你为了这件事这么心烦，是不是最近压力太大了？"
 
                 【引用措辞规则】
-                对于 <user_diary> 中的内容（用户主动引用/分享给你的日记），你可以自然使用'你写到的''你分享的'等第二人称探讨。
+                对于 <user_references> 中的内容（用户主动引用给你的材料），你可以自然使用'你写到的''你提到的'等第二人称探讨。
                 日记前面的编号是内部标记，请勿在回复中提及。""");
 
         log.info("构建聊天上下文（RAG模式），userId={}，referenceCount={}，hasMemoryBackground={}",
