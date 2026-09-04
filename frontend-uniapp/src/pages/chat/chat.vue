@@ -239,8 +239,9 @@ const formatDate = (isoString: string) => {
 
 onMounted(() => {
   restorePendingEvent();
+  const pendingConversationId = readPendingConversation();
   if (isLoggedIn.value) {
-    initConversation();
+    initConversation(pendingConversationId);
     fetchUserInfo();
   } else {
     loadingInit.value = false;
@@ -255,8 +256,18 @@ function restorePendingEvent() {
   }
 }
 
+function readPendingConversation(): number | null {
+  const storedId = Number(uni.getStorageSync('pendingChatConversationId'));
+  return Number.isFinite(storedId) && storedId > 0 ? storedId : null;
+}
+
 onShow(() => {
   restorePendingEvent();
+  const pendingConversationId = readPendingConversation();
+  if (pendingConversationId && conversations.value.some(conv => conv.id === pendingConversationId)) {
+    uni.removeStorageSync('pendingChatConversationId');
+    switchConversation(pendingConversationId);
+  }
 });
 
 const fetchUserInfo = async () => {
@@ -314,12 +325,14 @@ const handleLongPress = (msg: Message) => {
   });
 };
 
-const initConversation = async () => {
+const initConversation = async (preferredConversationId: number | null = null) => {
   try {
     const res = await get('/api/chat/conversations');
     if (res.code === 200 && res.data && res.data.length > 0) {
       conversations.value = res.data;
-      conversationId.value = res.data[0].id;
+      conversationId.value = res.data.some((conversation: any) => conversation.id === preferredConversationId)
+        ? preferredConversationId
+        : res.data[0].id;
       loadHistory();
     } else {
       await createNewChat();

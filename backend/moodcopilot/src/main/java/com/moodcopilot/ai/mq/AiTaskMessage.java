@@ -18,4 +18,5 @@ public record AiTaskMessage(
     public static final String TYPE_MEMORY_RAG_INDEX = "MEMORY_RAG_INDEX";
     public static final String TYPE_REPORT_INVALIDATION = "REPORT_INVALIDATION";
     public static final String TYPE_NOTIFICATION = "NOTIFICATION";
+    public static final String TYPE_LIFE_CHAPTER_REFRESH = "LIFE_CHAPTER_REFRESH";
 }

@@ -94,6 +94,7 @@ public class LifeEventService {
                                 List<Long> diaryIds, int diaryCount, Long lastDiaryId,
                                 String followUpNote, String createdAt, String updatedAt) {}
     public record LifeDiaryOption(Long id, String date, String excerpt, String summary) {}
+    public record LifeDiaryPage(List<LifeDiaryOption> items, long total, int page, int size, boolean hasMore) {}
 
     @Transactional
     public void extractAndTrackLifeEvents(Long userId, Long diaryId, String content, LocalDateTime diaryCreatedAt) {
@@ -209,11 +210,35 @@ public class LifeEventService {
                 .orderByDesc(UserLifeEventEntity::getUpdatedAt)).stream().map(this::toView).toList();
     }
 
-    public List<LifeDiaryOption> listUserDiaryOptions(Long userId, String keyword) {
+    public LifeDiaryPage listUserDiaryOptions(Long userId, String keyword, LocalDate startDate,
+                                               LocalDate endDate, int page, int size) {
+        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
+            throw new ResponseStatusException(BAD_REQUEST, "日记筛选的结束日期不能早于开始日期");
+        }
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(50, Math.max(1, size));
         LambdaQueryWrapper<DiaryEntity> query = new LambdaQueryWrapper<DiaryEntity>()
+                .eq(DiaryEntity::getAuthorUserId, userId).eq(DiaryEntity::getIsDeleted, false);
+        if (keyword != null && !keyword.isBlank()) {
+            String escaped = keyword.trim().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+            query.and(w -> w.like(DiaryEntity::getContent, escaped)
+                    .or().apply("JSON_UNQUOTE(JSON_EXTRACT(music_meta, '$.title')) LIKE {0}", "%" + escaped + "%")
+                    .or().apply("JSON_UNQUOTE(JSON_EXTRACT(music_meta, '$.artist')) LIKE {0}", "%" + escaped + "%"));
+        }
+        if (startDate != null) query.ge(DiaryEntity::getCreatedAt, startDate.atStartOfDay());
+        if (endDate != null) query.lt(DiaryEntity::getCreatedAt, endDate.plusDays(1).atStartOfDay());
+        query.orderByDesc(DiaryEntity::getCreatedAt)
+                .last("LIMIT " + ((long) (safePage - 1) * safeSize) + "," + safeSize);
+        long total = diaryMapper.selectCount(new LambdaQueryWrapper<DiaryEntity>()
                 .eq(DiaryEntity::getAuthorUserId, userId).eq(DiaryEntity::getIsDeleted, false)
-                .orderByDesc(DiaryEntity::getCreatedAt).last("LIMIT 100");
-        if (keyword != null && !keyword.isBlank()) query.like(DiaryEntity::getContent, keyword.trim());
+                .and(keyword != null && !keyword.isBlank(), w -> {
+                    String escaped = keyword.trim().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+                    w.like(DiaryEntity::getContent, escaped)
+                            .or().apply("JSON_UNQUOTE(JSON_EXTRACT(music_meta, '$.title')) LIKE {0}", "%" + escaped + "%")
+                            .or().apply("JSON_UNQUOTE(JSON_EXTRACT(music_meta, '$.artist')) LIKE {0}", "%" + escaped + "%");
+                })
+                .ge(startDate != null, DiaryEntity::getCreatedAt, startDate == null ? LocalDateTime.MIN : startDate.atStartOfDay())
+                .lt(endDate != null, DiaryEntity::getCreatedAt, endDate == null ? LocalDateTime.MAX : endDate.plusDays(1).atStartOfDay()));
         List<DiaryEntity> diaries = diaryMapper.selectList(query);
         Map<Long, DiaryAnalysisEntity> analyses = Collections.emptyMap();
         if (diaryAnalysisMapper != null && !diaries.isEmpty()) {
@@ -222,13 +247,14 @@ public class LifeEventService {
                     .stream().collect(java.util.stream.Collectors.toMap(DiaryAnalysisEntity::getDiaryId, a -> a, (a, b) -> a));
         }
         Map<Long, DiaryAnalysisEntity> finalAnalyses = analyses;
-        return diaries.stream().map(diary -> {
+        List<LifeDiaryOption> items = diaries.stream().map(diary -> {
             String excerpt = plain(diary.getContent());
             if (excerpt.length() > 90) excerpt = excerpt.substring(0, 90) + "...";
             DiaryAnalysisEntity analysis = finalAnalyses.get(diary.getId());
             return new LifeDiaryOption(diary.getId(), diary.getCreatedAt() == null ? "" : diary.getCreatedAt().toLocalDate().toString(),
                     excerpt, analysis == null ? "" : clean(analysis.getSummary(), 160));
         }).toList();
+        return new LifeDiaryPage(items, total, safePage, safeSize, (long) safePage * safeSize < total);
     }
 
     public LifeEventView updateEventStatus(Long userId, Long eventId, String status, String note) {

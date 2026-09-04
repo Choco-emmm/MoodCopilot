@@ -20,14 +20,25 @@ public class AiTaskProducer {
     }
 
     public String submitDiaryAnalysisTask(long diaryId, long userId, boolean useReasoning) {
+        return submitDiaryAnalysisTask(diaryId, userId, useReasoning, false);
+    }
+
+    public String submitDiaryAnalysisTask(long diaryId, long userId, boolean useReasoning, boolean forceRetry) {
         DiaryEntity diary = diaryMapper.selectOne(new LambdaQueryWrapper<DiaryEntity>()
                 .eq(DiaryEntity::getId, diaryId).eq(DiaryEntity::getAuthorUserId, userId));
         String content = diary == null || diary.getContent() == null ? "" : diary.getContent();
         String requestedModel = useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash";
         String contentHash = DigestUtils.md5DigestAsHex(content.getBytes(StandardCharsets.UTF_8));
+        String operationKey = forceRetry
+                ? "diary:" + diaryId + ":analysis:" + contentHash + ":" + requestedModel + ":retry:" + java.util.UUID.randomUUID()
+                : "diary:" + diaryId + ":analysis:" + contentHash + ":" + requestedModel;
         return taskService.enqueue(userId, AiTaskMessage.TYPE_DIARY_ANALYSIS, String.valueOf(diaryId), contentHash,
-                requestedModel, "diary:" + diaryId + ":analysis:" + contentHash + ":" + requestedModel,
+                requestedModel, operationKey,
                 Map.of("useReasoning", useReasoning), null);
+    }
+
+    public void cancelPendingDiaryAnalysisTasks(long diaryId, long userId) {
+        taskService.cancelPendingDiaryAnalysisTasks(diaryId, userId);
     }
 
     public void submitAnalysisPostProcessTasks(long diaryId, long userId, String analysisVersion,
@@ -54,6 +65,12 @@ public class AiTaskProducer {
     public void submitGraphRagTask(long diaryId, long userId, String analysisVersion, String parentTaskId) {
         submit(userId, AiTaskMessage.TYPE_GRAPH_RAG_INDEX, diaryId, analysisVersion, null,
                 "graph-rag", parentTaskId);
+    }
+
+    public void submitLifeChapterRefreshTask(Long chapterId, Long userId, String sourceSnapshotHash) {
+        taskService.enqueue(userId, AiTaskMessage.TYPE_LIFE_CHAPTER_REFRESH, String.valueOf(chapterId),
+                sourceSnapshotHash, null, "chapter:" + chapterId + ":refresh:" + sourceSnapshotHash,
+                Map.of(), null);
     }
 
     private void submit(long userId, String taskType, long diaryId, String analysisVersion,

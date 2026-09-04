@@ -56,6 +56,7 @@
         <view v-if="diary.analysisStatus === 'failed_limit'" class="analysis-card analysis-pending">
           <text class="analysis-kicker">深度思考额度已用完</text>
           <text class="analysis-copy">日记已保存，可稍后重试或改用普通分析。</text>
+          <button class="analysis-retry" :disabled="retrying" @click="chooseRetryModel">{{ retrying ? '正在提交...' : '重新分析' }}</button>
         </view>
         <view v-else-if="diary.analysisStatus === 'analyzing'" class="analysis-card analysis-pending">
           <text class="analysis-kicker">AI 正在阅读这篇记录</text>
@@ -64,6 +65,7 @@
         <view v-else-if="diary.analysisStatus === 'failed'" class="analysis-card analysis-pending">
           <text class="analysis-kicker">分析未完成</text>
           <text class="analysis-copy">{{ diary.analysisError || '日记已保存，本次分析没有完成。' }}</text>
+          <button class="analysis-retry" :disabled="retrying" @click="chooseRetryModel">{{ retrying ? '正在提交...' : '重新分析' }}</button>
         </view>
         <view v-else-if="diary.analysis?.summary" class="analysis-card">
           <text class="analysis-kicker">AI 分析</text>
@@ -139,6 +141,7 @@ const diary = ref<any>(null)
 const showCollectionModal = ref(false)
 const myCollections = ref<any[]>([])
 const parentCollections = ref<any[]>([])
+const retrying = ref(false)
 
 const diaryMoodColor = computed(() => {
   if (diary.value?.analysis && isOwner.value) {
@@ -208,6 +211,29 @@ async function fetchDiary(id: string | number) {
     console.error('Failed to fetch diary', error)
   } finally {
     loading.value = false
+  }
+}
+
+function chooseRetryModel() {
+  uni.showActionSheet({
+    itemList: ['普通分析', '深度思考'],
+    success: ({ tapIndex }) => { void retryAnalysis(tapIndex === 1) },
+  })
+}
+
+async function retryAnalysis(useReasoning: boolean) {
+  if (!diary.value || retrying.value) return
+  retrying.value = true
+  try {
+    const response = await request(`/api/diaries/${diary.value.id}/analysis/retry`, 'POST', { useReasoning })
+    if (response.code === 200) {
+      diary.value = response.data
+      uni.showToast({ title: response.data?.analysisStatus === 'analyzing' ? '已提交分析' : '暂时无法分析', icon: 'none' })
+    }
+  } catch (error) {
+    console.error('Failed to retry diary analysis', error)
+  } finally {
+    retrying.value = false
   }
 }
 
@@ -337,6 +363,7 @@ function goToCollection(collectionId: number) {
 .collection-chip { display: inline-flex; align-items: center; gap: 5rpx; padding: 8rpx 11rpx; border-radius: 5rpx; background: rgba(var(--theme-primary-rgb), .06); color: var(--theme-primary); font-size: 22rpx; }
 .chip-arrow, .chat-action-arrow { font-size: 30rpx; font-weight: 300; line-height: .7; }
 .analysis-card { margin-top: 20rpx; padding: 32rpx; }
+.analysis-retry { align-self: flex-start; margin-top: 22rpx; padding: 0 24rpx; border: 1rpx solid var(--theme-primary); border-radius: 6rpx; background: transparent; color: var(--theme-primary); font-size: 25rpx; line-height: 68rpx; }
 .analysis-pending { border-style: dashed; background: rgba(var(--theme-primary-rgb), .025); }
 .analysis-kicker { display: block; color: #a86c6c; font-size: 22rpx; font-weight: 650; letter-spacing: 1rpx; margin-bottom: 16rpx; }
 .analysis-mood-header { display: flex; align-items: center; flex-wrap: wrap; margin-bottom: 20rpx; }

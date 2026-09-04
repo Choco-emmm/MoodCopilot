@@ -157,6 +157,12 @@ public class DiaryController {
         return ApiResponse.ok(diaryService.get(id));
     }
 
+    @PostMapping("/{id}/analysis/retry")
+    public ApiResponse<DiaryView> retryAnalysis(@PathVariable long id,
+                                                  @RequestBody(required = false) RetryAnalysisRequest request) {
+        return ApiResponse.ok(diaryService.retryAnalysis(id, request != null && request.isUseReasoning()));
+    }
+
     @GetMapping("/{id}/similar")
     public ApiResponse<List<DiaryView>> similar(
             @PathVariable("id") long id,

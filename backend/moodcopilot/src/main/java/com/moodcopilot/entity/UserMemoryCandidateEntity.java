@@ -27,6 +27,8 @@ public class UserMemoryCandidateEntity {
     private LocalDate validUntil;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Long mergedIntoId;
+    private String mergeReason;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -62,4 +64,8 @@ public class UserMemoryCandidateEntity {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public Long getMergedIntoId() { return mergedIntoId; }
+    public void setMergedIntoId(Long mergedIntoId) { this.mergedIntoId = mergedIntoId; }
+    public String getMergeReason() { return mergeReason; }
+    public void setMergeReason(String mergeReason) { this.mergeReason = mergeReason; }
 }

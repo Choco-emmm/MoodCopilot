@@ -22,9 +22,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.time.LocalDate;
-import java.time.Duration;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,12 +38,9 @@ public class MemoryExtractionService {
     private static final Logger log = LoggerFactory.getLogger(MemoryExtractionService.class);
     private static final int ATTRIBUTE_KEY_MAX_LENGTH = 64;
     private static final int ATTRIBUTE_VALUE_MAX_LENGTH = 500;
-    private static final String CHAT_MEMORY_LAST_HASH_PREFIX = "memory:chat:last-hash:";
     private static final String DELETE_MARKER = "DELETE_MARKER";
-    private static final Duration CHAT_MEMORY_LAST_HASH_TTL = Duration.ofHours(2);
-    private static final int CHAT_MIN_USER_MESSAGE_LENGTH = 18;
-    private static final int CHAT_MIN_AI_REPLY_LENGTH = 30;
-    private static final int CHAT_TRIGGER_SCORE_THRESHOLD = 2;
+    private static final int CHAT_MIN_USER_MESSAGE_LENGTH = 4;
+    private static final int CHAT_TRIGGER_SCORE_THRESHOLD = 1;
     private static final Set<String> CHAT_LONG_TERM_KEYWORDS = Set.of(
             "一直", "最近总", "总是", "老是", "经常", "越来越", "最近", "长期", "目标", "习惯", "性格", "关系",
             "家庭", "父母", "伴侣", "朋友", "失眠", "压力大", "工作压力", "压力源");
@@ -80,6 +74,7 @@ public class MemoryExtractionService {
 
             规则：
             1. 只保留相对稳定、跨时间成立的特征，不要记录一次性的当天状态。
+            1.1 涉及自杀、自残、轻生、不想活、伤害自己或心理危机的内容，只能标记为 memoryType=short_term_state、isCore=false。它是需要关注的近期状态，不是诊断，也不是永久人格标签。
             2. 【重要】默认必须输出所有旧属性，保持 attributeKey 和 attributeValue 不变。只有当新日记提供了明确的新证据，才能修改该属性的 attributeValue。旧属性已有的 isCore 值应保留，除非新证据明确表明该特征的性质发生了变化。
             3. 【重要】要删除某个属性，必须将 attributeValue 设为精确字符串 "DELETE_MARKER"（不含引号）。仅在新证据明确推翻旧特征时才使用。
             4. 【重要】attributeKey 必须极度垂直和原子化，每条只描述一个具体维度。不要使用宽泛词如"性格""习惯"，应拆分为"社交偏好""情绪模式""运动习惯""工作风格"等。
@@ -291,12 +286,6 @@ public class MemoryExtractionService {
                     normalizedUserMessage.length());
             return;
         }
-        if (normalizedAiReply.length() < CHAT_MIN_AI_REPLY_LENGTH) {
-            log.info("memory-chat | skip | reason=short_ai_reply | userId={} | replyLength={}", userId,
-                    normalizedAiReply.length());
-            return;
-        }
-
         String evidence = buildChatExtractionEvidence(normalizedUserMessage, normalizedRefs, normalizedAiReply);
         if (evidence.isBlank()) {
             log.info("memory-chat | skip | reason=empty_evidence | userId={}", userId);
@@ -312,16 +301,8 @@ public class MemoryExtractionService {
             return;
         }
 
-        // 第三层：去重，重复对话不反复抽取。
-        String hashKey = CHAT_MEMORY_LAST_HASH_PREFIX + userId;
-        String currentHash = sha256Hex(normalizedUserMessage + "|" + String.join("|", normalizedRefs));
-        String lastHash = redisTemplate.opsForValue().get(hashKey);
-        if (currentHash.equals(lastHash)) {
-            log.info("memory-chat | skip | reason=duplicate_hash | userId={}", userId);
-            return;
-        }
-
-        redisTemplate.opsForValue().set(hashKey, currentHash, CHAT_MEMORY_LAST_HASH_TTL);
+        // 不按时间窗口限制聊天抽取；同一事实的候选和证据由数据库幂等规则合并。
+        // 这样用户连续补充信息时可以立即形成新的独立证据，不需要等待十分钟。
         log.info(
                 "memory-chat | pass | userId={} | score={} | userLength={} | replyLength={} | refCount={} | evidenceLength={}",
                 userId, score, normalizedUserMessage.length(), normalizedAiReply.length(), normalizedRefs.size(),
@@ -488,12 +469,7 @@ public class MemoryExtractionService {
 
     private int scoreChatEvidence(String userMessage, List<String> refs, String aiReply) {
         int score = 0;
-        if (userMessage.length() >= 60) {
-            score++;
-        }
-        if (userMessage.length() >= 120) {
-            score++;
-        }
+        if (userMessage.length() >= CHAT_MIN_USER_MESSAGE_LENGTH) score++;
         if (containsLongTermKeyword(userMessage)) {
             score += 2;
         }
@@ -526,20 +502,6 @@ public class MemoryExtractionService {
         return userMessage.length() <= 12 && CHAT_SMALL_TALK_PHRASES.contains(normalized);
     }
 
-    private String sha256Hex(String raw) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(bytes.length * 2);
-            for (byte value : bytes) {
-                sb.append(String.format("%02x", value));
-            }
-            return sb.toString();
-        } catch (Exception e) {
-            return Integer.toHexString(raw.hashCode());
-        }
-    }
-
     private List<MemoryAttribute> sanitizeAttributes(List<MemoryAttribute> attributes) {
         if (attributes == null || attributes.isEmpty()) {
             return List.of();
@@ -554,7 +516,9 @@ public class MemoryExtractionService {
             if (key.isEmpty() || value.isEmpty()) {
                 continue;
             }
-            deduped.put(key, new MemoryAttribute(key, value, attribute.isCore(), attribute.memoryType(),
+            String type = MemorySafetyPolicy.normalizeType(attribute.memoryType(), key, value);
+            Boolean isCore = MemorySafetyPolicy.allowCore(type, key, value) ? attribute.isCore() : Boolean.FALSE;
+            deduped.put(key, new MemoryAttribute(key, value, isCore, type,
                     attribute.assertionType(), attribute.confidence(), attribute.evidence(),
                     attribute.validFrom(), attribute.validUntil()));
         }

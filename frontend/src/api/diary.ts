@@ -20,6 +20,7 @@ export const diaryApi = {
   byUser: (userId: number, page = 1, size = 20) => api.get(`/diaries/user/${userId}`, { params: { page, size } }),
   public: (page = 1, size = 20) => api.get('/diaries/public', { params: { page, size } }),
   get: (id: number) => api.get(`/diaries/${id}`),
+  retryAnalysis: (id: number, useReasoning = false) => api.post(`/diaries/${id}/analysis/retry`, { useReasoning }),
   similar: (id: number, limit = 3) => api.get(`/diaries/${id}/similar`, { params: { limit } }),
   addComment: (id: number, content: string, parentCommentId?: number) =>
     api.post(`/diaries/${id}/comments`, { content, parentCommentId: parentCommentId ?? null }),
@@ -45,6 +46,7 @@ export const memoryApi = {
   getAll: () => api.get('/memory'),
   getDetail: (id: number) => api.get(`/memory/${id}`),
   getCandidates: (status = 'PENDING', page = 1, size = 20, sort = 'updatedAt') => api.get('/memory/candidates', { params: { status, page, size, sort } }),
+  getCandidateEvidence: (id: number) => api.get(`/memory/candidates/${id}/evidence`),
   approveCandidate: (id: number) => api.post(`/memory/candidates/${id}/approve`),
   rejectCandidate: (id: number) => api.post(`/memory/candidates/${id}/reject`),
   getHistory: (id: number) => api.get(`/memory/${id}/history`),

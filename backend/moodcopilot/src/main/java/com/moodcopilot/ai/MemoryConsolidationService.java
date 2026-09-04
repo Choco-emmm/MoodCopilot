@@ -1,6 +1,7 @@
 package com.moodcopilot.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.moodcopilot.entity.UserProfileMemoryEntity;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.mapper.UserProfileMemoryMapper;
@@ -16,8 +17,11 @@ import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,30 +30,18 @@ public class MemoryConsolidationService {
     private static final Logger log = LoggerFactory.getLogger(MemoryConsolidationService.class);
 
     private static final String CONSOLIDATION_PROMPT = """
-            你是一个 AI 记忆档案整理专家。下面是一位用户长期积累的个人画像和记忆特征列表。
-            由于这些记忆是长期增量提取的，里面可能包含许多语义重复、维度重叠的属性（例如“工作压力”、“近期焦虑”、“长期压力源：工作”等互相交织的条目），甚至包含了一些早已过时的短期情绪记录。
-
-            你的任务是将它们合并、去重、提纯，输出一份高度精简、维度清晰且立体的【心理与行为画像】。
-
-            【整理规则】
-            1. 合并同类项但保留细节：将描述同一维度或同一事物的多个条目合并为一个更全面、准确的条目。合并时**绝不能丢失关键细节**，尤其是具体的引发事件、特定人物或特定感受。
-            2. 剔除噪声与瞬时状态：坚决删除那些明显是一次性事件、瞬时情绪或已经过时的状态（例如“今天中午吃了火锅”、“昨天因为下雨很烦”）。我们只保留【跨时间成立的长期特征】。
-            3. 保留核心属性：对于极其重要的底层性格、深层创伤、核心沟通偏好（原来 isCore=true 的项），在合并时应继续保留，并务必将其 isCore 继续设为 true。
-            4. 统一专业命名：attributeKey 必须精确、分类清晰且原子化（如“情绪模式”、“社交偏好”、“核心压力源”、“健康状况”、“自我认知”），不要使用宽泛或冗长的 Key。
-            5. 解决冲突：如果发现旧记忆和新记忆有矛盾，请在合并时提炼为动态变化，如“原本社恐，但近期开始尝试社交突破”。
-            6. 控制数量：合并后的属性条目数量应尽可能精简，最好控制在 10-15 条以内，避免碎片化。
-
-            【严格格式要求】
-            只输出合法 JSON，**绝不要**输出 markdown 格式代码块（不要有 ```json 标签），**绝不要**有任何多余解释或开头语。
-            正确格式示例：
-            {
-              "attributes": [
-                {"attributeKey": "情绪模式", "attributeValue": "偏敏感内耗，遇到批评容易陷入自责，但近期在尝试自我开解", "isCore": true},
-                {"attributeKey": "长期压力源", "attributeValue": "工作强度过大导致长期处于紧绷状态", "isCore": true},
-                {"attributeKey": "运动习惯", "attributeValue": "近期开始养成每周跑步的习惯，有助于缓解焦虑", "isCore": false}
-              ]
-            }
+            你是一个可审计的个人记忆去重助手。你的任务只允许提出可解释的归并，不得重新生成或改写用户事实。
+            只合并完全相同、规范化后明确同义的记忆；明确冲突的值必须分别保留，不得拼接成新的动态结论。
+            不得删除事实，不得伪造来源、证据或日期，不得把短期状态升级为长期画像。
+            输出 JSON：{"items":[{"attributeKey":"...","attributeValue":"...","memoryType":"...","isCore":true,"sourceMemoryIds":[1,2],"operation":"MERGE","evidenceIds":[3,4]}]}
+            operation 只能是 MERGE、DEDUP、NORMALIZE、EXPIRE。sourceMemoryIds 必须来自输入，evidenceIds 只能来自对应来源。
+            若无法证明两个记忆是同一事实，就原样分别输出或不输出。不要输出 markdown 或解释文字。
             """;
+
+    public record ConsolidationItem(String attributeKey, String attributeValue, String memoryType,
+                                    Boolean isCore, List<Long> sourceMemoryIds, String operation,
+                                    List<Long> evidenceIds) {
+    }
 
     private final ChatClient chatClient;
     private final UserProfileMemoryMapper memoryMapper;
@@ -84,7 +76,7 @@ public class MemoryConsolidationService {
         this.memoryOrchestrator = memoryOrchestrator;
     }
 
-    public List<MemoryExtractionService.MemoryAttribute> previewConsolidation(Long userId) {
+    public List<ConsolidationItem> previewConsolidation(Long userId) {
         // Rate limit logic
         String today = java.time.LocalDate.now().toString();
         String redisKey = "memory:consolidate:counter:" + userId + ":" + today;
@@ -117,40 +109,74 @@ public class MemoryConsolidationService {
             if (cleanedJson.isEmpty()) {
                 throw new RuntimeException("AI 未返回有效的 JSON");
             }
-            MemoryExtractionService.MemoryExtractionResponse response = objectMapper.readValue(cleanedJson,
-                    MemoryExtractionService.MemoryExtractionResponse.class);
-            List<MemoryExtractionService.MemoryAttribute> attributes = response.attributes();
-
-            if (attributes == null || attributes.isEmpty()) {
-                throw new RuntimeException("AI 返回的属性列表为空");
-            }
-
-            // Deduplicate
-            Map<String, MemoryExtractionService.MemoryAttribute> deduped = new LinkedHashMap<>();
-            for (MemoryExtractionService.MemoryAttribute attr : attributes) {
-                if (attr != null && attr.attributeKey() != null && attr.attributeValue() != null) {
-                    deduped.put(attr.attributeKey().trim(), attr);
+            JsonNode root = objectMapper.readTree(cleanedJson);
+            List<ConsolidationItem> items = new ArrayList<>();
+            JsonNode rawItems = root.path("items");
+            if (rawItems.isArray()) {
+                for (JsonNode item : rawItems) {
+                    items.add(objectMapper.treeToValue(item, ConsolidationItem.class));
+                }
+            } else if (root.path("attributes").isArray()) {
+                // 兼容旧客户端/旧模型格式，并为其补充可审计的来源映射。
+                for (JsonNode attr : root.path("attributes")) {
+                    String key = attr.path("attributeKey").asText("").trim();
+                    String value = attr.path("attributeValue").asText("").trim();
+                    List<Long> sourceIds = existing.stream()
+                            .filter(memory -> key.equals(memory.getAttributeKey())
+                                    && value.equals(memory.getAttributeValue()))
+                            .map(UserProfileMemoryEntity::getId).toList();
+                    items.add(new ConsolidationItem(key, value, attr.path("memoryType").asText("preference"),
+                            attr.path("isCore").asBoolean(false), sourceIds, "DEDUP", List.of()));
                 }
             }
-            return new java.util.ArrayList<>(deduped.values());
+
+            if (items.isEmpty()) {
+                throw new RuntimeException("AI 返回的属性列表为空");
+            }
+            return sanitizeItems(userId, existing, items);
         } catch (Exception e) {
             log.error("整合用户 {} 画像失败: {}", userId, e.getMessage());
             throw new RuntimeException("AI 返回格式解析失败", e);
         }
     }
 
-    public void applyConsolidation(Long userId, List<MemoryExtractionService.MemoryAttribute> attributes) {
-        memoryOrchestrator.replaceWithUserAction(userId, attributes);
+    public void applyConsolidation(Long userId, List<ConsolidationItem> items) {
+        memoryOrchestrator.applyConsolidation(userId, items);
     }
 
     private String buildConsolidationPrompt(List<UserProfileMemoryEntity> existing) {
         StringBuilder sb = new StringBuilder("现有记忆列表：\n");
         for (UserProfileMemoryEntity memory : existing) {
-            sb.append("- ").append(memory.getAttributeKey()).append("：")
+            sb.append("- memoryId=").append(memory.getId()).append(" ")
+                    .append(memory.getAttributeKey()).append("：")
                     .append(memory.getAttributeValue())
-                    .append(" (isCore=").append(Boolean.TRUE.equals(memory.getIsCore())).append(")\n");
+                    .append(" (type=").append(memory.getMemoryType())
+                    .append(", isCore=").append(Boolean.TRUE.equals(memory.getIsCore()))
+                    .append(", validFrom=").append(memory.getValidFrom())
+                    .append(", confidence=").append(memory.getConfidence()).append(")\n");
         }
         return sb.toString();
+    }
+
+    private List<ConsolidationItem> sanitizeItems(Long userId, List<UserProfileMemoryEntity> existing,
+                                                   List<ConsolidationItem> items) {
+        Set<Long> owned = existing.stream().map(UserProfileMemoryEntity::getId).collect(java.util.stream.Collectors.toSet());
+        List<ConsolidationItem> result = new ArrayList<>();
+        for (ConsolidationItem item : items) {
+            if (item == null || item.attributeKey() == null || item.attributeValue() == null) continue;
+            List<Long> sourceIds = item.sourceMemoryIds() == null ? List.of() : item.sourceMemoryIds().stream()
+                    .filter(owned::contains).distinct().toList();
+            if (sourceIds.isEmpty()) continue;
+            String operation = item.operation() == null ? "DEDUP" : item.operation().toUpperCase(java.util.Locale.ROOT);
+            if (!Set.of("MERGE", "DEDUP", "NORMALIZE", "EXPIRE").contains(operation)) continue;
+            List<Long> evidenceIds = existing.stream().filter(m -> sourceIds.contains(m.getId()))
+                    .flatMap(m -> memoryOrchestrator.evidence(userId, m.getId()).stream())
+                    .map(e -> e.getId()).distinct().toList();
+            result.add(new ConsolidationItem(item.attributeKey().trim(), item.attributeValue().trim(),
+                    item.memoryType() == null ? "preference" : item.memoryType(), item.isCore(), sourceIds,
+                    operation, evidenceIds));
+        }
+        return result;
     }
 
     private String memorySignature(UserProfileMemoryEntity memory) {

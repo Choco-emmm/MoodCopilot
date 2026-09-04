@@ -7,6 +7,7 @@ import com.moodcopilot.entity.DiaryEntity;
 import com.moodcopilot.entity.DiaryKnowledgeGraphEntity;
 import com.moodcopilot.entity.UserEntity;
 import com.moodcopilot.event.LifeEventService;
+import com.moodcopilot.event.LifeChapterService;
 import com.moodcopilot.mapper.DiaryKnowledgeGraphMapper;
 import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.mapper.UserMapper;
@@ -33,13 +34,14 @@ public class AiPostProcessService {
     private final UserMapper userMapper;
     private final TransactionTemplate transactionTemplate;
     private final AiTaskProducer aiTaskProducer;
+    private final LifeChapterService lifeChapterService;
 
     public AiPostProcessService(DiaryMapper diaryMapper, DiaryKnowledgeGraphMapper graphMapper,
                                 AiAnalysisService aiAnalysisService, VisionService visionService,
                                 MemoryExtractionService memoryExtractionService, LifeEventService lifeEventService,
                                 RagMemoryService ragMemoryService, NotificationService notificationService,
                                 UserMapper userMapper, TransactionTemplate transactionTemplate,
-                                AiTaskProducer aiTaskProducer) {
+                                AiTaskProducer aiTaskProducer, LifeChapterService lifeChapterService) {
         this.diaryMapper = diaryMapper;
         this.graphMapper = graphMapper;
         this.aiAnalysisService = aiAnalysisService;
@@ -51,6 +53,7 @@ public class AiPostProcessService {
         this.userMapper = userMapper;
         this.transactionTemplate = transactionTemplate;
         this.aiTaskProducer = aiTaskProducer;
+        this.lifeChapterService = lifeChapterService;
     }
 
     public void process(String taskType, long diaryId, long userId) {
@@ -92,6 +95,9 @@ public class AiPostProcessService {
             case AiTaskMessage.TYPE_NOTIFICATION -> notificationService.notifyGlobalEvent(userId,
                     "AI_ANALYSIS_COMPLETE", Map.of("diaryId", diaryId, "message", "日记分析已完成"));
             default -> throw new IllegalArgumentException("unsupported post-process task: " + taskType);
+        }
+        if (AiTaskMessage.TYPE_MEMORY_EXTRACTION.equals(taskType)) {
+            lifeChapterService.markDirtyForDiary(userId, diaryId);
         }
     }
 

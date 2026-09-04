@@ -56,6 +56,8 @@ services:
     expose:
       - "5672"
       - "15672"
+    ports:
+      - "127.0.0.1:5672:5672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     deploy:
@@ -68,8 +70,9 @@ services:
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 6
+      start_period: 20s
 
   backend:
     image: ghcr.io/${REGISTRY_OWNER:-choco-emmm}/moodcopilot-backend:${IMAGE_TAG:-latest}

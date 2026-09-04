@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -13,6 +14,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import com.moodcopilot.oss.OssService;
@@ -51,6 +54,7 @@ public class VisionService {
             @Value("${moodcopilot.vision.ocr-model:qwen-vl-ocr}") String ocrModel,
             @Value("${moodcopilot.vision.ocr-max-tokens:2048}") int ocrMaxTokens,
             @Value("${moodcopilot.vision.enable-ocr-for-text-images:true}") boolean enableOcr,
+            @Value("${moodcopilot.ai.http-timeout-seconds:90}") int httpTimeoutSeconds,
             ObjectMapper objectMapper,
             @Lazy OssService ossService) {
         this.apiKey = apiKey != null ? apiKey.trim() : "";
@@ -59,7 +63,12 @@ public class VisionService {
         this.ocrModel = ocrModel;
         this.ocrMaxTokens = ocrMaxTokens > 0 ? ocrMaxTokens : 2048;
         this.enableOcr = enableOcr;
-        this.restClient = RestClient.builder().build();
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofSeconds(Math.max(1, httpTimeoutSeconds)));
+        this.restClient = RestClient.builder().requestFactory(requestFactory).build();
         this.objectMapper = objectMapper;
         this.ossService = ossService;
     }

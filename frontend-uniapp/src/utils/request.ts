@@ -69,7 +69,25 @@ const silentLogin = (): Promise<string> => {
 };
 
 // 统一的错误与未授权处理逻辑
-const handleResponseError = (statusCode: number, dataMessage?: string, defaultMsg: string = '请求失败') => {
+const extractErrorMessage = (value: unknown): string => {
+  if (typeof value === 'string') return value.trim();
+  if (Array.isArray(value)) {
+    return value
+      .map(item => extractErrorMessage(item))
+      .filter(Boolean)
+      .join('；');
+  }
+  if (value && typeof value === 'object') {
+    const payload = value as Record<string, unknown>;
+    for (const key of ['message', 'error', 'detail', 'msg']) {
+      const message = extractErrorMessage(payload[key]);
+      if (message) return message;
+    }
+  }
+  return '';
+};
+
+const handleResponseError = (statusCode: number, dataMessage?: unknown, defaultMsg: string = '请求失败') => {
   if (statusCode === 401) {
     uni.removeStorageSync('token');
     uni.showToast({ title: '请先登录', icon: 'none' });
@@ -78,7 +96,12 @@ const handleResponseError = (statusCode: number, dataMessage?: string, defaultMs
     error.statusCode = statusCode;
     return error;
   } else {
-    const msg = dataMessage || (statusCode === 429 ? '请求额度已用完，请稍后再试' : defaultMsg);
+    const serverMessage = extractErrorMessage(dataMessage);
+    const msg = [500, 502, 503, 504].includes(statusCode)
+      ? '服务暂时不可用，请稍后再试'
+      : statusCode === 404
+        ? '功能暂时不可用，请稍后再试'
+        : serverMessage || (statusCode === 429 ? '请求额度已用完，请稍后再试' : defaultMsg);
     uni.showToast({ title: msg, icon: 'none' });
     const error = new Error(msg) as Error & { statusCode?: number };
     error.statusCode = statusCode;
@@ -137,8 +160,10 @@ export const request = <T = any>(
           }
         },
         fail: (err) => {
-          uni.showToast({ title: '网络错误，请稍后重试', icon: 'none' });
-          reject(err);
+          const error = new Error('网络错误，请稍后重试') as Error & { statusCode?: number };
+          error.statusCode = 0;
+          uni.showToast({ title: error.message, icon: 'none' });
+          reject(error);
         },
       });
     };
@@ -190,8 +215,10 @@ export const upload = <T = any>(url: string, filePath: string, name: string = 'f
         }
       },
       fail: (err) => {
-        uni.showToast({ title: '网络错误', icon: 'none' });
-        reject(err);
+        const error = new Error('网络错误，请稍后重试') as Error & { statusCode?: number };
+        error.statusCode = 0;
+        uni.showToast({ title: error.message, icon: 'none' });
+        reject(error);
       },
     });
   });

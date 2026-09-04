@@ -23,6 +23,11 @@ public class DiaryKnowledgeGraphEntity {
 
     private Integer tailPolarity;
 
+    private String sourceTripleIds;
+    private String sourceDiaryIds;
+    private String status;
+    private Long supersededById;
+
     private LocalDateTime createdAt;
 
     public Long getId() {
@@ -80,6 +85,15 @@ public class DiaryKnowledgeGraphEntity {
     public void setTailPolarity(Integer tailPolarity) {
         this.tailPolarity = tailPolarity;
     }
+
+    public String getSourceTripleIds() { return sourceTripleIds; }
+    public void setSourceTripleIds(String sourceTripleIds) { this.sourceTripleIds = sourceTripleIds; }
+    public String getSourceDiaryIds() { return sourceDiaryIds; }
+    public void setSourceDiaryIds(String sourceDiaryIds) { this.sourceDiaryIds = sourceDiaryIds; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public Long getSupersededById() { return supersededById; }
+    public void setSupersededById(Long supersededById) { this.supersededById = supersededById; }
 
     public LocalDateTime getCreatedAt() {
         return createdAt;

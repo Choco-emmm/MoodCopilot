@@ -229,7 +229,10 @@
       <template v-else-if="store.analysisStatus === 'complete'">分析完成</template>
       <template v-else-if="store.analysisStatus === 'failed'">
         分析结果暂时没有更新。
-        <button v-if="store.activeDiary" class="composer-inline-link" @click="store.refreshAnalysis(store.activeDiary.id)">重新获取分析结果</button>
+        <template v-if="store.activeDiary">
+          <button class="composer-inline-link" @click="store.refreshAnalysis(store.activeDiary.id, false)">普通分析</button>
+          <button class="composer-inline-link" @click="store.refreshAnalysis(store.activeDiary.id, true)">深度思考</button>
+        </template>
       </template>
     </div>
 

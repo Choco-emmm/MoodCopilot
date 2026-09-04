@@ -57,14 +57,21 @@
             <label>结束时间（可选）<input v-model="form.endTime" type="time" /></label>
           </div>
           <div class="diary-picker">
-            <div class="picker-heading"><strong>关联日记</strong><span>{{ selectedDiaryIds.length }} 篇</span></div>
-            <p class="picker-hint">按日期和内容选择，事件聊天会优先使用日记摘要。</p>
+            <div class="picker-heading"><strong>关联日记</strong><span>已选 {{ selectedDiaryIds.length }} 篇</span></div>
+             <p class="picker-hint">按关键词或日期筛选，关联后可在事件聊天中回看这些日记。</p>
+            <div class="diary-filters">
+              <input v-model.trim="diaryKeyword" type="search" placeholder="搜索日记内容" @keyup.enter="applyDiaryFilters" />
+              <input v-model="diaryStartDate" type="date" aria-label="日记开始日期" />
+              <input v-model="diaryEndDate" type="date" aria-label="日记结束日期" />
+              <button type="button" @click="applyDiaryFilters">筛选</button>
+            </div>
             <div v-if="diariesLoading" class="picker-empty">正在加载日记...</div>
             <div v-else-if="diaries.length === 0" class="picker-empty">暂时没有可关联的日记</div>
             <label v-for="diary in diaries" v-else :key="diary.id" class="diary-option">
               <input v-model="selectedDiaryIds" type="checkbox" :value="diary.id" />
-              <span><strong>{{ formatDate(diary.date) }}</strong><small>{{ diary.summary || diary.excerpt || '无文字摘要' }}</small></span>
+               <span><strong>{{ formatDate(diary.date) }}</strong><small>{{ diary.excerpt || '这篇日记没有文字内容' }}</small></span>
             </label>
+            <button v-if="diariesHasMore" class="load-more-diaries" type="button" :disabled="diariesLoading" @click="loadMoreDiaries">加载更多日记</button>
           </div>
         </div>
         <p v-if="editorError" class="editor-error">{{ editorError }}</p>
@@ -83,6 +90,11 @@ import { lifeEventApi, type LifeDiaryOption, type LifeEvent, type LifeEventPaylo
 const router = useRouter()
 const events = ref<LifeEvent[]>([])
 const diaries = ref<LifeDiaryOption[]>([])
+const diaryKeyword = ref('')
+const diaryStartDate = ref('')
+const diaryEndDate = ref('')
+const diaryPage = ref(1)
+const diariesHasMore = ref(false)
 const loading = ref(true)
 const diariesLoading = ref(false)
 const error = ref('')
@@ -102,20 +114,36 @@ async function loadEvents() {
   try { events.value = (await lifeEventApi.list()).data.data || [] } catch { error.value = '事件暂时加载失败，请稍后再试。' } finally { loading.value = false }
 }
 
-async function loadDiaries() {
+async function loadDiaries(reset = true) {
   diariesLoading.value = true
-  try { diaries.value = (await lifeEventApi.diaries()).data.data || [] } catch { diaries.value = [] } finally { diariesLoading.value = false }
+  if (reset) diaryPage.value = 1
+  try {
+    const response = await lifeEventApi.diaries({ keyword: diaryKeyword.value || undefined, startDate: diaryStartDate.value || undefined, endDate: diaryEndDate.value || undefined, page: diaryPage.value, size: 20 })
+    const result = response.data.data
+    const items = result?.items || []
+    diaries.value = reset ? items : [...diaries.value, ...items]
+    diariesHasMore.value = Boolean(result?.hasMore)
+  } catch { if (reset) diaries.value = []; diariesHasMore.value = false } finally { diariesLoading.value = false }
 }
+function applyDiaryFilters() {
+  if (diaryStartDate.value && diaryEndDate.value && diaryStartDate.value > diaryEndDate.value) {
+    editorError.value = '日记筛选的结束日期不能早于开始日期'
+    return
+  }
+  editorError.value = ''
+  void loadDiaries()
+}
+async function loadMoreDiaries() { if (!diariesHasMore.value || diariesLoading.value) return; diaryPage.value += 1; await loadDiaries(false) }
 
 function openCreate() {
   editing.value = null; editorError.value = ''; selectedDiaryIds.value = []
   form.value = { title: '', description: '', targetDate: localDate(), endDate: '', startTime: '', endTime: '', diaryIds: [] }
-  editorOpen.value = true; void loadDiaries()
+  editorOpen.value = true; diaryKeyword.value = ''; diaryStartDate.value = ''; diaryEndDate.value = ''; void loadDiaries()
 }
 function openEdit(event: LifeEvent) {
   editing.value = event; editorError.value = ''; selectedDiaryIds.value = [...(event.diaryIds || [])]
   form.value = { title: event.title, description: event.description || '', targetDate: event.targetDate || '', endDate: event.endDate || '', startTime: event.startTime || '', endTime: event.endTime || '', diaryIds: selectedDiaryIds.value }
-  editorOpen.value = true; void loadDiaries()
+  editorOpen.value = true; diaryKeyword.value = ''; diaryStartDate.value = ''; diaryEndDate.value = ''; void loadDiaries()
 }
 function closeEditor() { if (!saving.value) editorOpen.value = false }
 
@@ -167,5 +195,9 @@ function restore(event: LifeEvent) { void updateStatus(event, 'PENDING') }
 .state { padding: 42px 0; color: var(--color-text-muted); text-align: center; }.state.error, .editor-error { color: var(--color-error); }
 .undo-toast { position: fixed; right: 24px; bottom: 24px; z-index: 20; border: 1px solid var(--color-border); border-radius: 6px; padding: 11px 14px; background: var(--color-surface, #fff); color: var(--color-text); box-shadow: 0 8px 24px rgba(0,0,0,.12); cursor: pointer; font: inherit; font-size: 13px; }.undo-toast span { color: var(--color-primary); font-weight: 700; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 24px; background: rgba(18, 25, 20, .42); }.event-editor { width: min(660px, 100%); max-height: min(760px, 92vh); overflow: auto; border: 1px solid var(--color-border); border-radius: 8px; padding: 26px; background: var(--color-surface); box-shadow: 0 18px 60px rgba(0,0,0,.2); }.editor-header, .picker-heading, .editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.editor-header h3 { margin: 0; color: var(--color-text); font-family: var(--font-display); font-size: 1.5rem; }.close-button { border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; font-size: 26px; }.editor-form { display: grid; gap: 16px; margin-top: 24px; }.editor-form label { display: grid; gap: 7px; color: var(--color-text-secondary); font-size: 12px; }.editor-form input, .editor-form textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--color-border); border-radius: 4px; padding: 10px; background: var(--color-bg); color: var(--color-text); font: inherit; font-size: 14px; }.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }.diary-picker { border-top: 1px solid var(--color-border); padding-top: 16px; }.picker-heading strong { color: var(--color-text); font-size: 13px; }.picker-heading span, .picker-hint, .picker-empty { color: var(--color-text-muted); font-size: 12px; }.picker-hint { margin: 7px 0 12px; }.diary-option { display: flex !important; grid-template-columns: none !important; grid-template-rows: none !important; grid-auto-flow: column; align-items: start; gap: 10px !important; padding: 10px 0; border-top: 1px solid var(--color-border); }.diary-option input { width: auto; margin-top: 3px; }.diary-option span { display: grid; gap: 3px; }.diary-option strong { color: var(--color-text); font-size: 12px; }.diary-option small { color: var(--color-text-secondary); line-height: 1.5; }.editor-error { margin: 14px 0 0; font-size: 12px; }.editor-actions { justify-content: flex-end; margin-top: 24px; }.secondary-button { border-color: var(--color-border); background: transparent; color: var(--color-text-secondary); }.save-button:disabled { opacity: .55; cursor: wait; }
-@media (max-width: 640px) { .life-intro { align-items: start; flex-direction: column; }.event-entry { grid-template-columns: 1fr; gap: 10px; }.event-actions { justify-content: flex-start; }.text-button { padding-left: 0; margin-right: 14px; }.modal-backdrop { padding: 12px; }.event-editor { padding: 20px; }.field-grid { grid-template-columns: 1fr; } }
+.diary-filters { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr)) auto; gap: 7px; margin-bottom: 10px; }
+.diary-filters input { min-width: 0; border: 1px solid var(--color-border); border-radius: 4px; padding: 8px; background: var(--color-bg); color: var(--color-text); font: inherit; font-size: 12px; }
+.diary-filters button, .load-more-diaries { border: 1px solid var(--color-border); border-radius: 4px; padding: 8px 10px; background: transparent; color: var(--color-primary); cursor: pointer; font: inherit; font-size: 12px; white-space: nowrap; }
+.load-more-diaries { display: block; width: 100%; margin-top: 10px; }
+@media (max-width: 640px) { .life-intro { align-items: start; flex-direction: column; }.event-entry { grid-template-columns: 1fr; gap: 10px; }.event-actions { justify-content: flex-start; }.text-button { padding-left: 0; margin-right: 14px; }.modal-backdrop { padding: 12px; }.event-editor { padding: 20px; }.field-grid { grid-template-columns: 1fr; }.diary-filters { grid-template-columns: 1fr 1fr; }.diary-filters input:first-child, .diary-filters button { grid-column: span 2; } }
 </style>

@@ -89,6 +89,7 @@
     <p class="feedback" style="color: var(--color-text-muted);">
       日记已保存。你可以稍后重试，或使用普通分析模型。
     </p>
+    <button class="analysis-retry-button" :disabled="retrying" @click="showRetry = true">重新分析</button>
   </template>
 
   <template v-else-if="diary.analysisStatus === 'skipped_user'">
@@ -122,11 +123,25 @@
     <p class="feedback" style="color: var(--color-text-muted);">
       {{ diary.analysisError || '这次分析没有完成，日记内容已经保存。' }}
     </p>
+    <button class="analysis-retry-button" :disabled="retrying" @click="showRetry = true">重新分析</button>
   </template>
 
   <template v-else-if="diary.analysisStatus === 'cancelled'">
     <p class="feedback" style="color: var(--color-text-muted);">这篇日记已删除，未继续分析。</p>
   </template>
+  <n-modal v-model:show="showRetry">
+    <div class="analysis-retry-modal">
+      <p class="analysis-retry-title">选择分析模型</p>
+      <label v-for="option in modelOptions" :key="option.label" class="analysis-retry-option">
+        <input v-model="retryUseReasoning" type="radio" :value="option.value" />
+        <span>{{ option.label }}</span>
+      </label>
+      <div class="analysis-retry-actions">
+        <button class="analysis-retry-cancel" @click="showRetry = false">取消</button>
+        <button class="analysis-retry-confirm" :disabled="retrying" @click="confirmRetry">开始分析</button>
+      </div>
+    </div>
+  </n-modal>
 </template>
 
 <script setup lang="ts">
@@ -135,9 +150,25 @@ import { NModal } from 'naive-ui'
 import type { Diary } from '../stores/diary'
 import { moodColor } from '../utils/mood'
 import { renderSafeMarkdown } from '../utils/markdown'
+import { useDiaryStore } from '../stores/diary'
 
 const props = defineProps<{ diary: Diary }>()
 const showGuide = ref(false)
+const showRetry = ref(false)
+const retrying = ref(false)
+const retryUseReasoning = ref(false)
+const store = useDiaryStore()
+const modelOptions = [{ label: '普通分析', value: false }, { label: '深度思考', value: true }]
+
+async function confirmRetry() {
+  retrying.value = true
+  try {
+    await store.refreshAnalysis(props.diary.id, retryUseReasoning.value)
+    showRetry.value = false
+  } finally {
+    retrying.value = false
+  }
+}
 
 function renderMd(text: string) {
   return renderSafeMarkdown(text)
@@ -513,4 +544,12 @@ onUnmounted(() => {
     font-size: 0.7rem;
   }
 }
+.analysis-retry-button { margin-top: 10px; padding: 6px 14px; border: 1px solid var(--color-primary, #4f745e); border-radius: 5px; background: transparent; color: var(--color-primary, #4f745e); cursor: pointer; }
+.analysis-retry-button:disabled { cursor: wait; opacity: .55; }
+.analysis-retry-modal { width: min(360px, calc(100vw - 40px)); padding: 22px; border-radius: 8px; background: var(--color-surface, #fff); box-sizing: border-box; }
+.analysis-retry-title { margin: 0 0 14px; font-weight: 650; }
+.analysis-retry-option { display: flex; gap: 9px; align-items: center; margin: 12px 0; cursor: pointer; }
+.analysis-retry-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.analysis-retry-cancel, .analysis-retry-confirm { padding: 7px 14px; border: 1px solid var(--color-border, #d6ded8); border-radius: 5px; background: transparent; cursor: pointer; }
+.analysis-retry-confirm { border-color: var(--color-primary, #4f745e); background: var(--color-primary, #4f745e); color: #fff; }
 </style>

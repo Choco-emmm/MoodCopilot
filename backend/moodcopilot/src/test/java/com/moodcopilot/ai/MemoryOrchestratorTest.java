@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -84,5 +85,52 @@ class MemoryOrchestratorTest {
 
         verify(candidateMapper).insert(any(UserMemoryCandidateEntity.class));
         verify(memoryMapper, never()).insert(any(UserProfileMemoryEntity.class));
+    }
+
+    @Test
+    void equivalentApprovedCandidateAbsorbsPendingCandidateWithoutDuplicatePromotion() {
+        UserProfileMemoryMapper memoryMapper = mock(UserProfileMemoryMapper.class);
+        UserMemoryCandidateMapper candidateMapper = mock(UserMemoryCandidateMapper.class);
+        UserMemoryEvidenceMapper evidenceMapper = mock(UserMemoryEvidenceMapper.class);
+        UserMemoryRejectionMapper rejectionMapper = mock(UserMemoryRejectionMapper.class);
+        NotificationService notificationService = mock(NotificationService.class);
+
+        UserMemoryCandidateEntity approved = candidate(1L, "APPROVED", .92,
+                "对QG工作室表现出强烈向往，希望加入其中");
+        UserMemoryCandidateEntity pending = candidate(3L, "PENDING", .90,
+                "对qg工作室表现出强烈向往，希望加入其中");
+        when(rejectionMapper.selectCount(any())).thenReturn(0L);
+        when(candidateMapper.selectList(any())).thenReturn(List.of(approved, pending));
+        when(evidenceMapper.selectList(any())).thenReturn(List.of());
+        when(evidenceMapper.selectCount(any())).thenReturn(0L);
+        when(memoryMapper.selectList(any())).thenReturn(List.of());
+
+        MemoryOrchestrator orchestrator = new MemoryOrchestrator(memoryMapper, candidateMapper, evidenceMapper,
+                rejectionMapper, mock(RagMemoryService.class), new ObjectMapper(), notificationService);
+
+        orchestrator.processExtractedMemories(1006L,
+                List.of(new MemoryExtractionService.MemoryAttribute("兴趣意向", "对qg工作室表现出强烈向往，希望加入其中",
+                        false, "preference", "inferred", .93, "用户表达希望加入QG工作室", null, null)),
+                "diary_inferred", 2015L, null, "我爱吃面包", null);
+
+        assertEquals("MERGED", pending.getStatus());
+        assertEquals(1L, pending.getMergedIntoId());
+        verify(candidateMapper, never()).insert(any(UserMemoryCandidateEntity.class));
+        verifyNoInteractions(notificationService);
+    }
+
+    private UserMemoryCandidateEntity candidate(Long id, String status, double confidence, String value) {
+        UserMemoryCandidateEntity candidate = new UserMemoryCandidateEntity();
+        candidate.setId(id);
+        candidate.setUserId(1006L);
+        candidate.setAttributeKey("兴趣意向");
+        candidate.setNormalizedValue(value.toLowerCase());
+        candidate.setAttributeValue(value);
+        candidate.setMemoryType("preference");
+        candidate.setSourceType("diary_inferred");
+        candidate.setConfidence(confidence);
+        candidate.setIsCore(false);
+        candidate.setStatus(status);
+        return candidate;
     }
 }

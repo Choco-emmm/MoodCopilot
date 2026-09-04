@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.config.RabbitMqConfig;
+import com.moodcopilot.entity.DiaryEntity;
+import com.moodcopilot.mapper.DiaryMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
@@ -27,11 +29,14 @@ public class AiTaskService {
     private static final String NODE_ID = "node-" + UUID.randomUUID();
 
     private final AiTaskMapper taskMapper;
+    private final DiaryMapper diaryMapper;
     private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
 
-    public AiTaskService(AiTaskMapper taskMapper, RabbitTemplate rabbitTemplate, ObjectMapper objectMapper) {
+    public AiTaskService(AiTaskMapper taskMapper, DiaryMapper diaryMapper,
+                         RabbitTemplate rabbitTemplate, ObjectMapper objectMapper) {
         this.taskMapper = taskMapper;
+        this.diaryMapper = diaryMapper;
         this.rabbitTemplate = rabbitTemplate;
         this.objectMapper = objectMapper;
     }
@@ -103,7 +108,6 @@ public class AiTaskService {
                                 .and(y -> y.isNull(AiTaskEntity::getNextRetryAt)
                                         .or().le(AiTaskEntity::getNextRetryAt, now)))
                         .or(x -> x.eq(AiTaskEntity::getStatus, "RUNNING")
-                                .eq(AiTaskEntity::getLeaseOwner, NODE_ID)
                                 .isNull(AiTaskEntity::getStartedAt)
                                 .gt(AiTaskEntity::getLeaseUntil, now)))
                 .set(AiTaskEntity::getStatus, "RUNNING")
@@ -121,12 +125,15 @@ public class AiTaskService {
 
     @Transactional
     public void markSucceeded(String taskId, String leaseOwner) {
-        taskMapper.update(null, new LambdaUpdateWrapper<AiTaskEntity>()
+        int updated = taskMapper.update(null, new LambdaUpdateWrapper<AiTaskEntity>()
                 .eq(AiTaskEntity::getTaskId, taskId).eq(AiTaskEntity::getStatus, "RUNNING")
                 .eq(AiTaskEntity::getLeaseOwner, leaseOwner)
                 .set(AiTaskEntity::getStatus, "SUCCEEDED")
                 .set(AiTaskEntity::getLeaseOwner, null).set(AiTaskEntity::getLeaseUntil, null)
                 .set(AiTaskEntity::getFinishedAt, LocalDateTime.now()).set(AiTaskEntity::getLastError, null));
+        if (updated == 0) {
+            log.debug("忽略失效租约的成功回写，taskId={}，leaseOwner={}", taskId, leaseOwner);
+        }
     }
 
     @Transactional
@@ -155,24 +162,27 @@ public class AiTaskService {
         String message = truncate(error == null ? "unknown error" : error.getMessage(), 2000);
         if (!permanent && task.getAttempts() != null && task.getAttempts() < task.getMaxAttempts()) {
             long delaySeconds = 1L << Math.min(task.getAttempts(), 3);
-            taskMapper.update(null, new LambdaUpdateWrapper<AiTaskEntity>()
+            int updated = taskMapper.update(null, new LambdaUpdateWrapper<AiTaskEntity>()
                     .eq(AiTaskEntity::getTaskId, taskId).eq(AiTaskEntity::getStatus, "RUNNING")
                     .eq(AiTaskEntity::getLeaseOwner, leaseOwner)
                     .set(AiTaskEntity::getStatus, "RETRY_WAIT")
                     .set(AiTaskEntity::getNextRetryAt, LocalDateTime.now().plusSeconds(delaySeconds))
                     .set(AiTaskEntity::getLastError, message)
                     .set(AiTaskEntity::getLeaseOwner, null).set(AiTaskEntity::getLeaseUntil, null));
-            log.warn("AI task will retry, taskId={}, attempt={}, error={}", taskId, task.getAttempts(), message);
+            if (updated == 1) log.warn("AI task will retry, taskId={}, attempt={}, error={}", taskId, task.getAttempts(), message);
         } else {
-            taskMapper.update(null, new LambdaUpdateWrapper<AiTaskEntity>()
+            int updated = taskMapper.update(null, new LambdaUpdateWrapper<AiTaskEntity>()
                     .eq(AiTaskEntity::getTaskId, taskId).eq(AiTaskEntity::getStatus, "RUNNING")
                     .eq(AiTaskEntity::getLeaseOwner, leaseOwner)
                     .set(AiTaskEntity::getStatus, "DEAD_LETTER")
                     .set(AiTaskEntity::getLastError, message)
                     .set(AiTaskEntity::getLeaseOwner, null).set(AiTaskEntity::getLeaseUntil, null)
                     .set(AiTaskEntity::getFinishedAt, LocalDateTime.now()));
-            log.error("AI task moved to dead letter, taskId={}, attempts={}, permanent={}, error={}", taskId,
-                    task.getAttempts(), permanent, message);
+            if (updated == 1) {
+                log.error("AI task moved to dead letter, taskId={}, attempts={}, permanent={}, error={}", taskId,
+                        task.getAttempts(), permanent, message);
+                markRelatedDiaryFailed(task, message);
+            }
         }
     }
 
@@ -199,9 +209,10 @@ public class AiTaskService {
             update.set(AiTaskEntity::getStatus, "DEAD_LETTER")
                     .set(AiTaskEntity::getFinishedAt, LocalDateTime.now());
         }
-        taskMapper.update(null, update);
-        log.warn("AI 任务投递失败，taskId={}，attempt={}，status={}", taskId, attempts + 1,
-                attempts + 1 < maxAttempts ? "RETRY_WAIT" : "DEAD_LETTER");
+        if (taskMapper.update(null, update) == 1) {
+            log.warn("AI 任务投递失败，taskId={}，attempt={}，status={}", taskId, attempts + 1,
+                    attempts + 1 < maxAttempts ? "RETRY_WAIT" : "DEAD_LETTER");
+        }
     }
 
     @Transactional
@@ -211,8 +222,60 @@ public class AiTaskService {
                 .eq(AiTaskEntity::getStatus, "RUNNING").lt(AiTaskEntity::getLeaseUntil, now).last("LIMIT 100"));
         for (AiTaskEntity task : expired) {
             if (task.getLeaseOwner() != null) {
-                markFailed(task.getTaskId(), task.getLeaseOwner(), new IllegalStateException("task lease expired"));
+                if (task.getStartedAt() == null) {
+                    markDispatchFailed(task.getTaskId(), new IllegalStateException("任务投递租约超时"));
+                } else if (markLeaseExpired(task, now) && "DEAD_LETTER".equals(task.getStatus())) {
+                    markRelatedDiaryFailed(task, task.getLastError());
+                }
             }
+        }
+    }
+
+    /**
+     * 只允许当前租约所有者把超时任务推进到重试或死信，避免旧消费者覆盖新执行结果。
+     */
+    @Transactional
+    public boolean markLeaseExpired(AiTaskEntity task, LocalDateTime now) {
+        // attempts 在 claimForRun 原子领取执行租约时递增；恢复阶段不能重复计数。
+        int attempts = task.getAttempts() == null ? 0 : task.getAttempts();
+        int maxAttempts = task.getMaxAttempts() == null ? MAX_ATTEMPTS : task.getMaxAttempts();
+        String message = attempts < maxAttempts
+                ? "AI 任务租约超时，已进入自动重试"
+                : "AI 任务租约超时，已停止自动重试";
+        task.setLastError(message);
+        task.setStatus(attempts < maxAttempts ? "RETRY_WAIT" : "DEAD_LETTER");
+        LambdaUpdateWrapper<AiTaskEntity> update = new LambdaUpdateWrapper<AiTaskEntity>()
+                .eq(AiTaskEntity::getTaskId, task.getTaskId())
+                .eq(AiTaskEntity::getStatus, "RUNNING")
+                .eq(AiTaskEntity::getLeaseOwner, task.getLeaseOwner())
+                .le(AiTaskEntity::getLeaseUntil, now)
+                .set(AiTaskEntity::getLastError, message)
+                .set(AiTaskEntity::getLeaseOwner, null)
+                .set(AiTaskEntity::getLeaseUntil, null);
+        if (attempts < maxAttempts) {
+            update.set(AiTaskEntity::getStatus, "RETRY_WAIT")
+                    .set(AiTaskEntity::getNextRetryAt, now.plusSeconds(1L << Math.min(attempts, 3)));
+        } else {
+            update.set(AiTaskEntity::getStatus, "DEAD_LETTER")
+                    .set(AiTaskEntity::getNextRetryAt, null)
+                    .set(AiTaskEntity::getFinishedAt, now);
+        }
+        return taskMapper.update(null, update) == 1;
+    }
+
+    private void markRelatedDiaryFailed(AiTaskEntity task, String error) {
+        if (!AiTaskMessage.TYPE_DIARY_ANALYSIS.equals(task.getTaskType()) || diaryMapper == null
+                || task.getAggregateId() == null) return;
+        try {
+            DiaryEntity diary = new DiaryEntity();
+            diary.setId(Long.valueOf(task.getAggregateId()));
+            diary.setAnalysisStatus("failed");
+            diary.setAnalysisError(error == null ? task.getLastError() : error);
+            diaryMapper.updateById(diary);
+            log.warn("日记分析任务最终失败，已更新日记失败状态，diaryId={}，taskStatus={}",
+                    task.getAggregateId(), task.getStatus());
+        } catch (NumberFormatException e) {
+            log.warn("无法更新超时日记状态，aggregateId={}", task.getAggregateId());
         }
     }
 
@@ -233,7 +296,23 @@ public class AiTaskService {
                 .and(w -> w.isNull(AiTaskEntity::getLeaseUntil).or().lt(AiTaskEntity::getLeaseUntil, now))
                 .set(AiTaskEntity::getStatus, "RUNNING")
                 .set(AiTaskEntity::getLeaseOwner, NODE_ID)
-                .set(AiTaskEntity::getLeaseUntil, now.plusSeconds(DISPATCH_LEASE_SECONDS))) == 1;
+                .set(AiTaskEntity::getLeaseUntil, now.plusSeconds(DISPATCH_LEASE_SECONDS))
+                .set(AiTaskEntity::getStartedAt, null)) == 1;
+    }
+
+    @Transactional
+    public void cancelPendingDiaryAnalysisTasks(long diaryId, long userId) {
+        int cancelled = taskMapper.update(null, new LambdaUpdateWrapper<AiTaskEntity>()
+                .eq(AiTaskEntity::getUserId, userId)
+                .eq(AiTaskEntity::getAggregateId, String.valueOf(diaryId))
+                .eq(AiTaskEntity::getTaskType, AiTaskMessage.TYPE_DIARY_ANALYSIS)
+                .in(AiTaskEntity::getStatus, "PENDING_DISPATCH", "PUBLISHED", "RETRY_WAIT")
+                .set(AiTaskEntity::getStatus, "CANCELLED")
+                .set(AiTaskEntity::getLeaseOwner, null)
+                .set(AiTaskEntity::getLeaseUntil, null)
+                .set(AiTaskEntity::getFinishedAt, LocalDateTime.now())
+                .set(AiTaskEntity::getLastError, "被新的用户重新分析请求替换"));
+        if (cancelled > 0) log.info("取消旧的日记分析任务，diaryId={}，count={}", diaryId, cancelled);
     }
 
     private String routingKey(String taskType) {

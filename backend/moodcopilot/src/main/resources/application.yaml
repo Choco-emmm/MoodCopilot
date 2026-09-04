@@ -68,6 +68,7 @@ spring:
       time-to-live: 120000
       cache-null-values: false
   ai:
+    http-timeout-seconds: ${AI_HTTP_TIMEOUT_SECONDS:90}
     retry:
       max-attempts: 5
       backoff:

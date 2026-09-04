@@ -247,6 +247,15 @@ export const useDiaryStore = defineStore('diary', () => {
       try {
         const res = await diaryApi.get(diaryId)
         const updated = normalize(res.data.data)
+        if (updated.analysisStatus === 'failed' || updated.analysisStatus === 'failed_limit'
+          || updated.analysisStatus === 'skipped_quota' || updated.analysisStatus === 'skipped_user') {
+          if (activeDiary.value?.id === diaryId) activeDiary.value = updated
+          mergeDiary(updated)
+          analysisStatus.value = 'failed'
+          errorMessage.value = updated.analysisError || 'AI 分析没有完成，请选择模型后重试'
+          clearAnalysisPollTimer()
+          return
+        }
         if (updated.analysis != null) {
           if (activeDiary.value?.id === diaryId) {
             activeDiary.value = updated
@@ -272,21 +281,30 @@ export const useDiaryStore = defineStore('diary', () => {
     analysisPollAttempts = 0
   }
 
-  async function refreshAnalysis(diaryId: number) {
+  async function refreshAnalysis(diaryId: number, useReasoning = false) {
     analysisStatus.value = 'analyzing'
+    errorMessage.value = null
     try {
-      const res = await diaryApi.get(diaryId)
+      const res = await diaryApi.retryAnalysis(diaryId, useReasoning)
       const updated = normalize(res.data.data)
       activeDiary.value = updated
       mergeDiary(updated)
+      if (updated.analysisStatus === 'analyzing' && !updated.analysis) {
+        pollAnalysis(diaryId)
+        return updated
+      }
       analysisStatus.value = updated.analysis ? 'complete' : 'failed'
+      errorMessage.value = updated.analysisError || null
       if (updated.analysis) {
         globalAnalysisDiary.value = updated
         showGlobalAnalysisModal.value = true
       }
+      return updated
     } catch (e) {
       logWarn('diary', '刷新分析失败', diaryId, e)
       analysisStatus.value = 'failed'
+      errorMessage.value = '重新分析提交失败，请稍后再试'
+      throw e
     }
   }
 

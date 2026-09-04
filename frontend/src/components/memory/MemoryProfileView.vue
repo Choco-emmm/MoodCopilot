@@ -11,15 +11,65 @@
          刷新
       </n-button>
     </div>
-    <p class="memory-desc">MoodCopilot 从你的日记和聊天中学习的长期画像，你可以编辑修正或删除不想要的部分。如果碎片太多，可以尝试智能整理归并。</p>
+    <p class="memory-desc">这里保存 MoodCopilot 从日记和聊天中整理出的个人记忆。近期状态仅用于当前关怀参考，不会作为核心长期画像。</p>
     <section v-if="candidates.length" class="candidate-section" aria-label="待确认记忆">
       <div class="candidate-head"><span>待确认的记忆</span><small>这些是 AI 的推断，确认后才会进入正式画像</small></div>
-      <div v-for="candidate in candidates" :key="candidate.id" class="candidate-item">
-        <div class="candidate-copy"><strong>{{ candidate.attributeKey }}</strong><span>{{ candidate.attributeValue }}</span><small>{{ candidate.evidenceSummary || '暂无证据摘要' }}</small><small>来源：{{ candidate.sourceType }} · {{ candidate.sourceDiaryId ? `日记 #${candidate.sourceDiaryId}` : (candidate.sourceConversationId ? `会话 #${candidate.sourceConversationId}` : '用户整理') }}</small></div>
+      <div v-for="group in candidateGroups" :key="group.key" class="candidate-group">
+      <div v-if="group.hasConflict" class="candidate-conflict-note">同一属性存在不同候选，请分别确认；系统不会替你合并冲突内容。</div>
+      <div v-for="candidate in group.items" :key="candidate.id" class="candidate-item">
+        <div class="candidate-copy">
+          <strong>{{ candidate.attributeKey }} <n-tag v-if="isSafetyState(candidate)" size="small" type="warning">近期状态</n-tag></strong>
+          <span>{{ candidate.attributeValue }}</span>
+          <small>{{ isSafetyState(candidate) ? '这是需要关注的近期状态，不属于核心长期画像。' : (candidate.evidenceSummary || '暂无证据摘要') }}</small>
+          <small>已有 {{ candidate.evidenceCount || 0 }} 条依据</small>
+          <div class="memory-source-row">
+            <span class="memory-source-label">{{ sourceTypeLabel(candidate) }}</span>
+            <div v-if="diarySourcesFor(candidate).length === 1" class="source-diary-card">
+              <div class="source-diary-copy">
+                <span class="source-diary-date">{{ diarySourceDate(diarySourcesFor(candidate)[0]) }}</span>
+                <span class="source-diary-excerpt">“{{ diarySourceExcerpt(diarySourcesFor(candidate)[0]) }}”</span>
+              </div>
+              <n-button text type="primary" size="tiny" class="source-diary-open" @click="openDiary(diarySourcesFor(candidate)[0].id)">查看日记 <span aria-hidden="true">→</span></n-button>
+            </div>
+            <n-popover v-if="diarySourcesFor(candidate).length > 1" trigger="click" placement="bottom-start">
+              <template #trigger>
+                <n-button secondary type="primary" size="tiny" class="source-diary-trigger">
+                  <span>关联日记 {{ diarySourcesFor(candidate).length }} 篇</span>
+                  <span aria-hidden="true">查看 →</span>
+                </n-button>
+              </template>
+              <div class="source-popover-list">
+                <n-button v-for="diary in diarySourcesFor(candidate)" :key="diary.id" text type="primary" size="small" class="source-diary-option" @click="openDiary(diary.id)">
+                  <span class="source-option-date">{{ diarySourceDate(diary) }}</span>
+                  <span class="source-option-excerpt">“{{ diarySourceExcerpt(diary) }}”</span>
+                  <span class="source-option-arrow" aria-hidden="true">→</span>
+                </n-button>
+              </div>
+            </n-popover>
+            <n-button v-if="conversationIdsFor(candidate).length" text type="primary" size="tiny" @click="openConversation(conversationIdsFor(candidate)[0])">查看关联会话 →</n-button>
+            <span v-if="!diaryIdsFor(candidate).length && !conversationIdsFor(candidate).length" class="memory-source-empty">暂无原始来源</span>
+          </div>
+        </div>
         <div class="candidate-actions">
+          <n-button size="small" secondary @click="toggleCandidateDetails(candidate.id)">{{ candidateDetailsId === candidate.id ? '收起依据' : '查看依据' }}</n-button>
           <n-button size="small" secondary type="primary" @click="approveCandidate(candidate.id)">确认</n-button>
           <n-button size="small" secondary @click="rejectCandidate(candidate.id)">拒绝</n-button>
         </div>
+        <div v-if="candidateDetailsId === candidate.id" class="candidate-details">
+          <span v-if="candidateDetailsLoading">正在加载依据...</span>
+          <template v-else>
+            <div v-for="item in candidateEvidence" :key="item.id" class="memory-detail-line">
+              <span>{{ item.evidenceDate || '未标日期' }}</span>
+              <small>{{ item.evidenceText }}</small>
+              <div v-if="item.sourceDiaryId" class="evidence-source-link">
+                <span>{{ diarySourceExcerpt(item.sourceDiaryPreview || { id: item.sourceDiaryId }) }}</span>
+                <n-button text type="primary" size="tiny" @click="openDiary(item.sourceDiaryId)">查看日记 →</n-button>
+              </div>
+            </div>
+            <span v-if="!candidateEvidence.length">暂无可展示的依据。</span>
+          </template>
+        </div>
+      </div>
       </div>
     </section>
     <div v-if="memoriesLoading" class="memory-loading" style="text-align: center; padding: 40px 0;">
@@ -50,11 +100,13 @@
                 class="memory-edit-input"
                 :maxlength="500"
               />
-              <n-checkbox v-model:checked="editingMemoryIsCore">设为核心属性</n-checkbox>
+              <n-checkbox v-if="!isSafetyStateByValue(editingMemoryValue, editingMemoryId)" v-model:checked="editingMemoryIsCore">设为核心属性</n-checkbox>
+              <small v-else class="memory-safety-note">近期状态不可设为核心长期画像。</small>
             </div>
           </template>
           <div v-else class="memory-value">
-            <n-tag v-if="m.isCore" size="small" type="warning" style="margin-right: 6px; vertical-align: top;">
+            <n-tag v-if="isSafetyState(m)" size="small" type="warning" style="margin-right: 6px; vertical-align: top;">近期状态</n-tag>
+            <n-tag v-else-if="m.isCore" size="small" type="warning" style="margin-right: 6px; vertical-align: top;">
               核心
               <n-popover trigger="hover" placement="top" style="max-width: 280px; font-size: 13px;">
                 <template #trigger>
@@ -64,7 +116,9 @@
               </n-popover>
             </n-tag>
             {{ m.attributeValue }}
+            <small v-if="isSafetyState(m)" class="memory-safety-note">仅作为近期关怀参考，不是诊断，也不会作为核心画像长期注入。</small>
           </div>
+          <small v-if="m.updatedAt || m.updateTime" class="memory-updated">最近更新 {{ formatMemoryTime(m.updatedAt || m.updateTime) }}</small>
         </div>
         <div class="memory-actions">
           <template v-if="editingMemoryId === m.id">
@@ -74,27 +128,54 @@
             <n-button size="small" secondary @click="cancelEditMemory">取消</n-button>
           </template>
           <template v-else>
-            <n-button size="small" secondary @click="toggleDetails(m.id)">{{ detailsMemoryId === m.id ? '收起依据' : '查看依据' }}</n-button>
+            <n-button size="small" secondary @click="toggleDetails(m.id)">{{ expandedMemoryIds.has(m.id) ? '收起形成依据' : '查看形成依据' }}</n-button>
             <n-button size="small" secondary @click="startEditMemory(m)">编辑</n-button>
             <n-button size="small" secondary type="error" :disabled="deletingMemoryId === m.id" @click="forgetMemory(m.id)">
               {{ deletingMemoryId === m.id ? '...' : '删除' }}
             </n-button>
           </template>
         </div>
-        <div v-if="detailsMemoryId === m.id" class="memory-details">
-        <div class="memory-detail-title">证据与版本历史</div>
-        <div v-if="detailsLoading" class="memory-detail-muted">正在加载...</div>
+        <div v-if="expandedMemoryIds.has(m.id)" class="memory-details">
+        <div v-if="detailsLoadingIds.has(m.id)" class="memory-detail-muted">正在加载...</div>
+        <div v-else-if="memoryDetailsErrorIds.has(m.id)" class="memory-detail-error">
+          <span>依据暂时无法加载。</span>
+          <n-button size="tiny" secondary @click="loadMemoryDetails(m.id)">重新加载</n-button>
+        </div>
         <template v-else>
-          <div v-if="memoryEvidence.length" class="memory-detail-list">
-            <div v-for="item in memoryEvidence" :key="`e-${item.id}`" class="memory-detail-line">
-              <span>{{ item.evidenceDate || '未标日期' }} · {{ item.sourceType }}</span>
-              <small>{{ item.evidenceText }}</small>
+          <section class="memory-evidence-section">
+            <div class="memory-detail-heading">
+              <div>
+                <div class="memory-detail-title">形成依据</div>
+                <p class="memory-detail-hint">这些是帮助 AI 形成这条记忆的原始记录，可打开日记进行核对。</p>
+              </div>
+              <span v-if="memoryEvidenceById[m.id]?.length" class="memory-detail-count">{{ memoryEvidenceById[m.id].length }} 条记录</span>
             </div>
-          </div>
-          <div v-else class="memory-detail-muted">暂无可展示的证据。</div>
-          <div v-if="memoryHistory.length" class="memory-detail-history">
-            <span v-for="item in memoryHistory" :key="`h-${item.id}`">{{ item.attributeValue }} · {{ item.status }}</span>
-          </div>
+            <div v-if="memoryEvidenceById[m.id]?.length" class="memory-evidence-list">
+              <article v-for="item in memoryEvidenceById[m.id]" :key="`e-${item.id}`" class="memory-evidence-item">
+                <div class="memory-evidence-meta">
+                  <span>{{ item.evidenceDate || '日期未记录' }}</span>
+                  <span>{{ sourceTypeLabel(item) }}</span>
+                </div>
+                <p class="memory-evidence-text">{{ item.evidenceText }}</p>
+                <div v-if="item.sourceDiaryId" class="evidence-source-link">
+                  <span>{{ diarySourceExcerpt(item.sourceDiaryPreview || { id: item.sourceDiaryId }) }}</span>
+                  <n-button text type="primary" size="tiny" class="evidence-diary-open" @click="openDiary(item.sourceDiaryId)">打开日记 <span aria-hidden="true">→</span></n-button>
+                </div>
+              </article>
+            </div>
+            <div v-else class="memory-detail-muted">暂时没有可展示的原始记录。</div>
+          </section>
+          <section v-if="historicalVersions(m.id).length" class="memory-history-section">
+            <n-button text type="primary" size="small" class="memory-history-toggle" @click="toggleHistory(m.id)">
+              {{ expandedHistoryIds.has(m.id) ? '收起版本变化' : `查看版本变化（${historicalVersions(m.id).length}）` }}
+            </n-button>
+            <div v-if="expandedHistoryIds.has(m.id)" class="memory-history-list">
+              <article v-for="item in historicalVersions(m.id)" :key="`h-${item.id}`" class="memory-history-item">
+                <p class="memory-history-value">{{ item.attributeValue }}</p>
+                <span class="memory-history-meta">{{ memoryStatusLabel(item.status) }}<template v-if="item.updatedAt || item.updateTime || item.supersededAt"> · {{ formatMemoryTime(item.updatedAt || item.updateTime || item.supersededAt) }}</template></span>
+              </article>
+            </div>
+          </section>
         </template>
         </div>
       </div>
@@ -103,8 +184,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { NButton, NSpin, NInput, NTag, NCheckbox, NPopover } from 'naive-ui'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { NButton, NSpin, NInput, NTag, NCheckbox, NPopover, useDialog } from 'naive-ui'
 import { memoryApi } from '../../api'
 import { logWarn } from '../../utils/logger'
 import { useConsolidationStore } from '../../stores/consolidation'
@@ -114,9 +196,13 @@ interface MemoryItem {
   attributeKey: string
   attributeValue: string
   isCore?: boolean
+  sourceDiaryId?: number | null
+  sourceConversationId?: number | null
 }
 
 const store = useConsolidationStore()
+const router = useRouter()
+const dialog = useDialog()
 const memoriesLoading = ref(false)
 const deletingMemoryId = ref<number | null>(null)
 const editingMemoryId = ref<number | null>(null)
@@ -124,10 +210,27 @@ const editingMemoryValue = ref('')
 const editingMemoryIsCore = ref(false)
 const savingMemoryId = ref<number | null>(null)
 const candidates = ref<any[]>([])
-const detailsMemoryId = ref<number | null>(null)
-const detailsLoading = ref(false)
-const memoryEvidence = ref<any[]>([])
-const memoryHistory = ref<any[]>([])
+const candidateDetailsId = ref<number | null>(null)
+const candidateDetailsLoading = ref(false)
+const candidateEvidence = ref<any[]>([])
+const expandedMemoryIds = ref<Set<number>>(new Set())
+const detailsLoadingIds = ref<Set<number>>(new Set())
+const memoryDetailsErrorIds = ref<Set<number>>(new Set())
+const memoryDetailsLoadedIds = ref<Set<number>>(new Set())
+const expandedHistoryIds = ref<Set<number>>(new Set())
+const memoryEvidenceById = ref<Record<number, any[]>>({})
+const memoryHistoryById = ref<Record<number, any[]>>({})
+const candidateGroups = computed(() => {
+  const groups = new Map<string, { key: string; items: any[]; hasConflict: boolean }>()
+  for (const candidate of candidates.value) {
+    const key = candidate.candidateGroupKey || `${candidate.memoryType || 'memory'}:${candidate.attributeKey}`
+    const group = groups.get(key) || { key, items: [] as any[], hasConflict: false }
+    group.items.push(candidate)
+    group.hasConflict = group.hasConflict || Boolean(candidate.hasConflict)
+    groups.set(key, group)
+  }
+  return [...groups.values()]
+})
 
 onMounted(() => {
   loadMemories()
@@ -149,10 +252,60 @@ async function loadCandidates() {
   }
 }
 
+function diaryIdsFor(item: any): number[] {
+  return [...new Set([...(item.sourceDiaryIds || []), item.sourceDiaryId].filter(Boolean).map(Number))]
+}
+
+type DiarySourcePreview = { id: number; createdAt?: string | null; excerpt?: string | null }
+
+function diarySourcesFor(item: any): DiarySourcePreview[] {
+  const previews = Array.isArray(item.sourceDiaryPreviews)
+    ? item.sourceDiaryPreviews.filter((source: any) => source?.id)
+    : []
+  return previews.length ? previews : diaryIdsFor(item).map(id => ({ id }))
+}
+
+function diarySourceDate(source: DiarySourcePreview): string {
+  return source.createdAt ? formatDiarySourceDate(source.createdAt) : '日期未知'
+}
+
+function diarySourceExcerpt(source: DiarySourcePreview): string {
+  return source.excerpt?.trim() || '打开查看日记内容'
+}
+
+function formatDiarySourceDate(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value.replace('T', ' ').slice(0, 10)
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+function conversationIdsFor(item: any): number[] {
+  return [...new Set([...(item.sourceConversationIds || []), item.sourceConversationId].filter(Boolean).map(Number))]
+}
+
+function sourceTypeLabel(item: any): string {
+  if (diaryIdsFor(item).length) return '来自日记'
+  if (conversationIdsFor(item).length) return '来自聊天'
+  if (item.sourceType === 'USER_ACTION') return '用户整理'
+  if (item.sourceType === 'explicit') return '用户确认'
+  if (item.sourceType === 'system') return '系统整理'
+  return '暂无原始来源'
+}
+
+function formatMemoryTime(value: string | null | undefined): string {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value).replace('T', ' ').slice(0, 16)
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 async function approveCandidate(id: number) {
   await memoryApi.approveCandidate(id)
-  candidates.value = candidates.value.filter(candidate => candidate.id !== id)
-  await store.loadMemories()
+  await loadMemories()
+  resetMemoryDetails()
+  window.$message?.success('记忆已确认')
 }
 
 async function rejectCandidate(id: number) {
@@ -160,24 +313,86 @@ async function rejectCandidate(id: number) {
   candidates.value = candidates.value.filter(candidate => candidate.id !== id)
 }
 
-async function toggleDetails(id: number) {
-  if (detailsMemoryId.value === id) {
-    detailsMemoryId.value = null
+async function toggleCandidateDetails(id: number) {
+  if (candidateDetailsId.value === id) {
+    candidateDetailsId.value = null
+    candidateEvidence.value = []
     return
   }
-  detailsMemoryId.value = id
-  detailsLoading.value = true
+  candidateDetailsId.value = id
+  candidateDetailsLoading.value = true
+  candidateEvidence.value = []
+  try {
+    const response = await memoryApi.getCandidateEvidence(id)
+    candidateEvidence.value = response.data.data || []
+  } catch (e) {
+    logWarn('memory', '加载候选依据失败', id, e)
+  } finally {
+    candidateDetailsLoading.value = false
+  }
+}
+
+async function toggleDetails(id: number) {
+  if (expandedMemoryIds.value.has(id)) {
+    const next = new Set(expandedMemoryIds.value)
+    next.delete(id)
+    expandedMemoryIds.value = next
+    return
+  }
+
+  expandedMemoryIds.value = new Set(expandedMemoryIds.value).add(id)
+  if (memoryDetailsLoadedIds.value.has(id)) return
+  await loadMemoryDetails(id)
+}
+
+async function loadMemoryDetails(id: number) {
+  detailsLoadingIds.value = new Set(detailsLoadingIds.value).add(id)
+  const nextErrors = new Set(memoryDetailsErrorIds.value)
+  nextErrors.delete(id)
+  memoryDetailsErrorIds.value = nextErrors
   try {
     const [evidence, history] = await Promise.all([memoryApi.getEvidence(id), memoryApi.getHistory(id)])
-    memoryEvidence.value = evidence.data.data || []
-    memoryHistory.value = history.data.data || []
+    memoryEvidenceById.value = { ...memoryEvidenceById.value, [id]: evidence.data.data || [] }
+    memoryHistoryById.value = { ...memoryHistoryById.value, [id]: history.data.data || [] }
+    memoryDetailsLoadedIds.value = new Set(memoryDetailsLoadedIds.value).add(id)
   } catch (e) {
-    memoryEvidence.value = []
-    memoryHistory.value = []
+    memoryDetailsErrorIds.value = new Set(memoryDetailsErrorIds.value).add(id)
     logWarn('memory', '加载记忆依据失败', id, e)
   } finally {
-    detailsLoading.value = false
+    const nextLoading = new Set(detailsLoadingIds.value)
+    nextLoading.delete(id)
+    detailsLoadingIds.value = nextLoading
   }
+}
+
+function toggleHistory(id: number) {
+  const next = new Set(expandedHistoryIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedHistoryIds.value = next
+}
+
+function resetMemoryDetails() {
+  expandedMemoryIds.value = new Set()
+  detailsLoadingIds.value = new Set()
+  memoryDetailsErrorIds.value = new Set()
+  memoryDetailsLoadedIds.value = new Set()
+  expandedHistoryIds.value = new Set()
+  memoryEvidenceById.value = {}
+  memoryHistoryById.value = {}
+}
+
+function historicalVersions(id: number) {
+  return (memoryHistoryById.value[id] || []).filter(item => item.id !== id)
+}
+
+function openDiary(id: number) {
+  router.push({ name: 'diary-detail', params: { id } })
+}
+
+function openConversation(id: number) {
+  sessionStorage.setItem('pendingChatConversationId', String(id))
+  router.push({ name: 'chat' })
 }
 
 function isRecentlyUpdated(item: any) {
@@ -187,7 +402,19 @@ function isRecentlyUpdated(item: any) {
   return Date.now() - ut < 5 * 60 * 1000
 }
 
-async function forgetMemory(id: number) {
+function forgetMemory(id: number) {
+  const memory = store.memories.find((item: any) => item.id === id)
+  dialog.warning({
+    title: '删除这条记忆？',
+    content: `删除后，这条记忆会从当前画像中移除，但历史记录仍会保留。系统会暂时记住你不想保留这条内容，避免 AI 很快又自动加回来；你之后明确表达新的事实时，仍可重新建立。${memory?.attributeKey ? `\n\n当前记忆：${memory.attributeKey}` : ''}`,
+    positiveText: '确认删除',
+    negativeText: '取消',
+    positiveButtonProps: { type: 'error' },
+    onPositiveClick: () => deleteMemory(id),
+  })
+}
+
+async function deleteMemory(id: number) {
   deletingMemoryId.value = id
   try {
     await memoryApi.forget(id)
@@ -202,7 +429,21 @@ async function forgetMemory(id: number) {
 function startEditMemory(m: MemoryItem) {
   editingMemoryId.value = m.id
   editingMemoryValue.value = m.attributeValue
-  editingMemoryIsCore.value = !!m.isCore
+  editingMemoryIsCore.value = isSafetyState(m) ? false : !!m.isCore
+}
+
+function isSafetyState(item: any) {
+  const text = `${item?.attributeKey || ''} ${item?.attributeValue || ''}`
+  return /自杀|自残|轻生|想死|不想活|结束生命|伤害自己|割腕|跳楼|心理危机|危机干预/.test(text)
+}
+
+function isSafetyStateByValue(value: string, id: number | null) {
+  const item = store.memories.find((memory: any) => memory.id === id)
+  return isSafetyState(item || { attributeValue: value })
+}
+
+function memoryStatusLabel(status: string) {
+  return ({ active: '当前内容', superseded: '已被新版本替代', expired: '已过期', rejected: '已移除' } as Record<string, string>)[status] || '历史内容'
 }
 
 async function saveMemory(id: number) {
@@ -213,14 +454,14 @@ async function saveMemory(id: number) {
   try {
     await memoryApi.update(id, { 
       attributeValue: value,
-      isCore: editingMemoryIsCore.value
+      isCore: isSafetyStateByValue(value, id) ? false : editingMemoryIsCore.value
     })
     const idx = store.memories.findIndex((m: any) => m.id === id)
     if (idx !== -1) {
       store.memories[idx] = { 
         ...store.memories[idx], 
         attributeValue: value,
-        isCore: editingMemoryIsCore.value
+        isCore: isSafetyStateByValue(value, id) ? false : editingMemoryIsCore.value
       }
     }
     editingMemoryId.value = null
@@ -252,23 +493,46 @@ function cancelEditMemory() {
 .candidate-section { margin: 18px 0 22px; padding: 14px 16px; border: 1px solid var(--color-border); border-left: 3px solid var(--color-primary); background: color-mix(in srgb, var(--color-primary) 4%, transparent); }
 .candidate-head { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; color: var(--color-text); font-size: 14px; font-weight: 700; }
 .candidate-head small, .candidate-copy small { color: var(--color-text-secondary); font-size: 12px; font-weight: 400; line-height: 1.5; }
-.candidate-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-top: 1px solid var(--color-border); }
+.candidate-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-top: 1px solid var(--color-border); }
+.candidate-group + .candidate-group { border-top: 1px solid var(--color-border); }
+.candidate-conflict-note { padding: 8px 0 0; color: #9a6a1f; font-size: 12px; }
+.candidate-details { flex-basis: 100%; width: 100%; margin-top: 10px; padding: 10px 0 0; border-top: 1px dashed var(--color-border); color: var(--color-text-secondary); font-size: 12px; }
 .candidate-copy { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
 .candidate-copy strong { color: var(--color-text); font-size: 13px; }
 .candidate-copy span { color: var(--color-text); font-size: 13px; line-height: 1.5; }
 .candidate-actions { display: flex; flex-shrink: 0; gap: 6px; }
 .memory-details { width: 100%; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border); color: var(--color-text-secondary); font-size: 12px; line-height: 1.5; }
-.memory-detail-title { color: var(--color-text); font-weight: 600; margin-bottom: 6px; }
+.memory-detail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.memory-detail-title { color: var(--color-text); font-weight: 700; margin-bottom: 3px; }
+.memory-detail-hint { margin: 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.5; }
+.memory-detail-count { flex: 0 0 auto; color: var(--color-text-muted); font-size: 12px; }
 .memory-detail-line { display: flex; flex-direction: column; gap: 2px; padding: 5px 0; }
 .memory-detail-line small { color: var(--color-text); white-space: pre-wrap; }
-.memory-detail-history { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.memory-detail-history span { padding: 2px 6px; border: 1px solid var(--color-border); }
+.memory-evidence-section { padding-bottom: 12px; }
+.memory-evidence-list { display: flex; flex-direction: column; margin-top: 12px; border-top: 1px solid var(--color-border); }
+.memory-evidence-item { display: grid; grid-template-columns: minmax(82px, 0.22fr) minmax(0, 1fr); column-gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--color-border); }
+.memory-evidence-meta { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; color: var(--color-text-secondary); font-size: 11px; line-height: 1.35; }
+.memory-evidence-meta span:first-child { color: var(--color-text); font-variant-numeric: tabular-nums; font-weight: 600; }
+.memory-evidence-meta span + span { color: var(--color-text-muted); }
+.memory-evidence-text { margin: 0 0 6px; color: var(--color-text); font-size: 13px; line-height: 1.55; }
+.evidence-source-link { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--color-text-secondary); }
+.evidence-source-link > span { min-width: 0; overflow: hidden; color: var(--color-text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+:deep(.evidence-diary-open.n-button--primary-type.n-button--text-type) { --n-color: transparent !important; --n-color-hover: transparent !important; --n-color-pressed: transparent !important; --n-color-focus: transparent !important; --n-text-color: var(--color-primary) !important; --n-text-color-hover: var(--color-primary-hover) !important; --n-text-color-pressed: var(--color-primary-hover) !important; --n-text-color-focus: var(--color-primary) !important; flex: 0 0 auto; padding: 0 !important; font-size: 12px; font-weight: 600; }
+:deep(.evidence-diary-open .n-button__content), :deep(.evidence-diary-open .n-button__content *) { color: var(--color-primary) !important; }
+.memory-history-section { padding-top: 10px; border-top: 1px solid var(--color-border); }
+.memory-history-toggle { padding: 0 !important; font-size: 12px; }
+.memory-history-list { display: flex; flex-direction: column; margin-top: 9px; border-top: 1px solid var(--color-border); }
+.memory-history-item { padding: 9px 0; border-bottom: 1px solid var(--color-border); }
+.memory-history-value { margin: 0 0 3px; color: var(--color-text); font-size: 13px; line-height: 1.5; }
+.memory-history-meta { color: var(--color-text-secondary); font-size: 11px; }
 .memory-detail-muted { color: var(--color-text-light); }
+.memory-detail-error { display: flex; align-items: center; gap: 8px; color: var(--color-text-secondary); }
 .memory-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--space-4);
   padding: 10px 0;
+  align-items: start;
 }
 .memory-item {
   display: flex;
@@ -281,6 +545,9 @@ function cancelEditMemory() {
   border-radius: var(--radius-xl);
   box-shadow: 0 10px 30px -10px rgba(0,0,0,0.03);
   transition: all var(--duration-normal) var(--ease-out);
+  align-self: start;
+  width: 100%;
+  box-sizing: border-box;
 }
 .memory-item:hover {
   transform: translateY(-4px);
@@ -309,6 +576,78 @@ function cancelEditMemory() {
   line-height: 1.6;
   white-space: pre-wrap;
 }
+.memory-source-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--color-text-secondary); font-size: 12px; }
+.memory-source-label { flex: 0 0 auto; color: var(--color-text-secondary); font-size: 12px; font-weight: 600; }
+.memory-source-empty { color: var(--color-text-light); }
+.memory-updated { color: var(--color-text-light); font-size: 12px; }
+.source-diary-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, var(--color-border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
+}
+.source-diary-copy { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.source-diary-date { flex: 0 0 auto; color: var(--color-text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.source-diary-excerpt { max-width: 260px; overflow: hidden; color: var(--color-text); text-overflow: ellipsis; white-space: nowrap; }
+:deep(.source-diary-open.n-button--primary-type.n-button--text-type) {
+  --n-color: transparent !important;
+  --n-color-hover: transparent !important;
+  --n-color-pressed: transparent !important;
+  --n-color-focus: transparent !important;
+  --n-text-color: var(--color-primary) !important;
+  --n-text-color-hover: var(--color-primary-hover) !important;
+  --n-text-color-pressed: var(--color-primary-hover) !important;
+  --n-text-color-focus: var(--color-primary) !important;
+  flex: 0 0 auto;
+  padding: 0 !important;
+  font-size: 12px;
+  font-weight: 600;
+}
+:deep(.source-diary-open .n-button__content), :deep(.source-diary-open .n-button__content *) { color: var(--color-primary) !important; }
+:deep(.source-diary-trigger) {
+  --n-color: var(--color-primary-light) !important;
+  --n-color-hover: var(--color-primary-light) !important;
+  --n-color-pressed: var(--color-primary-light) !important;
+  --n-color-focus: var(--color-primary-light) !important;
+  --n-text-color: var(--color-primary) !important;
+  --n-text-color-hover: var(--color-primary-hover) !important;
+  --n-text-color-pressed: var(--color-primary-hover) !important;
+  --n-text-color-focus: var(--color-primary) !important;
+  --n-border: 1px solid var(--color-border-strong) !important;
+  --n-border-hover: 1px solid var(--color-primary) !important;
+  --n-border-pressed: 1px solid var(--color-primary) !important;
+  --n-border-focus: 1px solid var(--color-primary) !important;
+  background-color: var(--color-primary-light) !important;
+  color: var(--color-text) !important;
+  gap: 8px;
+  padding: 4px 8px !important;
+  border-radius: 6px;
+  font-size: 12px;
+}
+:deep(.source-diary-trigger:hover),
+:deep(.source-diary-trigger:focus),
+:deep(.source-diary-trigger:active),
+:deep(.source-diary-trigger.n-button--pressed) {
+  background-color: color-mix(in oklab, var(--color-primary-light) 70%, var(--color-primary) 30%) !important;
+  color: var(--color-text) !important;
+}
+:deep(.source-diary-trigger .n-button__content) { justify-content: space-between; gap: 10px; color: var(--color-text) !important; }
+:deep(.source-diary-trigger .n-button__content *) { color: var(--color-text) !important; }
+:deep(.source-diary-trigger span:last-child) { color: var(--color-primary) !important; font-weight: 700; }
+.source-popover-list { display: flex; flex-direction: column; gap: 5px; width: min(360px, 70vw); }
+.source-diary-option { width: 100%; min-height: 36px; padding: 7px 9px !important; border: 1px solid transparent; border-radius: 5px; background: var(--color-surface); color: var(--color-text) !important; white-space: normal; text-align: left; }
+.source-diary-option:hover { border-color: var(--color-border-strong); background: var(--color-primary-light); }
+.source-diary-option :deep(.n-button__content) { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 8px; width: 100%; text-align: left; }
+.source-diary-option :deep(.n-button__content), .source-diary-option :deep(.n-button__content *) { color: var(--color-text) !important; }
+.source-option-date { color: var(--color-text-secondary) !important; font-size: 11px; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.source-option-excerpt { overflow: hidden; color: var(--color-text) !important; text-overflow: ellipsis; white-space: nowrap; }
+.source-option-arrow { color: var(--color-primary) !important; font-weight: 700; }
+.memory-safety-note { display: block; margin-top: 8px; color: var(--color-text-secondary); font-size: 12px; font-weight: 400; line-height: 1.5; }
 .memory-edit-input {
   margin-top: 8px;
 }
@@ -350,5 +689,12 @@ function cancelEditMemory() {
 .preview-item-key { font-weight: bold; color: var(--color-primary); margin-bottom: 4px; }
 .preview-item-value { color: var(--color-text-secondary); line-height: 1.5; }
 .flex-end-gap-12 { display: flex; gap: 12px; justify-content: flex-end; }
+
+@media (max-width: 640px) {
+  .memory-evidence-item { grid-template-columns: 1fr; row-gap: 6px; }
+  .memory-evidence-meta { flex-direction: row; align-items: center; gap: 8px; }
+  .memory-evidence-meta span + span { padding-left: 8px; border-left: 1px solid var(--color-border-strong); }
+  .memory-detail-heading { flex-direction: column; gap: 4px; }
+}
 
 </style>

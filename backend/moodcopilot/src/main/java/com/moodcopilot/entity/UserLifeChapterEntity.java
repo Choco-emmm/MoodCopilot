@@ -33,6 +33,15 @@ public class UserLifeChapterEntity {
 
     private LocalDateTime updatedAt;
 
+    private String lifecycleStatus;
+    private String generationStatus;
+    private Integer currentVersion;
+    private String sourceSnapshotHash;
+    private LocalDateTime dirtySince;
+    private LocalDateTime lastGeneratedAt;
+    private String lastGenerationError;
+    private Long lockVersion;
+
     public Long getId() {
         return id;
     }
@@ -120,4 +129,21 @@ public class UserLifeChapterEntity {
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }
+
+    public String getLifecycleStatus() { return lifecycleStatus; }
+    public void setLifecycleStatus(String lifecycleStatus) { this.lifecycleStatus = lifecycleStatus; }
+    public String getGenerationStatus() { return generationStatus; }
+    public void setGenerationStatus(String generationStatus) { this.generationStatus = generationStatus; }
+    public Integer getCurrentVersion() { return currentVersion; }
+    public void setCurrentVersion(Integer currentVersion) { this.currentVersion = currentVersion; }
+    public String getSourceSnapshotHash() { return sourceSnapshotHash; }
+    public void setSourceSnapshotHash(String sourceSnapshotHash) { this.sourceSnapshotHash = sourceSnapshotHash; }
+    public LocalDateTime getDirtySince() { return dirtySince; }
+    public void setDirtySince(LocalDateTime dirtySince) { this.dirtySince = dirtySince; }
+    public LocalDateTime getLastGeneratedAt() { return lastGeneratedAt; }
+    public void setLastGeneratedAt(LocalDateTime lastGeneratedAt) { this.lastGeneratedAt = lastGeneratedAt; }
+    public String getLastGenerationError() { return lastGenerationError; }
+    public void setLastGenerationError(String lastGenerationError) { this.lastGenerationError = lastGenerationError; }
+    public Long getLockVersion() { return lockVersion; }
+    public void setLockVersion(Long lockVersion) { this.lockVersion = lockVersion; }
 }

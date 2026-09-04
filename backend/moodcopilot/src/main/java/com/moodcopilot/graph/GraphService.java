@@ -63,6 +63,7 @@ public class GraphService {
         return mapper.selectList(
                 new LambdaQueryWrapper<DiaryKnowledgeGraphEntity>()
                         .eq(DiaryKnowledgeGraphEntity::getUserId, userId)
+                        .and(w -> w.eq(DiaryKnowledgeGraphEntity::getStatus, "active").or().isNull(DiaryKnowledgeGraphEntity::getStatus))
                         .gt(DiaryKnowledgeGraphEntity::getDiaryId, 0)
                         .orderByDesc(DiaryKnowledgeGraphEntity::getCreatedAt));
     }
@@ -71,6 +72,7 @@ public class GraphService {
         return mapper.selectList(
                 new LambdaQueryWrapper<DiaryKnowledgeGraphEntity>()
                         .eq(DiaryKnowledgeGraphEntity::getUserId, userId)
+                        .and(w -> w.eq(DiaryKnowledgeGraphEntity::getStatus, "active").or().isNull(DiaryKnowledgeGraphEntity::getStatus))
                         .eq(DiaryKnowledgeGraphEntity::getDiaryId, -1L)
                         .orderByDesc(DiaryKnowledgeGraphEntity::getCreatedAt));
     }

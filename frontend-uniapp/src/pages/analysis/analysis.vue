@@ -122,10 +122,15 @@
         <text class="section-title">你的专属记忆</text>
         <button class="section-action" @click="previewConsolidate" :loading="isConsolidating">整理记忆</button>
       </view>
-      <text class="section-desc">AI 悄悄为你记录下的点点滴滴。</text>
+      <text class="section-desc">这里保存你的个人记忆；近期状态只用于当前关怀参考，不会作为核心长期画像。</text>
       
       <view v-if="loadingMemory" class="loading-state">
         <text>正在提取记忆...</text>
+      </view>
+      <view v-else-if="memoryError" class="card inline-error-card">
+        <text class="empty-text">正式记忆暂时无法加载</text>
+        <text class="inline-error-detail">请稍后重试</text>
+        <button class="inline-retry-btn" @click="fetchMemory">重新加载</button>
       </view>
       
       <view v-else-if="memories.length > 0">
@@ -134,9 +139,17 @@
             <view class="memory-row-main">
               <view class="memory-row-head">
                 <text class="memory-key">{{ m.attributeKey }}</text>
-                <text v-if="m.isCore" class="core-badge">核心</text>
+                <text v-if="isSafetyState(m)" class="safety-badge">近期状态</text>
+                <text v-else-if="m.isCore" class="core-badge">核心</text>
               </view>
               <text class="memory-value">{{ memoryPreview(m.attributeValue) }}</text>
+              <view class="memory-source-row">
+                <text class="memory-source-label">{{ sourceTypeLabel(m) }}</text>
+                <text v-if="diarySourcesFor(m).length" class="memory-source-preview">{{ diarySourceLabel(diarySourcesFor(m)[0]) }}</text><text v-if="diarySourcesFor(m).length" class="memory-source-link" @click.stop="openMemoryDiarySources(m)">查看关联日记{{ diarySourcesFor(m).length > 1 ? `（${diarySourcesFor(m).length}）` : '' }} →</text>
+                <text v-if="conversationIdsFor(m).length" class="memory-source-link" @click.stop="openMemorySource(null, conversationIdsFor(m)[0])">查看关联会话 →</text>
+                <text v-if="!diaryIdsFor(m).length && !conversationIdsFor(m).length" class="memory-source-empty">暂无原始来源</text>
+              </view>
+              <text v-if="m.updatedAt || m.updateTime" class="memory-updated">最近更新 {{ formatMemoryTime(m.updatedAt || m.updateTime) }}</text>
             </view>
             <view class="memory-row-actions">
               <text class="memory-edit" @click.stop="openMemoryDetails(m)">依据</text>
@@ -150,12 +163,22 @@
       <view v-else class="card empty-card">
         <text class="empty-text">AI 正在努力了解你，多写点日记给它线索吧。</text>
       </view>
-      <view v-if="candidates.length" class="candidate-section">
+      <view class="candidate-section">
         <view class="candidate-title">待确认的记忆</view>
         <text class="candidate-desc">AI 的推断需要你确认后才会进入正式画像。</text>
-        <view v-for="candidate in candidates" :key="candidate.id" class="candidate-row">
-          <view class="candidate-copy"><text class="candidate-key">{{ candidate.attributeKey }}</text><text class="candidate-value">{{ candidate.attributeValue }}</text><text class="candidate-evidence">{{ candidate.evidenceSummary || '暂无证据摘要' }}</text><text class="candidate-evidence">来源：{{ candidate.sourceType }} · {{ candidate.sourceDiaryId ? `日记 #${candidate.sourceDiaryId}` : (candidate.sourceConversationId ? `会话 #${candidate.sourceConversationId}` : '用户整理') }}</text></view>
-          <view class="candidate-actions"><text class="candidate-approve" @click="approveCandidate(candidate.id)">确认</text><text class="candidate-reject" @click="rejectCandidate(candidate.id)">拒绝</text></view>
+        <view v-if="loadingCandidates" class="loading-state candidate-loading-state"><text>正在加载待确认记忆...</text></view>
+        <view v-else-if="candidateError" class="inline-error-card candidate-error-card">
+          <text class="empty-text">待确认记忆暂时无法加载</text>
+          <text class="inline-error-detail">请稍后重试，正式记忆不受影响</text>
+          <button class="inline-retry-btn" @click="fetchCandidates">重新加载</button>
+        </view>
+        <view v-else-if="candidates.length === 0" class="candidate-empty">暂无待确认记忆</view>
+        <view v-else v-for="group in candidateGroups" :key="group.key" class="candidate-group">
+          <text v-if="group.hasConflict" class="candidate-conflict-note">同一属性存在不同候选，请分别确认。</text>
+          <view v-for="candidate in group.items" :key="candidate.id" class="candidate-row">
+            <view class="candidate-copy"><text class="candidate-key">{{ candidate.attributeKey }}</text><text class="candidate-value">{{ candidate.attributeValue }}</text><text class="candidate-evidence">{{ isSafetyState(candidate) ? '这是需要关注的近期状态，不属于核心长期画像。' : (candidate.evidenceSummary || '暂无证据摘要') }}</text><text class="candidate-evidence">已有 {{ candidate.evidenceCount || 0 }} 条依据 · {{ sourceTypeLabel(candidate) }}</text><text v-if="diarySourcesFor(candidate).length" class="candidate-source-preview">{{ diarySourceLabel(diarySourcesFor(candidate)[0]) }}</text><text v-if="diarySourcesFor(candidate).length" class="candidate-source-link" @click.stop="openMemoryDiarySources(candidate)">查看关联日记{{ diarySourcesFor(candidate).length > 1 ? `（${diarySourcesFor(candidate).length}）` : '' }} →</text><text v-else-if="conversationIdsFor(candidate).length" class="candidate-source-link" @click.stop="openMemorySource(null, conversationIdsFor(candidate)[0])">查看关联会话 →</text><text v-else class="candidate-evidence">暂无原始来源</text></view>
+            <view class="candidate-actions"><text :class="['candidate-approve', { 'candidate-action-disabled': candidateActionId === candidate.id }]" @click="approveCandidate(candidate.id)">确认</text><text :class="['candidate-reject', { 'candidate-action-disabled': candidateActionId === candidate.id }]" @click="rejectCandidate(candidate.id)">拒绝</text></view>
+          </view>
         </view>
       </view>
     </view>
@@ -167,14 +190,15 @@
           <view v-if="memoryDetailsLoading" class="empty-text">正在加载...</view>
           <template v-else>
             <view v-for="item in memoryEvidence" :key="`e-${item.id}`" class="preview-item">
-              <text class="preview-key">{{ item.evidenceDate || '未标日期' }} · {{ item.sourceType }}</text>
+              <text class="preview-key">{{ item.evidenceDate || '未标日期' }}</text>
               <text class="preview-value">{{ item.evidenceText }}</text>
+              <text v-if="item.sourceDiaryId" class="memory-source-link" @click="openMemorySource(item.sourceDiaryId, null)">查看关联日记 →</text>
             </view>
-            <view v-for="item in memoryHistory" :key="`h-${item.id}`" class="preview-item">
-              <text class="preview-key">历史版本 · {{ item.status }}</text>
+            <view v-for="item in historicalMemoryVersions" :key="`h-${item.id}`" class="preview-item">
+              <text class="preview-key">历史版本 · {{ memoryStatusLabel(item.status) }}</text>
               <text class="preview-value">{{ item.attributeValue }}</text>
             </view>
-            <text v-if="!memoryEvidence.length && !memoryHistory.length" class="empty-text">暂无可展示的依据。</text>
+            <text v-if="!memoryEvidence.length && !historicalMemoryVersions.length" class="empty-text">这条记忆没有保存可展示的原始依据。</text>
           </template>
         </scroll-view>
         <view class="modal-actions"><button class="cancel-btn" @click="showMemoryDetailsModal = false">关闭</button></view>
@@ -191,6 +215,11 @@
       
       <view v-if="loadingGraph" class="loading-state">
         <text>正在连接图谱...</text>
+      </view>
+      <view v-else-if="graphError" class="card inline-error-card">
+        <text class="empty-text">关系图谱暂时无法加载</text>
+        <text class="inline-error-detail">请稍后重试</text>
+        <button class="inline-retry-btn" @click="fetchGraph">重新加载</button>
       </view>
       
       <view v-else-if="triples.length > 0" class="graph-container">
@@ -249,7 +278,8 @@
           
           <view class="edit-switch-row">
             <text class="edit-label">设为核心记忆</text>
-            <switch :checked="editMemoryForm.isCore" @change="handleCoreMemoryChange" color="#d4a373" style="transform: scale(0.8);" />
+            <switch v-if="!isSafetyState(editMemoryForm)" :checked="editMemoryForm.isCore" @change="handleCoreMemoryChange" color="#d4a373" style="transform: scale(0.8);" />
+            <text v-else class="safety-edit-note">近期状态不可设为核心长期画像</text>
           </view>
         </view>
         <view class="modal-actions">
@@ -305,7 +335,7 @@
 <script setup lang="ts">
 import GlobalUI from '@/components/GlobalUI.vue';
 
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { get, post, put, del } from '@/utils/request';
 import { parseMarkdown } from '@/utils/markdown';
@@ -318,14 +348,32 @@ const showLegacyReports = false;
 
 const loadingMemory = ref(false);
 const memories = ref<any[]>([]);
+const memoryError = ref(false);
 const candidates = ref<any[]>([]);
+const loadingCandidates = ref(false);
+const candidateError = ref(false);
+const candidateActionId = ref<number | null>(null);
 const showMemoryDetailsModal = ref(false);
 const memoryDetailsLoading = ref(false);
 const memoryEvidence = ref<any[]>([]);
 const memoryHistory = ref<any[]>([]);
+const activeMemoryDetailsId = ref<number | null>(null);
+const historicalMemoryVersions = computed(() => memoryHistory.value.filter(item => item.id !== activeMemoryDetailsId.value));
+const candidateGroups = computed(() => {
+  const groups = new Map<string, { key: string; items: any[]; hasConflict: boolean }>();
+  for (const candidate of candidates.value) {
+    const key = candidate.candidateGroupKey || `${candidate.memoryType || 'memory'}:${candidate.attributeKey}`;
+    const group = groups.get(key) || { key, items: [] as any[], hasConflict: false };
+    group.items.push(candidate);
+    group.hasConflict = group.hasConflict || Boolean(candidate.hasConflict);
+    groups.set(key, group);
+  }
+  return Array.from(groups.values());
+});
 
 const loadingGraph = ref(false);
 const triples = ref<any[]>([]);
+const graphError = ref(false);
 
 const loadingSummaries = ref(false);
 const monthlySummaries = ref<any[]>([]);
@@ -399,25 +447,76 @@ const generateReport = async () => {
 
 const fetchMemory = () => {
   loadingMemory.value = true;
+  memoryError.value = false;
   return get('/api/memory')
     .then((res: any) => {
       loadingMemory.value = false;
       if (res.code === 200) {
         memories.value = res.data || [];
+      } else {
+        memoryError.value = true;
       }
     })
-    .catch(() => loadingMemory.value = false);
+    .catch(() => {
+      loadingMemory.value = false;
+      memoryError.value = true;
+    });
 };
 
 const fetchCandidates = () => {
+  loadingCandidates.value = true;
+  candidateError.value = false;
   return get('/api/memory/candidates?status=PENDING&page=1&size=20&sort=updatedAt')
     .then((res: any) => {
-      if (res.code === 200) candidates.value = res.data || [];
+      if (res.code === 200) {
+        candidates.value = Array.isArray(res.data) ? res.data : (res.data?.content || []);
+      } else {
+        candidateError.value = true;
+      }
     })
-    .catch(() => candidates.value = []);
+    .catch(() => {
+      candidateError.value = true;
+    })
+    .finally(() => {
+      loadingCandidates.value = false;
+    });
+};
+
+const diaryIdsFor = (item: any): number[] => Array.from(new Set([...(item.sourceDiaryIds || []), item.sourceDiaryId].filter(Boolean).map(Number)));
+type DiarySourcePreview = { id: number; createdAt?: string | null; excerpt?: string | null };
+const diarySourcesFor = (item: any): DiarySourcePreview[] => {
+  const previews = Array.isArray(item.sourceDiaryPreviews) ? item.sourceDiaryPreviews.filter((source: any) => source?.id) : [];
+  return previews.length ? previews : diaryIdsFor(item).map(id => ({ id }));
+};
+const diarySourceLabel = (source: DiarySourcePreview): string => {
+  const date = source.createdAt ? formatDiarySourceDate(source.createdAt) : '日期未知';
+  return `${date} · “${source.excerpt?.trim() || '打开查看日记内容'}”`;
+};
+const formatDiarySourceDate = (value: string): string => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.replace('T', ' ').slice(0, 10);
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+const conversationIdsFor = (item: any): number[] => Array.from(new Set([...(item.sourceConversationIds || []), item.sourceConversationId].filter(Boolean).map(Number)));
+const sourceTypeLabel = (item: any): string => {
+  if (diaryIdsFor(item).length) return '来自日记';
+  if (conversationIdsFor(item).length) return '来自聊天';
+  if (item.sourceType === 'USER_ACTION') return '用户整理';
+  if (item.sourceType === 'explicit') return '用户确认';
+  if (item.sourceType === 'system') return '系统整理';
+  return '暂无原始来源';
+};
+const formatMemoryTime = (value: string | null | undefined): string => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).replace('T', ' ').slice(0, 16);
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
 const openMemoryDetails = async (memory: any) => {
+  activeMemoryDetailsId.value = memory.id;
   showMemoryDetailsModal.value = true;
   memoryDetailsLoading.value = true;
   memoryEvidence.value = [];
@@ -437,32 +536,81 @@ const openMemoryDetails = async (memory: any) => {
 };
 
 const approveCandidate = async (id: number) => {
-  const res = await post(`/api/memory/candidates/${id}/approve`);
-  if (res.code === 200) {
-    candidates.value = candidates.value.filter(candidate => candidate.id !== id);
-    await fetchMemory();
-    uni.showToast({ title: '记忆已确认', icon: 'success' });
+  if (candidateActionId.value !== null) return;
+  candidateActionId.value = id;
+  try {
+    const res = await post(`/api/memory/candidates/${id}/approve`);
+    if (res.code === 200) {
+      candidates.value = candidates.value.filter(candidate => candidate.id !== id);
+      await Promise.all([fetchMemory(), fetchCandidates()]);
+      showMemoryDetailsModal.value = false;
+      activeMemoryDetailsId.value = null;
+      memoryEvidence.value = [];
+      memoryHistory.value = [];
+      uni.showToast({ title: '记忆已确认', icon: 'success' });
+    }
+  } catch (e) {
+    uni.showToast({ title: '确认失败，请稍后再试', icon: 'none' });
+  } finally {
+    candidateActionId.value = null;
   }
 };
 
+const openMemorySource = (diaryId: number | null, conversationId: number | null) => {
+  if (diaryId) {
+    uni.navigateTo({ url: `/pages/detail/detail?id=${diaryId}` });
+    return;
+  }
+  if (conversationId) {
+    uni.setStorageSync('pendingChatConversationId', conversationId);
+    uni.switchTab({ url: '/pages/chat/chat' });
+  }
+};
+
+const openMemoryDiarySources = (item: any) => {
+  const sources = diarySourcesFor(item);
+  if (sources.length === 1) {
+    openMemorySource(sources[0].id, null);
+    return;
+  }
+  uni.showActionSheet({
+    itemList: sources.map(source => diarySourceLabel(source)),
+    success: (result) => openMemorySource(sources[result.tapIndex].id, null)
+  });
+};
+
 const rejectCandidate = async (id: number) => {
-  const res = await post(`/api/memory/candidates/${id}/reject`);
-  if (res.code === 200) {
-    candidates.value = candidates.value.filter(candidate => candidate.id !== id);
-    uni.showToast({ title: '已拒绝', icon: 'none' });
+  if (candidateActionId.value !== null) return;
+  candidateActionId.value = id;
+  try {
+    const res = await post(`/api/memory/candidates/${id}/reject`);
+    if (res.code === 200) {
+      candidates.value = candidates.value.filter(candidate => candidate.id !== id);
+      uni.showToast({ title: '已拒绝', icon: 'none' });
+    }
+  } catch (e) {
+    uni.showToast({ title: '拒绝失败，请稍后再试', icon: 'none' });
+  } finally {
+    candidateActionId.value = null;
   }
 };
 
 const fetchGraph = () => {
   loadingGraph.value = true;
+  graphError.value = false;
   return get('/api/graph/triples')
     .then((res: any) => {
       loadingGraph.value = false;
       if (res.code === 200) {
         triples.value = res.data || [];
+      } else {
+        graphError.value = true;
       }
     })
-    .catch(() => loadingGraph.value = false);
+    .catch(() => {
+      loadingGraph.value = false;
+      graphError.value = true;
+    });
 };
 
 const fetchSummaries = () => {
@@ -570,8 +718,12 @@ const handleCoreMemoryChange = (event: any) => {
   editMemoryForm.value.isCore = event.detail.value;
 };
 
+const isSafetyState = (item: any) => /自杀|自残|轻生|想死|不想活|结束生命|伤害自己|割腕|跳楼|心理危机|危机干预/.test(`${item?.attributeKey || ''} ${item?.attributeValue || ''}`);
+const memoryStatusLabel = (status: string) => ({ active: '当前有效', superseded: '历史版本', expired: '已过期', rejected: '已拒绝' } as Record<string, string>)[status] || '历史记录';
+
 const openEditMemory = (m: any) => {
   editMemoryForm.value = { ...m };
+  if (isSafetyState(m)) editMemoryForm.value.isCore = false;
   showEditMemoryModal.value = true;
 };
 
@@ -579,7 +731,7 @@ const saveMemory = async () => {
   try {
     const res = await put(`/api/memory/${editMemoryForm.value.id}`, {
       attributeValue: editMemoryForm.value.attributeValue,
-      isCore: editMemoryForm.value.isCore
+      isCore: isSafetyState(editMemoryForm.value) ? false : editMemoryForm.value.isCore
     });
     if (res.code === 200) {
       uni.showToast({ title: '修改成功', icon: 'success' });
@@ -736,7 +888,17 @@ const deleteTriple = (id: number) => {
 .memory-row-head { display: flex; align-items: center; gap: 9rpx; }
 .memory-key { overflow: hidden; color: var(--theme-text-primary); font-size: 25rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .memory-value { display: -webkit-box; overflow: hidden; margin-top: 9rpx; color: var(--theme-text-secondary); font-size: 22rpx; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.memory-source-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10rpx; margin-top: 8rpx; font-size: 20rpx; }
+.memory-source-label, .memory-source-empty { color: var(--theme-text-placeholder); }
+.memory-source-preview, .candidate-source-preview { display: block; overflow: hidden; margin-top: 7rpx; color: var(--theme-text-secondary); font-size: 19rpx; text-overflow: ellipsis; white-space: nowrap; }
+.memory-source-link { color: var(--theme-primary); }
+.memory-updated { display: block; margin-top: 6rpx; color: var(--theme-text-placeholder); font-size: 19rpx; }
+.candidate-group + .candidate-group { margin-top: 12rpx; }
+.candidate-conflict-note { display: block; margin: 8rpx 0; color: #a46a24; font-size: 20rpx; }
+.candidate-source-link { display: block; margin-top: 6rpx; color: var(--theme-primary); font-size: 20rpx; }
 .core-badge { padding: 3rpx 9rpx; border-radius: 4rpx; background: rgba(var(--theme-primary-rgb), .1); color: var(--theme-primary); font-size: 18rpx; line-height: 1.4; white-space: nowrap; }
+.safety-badge { padding: 3rpx 9rpx; border-radius: 4rpx; background: rgba(210, 125, 65, .12); color: #b56b35; font-size: 18rpx; line-height: 1.4; white-space: nowrap; }
+.safety-edit-note { color: var(--theme-text-secondary); font-size: 21rpx; }
 .memory-row-actions { display: flex; align-items: center; gap: 12rpx; }
 .memory-edit { color: var(--theme-primary); font-size: 21rpx; }
 .memory-row-actions .del-btn { position: static; display: flex; width: 38rpx; height: 38rpx; align-items: center; justify-content: center; margin: 0; border: 1rpx solid var(--theme-border); border-radius: 50%; background: transparent; color: var(--theme-text-placeholder); font-size: 27rpx; line-height: 1; box-shadow: none; }

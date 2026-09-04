@@ -216,11 +216,33 @@ onLoad((options: any) => {
   }
 });
 
+/** 将网页端保存的富文本 HTML 转成小程序 textarea 可编辑的纯文本。 */
+const htmlToPlainText = (value: unknown): string => {
+  if (typeof value !== 'string' || !value) return '';
+  return value
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_match, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(parseInt(code, 10)))
+    .replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/<li\b[^>]*>/gi, '- ')
+    .replace(/<\/(?:p|div|li|h[1-6]|blockquote|pre)\s*>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
 const fetchDiaryForEdit = async (id: number) => {
   try {
     const res = await get(`/api/diaries/${id}`);
     if (res.code === 200 && res.data) {
-      content.value = res.data.content;
+      content.value = htmlToPlainText(res.data.content);
       images.value = res.data.images || [];
       isPublic.value = res.data.visibility === 'PUBLIC';
       musicMeta.value = res.data.musicMeta;

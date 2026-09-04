@@ -4,6 +4,7 @@ import com.moodcopilot.config.RabbitMqConfig;
 import com.moodcopilot.diary.DiaryService;
 import com.moodcopilot.ai.AiPostProcessService;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.moodcopilot.event.LifeChapterService;
 import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +12,7 @@ import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 
@@ -20,12 +22,14 @@ public class AiTaskConsumer {
     private final AiTaskService taskService;
     private final DiaryService diaryService;
     private final AiPostProcessService postProcessService;
+    private final LifeChapterService lifeChapterService;
 
     public AiTaskConsumer(AiTaskService taskService, @Lazy DiaryService diaryService,
-                          AiPostProcessService postProcessService) {
+                          AiPostProcessService postProcessService, LifeChapterService lifeChapterService) {
         this.taskService = taskService;
         this.diaryService = diaryService;
         this.postProcessService = postProcessService;
+        this.lifeChapterService = lifeChapterService;
     }
 
     @RabbitListener(queues = RabbitMqConfig.ANALYSIS_QUEUE, containerFactory = "aiHeavyRabbitListenerContainerFactory")
@@ -35,7 +39,7 @@ public class AiTaskConsumer {
     }
 
     @RabbitListener(queues = {RabbitMqConfig.MEMORY_QUEUE, RabbitMqConfig.LIFE_EVENT_QUEUE,
-            RabbitMqConfig.GRAPH_QUEUE}, containerFactory = "aiHeavyRabbitListenerContainerFactory")
+            RabbitMqConfig.GRAPH_QUEUE, RabbitMqConfig.LIFE_CHAPTER_QUEUE}, containerFactory = "aiHeavyRabbitListenerContainerFactory")
     public void consumeHeavyPostProcess(AiTaskMessage message, Message raw, Channel channel,
                                     @Header(AmqpHeaders.DELIVERY_TAG) long tag) throws Exception {
         consume(message, channel, tag);
@@ -64,6 +68,9 @@ public class AiTaskConsumer {
                 long diaryId = Long.parseLong(task.getAggregateId());
                 boolean useReasoning = Boolean.parseBoolean(taskService.payloadValue(task, "useReasoning"));
                 diaryService.runAiAnalysisSync(diaryId, task.getUserId(), useReasoning, task.getTaskId());
+            } else if (AiTaskMessage.TYPE_LIFE_CHAPTER_REFRESH.equals(task.getTaskType())) {
+                long chapterId = Long.parseLong(task.getAggregateId());
+                lifeChapterService.refreshChapterTask(task.getUserId(), chapterId, task.getAnalysisVersion());
             } else {
                 long diaryId = Long.parseLong(task.getAggregateId());
                 postProcessService.process(task.getTaskType(), diaryId, task.getUserId(),
@@ -77,6 +84,11 @@ public class AiTaskConsumer {
             } else {
                 taskService.markFailed(task.getTaskId(), task.getLeaseOwner(), e);
             }
+            if (AiTaskMessage.TYPE_LIFE_CHAPTER_REFRESH.equals(task.getTaskType())
+                    && (isUnrecoverable(e) || task.getAttempts() >= task.getMaxAttempts())) {
+                lifeChapterService.markGenerationFailed(task.getUserId(), Long.valueOf(task.getAggregateId()),
+                        task.getAnalysisVersion(), e.getMessage());
+            }
             channel.basicAck(tag, false);
             log.error("AI 任务处理失败，已写入任务状态，taskId={}", task.getTaskId(), e);
         }
@@ -86,7 +98,7 @@ public class AiTaskConsumer {
         Throwable current = error;
         while (current != null) {
             if (current instanceof JsonProcessingException || current instanceof NumberFormatException
-                    || current instanceof IllegalArgumentException) {
+                    || current instanceof IllegalArgumentException || current instanceof DuplicateKeyException) {
                 return true;
             }
             current = current.getCause();

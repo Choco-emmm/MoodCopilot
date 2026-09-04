@@ -201,6 +201,17 @@ export function useChat() {
   }
 
   // ── Lifecycle ──
+  async function selectPendingConversation() {
+    const pendingId = Number(sessionStorage.getItem('pendingChatConversationId'))
+    if (!Number.isFinite(pendingId) || pendingId <= 0) return false
+    sessionStorage.removeItem('pendingChatConversationId')
+    if (conv.conversations.value.some(c => c.id === pendingId)) {
+      await conv.selectConversation(pendingId)
+      return true
+    }
+    return false
+  }
+
   onMounted(async () => {
     if (authStore.isAuthenticated && !authStore.userId) authStore.fetchProfile()
 
@@ -225,21 +236,22 @@ export function useChat() {
     await loadRecentDiaryOptions()
     await loadWelcomeTopics()
 
-    const isNewSession = !sessionStorage.getItem('chatSessionInitialized')
+    const openedPendingConversation = await selectPendingConversation()
+    const isNewSession = !openedPendingConversation && !sessionStorage.getItem('chatSessionInitialized')
     const storedConvId = sessionStorage.getItem('currentChatId')
 
     if (isNewSession) {
       sessionStorage.setItem('chatSessionInitialized', 'true')
       sessionStorage.removeItem('currentChatId')
       await conv.createConversation()
-    } else if (storedConvId) {
+    } else if (!openedPendingConversation && storedConvId) {
       const id = Number(storedConvId)
       if (conv.conversations.value.some(c => c.id === id)) {
         await conv.selectConversation(id)
       } else {
         await conv.createConversation()
       }
-    } else {
+    } else if (!openedPendingConversation) {
       await conv.createConversation()
     }
 
@@ -278,6 +290,7 @@ export function useChat() {
   onActivated(async () => {
     // Resume sync polling and scroll to latest messages
     sync.startAutoSync()
+    await selectPendingConversation()
     loadRecentDiaryOptions()
     if (window.visualViewport) {
       viewportBaseHeight.value = Math.max(window.visualViewport.height, window.innerHeight)

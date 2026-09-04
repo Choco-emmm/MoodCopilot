@@ -330,6 +330,10 @@ public class DiaryService {
     }
 
     public void submitAiAnalysisTask(long diaryId, long userId, boolean useReasoning) {
+        submitAiAnalysisTask(diaryId, userId, useReasoning, false);
+    }
+
+    public void submitAiAnalysisTask(long diaryId, long userId, boolean useReasoning, boolean forceRetry) {
         DiaryEntity status = new DiaryEntity();
         status.setId(diaryId);
         status.setAnalysisStatus("analyzing");
@@ -339,7 +343,8 @@ public class DiaryService {
         status.setFallbackReason(null);
         diaryMapper.updateById(status);
         try {
-            aiTaskProducer.submitDiaryAnalysisTask(diaryId, userId, useReasoning);
+            aiTaskProducer.cancelPendingDiaryAnalysisTasks(diaryId, userId);
+            aiTaskProducer.submitDiaryAnalysisTask(diaryId, userId, useReasoning, forceRetry);
         } catch (RuntimeException e) {
             DiaryEntity failed = new DiaryEntity();
             failed.setId(diaryId);
@@ -348,6 +353,39 @@ public class DiaryService {
             diaryMapper.updateById(failed);
             throw e;
         }
+    }
+
+    @Transactional
+    public DiaryView retryAnalysis(long diaryId, boolean useReasoning) {
+        UserEntity user = currentUser();
+        DiaryEntity diary = findDiary(diaryId);
+        if (!user.getId().equals(diary.getAuthorUserId())) {
+            throw new ResponseStatusException(FORBIDDEN, "只能重新分析自己的日记");
+        }
+        if (Boolean.TRUE.equals(diary.getIsDeleted())) {
+            throw new ResponseStatusException(NOT_FOUND, "日记不存在");
+        }
+        DiaryAnalysisEntity existing = diaryAnalysisMapper.selectById(diaryId);
+        String status = diary.getAnalysisStatus();
+        boolean allowed = existing == null || "failed".equals(status) || "failed_limit".equals(status);
+        if (!allowed) {
+            throw new ResponseStatusException(BAD_REQUEST, "当前日记不需要重新分析");
+        }
+        try {
+            rateLimitService.tryAcquire(user, useReasoning ? RateLimitService.AiApiType.REASONING
+                    : RateLimitService.AiApiType.ANALYSIS);
+        } catch (RateLimitException e) {
+            DiaryEntity limited = new DiaryEntity();
+            limited.setId(diaryId);
+            limited.setAnalysisStatus(useReasoning ? "failed_limit" : "skipped_quota");
+            limited.setAnalysisError(e.getMessage());
+            diaryMapper.updateById(limited);
+            return buildDiaryView(diaryMapper.selectById(diaryId), false)
+                    .withAnalysisStatus(limited.getAnalysisStatus());
+        }
+        diaryAnalysisMapper.deleteById(diaryId);
+        submitAiAnalysisTask(diaryId, user.getId(), useReasoning, true);
+        return buildDiaryView(diaryMapper.selectById(diaryId), false).withAnalysisStatus("analyzing");
     }
     public void runAiAnalysisSync(long diaryId, long userId, boolean useReasoning) {
         runAiAnalysisSync(diaryId, userId, useReasoning, null);
@@ -366,6 +404,13 @@ public class DiaryService {
             }
             return;
         }
+        DiaryEntity running = new DiaryEntity();
+        running.setId(diaryId);
+        running.setAnalysisStatus("analyzing");
+        running.setAnalysisError(null);
+        running.setActualModel(null);
+        running.setFallbackReason(null);
+        diaryMapper.updateById(running);
         String content = diary.getContent();
         MusicMeta musicMeta = diary.getMusicMeta();
         java.util.List<String> images = diary.getImages();
@@ -395,6 +440,7 @@ public class DiaryService {
             boolean needsSync = musicMeta.getMoodTags() == null || musicMeta.getThemeSummary() == null;
             if (needsSync) {
                 try {
+                    log.info("日记分析阶段：开始补充音乐元数据，diaryId={}", diaryId);
                     List<String> lyrics = musicParseService.suggestLyrics(musicMeta.getTitle(), musicMeta.getArtist(),
                             musicMeta.getSongUrl());
                     String lyricsStr;
@@ -423,8 +469,14 @@ public class DiaryService {
         log.info("开始同步执行日记 AI 分析，diaryId={}，userId={}，contentLength={}，hasMusic={}，hasImages={}", diaryId, userId,
                 content == null ? 0 : content.length(), musicMeta != null, images != null && !images.isEmpty());
         try {
+            log.info("日记分析阶段：开始视觉描述，diaryId={}", diaryId);
             String imageDescriptions = visionService.describeImages(images, imageMeta);
+            log.info("日记分析阶段：视觉描述完成，diaryId={}，descriptionLength={}", diaryId,
+                    imageDescriptions == null ? 0 : imageDescriptions.length());
+            log.info("日记分析阶段：开始情绪分析，diaryId={}，model={}", diaryId,
+                    useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash");
             DiaryAnalysis analysis = aiAnalysisService.analyze(userId, content, musicMeta, imageDescriptions, useReasoning);
+            log.info("日记分析阶段：情绪分析返回，diaryId={}", diaryId);
 
             DiaryAnalysisEntity analysisEntity = new DiaryAnalysisEntity();
             analysisEntity.setDiaryId(diaryId);

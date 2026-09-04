@@ -7,6 +7,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDate;
+import org.springframework.format.annotation.DateTimeFormat;
 
 @RestController
 @RequestMapping("/api/life-events")
@@ -30,10 +32,14 @@ public class LifeEventController {
     }
 
     @GetMapping("/diaries")
-    public ApiResponse<List<LifeEventService.LifeDiaryOption>> listDiaries(
+    public ApiResponse<LifeEventService.LifeDiaryPage> listDiaries(
             @AuthenticationPrincipal UserEntity user,
-            @RequestParam(required = false) String keyword) {
-        return ApiResponse.ok(lifeEventService.listUserDiaryOptions(user.getId(), keyword));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(lifeEventService.listUserDiaryOptions(user.getId(), keyword, startDate, endDate, page, size));
     }
 
     @PostMapping

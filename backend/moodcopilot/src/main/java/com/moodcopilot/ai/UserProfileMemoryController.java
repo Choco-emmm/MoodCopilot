@@ -26,13 +26,13 @@ public class UserProfileMemoryController {
     }
 
     @PostMapping("/consolidate/preview")
-    public ApiResponse<List<MemoryExtractionService.MemoryAttribute>> previewConsolidate() {
+    public ApiResponse<List<MemoryConsolidationService.ConsolidationItem>> previewConsolidate() {
         var user = (com.moodcopilot.entity.UserEntity) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return ApiResponse.ok(memoryConsolidationService.previewConsolidation(user.getId()));
     }
 
     @PostMapping("/consolidate/apply")
-    public ApiResponse<Void> applyConsolidate(@RequestBody List<MemoryExtractionService.MemoryAttribute> attributes) {
+    public ApiResponse<Void> applyConsolidate(@RequestBody List<MemoryConsolidationService.ConsolidationItem> attributes) {
         var user = (com.moodcopilot.entity.UserEntity) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         memoryConsolidationService.applyConsolidation(user.getId(), attributes);
         return ApiResponse.ok(null);
@@ -41,6 +41,11 @@ public class UserProfileMemoryController {
     @GetMapping
     public ApiResponse<List<Map<String, Object>>> list() {
         List<UserProfileMemoryEntity> memories = memoryExtractionService.listCurrentUserMemories();
+        var user = (com.moodcopilot.entity.UserEntity) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        Map<Long, MemoryOrchestrator.SourceSummary> sources = memoryOrchestrator.sourceSummariesForMemories(
+                user.getId(), memories.stream().map(UserProfileMemoryEntity::getId).toList());
+        Map<Long, MemoryOrchestrator.DiarySourcePreview> diaryPreviews = memoryOrchestrator.diarySourcePreviews(user.getId(),
+                sources.values().stream().flatMap(source -> source.diaryIds().stream()).distinct().toList());
         List<Map<String, Object>> result = memories.stream()
                 .map(m -> {
                     Map<String, Object> map = new java.util.LinkedHashMap<>();
@@ -60,6 +65,12 @@ public class UserProfileMemoryController {
                     map.put("supersededAt", m.getSupersededAt());
                     map.put("supersededReason", m.getSupersededReason());
                     map.put("lastEvidenceAt", m.getLastEvidenceAt());
+                    map.put("updatedAt", m.getUpdatedAt() != null ? m.getUpdatedAt() : m.getUpdateTime());
+                    MemoryOrchestrator.SourceSummary source = sources.get(m.getId());
+                    map.put("evidenceCount", source == null ? 0 : source.evidenceCount());
+                    map.put("sourceDiaryIds", source == null ? List.of() : source.diaryIds());
+                    map.put("sourceDiaryPreviews", sourceDiaryPreviews(source, diaryPreviews));
+                    map.put("sourceConversationIds", source == null ? List.of() : source.conversationIds());
                     if (m.getUpdateTime() != null) {
                         map.put("updateTime", m.getUpdateTime().toString());
                     }
@@ -103,7 +114,10 @@ public class UserProfileMemoryController {
     @GetMapping("/{id}/evidence")
     public ApiResponse<List<Map<String, Object>>> evidence(
             @AuthenticationPrincipal com.moodcopilot.entity.UserEntity user, @PathVariable long id) {
-        return ApiResponse.ok(memoryOrchestrator.evidence(user.getId(), id).stream().map(e -> {
+        List<com.moodcopilot.entity.UserMemoryEvidenceEntity> evidence = memoryOrchestrator.evidence(user.getId(), id);
+        Map<Long, MemoryOrchestrator.DiarySourcePreview> diaryPreviews = memoryOrchestrator.diarySourcePreviews(user.getId(),
+                evidence.stream().map(com.moodcopilot.entity.UserMemoryEvidenceEntity::getSourceDiaryId).filter(java.util.Objects::nonNull).distinct().toList());
+        return ApiResponse.ok(evidence.stream().map(e -> {
             Map<String, Object> item = new java.util.LinkedHashMap<>();
             item.put("id", e.getId());
             item.put("sourceType", e.getSourceType());
@@ -114,6 +128,7 @@ public class UserProfileMemoryController {
             item.put("modelConfidence", e.getModelConfidence());
             item.put("evidenceQuality", e.getEvidenceQuality());
             item.put("createdAt", e.getCreatedAt());
+            item.put("sourceDiaryPreview", e.getSourceDiaryId() == null ? null : diaryPreviews.get(e.getSourceDiaryId()));
             return item;
         }).toList());
     }
@@ -126,6 +141,12 @@ public class UserProfileMemoryController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "updatedAt") String sort) {
         List<UserMemoryCandidateEntity> candidates = memoryOrchestrator.listCandidates(user.getId(), status, page, size, sort);
+        Map<Long, MemoryOrchestrator.SourceSummary> sources = memoryOrchestrator.sourceSummariesForCandidates(
+                user.getId(), candidates.stream().map(UserMemoryCandidateEntity::getId).toList());
+        Map<Long, MemoryOrchestrator.DiarySourcePreview> diaryPreviews = memoryOrchestrator.diarySourcePreviews(user.getId(),
+                sources.values().stream().flatMap(source -> source.diaryIds().stream()).distinct().toList());
+        Map<String, Long> groupCounts = candidates.stream().collect(java.util.stream.Collectors.groupingBy(
+                candidate -> candidate.getMemoryType() + ":" + candidate.getAttributeKey(), java.util.stream.Collectors.counting()));
         return ApiResponse.ok(candidates.stream().map(candidate -> {
             Map<String, Object> item = new java.util.LinkedHashMap<>();
             item.put("id", candidate.getId());
@@ -142,6 +163,37 @@ public class UserProfileMemoryController {
             item.put("validFrom", candidate.getValidFrom());
             item.put("validUntil", candidate.getValidUntil());
             item.put("updatedAt", candidate.getUpdatedAt());
+            item.put("candidateGroupKey", candidate.getMemoryType() + ":" + candidate.getAttributeKey());
+            item.put("hasConflict", groupCounts.getOrDefault(candidate.getMemoryType() + ":" + candidate.getAttributeKey(), 0L) > 1);
+            MemoryOrchestrator.SourceSummary source = sources.get(candidate.getId());
+            item.put("evidenceCount", source == null ? 0 : source.evidenceCount());
+            item.put("sourceDiaryIds", source == null ? List.of() : source.diaryIds());
+            item.put("sourceDiaryPreviews", sourceDiaryPreviews(source, diaryPreviews));
+            item.put("sourceConversationIds", source == null ? List.of() : source.conversationIds());
+            item.put("mergedIntoId", candidate.getMergedIntoId());
+            item.put("mergeReason", candidate.getMergeReason());
+            return item;
+        }).toList());
+    }
+
+    @GetMapping("/candidates/{id}/evidence")
+    public ApiResponse<List<Map<String, Object>>> candidateEvidence(
+            @AuthenticationPrincipal com.moodcopilot.entity.UserEntity user, @PathVariable long id) {
+        List<com.moodcopilot.entity.UserMemoryEvidenceEntity> evidence = memoryOrchestrator.candidateEvidence(user.getId(), id);
+        Map<Long, MemoryOrchestrator.DiarySourcePreview> diaryPreviews = memoryOrchestrator.diarySourcePreviews(user.getId(),
+                evidence.stream().map(com.moodcopilot.entity.UserMemoryEvidenceEntity::getSourceDiaryId).filter(java.util.Objects::nonNull).distinct().toList());
+        return ApiResponse.ok(evidence.stream().map(e -> {
+            Map<String, Object> item = new java.util.LinkedHashMap<>();
+            item.put("id", e.getId());
+            item.put("sourceType", e.getSourceType());
+            item.put("sourceDiaryId", e.getSourceDiaryId());
+            item.put("sourceConversationId", e.getSourceConversationId());
+            item.put("evidenceText", e.getEvidenceText());
+            item.put("evidenceDate", e.getEvidenceDate());
+            item.put("modelConfidence", e.getModelConfidence());
+            item.put("evidenceQuality", e.getEvidenceQuality());
+            item.put("createdAt", e.getCreatedAt());
+            item.put("sourceDiaryPreview", e.getSourceDiaryId() == null ? null : diaryPreviews.get(e.getSourceDiaryId()));
             return item;
         }).toList());
     }
@@ -180,5 +232,15 @@ public class UserProfileMemoryController {
         item.put("lastEvidenceAt", m.getLastEvidenceAt());
         item.put("updatedAt", m.getUpdatedAt() != null ? m.getUpdatedAt() : m.getUpdateTime());
         return item;
+    }
+
+    private List<MemoryOrchestrator.DiarySourcePreview> sourceDiaryPreviews(
+            MemoryOrchestrator.SourceSummary source,
+            Map<Long, MemoryOrchestrator.DiarySourcePreview> previews) {
+        if (source == null || source.diaryIds().isEmpty()) return List.of();
+        return source.diaryIds().stream()
+                .map(id -> memoryOrchestrator.withEvidenceDate(previews.get(id), source.diaryEvidenceDates().get(id)))
+                .filter(java.util.Objects::nonNull)
+                .toList();
     }
 }
