@@ -632,7 +632,7 @@ const scrollToBottom = (target?: 'waiting') => {
   flex-direction: row;
   align-items: center;
   border: 1px solid rgba(var(--theme-primary-rgb), 0.1);
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
 }
 
 .topic-btn:active {
@@ -1057,3 +1057,4 @@ const scrollToBottom = (target?: 'waiting') => {
 .chat-input { height: 64rpx; padding: 0 20rpx; border-radius: 6rpx; background: var(--theme-bg); font-size: 26rpx; }
 .send-btn { height: 64rpx; padding: 0 24rpx; border-radius: 6rpx; font-size: 25rpx; line-height: 64rpx; }
 </style>
+

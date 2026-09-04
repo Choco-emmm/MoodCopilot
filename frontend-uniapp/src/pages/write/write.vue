@@ -531,7 +531,7 @@ const previewImage = (current: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
 }
 
 .upload-btn:active {
@@ -590,7 +590,7 @@ const previewImage = (current: string) => {
   font-weight: 700;
   text-align: center;
   padding: 24rpx 0;
-  transition: all 0.3s ease;
+  transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
 }
 
 .composer-submit:active:not(.disabled) {
@@ -781,3 +781,4 @@ const previewImage = (current: string) => {
 .composer-privacy-note { display: block; margin-bottom: 14rpx; color: var(--theme-text-secondary); font-size: 21rpx; line-height: 1.5; }
 .composer-submit { width: 100%; padding: 0; height: 82rpx; border-radius: 7rpx; font-size: 28rpx; line-height: 82rpx; }
 </style>
+

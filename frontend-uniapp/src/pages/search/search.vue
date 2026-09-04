@@ -194,7 +194,7 @@ const formatDate = (isoStr: string) => {
   border-radius: 4rpx;
   padding: 32rpx;
   border: 1px solid rgba(0,0,0,0.05);
-  transition: all 0.25s ease;
+  transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease, opacity 0.25s ease, transform 0.25s ease;
 }
 
 .diary-author-info {
@@ -309,3 +309,4 @@ const formatDate = (isoStr: string) => {
   padding: 40rpx 0;
 }
 </style>
+

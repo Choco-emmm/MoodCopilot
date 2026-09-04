@@ -595,7 +595,7 @@ function cancelEditMemory() {
   border: none;
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md);
-  transition: all var(--duration-normal) var(--ease-out);
+  transition: color var(--duration-normal) var(--ease-out), background-color var(--duration-normal) var(--ease-out), border-color var(--duration-normal) var(--ease-out), opacity var(--duration-normal) var(--ease-out), transform var(--duration-normal) var(--ease-out);
   align-self: start;
   width: 100%;
   box-sizing: border-box;
@@ -684,3 +684,4 @@ function cancelEditMemory() {
 }
 
 </style>
+

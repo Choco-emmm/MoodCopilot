@@ -535,7 +535,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   font-size: var(--text-xs);
   color: color-mix(in oklab, var(--color-text-muted) 80%, transparent);
   user-select: none;
-  outline: none;
+  outline: 2px solid transparent; outline-offset: 2px;
 }
 
 .streaming-md :deep(.think-block:last-of-type summary::after) {
@@ -565,7 +565,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
 }
 :deep(.rag-ref-key) {
   font-weight: 600;
@@ -627,7 +627,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   border-radius: 12px;
   font-size: 12px;
   color: var(--color-text-secondary);
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
   max-width: 200px;
   white-space: nowrap;
   overflow: hidden;
@@ -766,7 +766,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   border: 1.5px solid color-mix(in oklab, var(--color-primary) 10%, transparent);
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.25s var(--ease-out);
+  transition: color 0.25s var(--ease-out), background-color 0.25s var(--ease-out), border-color 0.25s var(--ease-out), opacity 0.25s var(--ease-out), transform 0.25s var(--ease-out);
   font-family: inherit;
 }
 
@@ -1070,7 +1070,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   font-size: 12px;
   color: var(--color-primary);
   user-select: none;
-  outline: none;
+  outline: 2px solid transparent; outline-offset: 2px;
   margin-bottom: 4px;
 }
 
@@ -1105,7 +1105,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 .chat-features-index .index-link {
   color: var(--color-text-secondary);
   text-decoration: none;
-  transition: all 0.25s var(--ease-out, ease);
+  transition: color 0.25s var(--ease-out, ease), background-color 0.25s var(--ease-out, ease), border-color 0.25s var(--ease-out, ease), opacity 0.25s var(--ease-out, ease), transform 0.25s var(--ease-out, ease);
   font-weight: 500;
   text-transform: uppercase;
   font-size: 11px;
@@ -1123,7 +1123,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   font-family: var(--font-sans);
   font-size: 10px;
   opacity: 0.4;
-  transition: all 0.25s var(--ease-out, ease);
+  transition: color 0.25s var(--ease-out, ease), background-color 0.25s var(--ease-out, ease), border-color 0.25s var(--ease-out, ease), opacity 0.25s var(--ease-out, ease), transform 0.25s var(--ease-out, ease);
 }
 
 .chat-features-index .index-link:hover .link-arrow {
@@ -1214,3 +1214,5 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 
 }
 </style>
+
+

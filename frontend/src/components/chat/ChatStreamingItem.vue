@@ -303,7 +303,7 @@ function getTriplePolarityClass(relation: string, tail: string): string {
   border: 1px solid color-mix(in oklab, var(--color-primary) 18%, transparent);
   border-radius: 8px;
   margin-bottom: 6px;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
 }
 .rag-ref-item-graph:hover {
   border-color: var(--color-primary);
@@ -371,3 +371,4 @@ function getTriplePolarityClass(relation: string, tail: string): string {
   font-size: 11px;
 }
 </style>
+

@@ -339,7 +339,7 @@ async function deleteTriple(id: number) {
   border: none;
   border-radius: var(--radius-xl);
   box-shadow: 0 10px 30px -10px rgba(0,0,0,0.03);
-  transition: all var(--duration-normal) var(--ease-out);
+  transition: color var(--duration-normal) var(--ease-out), background-color var(--duration-normal) var(--ease-out), border-color var(--duration-normal) var(--ease-out), opacity var(--duration-normal) var(--ease-out), transform var(--duration-normal) var(--ease-out);
 }
 .memory-item:hover {
   transform: translateY(-4px);
@@ -428,3 +428,4 @@ async function deleteTriple(id: number) {
 .flex-end-gap-12 { display: flex; gap: 12px; justify-content: flex-end; }
 
 </style>
+

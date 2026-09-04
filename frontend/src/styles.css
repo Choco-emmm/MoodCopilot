@@ -158,6 +158,11 @@ button,
   touch-action: manipulation;
 }
 
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 ::selection {
   background: color-mix(in oklab, var(--color-primary) 18%, transparent 82%);
   color: var(--color-text);
@@ -405,7 +410,7 @@ button,
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
 }
 
 .nav-icon-btn:hover {
@@ -1670,7 +1675,7 @@ h3 {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
 }
 
 .mode-tab:first-child {
@@ -1706,7 +1711,7 @@ h3 {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
 }
 
 .main-tab:first-child {
@@ -5089,4 +5094,7 @@ h3 {
 .chat-user .md-content blockquote { border-left-color: currentColor; color: inherit; opacity: 0.9; background: color-mix(in oklab, currentColor 10%, transparent); padding: 6px 12px; margin: 4px 0 8px 0; border-radius: 0 4px 4px 0; }
 .chat-user .msg-action-btn { color: inherit; opacity: 0.7; }
 .chat-user .msg-action-btn:hover { background: color-mix(in oklab, currentColor 10%, transparent); color: var(--color-on-primary); }
+
+
+
 

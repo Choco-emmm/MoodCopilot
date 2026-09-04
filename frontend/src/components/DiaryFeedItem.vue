@@ -592,7 +592,7 @@ function getAvatarStyle(name: string) {
 .comment-act {
   padding: 2px 10px; border: none; border-radius: 6px;
   background: transparent; color: var(--color-text-muted);
-  font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
+  font-size: 0.72rem; cursor: pointer; transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
 }
 
 .comment-act:hover { background: color-mix(in oklab, var(--color-primary) 8%, transparent); color: var(--color-text); }
@@ -622,7 +622,7 @@ function getAvatarStyle(name: string) {
   flex: 1; padding: 9px 14px; border: 1.5px solid var(--color-border);
   border-radius: 12px; background: var(--color-surface);
   color: var(--color-text); font-size: 0.85rem;
-  outline: none; transition: border-color 0.2s;
+  outline: 2px solid transparent; outline-offset: 2px; transition: border-color 0.2s;
 }
 
 .comment-reply-input:focus { border-color: var(--color-primary); }
@@ -695,3 +695,4 @@ function getAvatarStyle(name: string) {
   border-bottom-color: color-mix(in oklab, var(--color-primary) 12%, rgba(255,255,255,0.06));
 }
 </style>
+

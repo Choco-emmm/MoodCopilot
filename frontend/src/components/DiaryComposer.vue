@@ -975,7 +975,7 @@ async function handleSave() {
   font-weight: 600;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   font-family: inherit;
 }
 
@@ -1010,7 +1010,7 @@ async function handleSave() {
   color: var(--color-text-muted);
   font-size: 0.82rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   font-family: inherit;
 }
 
@@ -1106,7 +1106,7 @@ async function handleSave() {
   padding: 10px 12px;
   border-radius: 10px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
   border: 1px solid transparent;
 }
 
@@ -1136,7 +1136,7 @@ async function handleSave() {
   flex-shrink: 0;
   font-size: 11px;
   color: var(--color-primary);
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
 }
 
 .composer-collection-modal-item.selected .composer-collection-checkbox {
@@ -1195,7 +1195,7 @@ async function handleSave() {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
   font-family: inherit;
 }
 
@@ -1236,7 +1236,7 @@ async function handleSave() {
   color: var(--color-text);
   font-size: 14px;
   font-family: inherit;
-  outline: none;
+  outline: 2px solid transparent; outline-offset: 2px;
   margin-bottom: 10px;
   transition: border-color 0.2s;
 }
@@ -1258,7 +1258,7 @@ async function handleSave() {
   color: var(--color-text);
   font-size: 13px;
   font-family: inherit;
-  outline: none;
+  outline: 2px solid transparent; outline-offset: 2px;
   resize: none;
   margin-bottom: 14px;
   transition: border-color 0.2s;
@@ -1332,7 +1332,7 @@ async function handleSave() {
   font-weight: 600;
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   font-family: inherit;
 }
 
@@ -1395,7 +1395,7 @@ async function handleSave() {
 .composer-editor :deep(.w-e-bar-item button) {
   color: var(--color-text-muted);
   border-radius: 8px;
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
 }
 
 .composer-editor :deep(.w-e-bar-item button:hover) {
@@ -1483,7 +1483,7 @@ async function handleSave() {
   color: var(--color-text-muted);
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   font-family: inherit;
 }
 
@@ -1507,7 +1507,7 @@ async function handleSave() {
   border: 1.5px solid var(--color-border);
   border-radius: 12px;
   font-size: 0.85rem;
-  outline: none;
+  outline: 2px solid transparent; outline-offset: 2px;
   background: var(--color-surface);
   color: var(--color-text);
   font-family: inherit;
@@ -1648,7 +1648,7 @@ async function handleSave() {
   cursor: pointer;
   color: var(--color-text-muted);
   font-size: 0.7rem;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   gap: 2px;
 }
 
@@ -1869,3 +1869,4 @@ async function handleSave() {
   }
 }
 </style>
+

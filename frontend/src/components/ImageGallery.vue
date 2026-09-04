@@ -247,7 +247,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
   padding: 0;
 }
 
@@ -273,7 +273,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   height: 6px;
   border-radius: 50%;
   background: rgba(255,255,255,0.3);
-  transition: all 0.15s;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s;
 }
 
 .lightbox-dot.active {
@@ -322,3 +322,4 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   .lightbox-arrow.right { right: 8px; }
 }
 </style>
+

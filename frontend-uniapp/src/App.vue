@@ -63,6 +63,12 @@ page {
   -webkit-font-smoothing: antialiased;
 }
 
+button:focus-visible,
+view[role='button']:focus-visible {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 2px;
+}
+
 /* 针对部分需要复用衬线体的地方 */
 .font-serif {
   font-family: "Noto Serif SC", "Songti SC", "STSong", "KaiTi", serif;
@@ -123,3 +129,4 @@ page {
   to { opacity: 1; transform: translateY(0); }
 }
 </style>
+

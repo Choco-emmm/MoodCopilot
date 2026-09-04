@@ -949,7 +949,7 @@ const fetchQuota = async () => {
   justify-content: center;
   padding: 16rpx 0;
   border-radius: 4rpx;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
   color: var(--theme-text-secondary);
 }
 
@@ -1021,7 +1021,7 @@ const fetchQuota = async () => {
   align-items: center;
   gap: 12rpx;
   opacity: 0.7;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
 }
 
 .theme-item.active {
@@ -1034,7 +1034,7 @@ const fetchQuota = async () => {
   border-radius: 45rpx;
   padding: 6rpx;
   border: 4rpx solid transparent;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
 }
 
 .theme-item.active .theme-preview {
@@ -1101,3 +1101,4 @@ const fetchQuota = async () => {
   white-space: nowrap;
 }
 </style>
+

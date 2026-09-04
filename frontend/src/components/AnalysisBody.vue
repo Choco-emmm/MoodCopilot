@@ -19,19 +19,19 @@
                   <div class="quadrant-grid">
                     <div class="quadrant-cell">
                       <p class="quadrant-label">积极 · 高能量</p>
-                      <div class="color-demo" :style="{ background: moodColor('', 100, 100), color: '#fff' }">暖黄色</div>
+                      <div class="color-demo" :style="{ background: moodColor('', 100, 100), color: 'var(--color-on-primary)' }">暖黄色</div>
                     </div>
                     <div class="quadrant-cell">
                       <p class="quadrant-label">积极 · 低能量</p>
-                      <div class="color-demo" :style="{ background: moodColor('', 100, -100), color: '#fff' }">草木绿</div>
+                      <div class="color-demo" :style="{ background: moodColor('', 100, -100), color: 'var(--color-on-primary)' }">草木绿</div>
                     </div>
                     <div class="quadrant-cell">
                       <p class="quadrant-label">消极 · 高能量</p>
-                      <div class="color-demo" :style="{ background: moodColor('', -100, 100), color: '#fff' }">红褐色</div>
+                      <div class="color-demo" :style="{ background: moodColor('', -100, 100), color: 'var(--color-on-primary)' }">红褐色</div>
                     </div>
                     <div class="quadrant-cell">
                       <p class="quadrant-label">消极 · 低能量</p>
-                      <div class="color-demo" :style="{ background: moodColor('', -100, -100), color: '#fff' }">蓝灰色</div>
+                      <div class="color-demo" :style="{ background: moodColor('', -100, -100), color: 'var(--color-on-primary)' }">蓝灰色</div>
                     </div>
                   </div>
                 </div>
@@ -234,7 +234,7 @@ onUnmounted(() => {
 .prose {
   max-width: none;
   line-height: 1.75;
-  color: var(--color-text, #444);
+  color: var(--color-text);
   white-space: normal;
 }
 
@@ -253,7 +253,7 @@ onUnmounted(() => {
   margin: 1.25em 0 0.5em;
   font-weight: 600;
   line-height: 1.35;
-  color: var(--color-text, #333);
+  color: var(--color-text);
 }
 
 .prose :deep(h1) { font-size: 1.25rem; }
@@ -273,16 +273,16 @@ onUnmounted(() => {
 .prose :deep(blockquote) {
   margin: 0.75em 0;
   padding: 0.5em 1em;
-  border-left: 3px solid var(--color-accent-light, #d9827a);
-  background: var(--color-accent-bg, #fff1ef);
+  border-left: 3px solid var(--color-accent-light);
+  background: var(--color-accent-bg);
   border-radius: 0 8px 8px 0;
-  color: var(--color-text-secondary, #67645d);
+  color: var(--color-text-secondary);
 }
 
 .prose :deep(code) {
   padding: 0.15em 0.4em;
   border-radius: 4px;
-  background: var(--color-surface-soft, #f6f2ea);
+  background: var(--color-surface-soft);
   font-size: 0.9em;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
@@ -291,7 +291,7 @@ onUnmounted(() => {
   margin: 0.75em 0;
   padding: 0.75em 1em;
   border-radius: 8px;
-  background: var(--color-surface-soft, #f6f2ea);
+  background: var(--color-surface-soft);
   overflow-x: auto;
   font-size: 0.85em;
   line-height: 1.55;
@@ -304,13 +304,13 @@ onUnmounted(() => {
 }
 
 .prose :deep(a) {
-  color: var(--color-accent, #a94b45);
+  color: var(--color-accent);
   text-decoration: underline;
 }
 
 .prose :deep(strong) {
   font-weight: 600;
-  color: var(--color-text, #333);
+  color: var(--color-text);
 }
 
 .prose :deep(em) {
@@ -349,7 +349,7 @@ onUnmounted(() => {
   margin: 0.5em 0;
 }
 .md-content :deep(code) {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: color-mix(in oklab, var(--color-text) 5%, transparent);
   padding: 0.2em 0.4em;
   border-radius: 4px;
   font-family: monospace;
@@ -366,8 +366,8 @@ onUnmounted(() => {
   margin-left: 6px;
   font-size: 0.75rem;
   font-style: normal;
-  color: var(--color-text-tertiary, #aaa);
-  border: 1px solid var(--color-border, #ddd);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
   border-radius: 50%;
   cursor: pointer;
   vertical-align: middle;
@@ -375,20 +375,20 @@ onUnmounted(() => {
   transition: color 0.2s, border-color 0.2s;
 }
 .mood-guide-trigger:hover {
-  color: var(--color-accent, #5a8f7a);
-  border-color: var(--color-accent, #5a8f7a);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 /* ── 弹窗内容 ── */
 .mood-guide-card {
   width: calc(100vw - 48px);
   max-width: 420px;
-  background: var(--color-surface, #fff);
+  background: var(--color-surface);
   border-radius: 16px;
   padding: 24px 20px;
   position: relative;
   box-sizing: border-box;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-lg);
 }
 .guide-close {
   position: absolute;
@@ -398,7 +398,7 @@ onUnmounted(() => {
   height: 28px;
   border: none;
   background: transparent;
-  color: var(--color-text-muted, #999);
+  color: var(--color-text-muted);
   font-size: 1.1rem;
   line-height: 1;
   border-radius: 50%;
@@ -422,7 +422,7 @@ onUnmounted(() => {
 }
 .guide-desc {
   font-size: 0.75rem; 
-  color: var(--color-text-tertiary, #999); 
+  color: var(--color-text-muted);
   margin: 0 0 10px;
   line-height: 1.5;
 }
@@ -433,7 +433,7 @@ onUnmounted(() => {
   font-weight: 600;
   font-size: 0.85rem;
   margin: 0 0 10px;
-  color: var(--color-text, #333);
+  color: var(--color-text);
 }
 
 /* ── 四象限网格 ── */
@@ -445,13 +445,13 @@ onUnmounted(() => {
 .quadrant-cell {
   padding: 8px 10px;
   border-radius: 8px;
-  background: var(--color-surface-hover, #f0ede6);
+  background: var(--color-surface-hover);
 }
 .quadrant-label {
   margin: 0 0 5px;
   font-size: 0.7rem;
   font-weight: 500;
-  color: var(--color-text-tertiary, #999);
+  color: var(--color-text-muted);
   letter-spacing: 0.02em;
 }
 .color-demo {
@@ -459,7 +459,7 @@ onUnmounted(() => {
   padding: 3px 8px;
   border-radius: 6px;
   font-size: 0.7rem;
-  color: #fff;
+  color: var(--color-on-primary);
   opacity: 0.9;
 }
 
@@ -480,15 +480,15 @@ onUnmounted(() => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--color-accent, #5a8f7a);
+  background: var(--color-accent);
   margin-top: 5px;
 }
 .intensity-label {
   font-weight: 500;
-  color: var(--color-text, #333);
+  color: var(--color-text);
 }
 .intensity-desc {
-  color: var(--color-text-tertiary, #999);
+  color: var(--color-text-muted);
   font-size: 0.74rem;
 }
 
@@ -505,8 +505,8 @@ onUnmounted(() => {
   padding: 1px 8px;
   border-radius: 10px;
   background: transparent;
-  border: 1px solid var(--color-border, #ddd);
-  color: var(--color-text-secondary, #666);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
 }
 
 /* ── 移动端适配 ── */
@@ -547,12 +547,13 @@ onUnmounted(() => {
     font-size: 0.7rem;
   }
 }
-.analysis-retry-button { margin-top: 10px; padding: 6px 14px; border: 1px solid var(--color-primary, #4f745e); border-radius: 5px; background: transparent; color: var(--color-primary, #4f745e); cursor: pointer; }
+.analysis-retry-button { margin-top: 10px; padding: 6px 14px; border: 1px solid var(--color-primary); border-radius: 5px; background: transparent; color: var(--color-primary); cursor: pointer; }
 .analysis-retry-button:disabled { cursor: wait; opacity: .55; }
-.analysis-retry-modal { width: min(360px, calc(100vw - 40px)); padding: 22px; border-radius: 8px; background: var(--color-surface, #fff); box-sizing: border-box; }
+.analysis-retry-modal { width: min(360px, calc(100vw - 40px)); padding: 22px; border-radius: 8px; background: var(--color-surface); box-sizing: border-box; }
 .analysis-retry-title { margin: 0 0 14px; font-weight: 650; }
 .analysis-retry-option { display: flex; gap: 9px; align-items: center; margin: 12px 0; cursor: pointer; }
 .analysis-retry-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
-.analysis-retry-cancel, .analysis-retry-confirm { padding: 7px 14px; border: 1px solid var(--color-border, #d6ded8); border-radius: 5px; background: transparent; cursor: pointer; }
-.analysis-retry-confirm { border-color: var(--color-primary, #4f745e); background: var(--color-primary, #4f745e); color: #fff; }
+.analysis-retry-cancel, .analysis-retry-confirm { padding: 7px 14px; border: 1px solid var(--color-border); border-radius: 5px; background: transparent; cursor: pointer; }
+.analysis-retry-confirm { border-color: var(--color-primary); background: var(--color-primary); color: var(--color-on-primary); }
 </style>
+

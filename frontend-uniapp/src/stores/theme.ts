@@ -55,7 +55,7 @@ const updateThemeStyle = () => {
   const borderCol = 'color-mix(in oklab, var(--theme-primary) 16%, transparent)';
   const onPrimary = isDark ? 'var(--theme-bg)' : 'var(--theme-surface)';
 
-  themeStyle.value = `--theme-primary: ${theme.primary}; --theme-primary-rgb: ${hexToRgb(theme.primary)}; --theme-accent: ${theme.accent}; --theme-bg: ${theme.bg}; --theme-surface: ${theme.surface}; --theme-surface-rgb: ${hexToRgb(theme.surface)}; --theme-text-primary: ${textPrimary}; --theme-text-secondary: ${textSecondary}; --theme-text-placeholder: ${textPlaceholder}; --theme-border: ${borderCol}; --theme-text-on-primary: ${onPrimary}; --theme-overlay: color-mix(in oklab, var(--theme-primary) 45%, transparent);`;
+  themeStyle.value = `--theme-primary: ${theme.primary}; --theme-primary-rgb: ${hexToRgb(theme.primary)}; --theme-accent: ${theme.accent}; --theme-bg: ${theme.bg}; --theme-surface: ${theme.surface}; --theme-surface-rgb: ${hexToRgb(theme.surface)}; --theme-surface-hover: color-mix(in oklab, var(--theme-primary) 6%, var(--theme-surface)); --theme-text-primary: ${textPrimary}; --theme-text-secondary: ${textSecondary}; --theme-text-placeholder: ${textPlaceholder}; --theme-border: ${borderCol}; --theme-text-on-primary: ${onPrimary}; --theme-overlay: color-mix(in oklab, var(--theme-primary) 45%, transparent);`;
 };
 
 watch(currentTheme, () => {
@@ -92,3 +92,4 @@ export const setSpecificTheme = (themeValue: string, isDarkTheme: boolean) => {
   }
   uni.$emit('themeChanged');
 };
+

@@ -283,7 +283,7 @@ function toggleLine(index: number) {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s, opacity 0.2s, transform 0.2s;
 }
 
 .music-theme-summary.clickable {
@@ -458,3 +458,4 @@ function toggleLine(index: number) {
   color: var(--color-primary);
 }
 </style>
+
