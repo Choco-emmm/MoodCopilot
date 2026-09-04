@@ -28,6 +28,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
@@ -61,6 +62,7 @@ public class LifeChapterService {
     private final ChatClient analysisChatClient;
     private final ObjectMapper objectMapper;
     private final AiPromptProperties aiPrompts;
+    private final TransactionTemplate transactionTemplate;
 
     public LifeChapterService(UserLifeChapterMapper chapterMapper,
                               UserLifeChapterVersionMapper versionMapper,
@@ -72,7 +74,8 @@ public class LifeChapterService {
                               AiTaskProducer aiTaskProducer,
                               @Qualifier("analysisChatClient") ChatClient analysisChatClient,
                               ObjectMapper objectMapper,
-                              AiPromptProperties aiPrompts) {
+                              AiPromptProperties aiPrompts,
+                              TransactionTemplate transactionTemplate) {
         this.chapterMapper = chapterMapper;
         this.versionMapper = versionMapper;
         this.chapterDiaryMapper = chapterDiaryMapper;
@@ -84,6 +87,7 @@ public class LifeChapterService {
         this.analysisChatClient = analysisChatClient;
         this.objectMapper = objectMapper;
         this.aiPrompts = aiPrompts;
+        this.transactionTemplate = transactionTemplate;
     }
 
     public record ChapterDiarySource(Long id, String date, String excerpt, String summary) {}
@@ -110,6 +114,11 @@ public class LifeChapterService {
                 .eq(UserLifeChapterEntity::getUserId, userId).eq(UserLifeChapterEntity::getStartDate, start)
                 .eq(UserLifeChapterEntity::getEndDate, end).last("LIMIT 1"));
         if (chapter == null) {
+            long diaryCount = diaryMapper.selectCount(new LambdaQueryWrapper<DiaryEntity>()
+                    .eq(DiaryEntity::getAuthorUserId, userId).eq(DiaryEntity::getIsDeleted, false)
+                    .ge(DiaryEntity::getCreatedAt, start.atStartOfDay())
+                    .lt(DiaryEntity::getCreatedAt, end.plusDays(1).atStartOfDay()));
+            if (diaryCount < MIN_DIARY_COUNT_FOR_CHAPTER) return;
             chapter = new UserLifeChapterEntity();
             chapter.setUserId(userId); chapter.setTitle("正在整理这一阶段");
             chapter.setThemeSummary("AI 正在从你的日记和重要事件中整理这一阶段的故事。");
@@ -186,19 +195,20 @@ public class LifeChapterService {
         log.info("人生章节已标记为待更新，chapterId={}，snapshot={}", chapter.getId(), snapshot);
     }
 
-    public void markGenerationStarted(Long userId, Long chapterId, String snapshot) {
-        chapterMapper.update(null, new LambdaUpdateWrapper<UserLifeChapterEntity>()
+    public boolean markGenerationStarted(Long userId, Long chapterId, String snapshot) {
+        return chapterMapper.update(null, new LambdaUpdateWrapper<UserLifeChapterEntity>()
                 .eq(UserLifeChapterEntity::getId, chapterId).eq(UserLifeChapterEntity::getUserId, userId)
                 .eq(UserLifeChapterEntity::getSourceSnapshotHash, snapshot)
-                .in(UserLifeChapterEntity::getGenerationStatus, "DIRTY", "FAILED")
+                .in(UserLifeChapterEntity::getGenerationStatus, "DIRTY", "FAILED", "GENERATING")
                 .set(UserLifeChapterEntity::getGenerationStatus, "GENERATING")
-                .set(UserLifeChapterEntity::getUpdatedAt, LocalDateTime.now()));
+                .set(UserLifeChapterEntity::getUpdatedAt, LocalDateTime.now())) == 1;
     }
 
     public void refreshChapterTask(Long userId, Long chapterId, String snapshot) {
         UserLifeChapterEntity chapter = ownedChapter(userId, chapterId);
         if (snapshot == null || !snapshot.equals(chapter.getSourceSnapshotHash())) return;
-        markGenerationStarted(userId, chapterId, snapshot);
+        if ("SUCCEEDED".equals(chapter.getGenerationStatus())) return;
+        if (!markGenerationStarted(userId, chapterId, snapshot)) return;
         List<Long> diaryIds = chapterDiaryMapper.selectList(new LambdaQueryWrapper<LifeChapterDiaryEntity>()
                         .eq(LifeChapterDiaryEntity::getChapterId, chapterId).orderByAsc(LifeChapterDiaryEntity::getDiaryId))
                 .stream().map(LifeChapterDiaryEntity::getDiaryId).toList();
@@ -217,9 +227,9 @@ public class LifeChapterService {
             if (result.get("dominantMoods") instanceof List<?> raw) {
                 for (Object item : raw) if (item != null && !String.valueOf(item).isBlank()) moods.add(boundedText(item, 32));
             }
-            commitVersion(userId, chapterId, snapshot, title, summary, reflection, moods, diaryIds.size());
+            transactionTemplate.executeWithoutResult(status ->
+                    commitVersion(userId, chapterId, snapshot, title, summary, reflection, moods, diaryIds.size()));
         } catch (Exception e) {
-            markGenerationFailed(userId, chapterId, snapshot, boundedText(e.getMessage(), 2000));
             if (e instanceof RuntimeException runtime) throw runtime;
             throw new IllegalStateException(e);
         }
