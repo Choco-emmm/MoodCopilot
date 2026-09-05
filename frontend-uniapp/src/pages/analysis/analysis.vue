@@ -134,27 +134,35 @@
       </view>
       
       <view v-else-if="memories.length > 0">
-        <view class="memory-list">
-          <view v-for="m in memories" :key="m.id" class="memory-row" @click="openEditMemory(m)">
-            <view class="memory-row-main">
-              <view class="memory-row-head">
-                <text class="memory-key">{{ m.attributeKey }}</text>
-                <text v-if="isSafetyState(m)" class="safety-badge">近期状态</text>
-                <text v-else-if="m.isCore" class="core-badge">核心</text>
-              </view>
-              <text class="memory-value">{{ memoryPreview(m.attributeValue) }}</text>
-              <view class="memory-source-row">
-                <text class="memory-source-label">{{ sourceTypeLabel(m) }}</text>
-                <text v-if="diarySourcesFor(m).length" class="memory-source-preview">{{ diarySourceLabel(diarySourcesFor(m)[0]) }}</text><text v-if="diarySourcesFor(m).length" class="memory-source-link" @click.stop="openMemoryDiarySources(m)">查看关联日记{{ diarySourcesFor(m).length > 1 ? `（${diarySourcesFor(m).length}）` : '' }} →</text>
-                <text v-if="conversationIdsFor(m).length" class="memory-source-link" @click.stop="openMemorySource(null, conversationIdsFor(m)[0])">查看关联会话 →</text>
-                <text v-if="!diaryIdsFor(m).length && !conversationIdsFor(m).length" class="memory-source-empty">暂无原始来源</text>
-              </view>
-              <text v-if="m.updatedAt || m.updateTime" class="memory-updated">最近更新 {{ formatMemoryTime(m.updatedAt || m.updateTime) }}</text>
+        <view class="memory-overview"><text>{{ memoryGroups.length }} 个属性 · {{ memories.length }} 条记忆</text><text>点击属性查看详情</text></view>
+        <view class="memory-groups">
+          <view v-for="(group, groupIndex) in memoryGroups" :key="group.key" :class="['memory-group', { 'memory-group-expanded': isMemoryGroupExpanded(group, groupIndex) }]">
+            <view class="memory-group-header" @click="toggleMemoryGroup(group.key, groupIndex)">
+              <view class="memory-group-heading"><text class="memory-group-title">{{ group.label }}</text><text class="memory-group-count">{{ group.items.length }} 条</text></view>
+              <text class="memory-group-toggle">{{ isMemoryGroupExpanded(group, groupIndex) ? '收起' : '展开' }} {{ isMemoryGroupExpanded(group, groupIndex) ? '⌃' : '⌄' }}</text>
             </view>
-            <view class="memory-row-actions">
-              <text class="memory-edit" @click.stop="openMemoryDetails(m)">依据</text>
-              <text class="memory-edit">编辑</text>
-              <text class="del-btn" @click.stop="deleteMemory(m.id)">×</text>
+            <view v-if="isMemoryGroupExpanded(group, groupIndex)" class="memory-list">
+              <view v-for="m in group.items" :key="m.id" class="memory-row" @click="openEditMemory(m)">
+                <view class="memory-row-main">
+                  <view v-if="isSafetyState(m) || m.isCore" class="memory-row-head">
+                    <text v-if="isSafetyState(m)" class="safety-badge">近期状态</text>
+                    <text v-else-if="m.isCore" class="core-badge">核心</text>
+                  </view>
+                  <text class="memory-value">{{ memoryPreview(m.attributeValue) }}</text>
+                  <view class="memory-source-row">
+                    <text class="memory-source-label">{{ sourceTypeLabel(m) }}</text>
+                    <text v-if="diarySourcesFor(m).length" class="memory-source-preview">{{ diarySourceLabel(diarySourcesFor(m)[0]) }}</text><text v-if="diarySourcesFor(m).length" class="memory-source-link" @click.stop="openMemoryDiarySources(m)">查看关联日记{{ diarySourcesFor(m).length > 1 ? `（${diarySourcesFor(m).length}）` : '' }} →</text>
+                    <text v-if="conversationIdsFor(m).length" class="memory-source-link" @click.stop="openMemorySource(null, conversationIdsFor(m)[0])">查看关联会话 →</text>
+                    <text v-if="!diaryIdsFor(m).length && !conversationIdsFor(m).length" class="memory-source-empty">暂无原始来源</text>
+                  </view>
+                  <text v-if="m.updatedAt || m.updateTime" class="memory-updated">最近更新 {{ formatMemoryTime(m.updatedAt || m.updateTime) }}</text>
+                </view>
+                <view class="memory-row-actions">
+                  <text class="memory-edit" @click.stop="openMemoryDetails(m)">依据</text>
+                  <text class="memory-edit">编辑</text>
+                  <text class="del-btn" @click.stop="deleteMemory(m.id)">×</text>
+                </view>
+              </view>
             </view>
           </view>
         </view>
@@ -164,8 +172,14 @@
         <text class="empty-text">AI 正在努力了解你，多写点日记给它线索吧。</text>
       </view>
       <view class="candidate-section">
-        <view class="candidate-title">待确认的记忆</view>
-        <text class="candidate-desc">AI 的推断需要你确认后才会进入正式画像。</text>
+        <view class="candidate-heading">
+          <view class="candidate-heading-main">
+            <text class="candidate-title">待确认的记忆</text>
+            <text class="candidate-desc">AI 的推断需要你确认后才会进入正式画像。</text>
+          </view>
+          <text class="candidate-count">{{ candidates.length }} 条</text>
+        </view>
+        <text v-if="candidates.length" class="candidate-summary">{{ candidateGroups.length }} 个属性需要你的确认</text>
         <view v-if="loadingCandidates" class="loading-state candidate-loading-state"><text>正在加载待确认记忆...</text></view>
         <view v-else-if="candidateError" class="inline-error-card candidate-error-card">
           <text class="empty-text">待确认记忆暂时无法加载</text>
@@ -173,11 +187,17 @@
           <button class="inline-retry-btn" @click="fetchCandidates">重新加载</button>
         </view>
         <view v-else-if="candidates.length === 0" class="candidate-empty">暂无待确认记忆</view>
-        <view v-else v-for="group in candidateGroups" :key="group.key" class="candidate-group">
-          <text v-if="group.hasConflict" class="candidate-conflict-note">同一属性存在不同候选，请分别确认。</text>
-          <view v-for="candidate in group.items" :key="candidate.id" class="candidate-row">
-            <view class="candidate-copy"><text class="candidate-key">{{ candidate.attributeKey }}</text><text class="candidate-value">{{ candidate.attributeValue }}</text><text class="candidate-evidence">{{ isSafetyState(candidate) ? '这是需要关注的近期状态，不属于核心长期画像。' : (candidate.evidenceSummary || '暂无证据摘要') }}</text><text class="candidate-evidence">已有 {{ candidate.evidenceCount || 0 }} 条依据 · {{ sourceTypeLabel(candidate) }}</text><text v-if="diarySourcesFor(candidate).length" class="candidate-source-preview">{{ diarySourceLabel(diarySourcesFor(candidate)[0]) }}</text><text v-if="diarySourcesFor(candidate).length" class="candidate-source-link" @click.stop="openMemoryDiarySources(candidate)">查看关联日记{{ diarySourcesFor(candidate).length > 1 ? `（${diarySourcesFor(candidate).length}）` : '' }} →</text><text v-else-if="conversationIdsFor(candidate).length" class="candidate-source-link" @click.stop="openMemorySource(null, conversationIdsFor(candidate)[0])">查看关联会话 →</text><text v-else class="candidate-evidence">暂无原始来源</text></view>
-            <view class="candidate-actions"><text :class="['candidate-approve', { 'candidate-action-disabled': candidateActionId === candidate.id }]" @click="approveCandidate(candidate.id)">确认</text><text :class="['candidate-reject', { 'candidate-action-disabled': candidateActionId === candidate.id }]" @click="rejectCandidate(candidate.id)">拒绝</text></view>
+        <view v-else v-for="(group, groupIndex) in candidateGroups" :key="group.key" class="candidate-group">
+          <view class="candidate-group-header" @click="toggleCandidateGroup(group.key, groupIndex)">
+            <view class="candidate-group-heading"><text class="candidate-group-title">{{ group.label }}</text><text class="candidate-group-count">{{ group.items.length }} 条候选</text></view>
+            <text class="candidate-group-toggle">{{ isCandidateGroupExpanded(group, groupIndex) ? '收起' : '展开' }} {{ isCandidateGroupExpanded(group, groupIndex) ? '⌃' : '⌄' }}</text>
+          </view>
+          <view v-if="isCandidateGroupExpanded(group, groupIndex)">
+            <text v-if="group.hasConflict" class="candidate-conflict-note">同一属性存在不同候选，请分别确认。</text>
+            <view v-for="candidate in group.items" :key="candidate.id" class="candidate-row">
+              <view class="candidate-copy"><text class="candidate-value">{{ candidate.attributeValue }}</text><text class="candidate-evidence">{{ isSafetyState(candidate) ? '这是需要关注的近期状态，不属于核心长期画像。' : (candidate.evidenceSummary || '暂无证据摘要') }}</text><text class="candidate-evidence">已有 {{ candidate.evidenceCount || 0 }} 条依据 · {{ sourceTypeLabel(candidate) }}</text><text v-if="diarySourcesFor(candidate).length" class="candidate-source-preview">{{ diarySourceLabel(diarySourcesFor(candidate)[0]) }}</text><text v-if="diarySourcesFor(candidate).length" class="candidate-source-link" @click.stop="openMemoryDiarySources(candidate)">查看关联日记{{ diarySourcesFor(candidate).length > 1 ? `（${diarySourcesFor(candidate).length}）` : '' }} →</text><text v-else-if="conversationIdsFor(candidate).length" class="candidate-source-link" @click.stop="openMemorySource(null, conversationIdsFor(candidate)[0])">查看关联会话 →</text><text v-else class="candidate-evidence">暂无原始来源</text></view>
+              <view class="candidate-actions"><text :class="['candidate-approve', { 'candidate-action-disabled': candidateActionId === candidate.id }]" @click="approveCandidate(candidate.id)">确认</text><text :class="['candidate-reject', { 'candidate-action-disabled': candidateActionId === candidate.id }]" @click="rejectCandidate(candidate.id)">拒绝</text></view>
+            </view>
           </view>
         </view>
       </view>
@@ -223,7 +243,13 @@
       </view>
       
       <view v-else-if="triples.length > 0" class="graph-container">
-        <view v-for="t in triples" :key="t.id" class="graph-link" @click="openEditGraph(t)">
+        <view class="graph-toolbar">
+          <input v-model="graphKeyword" class="graph-search" placeholder="搜索人物、关系或事物" confirm-type="search" />
+          <text v-if="graphKeyword" class="graph-search-clear" @click="graphKeyword = ''">清除</text>
+        </view>
+        <view class="graph-summary"><text>共 {{ filteredTriples.length }} 条关联</text><text v-if="filteredTriples.length > graphDisplayLimit && !graphExpanded">，先展示 {{ graphDisplayLimit }} 条</text></view>
+        <view v-if="filteredTriples.length > 0">
+          <view v-for="t in visibleTriples" :key="t.id" class="graph-link" @click="openEditGraph(t)">
           <view class="item-actions">
             <text class="del-btn" @click.stop="deleteTriple(t.id)">×</text>
           </view>
@@ -237,7 +263,10 @@
           <view class="graph-node object">
             <text>{{ t.tailEntity }}</text>
           </view>
+          </view>
+          <view v-if="filteredTriples.length > graphDisplayLimit" class="graph-expand-row" @click="graphExpanded = !graphExpanded"><text>{{ graphExpanded ? '收起关联' : `展开全部 ${filteredTriples.length} 条关联` }}</text><text>{{ graphExpanded ? '⌃' : '⌄' }}</text></view>
         </view>
+        <view v-else class="graph-filter-empty"><text>没有匹配的关联</text><text @click="graphKeyword = ''">清除筛选</text></view>
       </view>
       
       <view v-else class="card empty-card">
@@ -256,6 +285,7 @@
           <view v-else v-for="(m, idx) in previewMemories" :key="idx" class="preview-item">
             <text class="preview-key">{{ m.attributeKey }}</text>
             <text class="preview-value">{{ m.attributeValue }}</text>
+            <text class="preview-source">合并 {{ (m.sourceMemoryIds || []).length }} 条相同记忆 · 保留 {{ (m.evidenceIds || []).length }} 条证据</text>
           </view>
         </scroll-view>
         <view class="modal-actions">
@@ -274,11 +304,11 @@
           <input class="edit-input" v-model="editMemoryForm.attributeKey" disabled />
           
           <text class="edit-label">记忆详情</text>
-          <textarea class="edit-textarea" v-model="editMemoryForm.attributeValue" auto-height></textarea>
+          <textarea class="edit-textarea" v-model="editMemoryForm.attributeValue"></textarea>
           
           <view class="edit-switch-row">
             <text class="edit-label">设为核心记忆</text>
-            <switch v-if="!isSafetyState(editMemoryForm)" :checked="editMemoryForm.isCore" @change="handleCoreMemoryChange" color="#d4a373" style="transform: scale(0.8);" />
+            <switch v-if="!isSafetyState(editMemoryForm)" :checked="editMemoryForm.isCore" @change="handleCoreMemoryChange" :color="currentTheme.primary" style="transform: scale(0.8);" />
             <text v-else class="safety-edit-note">近期状态不可设为核心长期画像</text>
           </view>
         </view>
@@ -298,8 +328,9 @@
             没有需要整理的关联。
           </view>
           <view v-else v-for="(t, idx) in previewGraphTriples" :key="idx" class="preview-item">
-            <text class="preview-key">{{ t.headEntity }} -- {{ t.relation }}</text>
-            <text class="preview-value">{{ t.tailEntity }}</text>
+            <text class="preview-key">{{ t.headEntity }} → {{ t.relation }} → {{ t.tailEntity }}</text>
+            <text class="preview-value">{{ graphOperationLabel(t.operation) }}</text>
+            <text class="preview-source">来自 {{ (t.sourceTripleIds || []).length }} 条关系 · 关联 {{ (t.sourceDiaryIds || []).length }} 篇日记</text>
           </view>
         </scroll-view>
         <view class="modal-actions">
@@ -340,6 +371,7 @@ import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { get, post, put, del } from '@/utils/request';
 import { parseMarkdown } from '@/utils/markdown';
 import { hasLoginToken, requireLogin } from '@/stores/login';
+import { currentTheme } from '@/stores/theme';
 
 const loadingReport = ref(false);
 const weeklyReport = ref<any>(null);
@@ -349,21 +381,35 @@ const showLegacyReports = false;
 const loadingMemory = ref(false);
 const memories = ref<any[]>([]);
 const memoryError = ref(false);
+const expandedMemoryGroups = ref<string[]>([]);
+const collapsedMemoryGroups = ref<string[]>([]);
 const candidates = ref<any[]>([]);
 const loadingCandidates = ref(false);
 const candidateError = ref(false);
 const candidateActionId = ref<number | null>(null);
+const expandedCandidateGroups = ref<string[]>([]);
+const collapsedCandidateGroups = ref<string[]>([]);
 const showMemoryDetailsModal = ref(false);
 const memoryDetailsLoading = ref(false);
 const memoryEvidence = ref<any[]>([]);
 const memoryHistory = ref<any[]>([]);
 const activeMemoryDetailsId = ref<number | null>(null);
 const historicalMemoryVersions = computed(() => memoryHistory.value.filter(item => item.id !== activeMemoryDetailsId.value));
+const memoryGroups = computed(() => {
+  const groups = new Map<string, { key: string; label: string; items: any[] }>();
+  for (const memory of memories.value) {
+    const key = `${memory.memoryType || 'memory'}:${memory.attributeKey || '未命名属性'}`;
+    const group = groups.get(key) || { key, label: memory.attributeKey || '未命名属性', items: [] as any[] };
+    group.items.push(memory);
+    groups.set(key, group);
+  }
+  return Array.from(groups.values());
+});
 const candidateGroups = computed(() => {
-  const groups = new Map<string, { key: string; items: any[]; hasConflict: boolean }>();
+  const groups = new Map<string, { key: string; label: string; items: any[]; hasConflict: boolean }>();
   for (const candidate of candidates.value) {
     const key = candidate.candidateGroupKey || `${candidate.memoryType || 'memory'}:${candidate.attributeKey}`;
-    const group = groups.get(key) || { key, items: [] as any[], hasConflict: false };
+    const group = groups.get(key) || { key, label: candidate.attributeKey || '未命名属性', items: [] as any[], hasConflict: false };
     group.items.push(candidate);
     group.hasConflict = group.hasConflict || Boolean(candidate.hasConflict);
     groups.set(key, group);
@@ -371,9 +417,51 @@ const candidateGroups = computed(() => {
   return Array.from(groups.values());
 });
 
+const isMemoryGroupExpanded = (group: { key: string }, index: number) => {
+  return expandedMemoryGroups.value.includes(group.key)
+    || (!collapsedMemoryGroups.value.includes(group.key) && index < 1);
+};
+
+const toggleMemoryGroup = (key: string, index: number) => {
+  const expanded = isMemoryGroupExpanded({ key }, index);
+  if (expanded) {
+    expandedMemoryGroups.value = expandedMemoryGroups.value.filter(item => item !== key);
+    if (!collapsedMemoryGroups.value.includes(key)) collapsedMemoryGroups.value = [...collapsedMemoryGroups.value, key];
+  } else {
+    collapsedMemoryGroups.value = collapsedMemoryGroups.value.filter(item => item !== key);
+    if (!expandedMemoryGroups.value.includes(key)) expandedMemoryGroups.value = [...expandedMemoryGroups.value, key];
+  }
+};
+
+const isCandidateGroupExpanded = (group: { key: string }, index: number) => {
+  return expandedCandidateGroups.value.includes(group.key)
+    || (!collapsedCandidateGroups.value.includes(group.key) && index < 1);
+};
+
+const toggleCandidateGroup = (key: string, index: number) => {
+  const expanded = isCandidateGroupExpanded({ key }, index);
+  if (expanded) {
+    expandedCandidateGroups.value = expandedCandidateGroups.value.filter(item => item !== key);
+    if (!collapsedCandidateGroups.value.includes(key)) collapsedCandidateGroups.value = [...collapsedCandidateGroups.value, key];
+  } else {
+    collapsedCandidateGroups.value = collapsedCandidateGroups.value.filter(item => item !== key);
+    if (!expandedCandidateGroups.value.includes(key)) expandedCandidateGroups.value = [...expandedCandidateGroups.value, key];
+  }
+};
+
 const loadingGraph = ref(false);
 const triples = ref<any[]>([]);
 const graphError = ref(false);
+const graphKeyword = ref('');
+const graphExpanded = ref(false);
+const graphDisplayLimit = 12;
+const filteredTriples = computed(() => {
+  const keyword = graphKeyword.value.trim().toLocaleLowerCase();
+  if (!keyword) return triples.value;
+  return triples.value.filter((triple) => [triple.headEntity, triple.relation, triple.tailEntity]
+    .some((value) => String(value || '').toLocaleLowerCase().includes(keyword)));
+});
+const visibleTriples = computed(() => graphExpanded.value ? filteredTriples.value : filteredTriples.value.slice(0, graphDisplayLimit));
 
 const loadingSummaries = ref(false);
 const monthlySummaries = ref<any[]>([]);
@@ -386,6 +474,10 @@ const isGraphConsolidating = ref(false);
 const isGraphApplying = ref(false);
 const showGraphConsolidateModal = ref(false);
 const previewGraphTriples = ref<any[]>([]);
+
+const graphOperationLabel = (operation?: string) => ({
+  MERGE: '合并重复关系', DEDUP: '去除重复', NORMALIZE: '统一表达',
+}[operation || ''] || '整理建议');
 const isLoggedIn = ref(hasLoginToken());
 
 const loadAllData = async () => {
@@ -870,8 +962,8 @@ const deleteTriple = (id: number) => {
 }
 
 .insight-entry.active {
-  border-color: rgba(var(--theme-primary-rgb), .32);
-  background: rgba(var(--theme-primary-rgb), .055);
+  border-color: var(--theme-primary);
+  background: color-mix(in oklab, var(--theme-primary) 6%, var(--theme-surface));
   color: var(--theme-primary);
 }
 
@@ -897,7 +989,7 @@ const deleteTriple = (id: number) => {
 .memory-waterfall { display: none; }
 .memory-list { display: flex; flex-direction: column; gap: 12rpx; }
 .memory-row { display: flex; min-height: 114rpx; align-items: center; gap: 18rpx; padding: 21rpx 20rpx; border: 1rpx solid var(--theme-border); border-radius: 7rpx; background: var(--theme-surface); box-sizing: border-box; }
-.memory-row:active { background: rgba(var(--theme-primary-rgb), .045); }
+.memory-row:active { background: var(--theme-surface-hover); }
 .memory-row-main { min-width: 0; flex: 1; }
 .memory-row-head { display: flex; align-items: center; gap: 9rpx; }
 .memory-key { overflow: hidden; color: var(--theme-text-primary); font-size: 25rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
@@ -908,10 +1000,10 @@ const deleteTriple = (id: number) => {
 .memory-source-link { color: var(--theme-primary); }
 .memory-updated { display: block; margin-top: 6rpx; color: var(--theme-text-placeholder); font-size: 19rpx; }
 .candidate-group + .candidate-group { margin-top: 12rpx; }
-.candidate-conflict-note { display: block; margin: 8rpx 0; color: #a46a24; font-size: 20rpx; }
+.candidate-conflict-note { display: block; margin: 8rpx 0; color: var(--theme-accent); font-size: 20rpx; }
 .candidate-source-link { display: block; margin-top: 6rpx; color: var(--theme-primary); font-size: 20rpx; }
-.core-badge { padding: 3rpx 9rpx; border-radius: 4rpx; background: rgba(var(--theme-primary-rgb), .1); color: var(--theme-primary); font-size: 18rpx; line-height: 1.4; white-space: nowrap; }
-.safety-badge { padding: 3rpx 9rpx; border-radius: 4rpx; background: rgba(210, 125, 65, .12); color: #b56b35; font-size: 18rpx; line-height: 1.4; white-space: nowrap; }
+.core-badge { padding: 3rpx 9rpx; border-radius: 4rpx; background: color-mix(in oklab, var(--theme-primary) 10%, var(--theme-surface)); color: var(--theme-primary); font-size: 18rpx; line-height: 1.4; white-space: nowrap; }
+.safety-badge { padding: 3rpx 9rpx; border-radius: 4rpx; background: color-mix(in oklab, var(--theme-accent) 12%, var(--theme-surface)); color: var(--theme-accent); font-size: 18rpx; line-height: 1.4; white-space: nowrap; }
 .safety-edit-note { color: var(--theme-text-secondary); font-size: 21rpx; }
 .memory-row-actions { display: flex; align-items: center; gap: 12rpx; }
 .memory-edit { color: var(--theme-primary); font-size: 21rpx; }
@@ -941,8 +1033,8 @@ const deleteTriple = (id: number) => {
   background-color: var(--theme-surface);
   border-radius: 20rpx;
   padding: 40rpx;
-  box-shadow: 0 8rpx 32rpx rgba(0,0,0,0.1);
-  border: 1px solid rgba(var(--theme-primary-rgb), 0.1);
+  box-shadow: var(--theme-shadow-panel);
+  border: 1rpx solid var(--theme-border);
 }
 
 .empty-card {
@@ -972,7 +1064,7 @@ const deleteTriple = (id: number) => {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  border-bottom: 2px solid rgba(var(--theme-primary-rgb), 0.1);
+  border-bottom: 1rpx solid var(--theme-border);
   padding-bottom: 24rpx;
   margin-bottom: 32rpx;
 }
@@ -990,8 +1082,8 @@ const deleteTriple = (id: number) => {
 }
 
 .generate-box {
-  background-color: rgba(var(--theme-primary-rgb), 0.04);
-  border-radius: 16rpx;
+  background-color: color-mix(in oklab, var(--theme-primary) 4%, var(--theme-surface));
+  border-radius: var(--theme-radius-sm);
   padding: 32rpx;
   margin-bottom: 32rpx;
   text-align: center;
@@ -1047,9 +1139,7 @@ const deleteTriple = (id: number) => {
   border-radius: 6rpx;
 }
 
-.progress-fill.positive {
-  background-color: #d4a373;
-}
+.progress-fill.positive { background-color: var(--theme-accent); }
 
 .progress-fill.energy {
   background-color: var(--theme-primary);
@@ -1114,7 +1204,7 @@ const deleteTriple = (id: number) => {
   background-color: var(--theme-surface);
   padding: 32rpx 24rpx;
   border-radius: 8rpx;
-  box-shadow: 0 8rpx 20rpx rgba(32, 32, 29, 0.06);
+  box-shadow: var(--theme-shadow-panel);
   margin-bottom: 24rpx;
   position: relative;
   box-sizing: border-box;
@@ -1129,13 +1219,13 @@ const deleteTriple = (id: number) => {
 .pin {
   width: 20rpx;
   height: 20rpx;
-  background-color: #e55353;
+  background-color: var(--theme-accent);
   border-radius: 50%;
   position: absolute;
   top: 12rpx;
   left: 50%;
   transform: translateX(-50%);
-  box-shadow: inset -2rpx -2rpx 4rpx rgba(0,0,0,0.2), 2rpx 2rpx 4rpx rgba(0,0,0,0.1);
+  box-shadow: var(--theme-shadow-panel);
 }
 
 .memory-key {
@@ -1152,7 +1242,7 @@ const deleteTriple = (id: number) => {
 .memory-divider {
   width: 40rpx;
   height: 2px;
-  background-color: #d4a373;
+  background-color: var(--theme-accent);
   margin: 0 auto 16rpx auto;
 }
 
@@ -1173,7 +1263,7 @@ const deleteTriple = (id: number) => {
   background-color: var(--theme-surface);
   border-radius: 20rpx;
   padding: 40rpx;
-  box-shadow: 0 8rpx 32rpx rgba(0,0,0,0.1);
+  box-shadow: var(--theme-shadow-panel);
 }
 
 .graph-link {
@@ -1208,9 +1298,9 @@ const deleteTriple = (id: number) => {
 }
 
 .graph-node.subject {
-  border: 1px solid rgba(var(--theme-primary-rgb), 0.3);
+  border: 1rpx solid var(--theme-primary);
   color: var(--theme-primary);
-  background: rgba(var(--theme-primary-rgb), 0.05);
+  background: color-mix(in oklab, var(--theme-primary) 5%, var(--theme-surface));
 }
 
 /* Edit Styles */
@@ -1226,7 +1316,7 @@ const deleteTriple = (id: number) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.15);
+  box-shadow: var(--theme-shadow-panel);
   border: 1px solid var(--theme-border);
 }
 
@@ -1248,7 +1338,7 @@ const deleteTriple = (id: number) => {
   justify-content: space-between;
   margin-top: 32rpx;
   padding-top: 24rpx;
-  border-top: 1px solid rgba(0,0,0,0.05);
+  border-top: 1rpx solid var(--theme-border);
 }
 
 .edit-switch-row .edit-label {
@@ -1263,23 +1353,26 @@ const deleteTriple = (id: number) => {
 }
 
 .edit-input {
-  background: #f8f8f7;
+  background: var(--theme-bg);
   border-radius: 12rpx;
   padding: 20rpx;
   font-size: 28rpx;
   margin-bottom: 24rpx;
-  border: 1px solid #e0ddd6;
+  border: 1rpx solid var(--theme-border);
 }
 
 .edit-textarea {
-  background: #f8f8f7;
+  background: var(--theme-bg);
   border-radius: 12rpx;
   padding: 20rpx;
   font-size: 28rpx;
   width: 100%;
   box-sizing: border-box;
-  min-height: 120rpx;
-  border: 1px solid #e0ddd6;
+  height: 280rpx;
+  min-height: 0;
+  max-height: 42vh;
+  overflow-y: auto;
+  border: 1rpx solid var(--theme-border);
   margin-bottom: 24rpx;
 }
 
@@ -1288,12 +1381,12 @@ const deleteTriple = (id: number) => {
 }
 
 .graph-node.object {
-  background-color: rgba(212, 163, 115, 0.15);
-  border: 1px solid rgba(212, 163, 115, 0.3);
+  background-color: color-mix(in oklab, var(--theme-accent) 15%, var(--theme-surface));
+  border: 1rpx solid var(--theme-accent);
 }
 
 .graph-node.object text {
-  color: #a86c32;
+  color: var(--theme-accent);
 }
 
 .graph-edge {
@@ -1317,7 +1410,7 @@ const deleteTriple = (id: number) => {
 .edge-line {
   width: 100%;
   height: 1px;
-  border-bottom: 2px dotted #ccc;
+  border-bottom: 2rpx dotted var(--theme-border);
   z-index: 1;
 }
 
@@ -1328,7 +1421,7 @@ const deleteTriple = (id: number) => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: var(--theme-overlay);
   z-index: 1000;
   display: flex;
   justify-content: center;
@@ -1337,11 +1430,13 @@ const deleteTriple = (id: number) => {
 
 .modal-content {
   width: 85%;
+  max-height: calc(100vh - 96rpx);
   background-color: var(--theme-surface);
   border-radius: 24rpx;
   padding: 40rpx;
-  box-shadow: 0 16rpx 40rpx rgba(0, 0, 0, 0.1);
+  box-shadow: var(--theme-shadow-dialog);
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .modal-title {
@@ -1363,8 +1458,8 @@ const deleteTriple = (id: number) => {
   flex-direction: column;
   margin-bottom: 16rpx;
   padding: 16rpx;
-  background-color: rgba(0,0,0,0.02);
-  border-radius: 12rpx;
+  background-color: var(--theme-surface-hover);
+  border-radius: var(--theme-radius-sm);
 }
 
 .preview-key {
@@ -1387,7 +1482,7 @@ const deleteTriple = (id: number) => {
 
 .cancel-btn {
   flex: 1;
-  background-color: #f0f0f0;
+  background-color: var(--theme-surface-hover);
   color: var(--theme-text-secondary);
   font-size: 30rpx;
   border-radius: 40rpx;
@@ -1398,7 +1493,7 @@ const deleteTriple = (id: number) => {
 .confirm-btn {
   flex: 1;
   background-color: var(--theme-primary);
-  color: #fff;
+  color: var(--theme-text-on-primary);
   font-size: 30rpx;
   border-radius: 40rpx;
   margin: 0;
@@ -1423,9 +1518,9 @@ const deleteTriple = (id: number) => {
   height: 56rpx;
   margin: 0;
   padding: 0 16rpx;
-  border: 1rpx solid rgba(var(--theme-primary-rgb), .3);
+  border: 1rpx solid var(--theme-border);
   border-radius: 6rpx;
-  background: rgba(var(--theme-primary-rgb), .06);
+  background: transparent;
   box-sizing: border-box;
   color: var(--theme-primary);
   font-size: 22rpx;
@@ -1434,18 +1529,738 @@ const deleteTriple = (id: number) => {
 }
 
 .section-action::after { border: none; }
-.section-action:active { background: rgba(var(--theme-primary-rgb), .13); }
+.section-action:active { background: var(--theme-surface-hover); }
 
 /* Keep memory rows compact even though legacy card styles above share class names. */
 .memory-list { display: flex; flex-direction: column; gap: 12rpx; }
 .memory-row { display: flex; min-height: 114rpx; align-items: center; gap: 18rpx; padding: 21rpx 20rpx; border: 1rpx solid var(--theme-border); border-radius: 7rpx; background: var(--theme-surface); box-sizing: border-box; }
-.memory-row:active { background: rgba(var(--theme-primary-rgb), .045); }
+.memory-row:active { background: var(--theme-surface-hover); }
 .memory-row-main { min-width: 0; flex: 1; }
 .memory-row-head { display: flex; align-items: center; gap: 9rpx; }
 .memory-key { overflow: hidden; color: var(--theme-text-primary); font-size: 25rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .memory-value { display: -webkit-box; overflow: hidden; margin-top: 9rpx; color: var(--theme-text-secondary); font-size: 22rpx; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.core-badge { padding: 3rpx 9rpx; border-radius: 4rpx; background: rgba(var(--theme-primary-rgb), .1); color: var(--theme-primary); font-size: 18rpx; line-height: 1.4; white-space: nowrap; }
+.core-badge { padding: 3rpx 9rpx; border-radius: 4rpx; background: color-mix(in oklab, var(--theme-primary) 10%, var(--theme-surface)); color: var(--theme-primary); font-size: 18rpx; line-height: 1.4; white-space: nowrap; }
 .memory-row-actions { display: flex; align-items: center; gap: 12rpx; }
 .memory-edit { color: var(--theme-primary); font-size: 21rpx; }
 .memory-row-actions .del-btn { position: static; display: flex; width: 38rpx; height: 38rpx; align-items: center; justify-content: center; margin: 0; border: 1rpx solid var(--theme-border); border-radius: 50%; background: transparent; color: var(--theme-text-placeholder); font-size: 27rpx; line-height: 1; box-shadow: none; }
+</style>
+
+<style scoped>
+.memory-overview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 8rpx;
+  color: var(--theme-text-placeholder);
+  font-size: 19rpx;
+  line-height: 1.5;
+}
+
+.memory-groups {
+  border-top-color: var(--theme-divider);
+}
+
+.memory-group {
+  border-bottom-color: var(--theme-divider);
+}
+
+.memory-group-header {
+  border-bottom: 1rpx solid var(--theme-divider);
+}
+
+.memory-group-header:active,
+.candidate-group-header:active {
+  background: color-mix(in oklab, var(--theme-primary) 5%, var(--theme-surface));
+}
+
+.memory-row-actions .memory-edit {
+  color: var(--theme-text-secondary);
+  font-weight: 500;
+}
+
+.memory-row-actions .memory-edit:first-child {
+  color: var(--theme-primary);
+  font-weight: 650;
+}
+
+.candidate-group {
+  border-top-color: var(--theme-divider);
+}
+
+.memory-groups {
+  border-top: 1rpx solid var(--theme-divider);
+}
+
+.memory-group {
+  border-bottom: 0;
+}
+
+.memory-group + .memory-group {
+  margin-top: 14rpx;
+}
+
+.memory-group-expanded .memory-group-header {
+  border-bottom: 0;
+}
+
+.memory-group-header,
+.candidate-group-header {
+  display: flex;
+  min-height: 82rpx;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 16rpx 0;
+  box-sizing: border-box;
+}
+
+.memory-group-heading,
+.candidate-group-heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 12rpx;
+}
+
+.memory-group-title,
+.candidate-group-title {
+  overflow: hidden;
+  color: var(--theme-text-primary);
+  font-size: 25rpx;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memory-group-count,
+.candidate-group-count {
+  flex-shrink: 0;
+  color: var(--theme-text-placeholder);
+  font-size: 19rpx;
+}
+
+.memory-group-toggle,
+.candidate-group-toggle {
+  flex-shrink: 0;
+  color: var(--theme-primary);
+  font-size: 20rpx;
+}
+
+.memory-group-header:active,
+.candidate-group-header:active {
+  background: var(--theme-surface-hover);
+}
+
+.memory-group .memory-list {
+  border-top: 0;
+}
+
+.candidate-group-header {
+  min-height: 68rpx;
+  padding: 10rpx 0;
+}
+
+.candidate-group-title {
+  font-size: 23rpx;
+}
+
+.candidate-group-count {
+  font-size: 18rpx;
+}
+
+.graph-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 14rpx;
+  padding-bottom: 16rpx;
+  border-bottom: 1rpx solid var(--theme-border);
+}
+
+.graph-search {
+  min-width: 0;
+  flex: 1;
+  height: 62rpx;
+  padding: 0 18rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-bg);
+  color: var(--theme-text-primary);
+  font-size: 23rpx;
+  box-sizing: border-box;
+}
+
+.graph-search-clear {
+  flex-shrink: 0;
+  color: var(--theme-primary);
+  font-size: 21rpx;
+}
+
+.graph-summary {
+  display: block;
+  margin-bottom: 10rpx;
+  color: var(--theme-text-placeholder);
+  font-size: 19rpx;
+}
+
+.graph-expand-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+  margin-top: 8rpx;
+  padding: 18rpx 0 4rpx;
+  border-top: 1rpx solid var(--theme-border);
+  color: var(--theme-primary);
+  font-size: 21rpx;
+}
+
+.graph-filter-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18rpx;
+  padding: 40rpx 0 24rpx;
+  color: var(--theme-text-secondary);
+  font-size: 22rpx;
+}
+
+.graph-filter-empty text:last-child {
+  color: var(--theme-primary);
+}
+</style>
+
+<style scoped>
+/* Editorial memory center layer. The page keeps the existing content and actions,
+   but gives conclusions, evidence, and controls distinct visual weight. */
+.analysis-page {
+  padding: var(--theme-page-padding);
+  padding-bottom: calc(120rpx + env(safe-area-inset-bottom));
+}
+
+.header {
+  margin-top: 22rpx;
+  margin-bottom: 48rpx;
+}
+
+.title {
+  font-size: 54rpx;
+  letter-spacing: 0;
+  line-height: 1.15;
+}
+
+.subtitle {
+  max-width: 600rpx;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  line-height: 1.65;
+}
+
+.insight-entry-switch {
+  gap: 12rpx;
+  margin-top: 28rpx;
+}
+
+.insight-entry {
+  min-height: 104rpx;
+  padding: 20rpx;
+  border-radius: var(--theme-radius-md);
+  background: var(--theme-surface);
+  font-size: 26rpx;
+}
+
+.insight-entry.active {
+  border-color: var(--theme-primary);
+  background: color-mix(in oklab, var(--theme-primary) 7%, var(--theme-surface));
+}
+
+.entry-kicker {
+  margin-bottom: 8rpx;
+  font-size: 18rpx;
+  letter-spacing: 1rpx;
+}
+
+.section {
+  margin-bottom: var(--theme-section-gap);
+}
+
+.section-title {
+  margin-bottom: 10rpx;
+  font-size: 36rpx;
+  line-height: 1.25;
+}
+
+.section-desc {
+  margin-bottom: 22rpx;
+  font-size: 23rpx;
+  line-height: 1.6;
+}
+
+.section-title-row {
+  align-items: baseline;
+  padding-bottom: 14rpx;
+  border-bottom: 1rpx solid var(--theme-border);
+}
+
+.section-action {
+  min-width: 128rpx;
+  height: 52rpx;
+  padding: 0 14rpx;
+  border-color: var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  background: transparent;
+  color: var(--theme-primary);
+  font-size: 21rpx;
+  line-height: 50rpx;
+}
+
+.section-action:active {
+  background: var(--theme-surface-hover);
+}
+
+.card,
+.graph-container {
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-md);
+  background: var(--theme-surface);
+  box-shadow: var(--theme-shadow-panel);
+}
+
+.card {
+  padding: 28rpx;
+}
+
+.empty-card {
+  padding: 46rpx 28rpx;
+  box-shadow: none;
+}
+
+.report-header {
+  padding-bottom: 18rpx;
+  margin-bottom: 24rpx;
+  border-bottom: 1rpx solid var(--theme-border);
+}
+
+.report-week {
+  font-size: 36rpx;
+  color: var(--theme-text-primary);
+}
+
+.report-count,
+.stat-label,
+.empty-text {
+  font-size: 23rpx;
+}
+
+.generate-box {
+  padding: 24rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  background: color-mix(in oklab, var(--theme-primary) 4%, var(--theme-surface));
+}
+
+.generate-btn,
+.confirm-btn {
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-primary);
+  color: var(--theme-text-on-primary);
+}
+
+.stats-board {
+  padding: 18rpx 0;
+  margin-bottom: 24rpx;
+  border-bottom: 1rpx solid var(--theme-border);
+}
+
+.progress-bar {
+  height: 8rpx;
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-border);
+}
+
+.progress-fill {
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-primary);
+}
+
+.progress-fill.positive {
+  background: var(--theme-accent);
+}
+
+.block-title {
+  margin-bottom: 10rpx;
+  font-size: 27rpx;
+}
+
+.block-content {
+  font-size: 25rpx;
+  line-height: 1.75;
+}
+
+.memory-list {
+  gap: 0;
+  border-top: 1rpx solid var(--theme-border);
+}
+
+.memory-row {
+  min-height: 0;
+  align-items: flex-start;
+  gap: 14rpx;
+  padding: 22rpx 0;
+  border: 0;
+  border-bottom: 1rpx solid var(--theme-border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.memory-row:active {
+  background: var(--theme-surface-hover);
+}
+
+.memory-row-head {
+  gap: 8rpx;
+}
+
+.memory-key {
+  font-size: 24rpx;
+}
+
+.memory-value {
+  margin-top: 7rpx;
+  color: var(--theme-text-primary);
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 25rpx;
+  line-height: 1.6;
+}
+
+.memory-source-row {
+  gap: 8rpx;
+  margin-top: 10rpx;
+  font-size: 19rpx;
+}
+
+.memory-source-preview,
+.candidate-source-preview {
+  width: 100%;
+  margin-top: 4rpx;
+  font-size: 19rpx;
+  color: var(--theme-text-placeholder);
+}
+
+.memory-updated {
+  margin-top: 8rpx;
+  font-size: 18rpx;
+}
+
+.memory-row-actions {
+  flex-shrink: 0;
+  gap: 10rpx;
+  padding-top: 2rpx;
+}
+
+.memory-edit {
+  font-size: 20rpx;
+}
+
+.memory-row-actions .del-btn {
+  width: 42rpx;
+  height: 42rpx;
+  border-radius: var(--theme-radius-sm);
+  color: var(--theme-text-placeholder);
+}
+
+.core-badge,
+.safety-badge {
+  border-radius: var(--theme-radius-sm);
+}
+
+.safety-badge {
+  background: color-mix(in oklab, var(--theme-accent) 12%, var(--theme-surface));
+  color: var(--theme-accent);
+}
+
+.candidate-section {
+  margin-top: 34rpx;
+  padding-top: 28rpx;
+  border-top: 2rpx solid var(--theme-primary);
+}
+
+.candidate-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.candidate-heading-main {
+  min-width: 0;
+}
+
+.candidate-title {
+  display: block;
+  color: var(--theme-text-primary);
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 32rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.candidate-desc {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--theme-text-secondary);
+  font-size: 21rpx;
+  line-height: 1.55;
+}
+
+.candidate-count {
+  flex-shrink: 0;
+  padding: 6rpx 12rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  color: var(--theme-primary);
+  font-size: 20rpx;
+  font-weight: 650;
+}
+
+.candidate-summary {
+  display: block;
+  margin-top: 18rpx;
+  color: var(--theme-text-placeholder);
+  font-size: 19rpx;
+}
+
+.candidate-group {
+  margin-top: 20rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid var(--theme-divider);
+}
+
+.candidate-group + .candidate-group {
+  margin-top: 20rpx;
+}
+
+.candidate-conflict-note {
+  margin: 0 0 10rpx;
+  color: var(--theme-accent);
+  font-size: 19rpx;
+  line-height: 1.5;
+}
+
+.candidate-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 18rpx;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid var(--theme-divider);
+}
+
+.candidate-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.candidate-key {
+  display: block;
+  color: var(--theme-text-secondary);
+  font-size: 20rpx;
+  font-weight: 650;
+}
+
+.candidate-value {
+  display: block;
+  margin-top: 7rpx;
+  color: var(--theme-text-primary);
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 25rpx;
+  line-height: 1.55;
+}
+
+.candidate-evidence {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--theme-text-placeholder);
+  font-size: 19rpx;
+  line-height: 1.45;
+}
+
+.candidate-source-link {
+  display: block;
+  margin-top: 7rpx;
+  color: var(--theme-primary);
+  font-size: 20rpx;
+}
+
+.candidate-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 10rpx;
+  min-width: 86rpx;
+}
+
+.candidate-approve,
+.candidate-reject {
+  display: block;
+  padding: 8rpx 12rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  font-size: 20rpx;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.candidate-approve {
+  border-color: var(--theme-primary);
+  background: var(--theme-primary);
+  color: var(--theme-text-on-primary);
+}
+
+.candidate-reject {
+  color: var(--theme-text-secondary);
+}
+
+.candidate-approve:active,
+.candidate-reject:active {
+  opacity: .72;
+}
+
+.graph-container {
+  padding: 26rpx 22rpx;
+}
+
+.graph-node {
+  padding: 12rpx 16rpx;
+  border-radius: var(--theme-radius-sm);
+  font-size: 23rpx;
+}
+
+.graph-node.subject {
+  border-color: var(--theme-primary);
+  background: color-mix(in oklab, var(--theme-primary) 7%, var(--theme-surface));
+}
+
+.graph-node.object {
+  border-color: var(--theme-border);
+  background: var(--theme-surface-hover);
+}
+
+.graph-node.object text {
+  color: var(--theme-text-primary);
+}
+
+.edge-line {
+  border-bottom-color: var(--theme-border);
+}
+
+.modal-content {
+  border-radius: var(--theme-radius-lg);
+  box-shadow: var(--theme-shadow-dialog);
+}
+
+.preview-item {
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-surface-hover);
+}
+
+.cancel-btn {
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-surface-hover);
+  color: var(--theme-text-secondary);
+}
+
+@media (max-width: 360px) {
+  .analysis-page { padding-right: 28rpx; padding-left: 28rpx; }
+  .candidate-row { align-items: stretch; flex-direction: column; gap: 14rpx; }
+  .candidate-actions { flex-direction: row; }
+  .candidate-approve, .candidate-reject { flex: 1; }
+}
+</style>
+
+<style scoped>
+.memory-overview {
+  margin: 2rpx 0 10rpx;
+  padding: 0 0 16rpx;
+  border-bottom: 0;
+}
+
+.memory-group-header {
+  min-height: 94rpx;
+  padding: 22rpx 0;
+}
+
+.memory-group-title {
+  font-size: 27rpx;
+}
+
+.memory-group-count {
+  font-size: 20rpx;
+}
+
+.memory-group-toggle,
+.candidate-group-toggle {
+  min-width: 76rpx;
+  text-align: right;
+}
+
+.memory-row {
+  padding: 24rpx 0 28rpx;
+  border-bottom-color: var(--theme-divider);
+}
+
+.memory-list {
+  border-top: 0;
+}
+
+.memory-row-head {
+  margin-bottom: 8rpx;
+}
+
+.memory-value {
+  margin-top: 0;
+  font-size: 27rpx;
+  line-height: 1.72;
+}
+
+.memory-list .memory-source-row {
+  display: none;
+}
+
+.memory-updated {
+  margin-top: 13rpx;
+  font-size: 18rpx;
+}
+
+.memory-row-actions {
+  gap: 8rpx;
+}
+
+.memory-row-actions .memory-edit {
+  padding: 6rpx 4rpx;
+}
+
+.candidate-section {
+  margin-top: 46rpx;
+  padding-top: 34rpx;
+}
+
+.candidate-group-header {
+  min-height: 76rpx;
+  padding: 14rpx 0;
+}
+
+.candidate-group-title {
+  font-size: 25rpx;
+}
+
+.candidate-value {
+  font-size: 27rpx;
+  line-height: 1.65;
+}
+
+.candidate-evidence {
+  margin-top: 10rpx;
+}
 </style>

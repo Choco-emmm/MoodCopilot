@@ -1,6 +1,7 @@
 package com.moodcopilot;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -14,6 +15,7 @@ import reactor.core.publisher.Flux;
     "spring.ai.openai.base-url=https://api.deepseek.com"
 })
 @ActiveProfiles("test")
+@EnabledIfEnvironmentVariable(named = "MOODCOPILOT_RUN_REASONING_TESTS", matches = "true")
 public class ReasoningStreamTest {
 
     @Autowired

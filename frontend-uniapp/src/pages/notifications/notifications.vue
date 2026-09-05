@@ -172,7 +172,7 @@ const formatTime = (dateStr: string) => {
 .notification-list {
   display: flex;
   flex-direction: column;
-  gap: 24rpx;
+  gap: 0;
   padding-bottom: 40rpx;
 }
 
@@ -182,10 +182,10 @@ const formatTime = (dateStr: string) => {
 .notification-card {
   display: flex;
   background-color: var(--theme-surface);
-  border-radius: 4rpx;
+  border-radius: var(--theme-radius-md);
   padding: 32rpx;
-  box-shadow: 0 4rpx 16rpx color-mix(in oklab, var(--theme-primary) 5%, transparent);
-  border: 1px solid color-mix(in oklab, var(--theme-primary) 10%, transparent);
+  box-shadow: none;
+  border: 1rpx solid var(--theme-border);
   align-items: flex-start;
 }
 
@@ -201,7 +201,7 @@ const formatTime = (dateStr: string) => {
   justify-content: center;
   width: 80rpx;
   height: 80rpx;
-  background-color: rgba(var(--theme-primary-rgb), 0.08);
+  background-color: color-mix(in oklab, var(--theme-primary) 8%, var(--theme-surface));
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -239,5 +239,16 @@ const formatTime = (dateStr: string) => {
   line-height: 1.6;
   display: block;
 }
+</style>
+
+<style scoped>
+.notifications-page { padding: 28rpx var(--theme-page-padding) calc(112rpx + env(safe-area-inset-bottom)); }
+.notification-list { border-top: 1rpx solid var(--theme-border); }
+.notification-card { gap: 18rpx; padding: 20rpx 0; border-width: 0 0 1rpx; border-radius: 0; background: transparent; }
+.notification-card.unread { border-left: 0; padding-left: 14rpx; background: color-mix(in oklab, var(--theme-primary) 5%, var(--theme-bg)); }
+.icon-container { width: 60rpx; height: 60rpx; margin-right: 0; background: color-mix(in oklab, var(--theme-primary) 8%, var(--theme-surface)); }
+.notif-title { font-family: "Noto Serif SC", "Songti SC", "STSong", serif; font-size: 26rpx; }
+.notif-time { font-size: 20rpx; }
+.notif-content { font-size: 24rpx; line-height: 1.65; }
 </style>
 

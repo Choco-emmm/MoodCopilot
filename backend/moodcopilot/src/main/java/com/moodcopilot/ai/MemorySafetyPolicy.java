@@ -11,12 +11,30 @@ public final class MemorySafetyPolicy {
             "自杀", "自残", "轻生", "想死", "不想活", "结束生命", "伤害自己", "割腕", "跳楼",
             "自杀意念", "严重心理危机", "心理危机", "危机干预"
     };
+    private static final String[] TECHNICAL_TERMS = {
+            "java", "javascript", "typescript", "python", "go语言", "golang", "c++", "c#", "redis", "mysql",
+            "sql", "spring", "docker", "kubernetes", "后端", "前端", "程序员", "开发工程师", "软件工程师"
+    };
+    private static final String[] SKILL_CLAIM_TERMS = {
+            "掌握", "熟悉", "精通", "擅长", "专家", "技能", "水平", "能力", "开发", "工程师", "程序员", "职业"
+    };
 
     private MemorySafetyPolicy() {
     }
 
     public static boolean isSupportedType(String memoryType) {
         return memoryType != null && SUPPORTED_MEMORY_TYPES.contains(memoryType.toLowerCase(Locale.ROOT));
+    }
+
+    /**
+     * Attribute keys are user-facing labels. New AI-extracted labels must be
+     * Chinese, while the caller may separately allow an exact legacy key so old
+     * records can still be echoed without renaming database identities.
+     */
+    public static boolean isChineseAttributeKey(String attributeKey) {
+        if (attributeKey == null || attributeKey.isBlank()) return false;
+        return attributeKey.matches(".*\\p{IsHan}.*")
+                && !attributeKey.matches(".*[A-Za-z].*");
     }
 
     public static boolean isSafetyState(String attributeKey, String attributeValue) {
@@ -35,5 +53,30 @@ public final class MemorySafetyPolicy {
     public static boolean allowCore(String memoryType, String attributeKey, String attributeValue) {
         return !"short_term_state".equals(memoryType)
                 && !isSafetyState(attributeKey, attributeValue);
+    }
+
+    /**
+     * Technical topics are not proof of a user's skill or occupation. Claims about
+     * them require an explicit first-person statement instead of an inferred model label.
+     */
+    public static boolean isTechnicalKnowledgeClaim(String attributeKey, String attributeValue) {
+        String text = normalize(attributeKey) + " " + normalize(attributeValue);
+        return containsAny(text, TECHNICAL_TERMS) && containsAny(text, SKILL_CLAIM_TERMS);
+    }
+
+    public static boolean hasExplicitTechnicalBackground(String evidence) {
+        String text = normalize(evidence);
+        if (!containsAny(text, TECHNICAL_TERMS)) return false;
+        return text.matches(".*我(?:是|从事|做|负责|主要做|的职业是).*(开发|工程师|程序员|后端|前端).*")
+                || text.matches(".*我(?:掌握|熟悉|精通|擅长).*");
+    }
+
+    private static boolean containsAny(String text, String[] terms) {
+        for (String term : terms) if (text.contains(term)) return true;
+        return false;
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT);
     }
 }

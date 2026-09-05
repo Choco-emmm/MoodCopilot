@@ -11,6 +11,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import java.util.*;
 
@@ -48,6 +49,8 @@ public class DeepSeekClient {
         }
 
         return Flux.defer(() -> {
+            long startedAt = AiCallTiming.start();
+            AtomicInteger outputLength = new AtomicInteger();
             boolean[] thinkingStarted = {false};
             boolean[] thinkingEnded = {false};
             Map<Integer, ToolCallAccumulator> toolCallAccs = new LinkedHashMap<>();
@@ -103,7 +106,9 @@ public class DeepSeekClient {
                                 out.append(content);
                             }
                             if (out.length() > 0) {
-                                sink.next(new DeepSeekStreamEvent.TextChunk(out.toString()));
+                                String emitted = out.toString();
+                                outputLength.addAndGet(emitted.length());
+                                sink.next(new DeepSeekStreamEvent.TextChunk(emitted));
                             }
                         } catch (Exception e) {
                             log.warn("Failed to parse SSE data: {}", data, e);
@@ -122,7 +127,11 @@ public class DeepSeekClient {
                             log.info("reasoning model emitted {} tool call(s)", events.size());
                         }
                         return Flux.fromIterable(events);
-                    }));
+                    }))
+                    .doOnComplete(() -> AiCallTiming.completed(log, "CHAT_AGENT_STREAM", reasoningModel,
+                            startedAt, "SUCCESS", estimateInputLength(messages), outputLength.get()))
+                    .doOnError(error -> AiCallTiming.failed(log, "CHAT_AGENT_STREAM", reasoningModel,
+                            startedAt, error, estimateInputLength(messages)));
         });
     }
 
@@ -135,5 +144,10 @@ public class DeepSeekClient {
         String id;
         String functionName;
         final StringBuilder arguments = new StringBuilder();
+    }
+
+    private int estimateInputLength(List<Map<String, Object>> messages) {
+        if (messages == null) return 0;
+        return messages.stream().mapToInt(message -> message == null ? 0 : String.valueOf(message).length()).sum();
     }
 }

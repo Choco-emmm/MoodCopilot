@@ -7,8 +7,6 @@
     <scroll-view v-else-if="diary" scroll-y class="detail-scroll" :show-scrollbar="false">
       <view class="detail-content">
         <view class="diary-entry">
-          <view class="mood-glow" :style="diaryMoodColor !== 'transparent' ? { background: `radial-gradient(circle 1000rpx at 100% 0%, ${diaryMoodColor}, transparent 80%)` } : { display: 'none' }" />
-
           <view class="entry-header">
             <view class="author-info">
               <text class="entry-datetime">{{ formatDateTime(diary.createdAt) }}</text>
@@ -385,7 +383,7 @@ function goToCollection(collectionId: number) {
 .detail-scroll { height: 100vh; }
 .detail-content { padding: 32rpx 32rpx calc(54rpx + env(safe-area-inset-bottom)); }
 .loading-state, .missing-state { padding-top: 240rpx; color: var(--theme-text-placeholder); font-size: 27rpx; text-align: center; }
-.diary-entry, .analysis-card { border: 1rpx solid var(--theme-border); border-radius: 8rpx; background: var(--theme-surface); box-shadow: 0 6rpx 18rpx rgba(29, 38, 32, .035); }
+.diary-entry, .analysis-card { border: 1rpx solid var(--theme-border); border-radius: 8rpx; background: var(--theme-surface); box-shadow: var(--theme-shadow-panel); }
 .diary-entry { position: relative; overflow: hidden; padding: 34rpx 30rpx 30rpx; }
 .mood-glow { position: absolute; top: 0; left: 0; right: 0; bottom: 0; opacity: 0.22; pointer-events: none; z-index: 0; }
 .entry-header, .diary-text, .diary-images, .entry-music, .collection-row { position: relative; z-index: 1; }
@@ -398,19 +396,19 @@ function goToCollection(collectionId: number) {
 .action-icon { font-size: 28rpx; }
 .delete-btn { color: var(--theme-accent); }
 .delete-btn .action-icon { color: var(--theme-accent); }
-.mood-tag { padding: 7rpx 14rpx; border-radius: 999rpx; background: rgba(var(--theme-primary-rgb), .09); color: var(--theme-primary); font-size: 22rpx; margin-bottom: 10rpx; display: inline-block; }
+.mood-tag { padding: 7rpx 14rpx; border-radius: 999rpx; background: color-mix(in oklab, var(--theme-primary) 9%, var(--theme-surface)); color: var(--theme-primary); font-size: 22rpx; margin-bottom: 10rpx; display: inline-block; }
 .diary-text { display: block; margin-top: 30rpx; color: var(--theme-text-primary); font-size: 31rpx; line-height: 1.86; word-break: break-word; }
 .diary-images { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; margin-top: 28rpx; }
-.diary-image { width: 100%; height: 294rpx; border-radius: 6rpx; background: rgba(var(--theme-primary-rgb), .07); }
+.diary-image { width: 100%; height: 294rpx; border-radius: 6rpx; background: color-mix(in oklab, var(--theme-primary) 7%, var(--theme-surface)); }
 .diary-images .diary-image:only-child { grid-column: span 2; height: 410rpx; }
 .entry-music { margin-top: 28rpx; }
 .collection-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10rpx; margin-top: 26rpx; padding-top: 24rpx; border-top: 1rpx solid var(--theme-border); }
 .collection-label { margin-right: 2rpx; color: var(--theme-text-placeholder); font-size: 22rpx; }
-.collection-chip { display: inline-flex; align-items: center; gap: 5rpx; padding: 8rpx 11rpx; border-radius: 5rpx; background: rgba(var(--theme-primary-rgb), .06); color: var(--theme-primary); font-size: 22rpx; }
+.collection-chip { display: inline-flex; align-items: center; gap: 5rpx; padding: 8rpx 11rpx; border-radius: 5rpx; background: color-mix(in oklab, var(--theme-primary) 6%, var(--theme-surface)); color: var(--theme-primary); font-size: 22rpx; }
 .chip-arrow, .chat-action-arrow { font-size: 30rpx; font-weight: 300; line-height: .7; }
 .analysis-card { margin-top: 20rpx; padding: 32rpx; }
 .analysis-retry { align-self: flex-start; margin-top: 22rpx; padding: 0 24rpx; border: 1rpx solid var(--theme-primary); border-radius: 6rpx; background: transparent; color: var(--theme-primary); font-size: 25rpx; line-height: 68rpx; }
-.analysis-pending { border-style: dashed; background: rgba(var(--theme-primary-rgb), .025); }
+.analysis-pending { border-style: dashed; background: color-mix(in oklab, var(--theme-primary) 3%, var(--theme-surface)); }
 .analysis-kicker { display: block; color: var(--theme-accent); font-size: 22rpx; font-weight: 650; letter-spacing: 1rpx; margin-bottom: 16rpx; }
 .analysis-mood-header { display: flex; align-items: center; flex-wrap: wrap; margin-bottom: 20rpx; }
 .analysis-mood-label { font-size: 32rpx; font-weight: 650; }
@@ -420,7 +418,7 @@ function goToCollection(collectionId: number) {
 .secondary-mood-tag { font-size: 22rpx; padding: 2rpx 14rpx; border-radius: 999rpx; border: 1rpx solid var(--theme-border); color: var(--theme-text-secondary); background: transparent; }
 .mood-meter { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10rpx; margin-bottom: 30rpx; }
 .meter-step { height: 12rpx; border-radius: 999rpx; background: var(--theme-border); }
-.meter-step.filled { background: linear-gradient(90deg, var(--theme-primary), var(--theme-accent)); }
+.meter-step.filled { background: var(--theme-primary); }
 .analysis-copy { display: block; color: var(--theme-text-primary); font-size: 28rpx; line-height: 1.8; white-space: pre-line; }
 .entry-actions { margin-top: 20rpx; border-top: 1rpx solid var(--theme-border); }
 .chat-action, .collection-action { display: flex; align-items: center; padding: 25rpx 8rpx; color: var(--theme-text-primary); font-size: 26rpx; }
@@ -428,7 +426,7 @@ function goToCollection(collectionId: number) {
 .chat-action-icon { margin-right: 11rpx; font-size: 28rpx; }
 .chat-action-arrow { margin-left: auto; color: var(--theme-text-placeholder); }
 .collection-action { border-top: 1rpx solid var(--theme-border); }
-.modal-overlay { position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: flex-end; background: rgba(21, 25, 22, .4); z-index: 50; }
+.modal-overlay { position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: flex-end; background: var(--theme-overlay); z-index: 50; }
 .collection-sheet { width: 100%; max-height: 68vh; padding: 16rpx 32rpx calc(32rpx + env(safe-area-inset-bottom)); border-radius: 12rpx 12rpx 0 0; background: var(--theme-surface); box-sizing: border-box; }
 .sheet-handle { width: 54rpx; height: 6rpx; margin: 0 auto 26rpx; border-radius: 99rpx; background: var(--theme-border); }
 .sheet-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16rpx; }
@@ -438,4 +436,125 @@ function goToCollection(collectionId: number) {
 .collection-empty { display: block; padding: 54rpx 0; color: var(--theme-text-placeholder); font-size: 25rpx; text-align: center; }
 .collection-item { display: flex; align-items: center; justify-content: space-between; padding: 26rpx 4rpx; border-bottom: 1rpx solid var(--theme-border); color: var(--theme-text-primary); font-size: 27rpx; }
 .collection-add { color: var(--theme-primary); font-size: 23rpx; }
+</style>
+
+<style scoped>
+.detail-content {
+  padding: 26rpx var(--theme-page-padding) calc(52rpx + env(safe-area-inset-bottom));
+}
+
+.diary-entry,
+.analysis-card {
+  border-radius: var(--theme-radius-md);
+  box-shadow: var(--theme-shadow-panel);
+}
+
+.diary-entry {
+  padding: 28rpx 26rpx 24rpx;
+}
+
+.entry-header {
+  gap: 16rpx;
+  padding-bottom: 20rpx;
+}
+
+.entry-datetime {
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 28rpx;
+}
+
+.edit-action {
+  padding: 8rpx 0;
+  color: var(--theme-primary);
+  font-size: 22rpx;
+}
+
+.entry-quick-actions {
+  gap: 18rpx;
+}
+
+.action-btn {
+  font-size: 22rpx;
+}
+
+.diary-text {
+  margin-top: 26rpx;
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 29rpx;
+  line-height: 1.9;
+}
+
+.diary-images {
+  margin-top: 24rpx;
+}
+
+.diary-image {
+  border-radius: var(--theme-radius-sm);
+}
+
+.entry-music {
+  margin-top: 24rpx;
+}
+
+.collection-row {
+  margin-top: 22rpx;
+  padding-top: 20rpx;
+}
+
+.collection-chip {
+  border-radius: var(--theme-radius-sm);
+  background: color-mix(in oklab, var(--theme-primary) 6%, var(--theme-surface));
+}
+
+.analysis-card {
+  margin-top: 16rpx;
+  padding: 26rpx;
+}
+
+.analysis-pending {
+  border-style: dashed;
+  background: color-mix(in oklab, var(--theme-primary) 3%, var(--theme-surface));
+}
+
+.analysis-kicker {
+  margin-bottom: 12rpx;
+  color: var(--theme-text-secondary);
+  font-size: 20rpx;
+  letter-spacing: 1rpx;
+}
+
+.analysis-mood-label {
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 29rpx;
+}
+
+.analysis-copy {
+  font-size: 26rpx;
+  line-height: 1.8;
+}
+
+.entry-actions {
+  margin-top: 16rpx;
+  border-top: 1rpx solid var(--theme-border);
+}
+
+.chat-action,
+.collection-action {
+  padding: 22rpx 6rpx;
+  font-size: 24rpx;
+}
+
+.collection-action {
+  border-top-color: var(--theme-border);
+}
+
+.collection-sheet {
+  border-radius: var(--theme-radius-lg) var(--theme-radius-lg) 0 0;
+  box-shadow: var(--theme-shadow-dialog);
+}
+
+.collection-item {
+  padding: 22rpx 4rpx;
+  border-bottom-color: var(--theme-border);
+}
 </style>

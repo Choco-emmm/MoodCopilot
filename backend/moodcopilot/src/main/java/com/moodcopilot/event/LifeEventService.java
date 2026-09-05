@@ -5,6 +5,10 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.JsonUtils;
+import com.moodcopilot.ai.ContextPurpose;
+import com.moodcopilot.ai.PromptComposer;
+import com.moodcopilot.ai.SystemPolicy;
+import com.moodcopilot.ai.TaskContext;
 import com.moodcopilot.config.AiPromptProperties;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
 import com.moodcopilot.entity.DiaryEntity;
@@ -70,6 +74,10 @@ public class LifeEventService {
     private final StringRedisTemplate redisTemplate;
     private final ZoneId eventTimeZone;
     private final LifeChapterService lifeChapterService;
+    private final PromptComposer promptComposer;
+
+    @Autowired(required = false)
+    private com.moodcopilot.ai.ContextMetadataRecorder contextMetadataRecorder;
 
     @Autowired
     public LifeEventService(UserLifeEventMapper userLifeEventMapper, DiaryMapper diaryMapper,
@@ -78,15 +86,17 @@ public class LifeEventService {
                             ObjectMapper objectMapper, AiPromptProperties aiPrompts,
                             StringRedisTemplate redisTemplate,
                             @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId,
-                            LifeChapterService lifeChapterService) {
+                            LifeChapterService lifeChapterService,
+                            PromptComposer promptComposer) {
         this(userLifeEventMapper, diaryMapper, diaryAnalysisMapper, analysisChatClient, objectMapper,
-                aiPrompts, redisTemplate, parseTimeZone(timeZoneId), lifeChapterService);
+                aiPrompts, redisTemplate, parseTimeZone(timeZoneId), lifeChapterService, promptComposer);
     }
 
     private LifeEventService(UserLifeEventMapper userLifeEventMapper, DiaryMapper diaryMapper,
                              DiaryAnalysisMapper diaryAnalysisMapper, ChatClient analysisChatClient,
                              ObjectMapper objectMapper, AiPromptProperties aiPrompts,
-                             StringRedisTemplate redisTemplate, ZoneId eventTimeZone, LifeChapterService lifeChapterService) {
+                             StringRedisTemplate redisTemplate, ZoneId eventTimeZone, LifeChapterService lifeChapterService,
+                             PromptComposer promptComposer) {
         this.userLifeEventMapper = userLifeEventMapper;
         this.diaryMapper = diaryMapper;
         this.diaryAnalysisMapper = diaryAnalysisMapper;
@@ -96,6 +106,7 @@ public class LifeEventService {
         this.redisTemplate = redisTemplate;
         this.eventTimeZone = eventTimeZone;
         this.lifeChapterService = lifeChapterService;
+        this.promptComposer = promptComposer;
     }
 
     /** 兼容旧测试；生产 Bean 使用包含摘要 Mapper 和 Redis 的构造器。 */
@@ -103,7 +114,7 @@ public class LifeEventService {
                             ChatClient analysisChatClient, ObjectMapper objectMapper,
                             AiPromptProperties aiPrompts) {
         this(userLifeEventMapper, diaryMapper, null, analysisChatClient, objectMapper, aiPrompts,
-                null, DEFAULT_EVENT_TIME_ZONE, null);
+                null, DEFAULT_EVENT_TIME_ZONE, null, null);
     }
 
     /** 兼容直接构造 Service 的测试；生产环境通过配置注入事件时区。 */
@@ -112,7 +123,7 @@ public class LifeEventService {
                             ObjectMapper objectMapper, AiPromptProperties aiPrompts,
                             StringRedisTemplate redisTemplate) {
         this(userLifeEventMapper, diaryMapper, diaryAnalysisMapper, analysisChatClient, objectMapper,
-                aiPrompts, redisTemplate, DEFAULT_EVENT_TIME_ZONE, null);
+                aiPrompts, redisTemplate, DEFAULT_EVENT_TIME_ZONE, null, null);
     }
 
     public record FollowUpSuggestion(String timing, Integer delayDays, String reason) {}
@@ -141,9 +152,14 @@ public class LifeEventService {
     public void extractAndTrackLifeEvents(Long userId, Long diaryId, String content, LocalDateTime diaryCreatedAt) {
         if (content == null || content.isBlank() || content.length() < 10) return;
         try {
-            LocalDate baseDate = diaryCreatedAt != null ? diaryCreatedAt.toLocalDate() : LocalDate.now();
+            LocalDate baseDate = diaryCreatedAt != null ? diaryCreatedAt.toLocalDate() : LocalDate.now(eventTimeZone);
             String prompt = "[日记记录日期]" + baseDate.format(DATE_FORMAT) + "\n\n[日记内容]\n" + content;
-            String response = analysisChatClient.prompt().system(aiPrompts.getLifeEventExtractionSystemPrompt())
+            if (contextMetadataRecorder != null) {
+                contextMetadataRecorder.recordModelInvocation(userId, null, ContextPurpose.EVENT_REVIEW,
+                        null, new TaskContext("GENERAL", "只提取来源明确的重要事件，不修改事件状态", List.of(), null),
+                        "FLASH", "FLASH");
+            }
+            String response = analysisChatClient.prompt().system(eventExtractionSystemPrompt(userId))
                     .user(prompt).call().content();
             List<ExtractedLifeEvent> events = objectMapper.readValue(JsonUtils.cleanJson(response),
                     new TypeReference<List<ExtractedLifeEvent>>() {});
@@ -214,6 +230,16 @@ public class LifeEventService {
             log.warn("提取重要事件失败 userId={}, diaryId={}: {}", userId, diaryId, e.getMessage());
             throw new IllegalStateException("重要事件提取失败", e);
         }
+    }
+
+    private String eventExtractionSystemPrompt(Long userId) {
+        String base = aiPrompts.getLifeEventExtractionSystemPrompt();
+        if (promptComposer == null) {
+            return SystemPolicy.text() + "\n\n" + base;
+        }
+        return promptComposer.compose(base, userId,
+                new TaskContext("GENERAL", "只提取来源明确的重要事件，不修改事件状态", List.of(), null),
+                ContextPurpose.EVENT_REVIEW, "");
     }
 
     @Transactional

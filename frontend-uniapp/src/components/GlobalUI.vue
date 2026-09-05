@@ -44,7 +44,7 @@
 import { computed, onMounted, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { popups, currentModal, removePopup, closeModal } from '@/stores/globalUI';
-import { currentTheme } from '@/stores/theme';
+import { currentTheme, syncNavigationBarColor } from '@/stores/theme';
 import CustomTabBar from './CustomTabBar.vue';
 import GlobalAnnouncement from './GlobalAnnouncement.vue';
 import GlobalLoginSheet from './GlobalLoginSheet.vue';
@@ -58,24 +58,12 @@ const svgSparkleUrl = computed(() => {
   return `data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='${primary}'%3E%3Cpath d='M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'/%3E%3C/svg%3E`;
 });
 
-const updateNav = () => {
-  try {
-    uni.setNavigationBarColor({
-      frontColor: currentTheme.value.dark ? '#ffffff' : '#000000',
-      backgroundColor: currentTheme.value.bg,
-      animation: { duration: 200, timingFunc: 'easeInOut' }
-    });
-  } catch (e) {
-    // Ignore on unsupported platforms
-  }
-};
-
 onShow(() => {
-  updateNav();
+  syncNavigationBarColor();
 });
 
 onMounted(() => {
-  updateNav();
+  syncNavigationBarColor();
   if (props.tabIndex !== undefined) {
     uni.hideTabBar({
       animation: false,
@@ -85,7 +73,7 @@ onMounted(() => {
 });
 
 watch(currentTheme, () => {
-  updateNav();
+  syncNavigationBarColor();
 });
 
 const viewDetails = () => {
@@ -115,12 +103,11 @@ const viewDetails = () => {
 
 .popup-card {
   pointer-events: auto; /* Re-enable clicks for the card */
-  background: rgba(255, 253, 248, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 16rpx;
+  background: var(--theme-surface);
+  border-radius: var(--theme-radius-md);
   padding: 24rpx;
-  box-shadow: 0 8rpx 24rpx rgba(32, 32, 29, 0.08);
-  border: 1px solid rgba(var(--theme-primary-rgb), 0.15);
+  box-shadow: var(--theme-shadow-panel);
+  border: 1rpx solid var(--theme-border);
   display: flex;
   align-items: center;
   width: 460rpx;
@@ -155,7 +142,7 @@ const viewDetails = () => {
 
 .popup-message {
   font-size: 24rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   line-height: 1.4;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -164,7 +151,7 @@ const viewDetails = () => {
 }
 
 .popup-close {
-  color: #a09d96;
+  color: var(--theme-text-placeholder);
   font-size: 32rpx;
   padding: 0 8rpx;
   margin-left: 12rpx;
@@ -177,7 +164,7 @@ const viewDetails = () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(32, 32, 29, 0.4);
+  background: var(--theme-overlay);
   z-index: 10000;
   display: flex;
   align-items: center;
@@ -192,14 +179,14 @@ const viewDetails = () => {
 
 .modal-box {
   background: var(--theme-surface);
-  border-radius: 24rpx;
+  border-radius: var(--theme-radius-lg);
   width: 600rpx;
   padding: 48rpx;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  box-shadow: 0 16rpx 48rpx rgba(32, 32, 29, 0.1);
+  box-shadow: var(--theme-shadow-dialog);
   animation: scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -211,7 +198,7 @@ const viewDetails = () => {
 .modal-icon-wrapper {
   width: 96rpx;
   height: 96rpx;
-  background: rgba(var(--theme-primary-rgb), 0.1);
+  background: color-mix(in oklab, var(--theme-primary) 10%, var(--theme-surface));
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -233,7 +220,7 @@ const viewDetails = () => {
 
 .modal-message {
   font-size: 28rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   line-height: 1.6;
   margin-bottom: 48rpx;
 }
@@ -248,9 +235,9 @@ const viewDetails = () => {
   flex: 1;
   height: 80rpx;
   line-height: 80rpx;
-  border-radius: 40rpx;
-  background: #f1efeb;
-  color: #4a4a46;
+  border-radius: var(--theme-radius-md);
+  background: var(--theme-surface-hover);
+  color: var(--theme-text-secondary);
   font-size: 28rpx;
   border: none;
 }
@@ -260,9 +247,9 @@ const viewDetails = () => {
   flex: 1;
   height: 80rpx;
   line-height: 80rpx;
-  border-radius: 40rpx;
+  border-radius: var(--theme-radius-md);
   background: var(--theme-primary);
-  color: #ffffff;
+  color: var(--theme-text-on-primary);
   font-size: 28rpx;
   border: none;
 }

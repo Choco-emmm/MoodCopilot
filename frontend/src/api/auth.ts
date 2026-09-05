@@ -24,6 +24,11 @@ export const authApi = {
   },
   updateSettings: (dailyNotifyEnabled: boolean, profileNotifyEnabled?: boolean, theme?: string, themeMode?: string, lightTheme?: string, darkTheme?: string) =>
     api.put('/auth/settings', { dailyNotifyEnabled, profileNotifyEnabled, theme, themeMode, lightTheme, darkTheme }),
+  getAiPersona: () => api.get('/auth/ai-persona'),
+  updateAiPersona: (data: { role: string; tone: string[]; behaviorFlags: string[]; disabledBehaviorFlags?: string[]; customTone?: string; customResponseStyle?: string }) =>
+    api.put('/auth/ai-persona', data),
+  previewAiPersona: (data: { persona: { role: string; tone: string[]; behaviorFlags: string[]; disabledBehaviorFlags?: string[]; customTone?: string; customResponseStyle?: string }; sampleMessage: string; useReasoning: boolean }) =>
+    api.post('/auth/ai-persona/preview', data),
   getQuota: () => api.get('/user/quota'),
 }
 

@@ -53,6 +53,10 @@ public class MemoryConsolidationService {
     private final NotificationService notificationService;
     private final UserMapper userMapper;
     private final MemoryOrchestrator memoryOrchestrator;
+    private final PromptComposer promptComposer;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ContextMetadataRecorder contextMetadataRecorder;
 
     public MemoryConsolidationService(@Qualifier("analysisChatClient") ChatClient chatClient,
             UserProfileMemoryMapper memoryMapper,
@@ -63,7 +67,8 @@ public class MemoryConsolidationService {
             org.springframework.data.redis.core.StringRedisTemplate redisTemplate,
             NotificationService notificationService,
             UserMapper userMapper,
-            MemoryOrchestrator memoryOrchestrator) {
+            MemoryOrchestrator memoryOrchestrator,
+            PromptComposer promptComposer) {
         this.chatClient = chatClient;
         this.memoryMapper = memoryMapper;
         this.memoryExtractionService = memoryExtractionService;
@@ -74,6 +79,7 @@ public class MemoryConsolidationService {
         this.notificationService = notificationService;
         this.userMapper = userMapper;
         this.memoryOrchestrator = memoryOrchestrator;
+        this.promptComposer = promptComposer;
     }
 
     public List<ConsolidationItem> previewConsolidation(Long userId) {
@@ -98,8 +104,16 @@ public class MemoryConsolidationService {
 
         String prompt = buildConsolidationPrompt(existing);
 
+        if (contextMetadataRecorder != null) {
+            contextMetadataRecorder.recordModelInvocation(userId, null, ContextPurpose.CHAT,
+                    null, new TaskContext("GENERAL", "只审查和提出可追溯的画像归并", List.of(), null),
+                    "FLASH", "FLASH");
+        }
+
         String json = chatClient.prompt()
-                .system(CONSOLIDATION_PROMPT)
+                .system(promptComposer.compose(CONSOLIDATION_PROMPT, userId,
+                        new TaskContext("GENERAL", "只审查和提出可追溯的画像归并", List.of(), null),
+                        ContextPurpose.CHAT, ""))
                 .user(prompt)
                 .call()
                 .content();
@@ -130,9 +144,9 @@ public class MemoryConsolidationService {
                 }
             }
 
-            if (items.isEmpty()) {
-                throw new RuntimeException("AI 返回的属性列表为空");
-            }
+            // An empty list is a valid preview: it means the current formal memories
+            // do not have a safe, source-backed consolidation proposal.
+            if (items.isEmpty()) return List.of();
             return sanitizeItems(userId, existing, items);
         } catch (Exception e) {
             log.error("整合用户 {} 画像失败: {}", userId, e.getMessage());

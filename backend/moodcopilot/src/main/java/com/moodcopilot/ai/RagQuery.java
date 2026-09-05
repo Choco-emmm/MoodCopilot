@@ -13,7 +13,7 @@ public record RagQuery(
         ContextPurpose contextPurpose) {
 
     public RagQuery {
-        queryText = RagQueryBuilder.keyword(queryText);
+        queryText = RagQueryBuilder.embeddingText(queryText);
         sourceTypes = sourceTypes == null ? List.of() : sourceTypes.stream()
                 .filter(value -> value != null && !value.isBlank())
                 .map(value -> value.trim().toLowerCase(java.util.Locale.ROOT))

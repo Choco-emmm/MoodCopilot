@@ -8,7 +8,9 @@ import org.springframework.scheduling.annotation.Async;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -16,6 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
 
 class RagMemoryServiceTest {
 
@@ -70,6 +74,68 @@ class RagMemoryServiceTest {
 
         assertNull(syncMethod.getAnnotation(Async.class));
         assertTrue(asyncMethod.isAnnotationPresent(Async.class));
+    }
+
+    @Test
+    void structuredSearchResultKeepsVectorEmptyDistinctFromEmptyQuery() {
+        assertEquals(RagSearchResult.Mode.VECTOR,
+                RagSearchResult.vector(List.of()).mode());
+        assertEquals(RagSearchResult.Mode.EMPTY,
+                RagSearchResult.empty().mode());
+        assertEquals(RagSearchResult.Mode.LEXICAL_FALLBACK,
+                RagSearchResult.lexicalFallback(List.of()).mode());
+    }
+
+    @Test
+    void unexpectedEmbeddingFailureFallsBackToUserScopedLexicalSearch() {
+        RagMemoryService service = spy(new RagMemoryService(
+                "http://embedding.test", "test-key", "test-model", 3,
+                mock(org.springframework.data.redis.core.StringRedisTemplate.class),
+                new ObjectMapper(), mock(DiaryMapper.class), "Asia/Shanghai"));
+        doThrow(new IllegalStateException("embedding client unavailable"))
+                .when(service).embed("用户最近的学习计划");
+
+        RagSearchResult result = service.searchDetailed(1006L, "用户最近的学习计划", 5, null,
+                RagMemoryService.SOURCE_DIARY);
+
+        assertEquals(RagSearchResult.Mode.LEXICAL_FALLBACK, result.mode());
+    }
+
+    @Test
+    void graphHitWithDiaryIdDoesNotRequireDiaryRowToRender() {
+        DiaryMapper diaryMapper = mock(DiaryMapper.class);
+        RagMemoryService service = new RagMemoryService(
+                "http://embedding.test", "test-key", "test-model", 3,
+                mock(org.springframework.data.redis.core.StringRedisTemplate.class),
+                new ObjectMapper(), diaryMapper, "Asia/Shanghai");
+
+        List<ContextItem> items = service.retrieveContextItemsFromHits(1006L,
+                List.of(new RagMemoryService.RagHit("用户 偏好 独处", 0.2D, "graph:9", 2015L,
+                        RagMemoryService.SOURCE_GRAPH)), RagSearchResult.Mode.LEXICAL_FALLBACK);
+
+        assertEquals(1, items.size());
+        assertEquals("SYSTEM_GRAPH_DERIVATION", items.get(0).source().sourceType());
+        assertEquals("graph:9", items.get(0).source().sourceId());
+    }
+
+    @Test
+    void parsesResp2AndResp3SearchDocumentsWithoutTreatingAttributesAsHitCount() {
+        RagMemoryService service = new RagMemoryService(
+                "http://embedding.test", "test-key", "test-model", 3,
+                mock(org.springframework.data.redis.core.StringRedisTemplate.class),
+                new ObjectMapper(), mock(DiaryMapper.class), "Asia/Shanghai");
+        List<RagMemoryService.RagHit> resp2 = new ArrayList<>();
+        service.parseResults(List.of(1, "rag:diary:2014", List.of(
+                "content", "RESP2 正文", "_score", "0.2")), resp2);
+        assertEquals(1, resp2.size());
+        assertEquals(2014L, resp2.get(0).diaryId());
+
+        List<RagMemoryService.RagHit> resp3 = new ArrayList<>();
+        service.parseResults(List.of(Map.of("id", "rag:diary:2015",
+                "extra_attributes", Map.of("content", "RESP3 正文", "_score", "0.3"))), resp3);
+        assertEquals(1, resp3.size());
+        assertEquals("RESP3 正文", resp3.get(0).content());
+        assertEquals(0.3D, resp3.get(0).score());
     }
 
     private UserProfileMemoryEntity memory(Long id, String key, String value) {

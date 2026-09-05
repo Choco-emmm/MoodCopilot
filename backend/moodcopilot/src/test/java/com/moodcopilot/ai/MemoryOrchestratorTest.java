@@ -2,6 +2,7 @@ package com.moodcopilot.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.entity.UserMemoryCandidateEntity;
+import com.moodcopilot.entity.UserMemoryEvidenceEntity;
 import com.moodcopilot.entity.UserProfileMemoryEntity;
 import com.moodcopilot.mapper.UserMemoryCandidateMapper;
 import com.moodcopilot.mapper.UserMemoryEvidenceMapper;
@@ -9,6 +10,10 @@ import com.moodcopilot.mapper.UserMemoryRejectionMapper;
 import com.moodcopilot.mapper.UserProfileMemoryMapper;
 import com.moodcopilot.notification.NotificationService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 
 import java.util.List;
 
@@ -19,8 +24,18 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
 
 class MemoryOrchestratorTest {
+
+    @BeforeAll
+    static void initializeLambdaMetadataForMockedMapperPaths() {
+        MybatisConfiguration configuration = new MybatisConfiguration();
+        MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "memory-orchestrator-test");
+        TableInfoHelper.initTableInfo(assistant, UserMemoryCandidateEntity.class);
+        TableInfoHelper.initTableInfo(assistant, UserMemoryEvidenceEntity.class);
+        TableInfoHelper.initTableInfo(assistant, UserProfileMemoryEntity.class);
+    }
 
     @Test
     void rejectedFingerprintBlocksOnlyMatchingMemoryType() {
@@ -111,6 +126,86 @@ class MemoryOrchestratorTest {
     }
 
     @Test
+    void oneExplicitTechnicalSelfDeclarationRemainsACandidateUntilIndependentEvidenceAccumulates() {
+        UserProfileMemoryMapper memoryMapper = mock(UserProfileMemoryMapper.class);
+        UserMemoryCandidateMapper candidateMapper = mock(UserMemoryCandidateMapper.class);
+        UserMemoryEvidenceMapper evidenceMapper = mock(UserMemoryEvidenceMapper.class);
+        UserMemoryRejectionMapper rejectionMapper = mock(UserMemoryRejectionMapper.class);
+        when(rejectionMapper.selectCount(any())).thenReturn(0L);
+        when(candidateMapper.selectList(any())).thenReturn(List.of());
+        when(evidenceMapper.selectCount(any())).thenReturn(0L);
+        when(evidenceMapper.selectList(any())).thenReturn(List.of());
+        when(memoryMapper.selectList(any())).thenReturn(List.of());
+        MemoryOrchestrator orchestrator = new MemoryOrchestrator(memoryMapper, candidateMapper, evidenceMapper,
+                rejectionMapper, mock(RagMemoryService.class), new ObjectMapper());
+
+        orchestrator.processExtractedMemories(7L,
+                List.of(new MemoryExtractionService.MemoryAttribute("技术背景", "我是 Java 后端开发工程师", false,
+                        "preference", "explicit", .99, "我是 Java 后端开发工程师", null, null)),
+                "chat_candidate", null, 22L, "我是 Java 后端开发工程师", null);
+
+        verify(candidateMapper).insert(any(UserMemoryCandidateEntity.class));
+        verify(memoryMapper, never()).insert(any(UserProfileMemoryEntity.class));
+    }
+
+    @Test
+    void promotionClaimsPendingCandidateBeforeCreatingFormalMemory() {
+        UserProfileMemoryMapper memoryMapper = mock(UserProfileMemoryMapper.class);
+        UserMemoryCandidateMapper candidateMapper = mock(UserMemoryCandidateMapper.class);
+        UserMemoryEvidenceMapper evidenceMapper = mock(UserMemoryEvidenceMapper.class);
+        UserMemoryRejectionMapper rejectionMapper = mock(UserMemoryRejectionMapper.class);
+        UserMemoryCandidateEntity candidate = candidate(8L, "PENDING", .95, "喜欢通过写日记整理思绪");
+        UserMemoryEvidenceEntity first = evidence(candidate.getId(), java.time.LocalDate.of(2026, 9, 1));
+        UserMemoryEvidenceEntity second = evidence(candidate.getId(), java.time.LocalDate.of(2026, 9, 2));
+        when(rejectionMapper.selectCount(any())).thenReturn(0L);
+        // First lookup finds the pending branch; subsequent approved-branch
+        // lookups intentionally return no winner.
+        when(candidateMapper.selectList(any())).thenReturn(List.of(candidate), List.of(), List.of());
+        when(candidateMapper.update(any(), any())).thenReturn(1);
+        when(evidenceMapper.selectCount(any())).thenReturn(0L);
+        when(evidenceMapper.selectList(any())).thenReturn(List.of(first, second));
+        when(memoryMapper.selectOne(any())).thenReturn(null);
+        when(memoryMapper.selectList(any())).thenReturn(List.of());
+        MemoryOrchestrator orchestrator = new MemoryOrchestrator(memoryMapper, candidateMapper, evidenceMapper,
+                rejectionMapper, mock(RagMemoryService.class), new ObjectMapper());
+
+        orchestrator.processExtractedMemories(1006L,
+                List.of(new MemoryExtractionService.MemoryAttribute("思考方式", "喜欢通过写日记整理思绪", false,
+                        "preference", "inferred", .99, "我喜欢通过写日记整理思绪", null, null)),
+                "diary_inferred", 2015L, null, "我喜欢通过写日记整理思绪", java.time.LocalDate.of(2026, 9, 2));
+
+        var ordered = inOrder(candidateMapper, memoryMapper);
+        ordered.verify(candidateMapper).update(any(), any());
+        ordered.verify(memoryMapper).insert(any(UserProfileMemoryEntity.class));
+    }
+
+    @Test
+    void stalePromotionClaimCannotCreateASecondFormalMemory() {
+        UserProfileMemoryMapper memoryMapper = mock(UserProfileMemoryMapper.class);
+        UserMemoryCandidateMapper candidateMapper = mock(UserMemoryCandidateMapper.class);
+        UserMemoryEvidenceMapper evidenceMapper = mock(UserMemoryEvidenceMapper.class);
+        UserMemoryRejectionMapper rejectionMapper = mock(UserMemoryRejectionMapper.class);
+        UserMemoryCandidateEntity candidate = candidate(9L, "PENDING", .95, "喜欢通过写日记整理思绪");
+        when(rejectionMapper.selectCount(any())).thenReturn(0L);
+        when(candidateMapper.selectList(any())).thenReturn(List.of(candidate), List.of(), List.of());
+        when(candidateMapper.update(any(), any())).thenReturn(0);
+        when(evidenceMapper.selectCount(any())).thenReturn(0L);
+        when(evidenceMapper.selectList(any())).thenReturn(List.of(
+                evidence(candidate.getId(), java.time.LocalDate.of(2026, 9, 1)),
+                evidence(candidate.getId(), java.time.LocalDate.of(2026, 9, 2))));
+        when(memoryMapper.selectList(any())).thenReturn(List.of());
+        MemoryOrchestrator orchestrator = new MemoryOrchestrator(memoryMapper, candidateMapper, evidenceMapper,
+                rejectionMapper, mock(RagMemoryService.class), new ObjectMapper());
+
+        orchestrator.processExtractedMemories(1006L,
+                List.of(new MemoryExtractionService.MemoryAttribute("思考方式", "喜欢通过写日记整理思绪", false,
+                        "preference", "inferred", .99, "我喜欢通过写日记整理思绪", null, null)),
+                "diary_inferred", 2015L, null, "我喜欢通过写日记整理思绪", java.time.LocalDate.of(2026, 9, 2));
+
+        verify(memoryMapper, never()).insert(any(UserProfileMemoryEntity.class));
+    }
+
+    @Test
     void equivalentApprovedCandidateAbsorbsPendingCandidateWithoutDuplicatePromotion() {
         UserProfileMemoryMapper memoryMapper = mock(UserProfileMemoryMapper.class);
         UserMemoryCandidateMapper candidateMapper = mock(UserMemoryCandidateMapper.class);
@@ -155,5 +250,16 @@ class MemoryOrchestratorTest {
         candidate.setIsCore(false);
         candidate.setStatus(status);
         return candidate;
+    }
+
+    private UserMemoryEvidenceEntity evidence(Long candidateId, java.time.LocalDate date) {
+        UserMemoryEvidenceEntity entity = new UserMemoryEvidenceEntity();
+        entity.setCandidateId(candidateId);
+        entity.setEvidenceDate(date);
+        entity.setEvidenceQuality(1D);
+        entity.setModelConfidence(.99D);
+        entity.setSourceType("diary_inferred");
+        entity.setEvidenceText("用户独立表达的证据");
+        return entity;
     }
 }

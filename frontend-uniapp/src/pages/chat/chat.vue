@@ -13,6 +13,9 @@
           <text class="current-session-title">{{ currentConversationTitle }}</text>
         </view>
         <view class="header-actions">
+          <view class="history-btn persona-action" @click="openPersonaPanel">
+            <text class="persona-action-label">风格</text>
+          </view>
           <view class="history-btn new-chat-action" @click="createNewChat">
             <text class="tool-symbol">+</text>
           </view>
@@ -114,6 +117,11 @@
           <view class="chat-model-picker">{{ useReasoning ? '深度思考' : '普通对话' }} <text class="chat-model-arrow">⌄</text></view>
         </picker>
       </view>
+      <view v-if="currentTaskHint" class="chat-task-context">
+        <text class="chat-task-label">当前任务</text>
+        <text class="chat-task-name">{{ currentTaskHint.label }}</text>
+        <text class="chat-task-detail">{{ currentTaskHint.hint }}</text>
+      </view>
       <!-- 引用预览 -->
       <view v-if="activeQuote" class="quote-preview-bar fade-in">
         <text class="quote-icon">❝</text>
@@ -150,6 +158,60 @@
         >
           发送
         </button>
+      </view>
+    </view>
+
+    <!-- 当前会话 Persona 覆盖 -->
+    <view v-if="showPersonaPanel" class="persona-mask" @click="showPersonaPanel = false">
+      <view class="persona-sheet" @click.stop>
+        <view class="persona-sheet-header">
+          <view>
+            <text class="persona-sheet-title">本次对话风格</text>
+            <text class="persona-sheet-hint">{{ conversationPersonaUsesGlobal ? '当前正在使用全局设置' : '当前会话正在使用独立设置' }}，不改变权限、记忆或模型选择</text>
+          </view>
+          <text class="sheet-close" @click="showPersonaPanel = false">×</text>
+        </view>
+
+        <scroll-view scroll-y class="persona-sheet-content">
+          <text class="persona-field-label">互动身份</text>
+          <picker :range="personaRoleLabels" :value="personaRoleIndex" @change="onPersonaRoleChange">
+            <view class="persona-picker-field">
+              <text>{{ personaRoleLabels[personaRoleIndex] }}</text>
+              <text class="persona-picker-arrow">›</text>
+            </view>
+          </picker>
+
+          <text class="persona-field-label">语气</text>
+          <checkbox-group class="persona-choice-grid" @change="onPersonaToneChange">
+            <label v-for="option in personaToneOptions" :key="option.value" class="persona-choice-item">
+              <checkbox :value="option.value" :checked="conversationPersona.tone.includes(option.value)" :color="currentTheme.primary" />
+              <text>{{ option.label }}</text>
+            </label>
+          </checkbox-group>
+
+          <text class="persona-field-label">自定义语气</text>
+          <input v-model="conversationPersona.customTone" class="persona-input" maxlength="160" placeholder="例如：冷静务实，像可靠的前辈" />
+          <text class="persona-field-help">用一句话描述希望听起来怎样，只影响表达风格。</text>
+
+          <text class="persona-field-label">回答方式</text>
+          <checkbox-group class="persona-choice-grid" @change="onPersonaBehaviorChange">
+            <label v-for="option in personaBehaviorOptions" :key="option.value" class="persona-choice-item">
+              <checkbox :value="option.value" :checked="conversationPersona.behaviorFlags.includes(option.value)" :color="currentTheme.primary" />
+              <text>{{ option.label }}</text>
+            </label>
+          </checkbox-group>
+          <text class="persona-field-label">自定义回答方式</text>
+          <textarea v-model="conversationPersona.customResponseStyle" class="persona-textarea" maxlength="800" placeholder="例如：先给结论，再说明关键原因；代码放在解释之后" />
+          <text class="persona-field-help">只影响回答组织方式，不改变权限、记忆或模型选择。</text>
+
+          <view class="persona-actions">
+            <button class="persona-save" :disabled="personaSaving" @click="saveConversationPersona">
+              {{ personaSaving ? '保存中...' : '应用到本次对话' }}
+            </button>
+            <button class="persona-reset" :disabled="personaSaving" @click="resetConversationPersona">恢复全局设置</button>
+          </view>
+          <text v-if="personaMessage" class="persona-message">{{ personaMessage }}</text>
+        </scroll-view>
       </view>
     </view>
 
@@ -205,11 +267,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick, computed } from 'vue';
-import { get, post, getFullUrl } from '@/utils/request';
+import { get, post, put, del, getFullUrl } from '@/utils/request';
 import { parseMarkdown, extractPlainText } from '@/utils/markdown';
 import GlobalUI from '@/components/GlobalUI.vue';
 import { hasLoginToken, requireLogin } from '@/stores/login';
 import { activeQuote, setQuote, clearQuote } from '@/stores/quote';
+import { currentTheme } from '@/stores/theme';
 import { displayConversationTitle, isPlaceholderConversationTitle } from '@/utils/chatTitle';
 
 import { onShow } from '@dcloudio/uni-app';
@@ -244,12 +307,191 @@ const loadingDiaries = ref(false);
 const loadingEvents = ref(false);
 const isLoggedIn = ref(hasLoginToken());
 const activeEventId = ref<number | null>(null);
+const activeDiaryReferenceId = ref<number | null>(null);
 const eventReference = ref<{ id: number; title: string } | null>(null);
 const useReasoning = ref(false);
 const chatModelOptions = ['普通对话', '深度思考'];
+const currentTaskHint = computed(() => resolveTaskHint(inputContent.value));
+const showPersonaPanel = ref(false);
+const personaSaving = ref(false);
+const personaMessage = ref('');
+const personaLoadSequence = ref(0);
+const personaRoleOptions = [
+  { value: 'personal_assistant', label: '通用个人助手' },
+  { value: 'study_partner', label: '学习伙伴' },
+  { value: 'coding_partner', label: '编程协作伙伴' },
+  { value: 'writing_partner', label: '写作伙伴' },
+  { value: 'life_companion', label: '生活陪伴者' },
+];
+const personaRoleLabels = personaRoleOptions.map(option => option.label);
+const personaToneOptions = [
+  { value: 'natural', label: '自然' }, { value: 'warm', label: '温和' },
+  { value: 'direct', label: '直接' }, { value: 'clear', label: '清晰' },
+  { value: 'concise', label: '简洁' }, { value: 'precise', label: '严谨' },
+  { value: 'formal', label: '正式' }, { value: 'playful', label: '轻松' },
+  { value: 'empathetic', label: '共情' }, { value: 'calm', label: '沉静' },
+  { value: 'analytical', label: '分析型' }, { value: 'encouraging', label: '鼓励' },
+  { value: 'humorous', label: '幽默' }, { value: 'critical', label: '批判思考' },
+];
+const personaBehaviorOptions = [
+  { value: 'CONCLUSION_FIRST', label: '先说结论' },
+  { value: 'ASK_WHEN_AMBIGUOUS', label: '不明确时先追问' },
+  { value: 'CODE_FIRST', label: '代码优先' },
+  { value: 'LESS_REASSURANCE', label: '少一些安慰' },
+  { value: 'DIRECT_FEEDBACK', label: '直接反馈' },
+  { value: 'STEP_BY_STEP', label: '分步骤说明' },
+  { value: 'CONCISE', label: '控制篇幅' },
+];
+const conversationPersona = ref({
+  role: 'personal_assistant',
+  tone: ['natural', 'clear'],
+  behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'],
+  disabledBehaviorFlags: [] as string[],
+  customTone: '',
+  customResponseStyle: '',
+});
+const conversationPersonaUsesGlobal = ref(true);
+const personaRoleIndex = ref(0);
+const globalPersonaSnapshot = ref({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' });
 
 const onChatModelChange = (event: any) => {
   useReasoning.value = Number(event.detail.value) === 1;
+};
+
+const resolveTaskHint = (message: string) => {
+  const text = (message || '').trim().toLowerCase();
+  if (!text) return null;
+  if (/代码|编程|bug|报错|java|redis|sql|typescript|python|接口/.test(text) && !text.includes('歌词翻译')) {
+    return { label: '编程协作', hint: '会按技术问题的方式回答' };
+  }
+  if (/翻译|translate|译成/.test(text)) return { label: '翻译', hint: '会保留原意与表达重点' };
+  if (/写一篇|润色|改写|文案|作文|起草/.test(text)) return { label: '写作', hint: '会结合体裁与用途组织内容' };
+  if (/讲解|怎么学|学习|原理|为什么/.test(text)) return { label: '学习', hint: '会按需要展开概念和例子' };
+  if (/计划|规划|安排|路线|拆解/.test(text)) return { label: '规划', hint: '会帮你明确下一步' };
+  if (/难过|焦虑|压力|内耗|崩溃|陪我聊/.test(text)) return { label: '陪伴交流', hint: '会优先回应你当下的感受' };
+  return { label: '通用对话', hint: '会直接完成你的请求' };
+};
+
+const defaultPersona = () => ({
+  role: 'personal_assistant',
+  tone: ['natural', 'clear'],
+  behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'],
+  disabledBehaviorFlags: [] as string[],
+  customTone: '',
+  customResponseStyle: '',
+});
+
+const applyConversationPersona = (data: any) => {
+  const fallback = defaultPersona();
+  conversationPersona.value = {
+    role: data?.role || fallback.role,
+    tone: Array.isArray(data?.tone) && data.tone.length ? data.tone : fallback.tone,
+    behaviorFlags: Array.isArray(data?.behaviorFlags) ? data.behaviorFlags : fallback.behaviorFlags,
+    disabledBehaviorFlags: Array.isArray(data?.disabledBehaviorFlags) ? data.disabledBehaviorFlags : [],
+    customTone: data?.customTone || '',
+    customResponseStyle: data?.customResponseStyle || '',
+  };
+  const index = personaRoleOptions.findIndex(option => option.value === conversationPersona.value.role);
+  personaRoleIndex.value = index < 0 ? 0 : index;
+};
+
+const loadConversationPersona = async () => {
+  const id = conversationId.value;
+  if (!id) return;
+  const sequence = personaLoadSequence.value + 1;
+  personaLoadSequence.value = sequence;
+  personaMessage.value = '';
+  try {
+    const [globalRes, overrideRes] = await Promise.all([
+      get<any>('/api/auth/ai-persona'),
+      get<any>(`/api/chat/conversations/${id}/persona`),
+    ]);
+    if (sequence !== personaLoadSequence.value || id !== conversationId.value) return;
+    const usesGlobal = !(overrideRes.code === 200 && overrideRes.data);
+    conversationPersonaUsesGlobal.value = usesGlobal;
+    const global = globalRes.data || {};
+    globalPersonaSnapshot.value = {
+      role: global.role || 'personal_assistant',
+      tone: Array.isArray(global.tone) && global.tone.length ? global.tone : ['natural', 'clear'],
+      behaviorFlags: Array.isArray(global.behaviorFlags) ? global.behaviorFlags : ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'],
+      disabledBehaviorFlags: Array.isArray(global.disabledBehaviorFlags) ? global.disabledBehaviorFlags : [],
+      customTone: global.customTone || '',
+      customResponseStyle: global.customResponseStyle || '',
+    };
+    applyConversationPersona(usesGlobal ? globalRes.data : overrideRes.data);
+  } catch (error) {
+    if (sequence === personaLoadSequence.value && id === conversationId.value) {
+      applyConversationPersona(defaultPersona());
+      conversationPersonaUsesGlobal.value = true;
+      console.warn('加载本次对话风格失败', error);
+    }
+  }
+};
+
+const openPersonaPanel = () => {
+  if (!conversationId.value) return;
+  showPersonaPanel.value = true;
+  void loadConversationPersona();
+};
+
+const onPersonaRoleChange = (event: any) => {
+  personaRoleIndex.value = Number(event.detail.value);
+  conversationPersona.value.role = personaRoleOptions[personaRoleIndex.value]?.value || 'personal_assistant';
+};
+
+const onPersonaToneChange = (event: any) => {
+  conversationPersona.value.tone = event.detail.value || [];
+};
+
+const onPersonaBehaviorChange = (event: any) => {
+  conversationPersona.value.behaviorFlags = event.detail.value || [];
+};
+
+const saveConversationPersona = async () => {
+  if (!conversationId.value || personaSaving.value) return;
+  personaSaving.value = true;
+  personaMessage.value = '';
+  try {
+    const res = await put(`/api/chat/conversations/${conversationId.value}/persona`, {
+      ...conversationPersona.value,
+      customTone: conversationPersona.value.customTone.trim(),
+      customResponseStyle: conversationPersona.value.customResponseStyle.trim(),
+      disabledBehaviorFlags: [...new Set([
+        ...conversationPersona.value.disabledBehaviorFlags,
+        ...globalPersonaSnapshot.value.behaviorFlags.filter(flag => !conversationPersona.value.behaviorFlags.includes(flag)),
+      ])],
+    });
+    if (res.code === 200) {
+      conversationPersonaUsesGlobal.value = false;
+      personaMessage.value = '本次对话风格已应用';
+      uni.showToast({ title: '保存成功', icon: 'success' });
+    } else {
+      personaMessage.value = res.message || '保存失败';
+    }
+  } catch (error: any) {
+    personaMessage.value = error?.message || '保存失败';
+  } finally {
+    personaSaving.value = false;
+  }
+};
+
+const resetConversationPersona = async () => {
+  if (!conversationId.value || personaSaving.value) return;
+  personaSaving.value = true;
+  personaMessage.value = '';
+  try {
+    const res = await del(`/api/chat/conversations/${conversationId.value}/persona`);
+    if (res.code === 200) {
+      await loadConversationPersona();
+      personaMessage.value = '已恢复全局设置';
+    } else {
+      personaMessage.value = res.message || '恢复失败';
+    }
+  } catch (error: any) {
+    personaMessage.value = error?.message || '恢复失败';
+  } finally {
+    personaSaving.value = false;
+  }
 };
 
 const parseTopic = (topic: string | any) => {
@@ -374,10 +616,12 @@ const selectDiaryForQuote = (diary: any) => {
   const plain = diary.content ? extractPlainText(diary.content) : '一段没有文字的记录';
   const prefix = `关于我的这篇日记（${dateStr}）：\n\n`;
   setQuote(prefix + plain);
+  activeDiaryReferenceId.value = Number(diary.id) || null;
   showDiarySelector.value = false;
 };
 
 const selectEventForQuote = (event: any) => {
+  activeDiaryReferenceId.value = null;
   activeEventId.value = Number(event.id);
   eventReference.value = { id: Number(event.id), title: event.title || '重要事件' };
   showEventSelector.value = false;
@@ -388,6 +632,7 @@ const handleLongPress = (msg: Message) => {
     itemList: ['引用', '复制'],
     success: (res) => {
       if (res.tapIndex === 0) {
+        activeDiaryReferenceId.value = null;
         setQuote(msg.content);
       } else if (res.tapIndex === 1) {
         uni.setClipboardData({
@@ -408,6 +653,7 @@ const initConversation = async (preferredConversationId: number | null = null) =
         ? preferredConversationId
         : res.data[0].id;
       loadHistory();
+      void loadConversationPersona();
     } else {
       await createNewChat();
     }
@@ -447,6 +693,7 @@ const createNewChat = async () => {
     if (res.code === 200) {
       conversationId.value = res.data.id;
       messages.value = [];
+      void loadConversationPersona();
       showDrawer.value = false;
       fetchWelcomeTopics();
       // 重新加载列表
@@ -471,6 +718,7 @@ const switchConversation = (id: number) => {
   messages.value = [];
   showDrawer.value = false;
   loadHistory();
+  void loadConversationPersona();
 };
 
 const loadHistory = async () => {
@@ -519,6 +767,10 @@ const sendMessage = async () => {
   const isFirstUserMessage = !messages.value.some(message => message.role === 'user');
   const currentQuote = activeQuote.value;
   const eventId = activeEventId.value;
+  const referenceItems = [
+    activeDiaryReferenceId.value ? { sourceType: 'diary', sourceId: activeDiaryReferenceId.value } : null,
+    eventId ? { sourceType: 'event', sourceId: eventId } : null,
+  ].filter(Boolean);
   
   messages.value.push({ role: 'user', content, createdAt: new Date().toISOString() });
   inputContent.value = '';
@@ -532,6 +784,7 @@ const sendMessage = async () => {
       message: content,
       references: references,
       useReasoning: useReasoning.value,
+      ...(referenceItems.length ? { referenceItems } : {}),
       ...(eventId ? { eventId } : {}),
     });
     
@@ -548,6 +801,7 @@ const sendMessage = async () => {
   } finally {
     isWaiting.value = false;
     activeEventId.value = null;
+    activeDiaryReferenceId.value = null;
     eventReference.value = null;
     scrollToBottom();
     if (isFirstUserMessage && conversationId.value) {
@@ -627,11 +881,11 @@ const scrollToBottom = (target?: 'waiting') => {
   border-radius: 16rpx;
   padding: 24rpx;
   margin-bottom: 24rpx;
-  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.03);
+  box-shadow: var(--theme-shadow-panel);
   display: flex;
   flex-direction: row;
   align-items: center;
-  border: 1px solid rgba(var(--theme-primary-rgb), 0.1);
+  border: 1rpx solid var(--theme-border);
   transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
 }
 
@@ -675,13 +929,13 @@ const scrollToBottom = (target?: 'waiting') => {
 }
 .ai-avatar {
   background-color: transparent;
-  color: #fff;
+  color: var(--theme-text-on-primary);
   margin-right: 16rpx;
   overflow: hidden;
 }
 .user-avatar {
   background-color: var(--theme-primary);
-  color: #fff;
+  color: var(--theme-text-on-primary);
   margin-left: 16rpx;
   overflow: hidden;
 }
@@ -702,12 +956,12 @@ const scrollToBottom = (target?: 'waiting') => {
 .ai-bubble {
   background-color: var(--theme-surface);
   color: var(--theme-text-primary);
-  box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.03);
+  box-shadow: var(--theme-shadow-panel);
   border-top-left-radius: 0;
 }
 .user-bubble {
   background-color: var(--theme-primary);
-  color: #fff;
+  color: var(--theme-text-on-primary);
   border-bottom-right-radius: 0;
 }
 
@@ -747,7 +1001,7 @@ const scrollToBottom = (target?: 'waiting') => {
   width: 100vw;
   box-sizing: border-box;
   background-color: var(--theme-surface);
-  border-top: 1px solid rgba(var(--theme-primary-rgb), 0.1);
+  border-top: 1rpx solid var(--theme-border);
   z-index: 100;
 }
 
@@ -755,8 +1009,8 @@ const scrollToBottom = (target?: 'waiting') => {
   display: flex;
   align-items: center;
   padding: 16rpx 32rpx;
-  background-color: rgba(var(--theme-primary-rgb), 0.05);
-  border-bottom: 1px dashed rgba(var(--theme-primary-rgb), 0.1);
+  background-color: color-mix(in oklab, var(--theme-primary) 5%, var(--theme-surface));
+  border-bottom: 1rpx dashed var(--theme-border);
 }
 
 .quote-icon {
@@ -784,7 +1038,7 @@ const scrollToBottom = (target?: 'waiting') => {
   font-size: 36rpx;
   color: var(--theme-text-placeholder);
   border-radius: 50%;
-  background: rgba(0,0,0,0.05);
+  background: var(--theme-surface-hover);
 }
 
 .chat-input-bar {
@@ -803,11 +1057,11 @@ const scrollToBottom = (target?: 'waiting') => {
   padding: 0 32rpx;
   font-size: 30rpx;
   color: var(--theme-text-primary);
-  border: 1px solid rgba(var(--theme-primary-rgb), 0.1);
+  border: 1rpx solid var(--theme-border);
 }
 .send-btn {
   background-color: var(--theme-primary);
-  color: #fff;
+  color: var(--theme-text-on-primary);
   height: 80rpx;
   line-height: 80rpx;
   border-radius: 40rpx;
@@ -829,9 +1083,9 @@ const scrollToBottom = (target?: 'waiting') => {
   justify-content: space-between;
   align-items: center;
   padding: 20rpx 40rpx;
-  background-color: rgba(var(--theme-surface-rgb, 255, 255, 255), 0.5);
+  background-color: var(--theme-bg);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(var(--theme-primary-rgb), 0.1);
+  border-bottom: 1rpx solid var(--theme-border);
 }
 .current-session-title {
   font-size: 28rpx;
@@ -845,7 +1099,7 @@ const scrollToBottom = (target?: 'waiting') => {
   align-items: center;
   gap: 8rpx;
   padding: 8rpx 16rpx;
-  background: rgba(var(--theme-primary-rgb), 0.1);
+  background: color-mix(in oklab, var(--theme-primary) 10%, var(--theme-surface));
   border-radius: 30rpx;
 }
 
@@ -856,7 +1110,7 @@ const scrollToBottom = (target?: 'waiting') => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: var(--theme-overlay);
   z-index: 1000;
   display: flex;
   justify-content: flex-end;
@@ -865,7 +1119,7 @@ const scrollToBottom = (target?: 'waiting') => {
   width: 75vw;
   height: 100%;
   background-color: var(--theme-bg);
-  box-shadow: -4rpx 0 20rpx rgba(0, 0, 0, 0.1);
+  box-shadow: var(--theme-shadow-panel);
   display: flex;
   flex-direction: column;
   animation: slideIn 0.3s ease;
@@ -879,7 +1133,7 @@ const scrollToBottom = (target?: 'waiting') => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(var(--theme-primary-rgb), 0.1);
+  border-bottom: 1rpx solid var(--theme-border);
 }
 .drawer-title {
   font-size: 36rpx;
@@ -890,7 +1144,7 @@ const scrollToBottom = (target?: 'waiting') => {
 .new-chat-btn {
   font-size: 24rpx;
   background-color: var(--theme-primary);
-  color: #fff;
+  color: var(--theme-text-on-primary);
   border-radius: 30rpx;
   padding: 0 24rpx;
   height: 56rpx;
@@ -906,13 +1160,13 @@ const scrollToBottom = (target?: 'waiting') => {
 }
 .conv-item {
   padding: 32rpx;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
+  border-bottom: 1rpx solid var(--theme-border);
   display: flex;
   flex-direction: column;
   gap: 8rpx;
 }
 .conv-item.active {
-  background-color: rgba(var(--theme-primary-rgb), 0.05);
+  background-color: color-mix(in oklab, var(--theme-primary) 5%, var(--theme-surface));
 }
 .conv-title {
   font-size: 30rpx;
@@ -934,7 +1188,7 @@ const scrollToBottom = (target?: 'waiting') => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: var(--theme-overlay);
   z-index: 99999;
   display: flex;
   justify-content: center;
@@ -944,12 +1198,12 @@ const scrollToBottom = (target?: 'waiting') => {
 .diary-selector-sheet {
   width: 100%;
   height: 60vh;
-  background-color: #F6F2EA;
-  border-top-left-radius: 40rpx;
-  border-top-right-radius: 40rpx;
+  background-color: var(--theme-surface);
+  border-top-left-radius: var(--theme-radius-lg);
+  border-top-right-radius: var(--theme-radius-lg);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 -4rpx 20rpx rgba(0, 0, 0, 0.1);
+  box-shadow: var(--theme-shadow-dialog);
   animation: slideUp 0.3s ease;
 }
 
@@ -963,7 +1217,7 @@ const scrollToBottom = (target?: 'waiting') => {
   justify-content: space-between;
   align-items: center;
   padding: 32rpx 40rpx;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
+  border-bottom: 1rpx solid var(--theme-border);
 }
 
 .sheet-title {
@@ -997,8 +1251,8 @@ const scrollToBottom = (target?: 'waiting') => {
   border-radius: 20rpx;
   padding: 32rpx;
   margin-bottom: 24rpx;
-  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.02);
-  border: 1px solid rgba(var(--theme-primary-rgb), 0.05);
+  box-shadow: none;
+  border: 1rpx solid var(--theme-border);
 }
 
 .sheet-diary-date {
@@ -1028,9 +1282,11 @@ const scrollToBottom = (target?: 'waiting') => {
 .history-btn { display: flex; width: 58rpx; height: 58rpx; align-items: center; justify-content: center; padding: 0; border: 1rpx solid var(--theme-border); border-radius: 6rpx; background: var(--theme-surface); color: var(--theme-primary); box-sizing: border-box; }
 .tool-symbol { font-size: 31rpx; font-weight: 650; line-height: 1; }
 .history-btn:not(.new-chat-action) .tool-symbol { font-size: 24rpx; letter-spacing: 1rpx; }
+.persona-action { width: 78rpx; }
+.persona-action-label { color: var(--theme-text-secondary); font-size: 22rpx; }
 .chat-container { min-height: 100%; padding: 30rpx 32rpx 44rpx; box-sizing: border-box; }
 .welcome-section { width: 100%; margin: 32rpx 0 0; padding: 48rpx 28rpx 30rpx; border: 1rpx solid var(--theme-border); border-radius: 10rpx; background: var(--theme-surface); box-sizing: border-box; }
-.welcome-mark { display: flex; width: 86rpx; height: 86rpx; align-items: center; justify-content: center; margin: 0 auto 20rpx; border: 1rpx solid rgba(var(--theme-primary-rgb), .18); border-radius: 50%; background: rgba(var(--theme-primary-rgb), .06); overflow: hidden; }
+.welcome-mark { display: flex; width: 86rpx; height: 86rpx; align-items: center; justify-content: center; margin: 0 auto 20rpx; border: 1rpx solid var(--theme-border); border-radius: 50%; background: color-mix(in oklab, var(--theme-primary) 6%, var(--theme-surface)); overflow: hidden; }
 .welcome-avatar { width: 72rpx; height: 72rpx; border-radius: 50%; }
 .welcome-brand { display: block; color: var(--theme-primary); font-family: Georgia, "Times New Roman", serif; font-size: 50rpx; font-weight: 500; text-align: center; }
 .welcome-copy { display: block; margin-top: 11rpx; color: var(--theme-text-secondary); font-size: 25rpx; line-height: 1.65; text-align: center; }
@@ -1056,5 +1312,364 @@ const scrollToBottom = (target?: 'waiting') => {
 .quote-action-icon { font-size: 34rpx; line-height: 1; }
 .chat-input { height: 64rpx; padding: 0 20rpx; border-radius: 6rpx; background: var(--theme-bg); font-size: 26rpx; }
 .send-btn { height: 64rpx; padding: 0 24rpx; border-radius: 6rpx; font-size: 25rpx; line-height: 64rpx; }
+</style>
+
+<style scoped>
+.chat-container {
+  padding-right: 32rpx;
+  padding-left: 32rpx;
+}
+
+.chat-task-context {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  overflow: hidden;
+  padding: 0 32rpx 12rpx;
+  color: var(--theme-text-secondary);
+  font-size: 22rpx;
+  line-height: 1.4;
+}
+
+.chat-task-label,
+.chat-task-detail {
+  color: var(--theme-text-secondary);
+}
+
+.chat-task-name {
+  color: var(--theme-primary);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.chat-task-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-section {
+  margin-top: 26rpx;
+  padding: 38rpx 22rpx 24rpx;
+  border-radius: var(--theme-radius-md);
+  background: var(--theme-surface);
+  box-shadow: var(--theme-shadow-panel);
+}
+
+.welcome-mark {
+  width: 74rpx;
+  height: 74rpx;
+  margin-bottom: 16rpx;
+  border-color: var(--theme-border);
+  background: color-mix(in oklab, var(--theme-primary) 6%, var(--theme-surface));
+}
+
+.welcome-avatar {
+  width: 62rpx;
+  height: 62rpx;
+}
+
+.welcome-brand {
+  color: var(--theme-text-primary);
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 39rpx;
+  font-weight: 700;
+}
+
+.welcome-copy {
+  font-size: 23rpx;
+}
+
+.welcome-topics {
+  margin-top: 30rpx;
+}
+
+.topic-btn {
+  min-height: 76rpx;
+  margin-bottom: 10rpx;
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-bg);
+}
+
+.topic-text {
+  font-size: 24rpx;
+}
+
+.message-row {
+  margin-bottom: 22rpx;
+}
+
+.avatar {
+  width: 56rpx;
+  height: 56rpx;
+}
+
+.ai-avatar {
+  margin-right: 14rpx;
+}
+
+.user-avatar {
+  margin-left: 14rpx;
+}
+
+.bubble {
+  max-width: 80%;
+  padding: 18rpx 22rpx;
+  border-radius: var(--theme-radius-md);
+  font-size: 27rpx;
+  line-height: 1.65;
+}
+
+.ai-bubble {
+  border-top-left-radius: var(--theme-radius-sm);
+  background: var(--theme-surface);
+  box-shadow: var(--theme-shadow-panel);
+}
+
+.user-bubble {
+  border-bottom-right-radius: var(--theme-radius-sm);
+  background: var(--theme-primary);
+  color: var(--theme-text-on-primary);
+}
+
+.message-text {
+  font-size: 26rpx;
+  line-height: 1.7;
+}
+
+.chat-bottom-wrapper {
+  bottom: calc(96rpx + env(safe-area-inset-bottom));
+  background: var(--theme-surface);
+  box-shadow: 0 -1rpx 8rpx color-mix(in oklab, var(--theme-primary) 5%, transparent);
+}
+
+.quote-preview-bar {
+  border-bottom-color: var(--theme-border);
+  background: color-mix(in oklab, var(--theme-primary) 5%, var(--theme-surface));
+}
+
+.quote-close {
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-surface-hover);
+}
+
+.chat-input-bar {
+  gap: 10rpx;
+  padding: 14rpx 26rpx;
+}
+
+.quote-action-btn,
+.event-quote-action-btn,
+.chat-input,
+.send-btn {
+  border-radius: var(--theme-radius-sm);
+}
+
+.chat-input {
+  border-color: var(--theme-border);
+  font-size: 25rpx;
+}
+
+.send-btn {
+  min-width: 94rpx;
+  padding: 0 20rpx;
+  background: var(--theme-primary);
+  color: var(--theme-text-on-primary);
+}
+
+.diary-selector-sheet {
+  border-radius: var(--theme-radius-lg) var(--theme-radius-lg) 0 0;
+  background: var(--theme-surface);
+  box-shadow: var(--theme-shadow-dialog);
+}
+
+.sheet-diary-item {
+  margin-bottom: 10rpx;
+  padding: 20rpx;
+  border-radius: var(--theme-radius-sm);
+  border-color: var(--theme-border);
+  background: var(--theme-bg);
+  box-shadow: none;
+}
+
+.sheet-diary-content {
+  font-size: 25rpx;
+}
+
+.persona-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: flex-end;
+  background: var(--theme-overlay);
+}
+
+.persona-sheet {
+  width: 100%;
+  max-height: 82vh;
+  border-radius: var(--theme-radius-lg) var(--theme-radius-lg) 0 0;
+  background: var(--theme-surface);
+  box-shadow: var(--theme-shadow-dialog);
+  overflow: hidden;
+}
+
+.persona-sheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 30rpx 32rpx 24rpx;
+  border-bottom: 1rpx solid var(--theme-border);
+}
+
+.persona-sheet-title,
+.persona-sheet-hint {
+  display: block;
+}
+
+.persona-sheet-title {
+  color: var(--theme-text-primary);
+  font-size: 32rpx;
+  font-weight: 650;
+}
+
+.persona-sheet-hint {
+  margin-top: 8rpx;
+  color: var(--theme-text-placeholder);
+  font-size: 22rpx;
+  line-height: 1.45;
+}
+
+.persona-sheet-content {
+  max-height: calc(82vh - 112rpx);
+  padding: 8rpx 32rpx 40rpx;
+  box-sizing: border-box;
+}
+
+.persona-field-label {
+  display: block;
+  margin: 22rpx 0 12rpx;
+  color: var(--theme-text-secondary);
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.persona-picker-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 72rpx;
+  padding: 0 20rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-bg);
+  color: var(--theme-text-primary);
+  font-size: 26rpx;
+  box-sizing: border-box;
+}
+
+.persona-picker-arrow {
+  color: var(--theme-primary);
+  font-size: 34rpx;
+}
+
+.persona-choice-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx 18rpx;
+}
+
+.persona-choice-item {
+  display: flex;
+  align-items: center;
+  min-height: 54rpx;
+  color: var(--theme-text-primary);
+  font-size: 24rpx;
+}
+
+.persona-choice-item checkbox {
+  transform: scale(.78);
+}
+
+.persona-textarea {
+  display: block;
+  width: 100%;
+  min-height: 140rpx;
+  padding: 18rpx 20rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-bg);
+  color: var(--theme-text-primary);
+  font-size: 25rpx;
+  line-height: 1.55;
+  box-sizing: border-box;
+}
+
+.persona-input {
+  display: block;
+  width: 100%;
+  min-height: 76rpx;
+  padding: 0 20rpx;
+  box-sizing: border-box;
+  border: 1px solid var(--theme-border);
+  border-radius: 8rpx;
+  background: var(--theme-bg);
+  color: var(--theme-text-primary);
+  font-size: 27rpx;
+}
+
+.persona-field-help {
+  display: block;
+  margin-top: 10rpx;
+  color: var(--theme-text-secondary);
+  font-size: 23rpx;
+  line-height: 1.5;
+}
+
+.persona-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 28rpx;
+}
+
+.persona-save,
+.persona-reset {
+  flex: 1;
+  height: 72rpx;
+  margin: 0;
+  border-radius: var(--theme-radius-sm);
+  font-size: 25rpx;
+  line-height: 72rpx;
+}
+
+.persona-save {
+  background: var(--theme-primary);
+  color: var(--theme-text-on-primary);
+}
+
+.persona-reset {
+  border: 1rpx solid var(--theme-border);
+  background: var(--theme-bg);
+  color: var(--theme-text-secondary);
+}
+
+.persona-save::after,
+.persona-reset::after {
+  border: none;
+}
+
+.persona-save[disabled],
+.persona-reset[disabled] {
+  opacity: .55;
+}
+
+.persona-message {
+  display: block;
+  margin-top: 16rpx;
+  color: var(--theme-primary);
+  font-size: 23rpx;
+  text-align: center;
+}
 </style>
 

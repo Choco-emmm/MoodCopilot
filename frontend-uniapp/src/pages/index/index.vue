@@ -317,9 +317,9 @@ function timeOf(value: string) {
 .page-heading { display: block; }
 .page-title { display: block; color: var(--theme-text-primary); font-size: 42rpx; font-weight: 700; line-height: 1.2; }
 .page-date { display: block; margin-top: 9rpx; color: var(--theme-text-secondary); font-size: 23rpx; }
-.write-header-button { display: inline-flex; height: 62rpx; align-items: center; gap: 8rpx; margin-top: 26rpx; padding: 0 20rpx; border-radius: 8rpx; background: var(--theme-primary); color: #fff; font-size: 24rpx; font-weight: 600; }
+.write-header-button { display: inline-flex; height: 62rpx; align-items: center; gap: 8rpx; margin-top: 26rpx; padding: 0 20rpx; border-radius: 8rpx; background: var(--theme-primary); color: var(--theme-text-on-primary); font-size: 24rpx; font-weight: 600; }
 .write-header-plus { font-size: 31rpx; font-weight: 300; line-height: 1; }
-.diary-filter-trigger { display: flex; align-items: center; justify-content: space-between; margin-top: 16rpx; padding: 17rpx 18rpx; border-radius: 7rpx; background: rgba(var(--theme-primary-rgb), 0.04); }
+.diary-filter-trigger { display: flex; align-items: center; justify-content: space-between; margin-top: 16rpx; padding: 17rpx 18rpx; border-radius: 7rpx; background: color-mix(in oklab, var(--theme-primary) 4%, var(--theme-surface)); }
 .filter-trigger-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .filter-trigger-title { color: var(--theme-text-primary); font-size: 24rpx; font-weight: 650; }
 .filter-trigger-summary { overflow: hidden; margin-top: 5rpx; color: var(--theme-text-placeholder); font-size: 20rpx; text-overflow: ellipsis; white-space: nowrap; }
@@ -335,16 +335,16 @@ function timeOf(value: string) {
 .diary-time { color: var(--theme-text-placeholder); font-size: 24rpx; font-weight: 400; }
 .diary-content { display: -webkit-box; overflow: hidden; color: var(--theme-text-primary); font-size: 28rpx; line-height: 1.68; word-break: break-word; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
 .diary-images { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10rpx; margin-top: 22rpx; }
-.diary-image { width: 100%; height: 176rpx; border-radius: 6rpx; background: rgba(var(--theme-primary-rgb), .08); }
-.image-count { position: absolute; right: 0; bottom: 0; display: flex; width: calc((100% - 20rpx) / 3); height: 176rpx; align-items: center; justify-content: center; border-radius: 6rpx; background: rgba(24, 30, 26, .52); color: #fff; font-size: 27rpx; }
+.diary-image { width: 100%; height: 176rpx; border-radius: 6rpx; background: color-mix(in oklab, var(--theme-primary) 8%, var(--theme-surface)); }
+.image-count { position: absolute; right: 0; bottom: 0; display: flex; width: calc((100% - 20rpx) / 3); height: 176rpx; align-items: center; justify-content: center; border-radius: 6rpx; background: var(--theme-overlay); color: var(--theme-text-on-primary); font-size: 27rpx; }
 .diary-music { margin-top: 22rpx; }
 .list-footnote { padding: 18rpx 0 38rpx; color: var(--theme-text-placeholder); font-size: 22rpx; text-align: center; }
 .guest-state, .empty-state { margin-top: 118rpx; text-align: center; }
 .guest-title, .empty-title { display: block; color: var(--theme-text-primary); font-size: 38rpx; font-weight: 700; }
 .guest-copy, .empty-copy { display: block; max-width: 480rpx; margin: 16rpx auto 0; color: var(--theme-text-secondary); font-size: 26rpx; line-height: 1.7; }
-.guest-button, .empty-button { display: inline-flex; height: 74rpx; align-items: center; justify-content: center; margin-top: 38rpx; padding: 0 30rpx; border-radius: 8rpx; background: var(--theme-primary); color: #fff; font-size: 26rpx; font-weight: 600; }
+.guest-button, .empty-button { display: inline-flex; height: 74rpx; align-items: center; justify-content: center; margin-top: 38rpx; padding: 0 30rpx; border-radius: 8rpx; background: var(--theme-primary); color: var(--theme-text-on-primary); font-size: 26rpx; font-weight: 600; }
 .loading-state { padding-top: 150rpx; color: var(--theme-text-placeholder); font-size: 25rpx; text-align: center; }
-.filter-overlay { position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: flex-end; background: rgba(22, 27, 24, .42); z-index: 50; }
+.filter-overlay { position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: flex-end; background: var(--theme-overlay); z-index: 50; }
 .filter-sheet { width: 100%; padding: 16rpx 32rpx calc(32rpx + env(safe-area-inset-bottom)); border-radius: 12rpx 12rpx 0 0; background: var(--theme-surface); box-sizing: border-box; }
 .filter-handle { width: 54rpx; height: 6rpx; margin: 0 auto 26rpx; border-radius: 99rpx; background: var(--theme-border); }
 .filter-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 23rpx; }
@@ -364,8 +364,149 @@ function timeOf(value: string) {
 .date-field-value.empty { color: var(--theme-text-placeholder); }
 .date-range-separator { color: var(--theme-text-placeholder); font-size: 21rpx; }
 .quick-range-row { display: flex; gap: 10rpx; margin-top: 13rpx; }
-.quick-range { padding: 10rpx 14rpx; border-radius: 5rpx; background: rgba(var(--theme-primary-rgb), .07); color: var(--theme-primary); font-size: 21rpx; }
+.quick-range { padding: 10rpx 14rpx; border-radius: 5rpx; background: color-mix(in oklab, var(--theme-primary) 7%, var(--theme-surface)); color: var(--theme-primary); font-size: 21rpx; }
 .filter-actions { display: flex; align-items: center; gap: 16rpx; margin-top: 29rpx; }
 .filter-reset { flex: 1; height: 76rpx; border: 1rpx solid var(--theme-border); border-radius: 7rpx; color: var(--theme-text-secondary); font-size: 25rpx; line-height: 76rpx; text-align: center; }
-.filter-apply { flex: 1.5; height: 76rpx; border-radius: 7rpx; background: var(--theme-primary); color: #fff; font-size: 25rpx; font-weight: 650; line-height: 76rpx; text-align: center; }
+.filter-apply { flex: 1.5; height: 76rpx; border-radius: 7rpx; background: var(--theme-primary); color: var(--theme-text-on-primary); font-size: 25rpx; font-weight: 650; line-height: 76rpx; text-align: center; }
+</style>
+
+<style scoped>
+.diary-page {
+  background: var(--theme-bg);
+}
+
+.page-header {
+  padding-right: var(--theme-page-padding);
+  padding-bottom: 22rpx;
+  padding-left: var(--theme-page-padding);
+}
+
+.page-title {
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 48rpx;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.page-date {
+  margin-top: 8rpx;
+  font-size: 21rpx;
+  letter-spacing: 1rpx;
+}
+
+.write-header-button {
+  height: 58rpx;
+  margin-top: 24rpx;
+  padding: 0 18rpx;
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-primary);
+  color: var(--theme-text-on-primary);
+  font-size: 23rpx;
+}
+
+.diary-filter-trigger {
+  margin-top: 14rpx;
+  padding: 16rpx 18rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-surface);
+}
+
+.filter-trigger-title {
+  font-size: 23rpx;
+}
+
+.filter-trigger-summary {
+  font-size: 19rpx;
+}
+
+.diary-scroll {
+  padding-right: 32rpx;
+  padding-left: 32rpx;
+}
+
+.diary-item {
+  padding: 30rpx 0;
+  border-bottom-color: var(--theme-border);
+}
+
+.diary-item:active {
+  background: var(--theme-surface-hover);
+  opacity: 1;
+}
+
+.diary-item-head {
+  margin-bottom: 18rpx;
+}
+
+.diary-date-num {
+  font-size: 50rpx;
+}
+
+.diary-date-month {
+  font-size: 25rpx;
+}
+
+.diary-time {
+  font-size: 21rpx;
+}
+
+.diary-content {
+  font-size: 27rpx;
+  line-height: 1.75;
+}
+
+.diary-images {
+  gap: 8rpx;
+  margin-top: 18rpx;
+}
+
+.diary-image,
+.image-count {
+  border-radius: var(--theme-radius-sm);
+}
+
+.diary-music {
+  margin-top: 18rpx;
+}
+
+.guest-state,
+.empty-state {
+  margin-top: 96rpx;
+}
+
+.guest-title,
+.empty-title {
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 36rpx;
+}
+
+.guest-button,
+.empty-button {
+  height: 68rpx;
+  margin-top: 32rpx;
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-primary);
+  color: var(--theme-text-on-primary);
+  font-size: 24rpx;
+}
+
+.filter-sheet {
+  border-radius: var(--theme-radius-lg) var(--theme-radius-lg) 0 0;
+  box-shadow: var(--theme-shadow-dialog);
+}
+
+.filter-actions {
+  gap: 12rpx;
+}
+
+.filter-reset,
+.filter-apply {
+  border-radius: var(--theme-radius-sm);
+}
+
+.filter-apply {
+  background: var(--theme-primary);
+  color: var(--theme-text-on-primary);
+}
 </style>

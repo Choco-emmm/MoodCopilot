@@ -499,7 +499,7 @@ const fetchQuota = async () => {
 
 .clean-bg {
   background-color: var(--theme-bg);
-  border-bottom: 1px solid rgba(0,0,0,0.02);
+  border-bottom: 1rpx solid var(--theme-border);
 }
 
 .user-info {
@@ -514,7 +514,7 @@ const fetchQuota = async () => {
   padding: 8rpx;
   background: var(--theme-surface);
   border-radius: 50%;
-  box-shadow: 0 8rpx 24rpx rgba(0,0,0,0.06);
+  box-shadow: var(--theme-shadow-panel);
 }
 
 .avatar-icon {
@@ -546,14 +546,14 @@ const fetchQuota = async () => {
 .level-text {
   font-size: 24rpx;
   color: var(--theme-text-secondary);
-  background-color: rgba(0,0,0,0.05);
+  background-color: var(--theme-surface-hover);
   padding: 4rpx 16rpx;
   border-radius: 999rpx;
 }
 
 .login-btn {
   background-color: var(--theme-primary);
-  color: white;
+  color: var(--theme-text-on-primary);
   text-align: center;
   padding: 24rpx 0;
   border-radius: 999rpx;
@@ -580,8 +580,8 @@ const fetchQuota = async () => {
   background-color: var(--theme-surface);
   border-radius: 24rpx;
   padding: 32rpx;
-  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(0,0,0,0.02);
+  box-shadow: var(--theme-shadow-panel);
+  border: 1rpx solid var(--theme-border);
 }
 
 .quota-card {
@@ -593,7 +593,7 @@ const fetchQuota = async () => {
   justify-content: space-between;
   align-items: center;
   padding: 24rpx 0;
-  border-bottom: 1px dashed rgba(var(--theme-primary-rgb), 0.2);
+  border-bottom: 1rpx dashed var(--theme-border);
 }
 
 .quota-item:last-child {
@@ -631,8 +631,8 @@ const fetchQuota = async () => {
 }
 
 .checkin-card {
-  background: linear-gradient(135deg, rgba(var(--theme-primary-rgb), 0.1) 0%, rgba(var(--theme-primary-rgb), 0.05) 100%);
-  border: 1px solid rgba(var(--theme-primary-rgb), 0.1);
+  background: color-mix(in oklab, var(--theme-primary) 6%, var(--theme-surface));
+  border: 1rpx solid var(--theme-border);
 }
 
 .checkin-text {
@@ -654,7 +654,7 @@ const fetchQuota = async () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--theme-overlay);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -664,7 +664,7 @@ const fetchQuota = async () => {
 
 .close-btn {
   background-color: var(--theme-primary);
-  color: #fff;
+  color: var(--theme-text-on-primary);
   border-radius: 999rpx;
   font-size: 32rpx;
   font-weight: 500;
@@ -689,7 +689,7 @@ const fetchQuota = async () => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: var(--theme-overlay);
   z-index: 1000;
   display: flex;
   justify-content: center;
@@ -701,7 +701,7 @@ const fetchQuota = async () => {
   background-color: var(--theme-surface);
   border-radius: 24rpx;
   padding: 40rpx;
-  box-shadow: 0 16rpx 40rpx rgba(0, 0, 0, 0.1);
+  box-shadow: var(--theme-shadow-dialog);
   box-sizing: border-box;
 }
 
@@ -741,7 +741,7 @@ const fetchQuota = async () => {
   border-radius: 50%;
   background-color: transparent;
   border: none;
-  box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.1);
+  box-shadow: var(--theme-shadow-panel);
 }
 .avatar-wrapper::after {
   display: none;
@@ -756,11 +756,11 @@ const fetchQuota = async () => {
 
 .edit-input {
   width: 100%;
-  background: #f8f8f7;
+  background: var(--theme-bg);
   border-radius: 12rpx;
   padding: 24rpx;
   font-size: 30rpx;
-  border: 1px solid #e0ddd6;
+  border: 1rpx solid var(--theme-border);
   box-sizing: border-box;
 }
 
@@ -773,7 +773,7 @@ const fetchQuota = async () => {
 
 .cancel-btn {
   flex: 1;
-  background-color: #f0f0f0;
+  background-color: var(--theme-surface-hover);
   color: var(--theme-text-secondary);
   font-size: 30rpx;
   border-radius: 40rpx;
@@ -784,7 +784,7 @@ const fetchQuota = async () => {
 .confirm-btn {
   flex: 1;
   background-color: var(--theme-primary);
-  color: #fff;
+  color: var(--theme-text-on-primary);
   font-size: 30rpx;
   border-radius: 40rpx;
   margin: 0;
@@ -840,11 +840,11 @@ const fetchQuota = async () => {
 .quota-tr {
   display: flex;
   flex-direction: row;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
+  border-bottom: 1rpx solid var(--theme-border);
 }
 
 .quota-tr.active-row {
-  background-color: rgba(var(--theme-primary-rgb), 0.05);
+  background-color: color-mix(in oklab, var(--theme-primary) 5%, var(--theme-surface));
 }
 
 .quota-th .quota-td {
@@ -868,7 +868,7 @@ const fetchQuota = async () => {
 }
 
 .quota-modal-desc {
-  background: rgba(var(--theme-primary-rgb), 0.03);
+  background: color-mix(in oklab, var(--theme-primary) 3%, var(--theme-surface));
   padding: 24rpx;
   border-radius: 12rpx;
   margin-bottom: 24rpx;
@@ -921,7 +921,7 @@ const fetchQuota = async () => {
 }
 
 .empty-text {
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   font-size: 28rpx;
   display: block;
   text-align: center;
@@ -937,7 +937,7 @@ const fetchQuota = async () => {
   display: flex;
   justify-content: space-between;
   margin-bottom: 32rpx;
-  background: rgba(0, 0, 0, 0.03);
+  background: var(--theme-bg);
   padding: 8rpx;
   border-radius: 4rpx;
 }
@@ -955,7 +955,7 @@ const fetchQuota = async () => {
 
 .mode-item.active {
   background: var(--theme-surface);
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
+  box-shadow: var(--theme-shadow-panel);
   color: var(--theme-primary, var(--theme-text-primary));
   font-weight: bold;
 }
@@ -974,7 +974,7 @@ const fetchQuota = async () => {
   justify-content: space-between;
   align-items: center;
   padding: 24rpx;
-  background-color: rgba(var(--theme-primary-rgb), 0.05);
+  background-color: color-mix(in oklab, var(--theme-primary) 5%, var(--theme-surface));
   border-radius: 4rpx;
   margin-bottom: 24rpx;
 }
@@ -992,7 +992,7 @@ const fetchQuota = async () => {
 
 .custom-theme-container {
   padding-top: 16rpx;
-  border-top: 1px dashed rgba(var(--theme-primary-rgb), 0.1);
+  border-top: 1rpx dashed var(--theme-border);
 }
 
 .theme-section-label {
@@ -1047,8 +1047,8 @@ const fetchQuota = async () => {
   height: 100%;
   border-radius: 45rpx;
   background: var(--t-surface);
-  border: 2rpx solid rgba(0,0,0,0.05);
-  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.05);
+  border: 2rpx solid var(--theme-border);
+  box-shadow: var(--theme-shadow-panel);
   overflow: hidden;
   position: relative;
   display: flex;
@@ -1099,6 +1099,203 @@ const fetchQuota = async () => {
   font-size: 22rpx;
   color: var(--color-text-secondary, var(--theme-text-secondary));
   white-space: nowrap;
+}
+</style>
+
+<style scoped>
+.profile-page {
+  background: var(--theme-bg);
+  padding-bottom: calc(112rpx + env(safe-area-inset-bottom));
+}
+
+.header {
+  align-items: flex-start;
+  padding: 28rpx var(--theme-page-padding) 38rpx;
+  border-bottom: 1rpx solid var(--theme-border);
+}
+
+.user-info {
+  flex-direction: row;
+  align-items: center;
+  gap: 18rpx;
+}
+
+.avatar {
+  margin-bottom: 0;
+  padding: 5rpx;
+  border: 1rpx solid var(--theme-border);
+  box-shadow: none;
+}
+
+.avatar-icon {
+  width: 104rpx;
+  height: 104rpx;
+}
+
+.user-detail,
+.user-detail > view {
+  align-items: flex-start;
+}
+
+.nickname {
+  margin-bottom: 5rpx;
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 36rpx;
+  line-height: 1.25;
+}
+
+.level-text {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--theme-text-secondary);
+  font-size: 21rpx;
+}
+
+.login-btn {
+  width: 100%;
+  margin-top: 28rpx;
+  padding: 19rpx 0;
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-primary);
+  color: var(--theme-text-on-primary);
+  font-size: 25rpx;
+}
+
+.section {
+  margin-bottom: 38rpx;
+  padding: 0 var(--theme-page-padding);
+}
+
+.section-title {
+  padding-bottom: 13rpx;
+  margin-bottom: 0;
+  border-bottom: 1rpx solid var(--theme-border);
+  font-size: 32rpx;
+}
+
+.card {
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-md);
+  background: var(--theme-surface);
+  box-shadow: var(--theme-shadow-panel);
+}
+
+.quota-card {
+  padding: 8rpx 24rpx;
+}
+
+.quota-header {
+  padding: 15rpx 0;
+  border-bottom: 1rpx solid var(--theme-border);
+}
+
+.quota-header-title {
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 27rpx;
+}
+
+.quota-header-link {
+  color: var(--theme-primary);
+  font-size: 20rpx;
+}
+
+.quota-item {
+  padding: 19rpx 0;
+  border-bottom-color: var(--theme-border);
+}
+
+.quota-label {
+  color: var(--theme-text-secondary);
+  font-size: 23rpx;
+}
+
+.quota-value {
+  font-size: 25rpx;
+}
+
+.action-card {
+  min-height: 78rpx;
+  padding: 22rpx 24rpx;
+  border-radius: var(--theme-radius-md);
+  box-shadow: none;
+}
+
+.action-text,
+.checkin-text,
+.logout-text {
+  font-size: 25rpx;
+}
+
+.checkin-card {
+  border-color: var(--theme-primary);
+  background: color-mix(in oklab, var(--theme-primary) 6%, var(--theme-surface));
+}
+
+.checkin-text {
+  color: var(--theme-text-primary);
+}
+
+.logout-card {
+  border-color: var(--theme-border);
+}
+
+.logout-text {
+  color: var(--theme-accent);
+}
+
+.theme-card {
+  padding: 24rpx;
+}
+
+.mode-selector {
+  margin-bottom: 24rpx;
+  padding: 4rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-bg);
+}
+
+.mode-item {
+  padding: 13rpx 0;
+  border-radius: var(--theme-radius-sm);
+}
+
+.mode-item.active {
+  background: var(--theme-surface);
+  box-shadow: var(--theme-shadow-panel);
+}
+
+.custom-theme-toggle,
+.quota-modal-desc {
+  border-radius: var(--theme-radius-sm);
+  background: color-mix(in oklab, var(--theme-primary) 5%, var(--theme-surface));
+}
+
+.modal-content,
+.quota-modal-content {
+  border-radius: var(--theme-radius-lg);
+  box-shadow: var(--theme-shadow-dialog);
+}
+
+.edit-input {
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-bg);
+  color: var(--theme-text-primary);
+}
+
+.cancel-btn {
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-surface-hover);
+  color: var(--theme-text-secondary);
+}
+
+.confirm-btn,
+.close-btn {
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-primary);
+  color: var(--theme-text-on-primary);
 }
 </style>
 

@@ -53,7 +53,7 @@ export const useConsolidationStore = defineStore('consolidation', () => {
       const res = await memoryApi.previewConsolidate()
       previewMemories.value = res.data.data || []
       if (previewMemories.value.length === 0) {
-        window.$message?.warning('未能提取出有效的整合结果，请检查日记数量')
+        window.$message?.info('当前没有可以安全整理的重复记忆')
         if (memoryLoadingMsg) memoryLoadingMsg.destroy()
         return
       }
@@ -61,8 +61,8 @@ export const useConsolidationStore = defineStore('consolidation', () => {
       showMemoryPreviewModal.value = true
     } catch (err: any) {
       if (memoryLoadingMsg) memoryLoadingMsg.destroy()
-      if (err.response?.status === 429 || (err.response?.data?.message && err.response.data.message.includes('每天最多只能进行2次个人画像整理'))) {
-        alert('每天最多只能进行2次个人画像整理，请明天再试吧')
+      if (err.response?.status === 429 || (err.response?.data?.message && err.response.data.message.includes('每天最多只能进行20次个人画像整理'))) {
+        alert('每天最多只能进行20次个人画像整理，请明天再试吧')
       } else {
         logWarn('memory', '记忆预览失败', err)
         alert('记忆整理失败：' + (err.response?.data?.message || err.message))
@@ -97,7 +97,7 @@ export const useConsolidationStore = defineStore('consolidation', () => {
       const res = await graphApi.previewConsolidate()
       previewTriples.value = res.data.data || []
       if (previewTriples.value.length === 0) {
-        window.$message?.warning('未能生成有效的图谱合并结果')
+        window.$message?.info('当前没有可以安全整理的重复关系')
         if (graphLoadingMsg) graphLoadingMsg.destroy()
         return
       }

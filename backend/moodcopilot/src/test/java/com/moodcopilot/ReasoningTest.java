@@ -1,6 +1,7 @@
 package com.moodcopilot;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -13,6 +14,7 @@ import java.util.function.Function;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@EnabledIfEnvironmentVariable(named = "MOODCOPILOT_RUN_REASONING_TESTS", matches = "true")
 public class ReasoningTest {
 
     @Configuration

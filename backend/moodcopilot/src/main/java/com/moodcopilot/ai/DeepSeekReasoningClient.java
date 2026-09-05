@@ -20,6 +20,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 public class DeepSeekReasoningClient {
@@ -59,6 +60,9 @@ public class DeepSeekReasoningClient {
             throw new IllegalStateException("DeepSeek API key is empty");
         }
 
+        long startedAt = AiCallTiming.start();
+        int inputLength = (systemPrompt == null ? 0 : systemPrompt.length())
+                + (userPrompt == null ? 0 : userPrompt.length());
         try {
             // 请求体尽量保持和 OpenAI 兼容接口一致，便于后续替换/调试。
             Map<String, Object> request = Map.of(
@@ -86,10 +90,10 @@ public class DeepSeekReasoningClient {
                 throw new IllegalStateException("DeepSeek reasoning response is empty");
             }
 
-            log.info("思考模型返回成功，rawResponseLength={}", response.length());
+            AiCallTiming.completed(log, "CHAT", model, startedAt, "SUCCESS", inputLength, response.length());
             return extractContent(response);
         } catch (Exception e) {
-            log.warn("DeepSeek reasoning request failed: {}", e.getMessage());
+            AiCallTiming.failed(log, "CHAT", model, startedAt, e, inputLength);
             throw new IllegalStateException("DeepSeek reasoning request failed", e);
         }
     }
@@ -104,6 +108,20 @@ public class DeepSeekReasoningClient {
         }
 
         return Flux.create(sink -> {
+            long startedAt = AiCallTiming.start();
+            AtomicBoolean logged = new AtomicBoolean();
+            int inputLength = (systemPrompt == null ? 0 : systemPrompt.length())
+                    + (userPrompt == null ? 0 : userPrompt.length());
+            Runnable success = () -> {
+                if (logged.compareAndSet(false, true)) {
+                    AiCallTiming.completed(log, "CHAT_STREAM", model, startedAt, "SUCCESS", inputLength, 0);
+                }
+            };
+            java.util.function.Consumer<Throwable> failure = error -> {
+                if (logged.compareAndSet(false, true)) {
+                    AiCallTiming.failed(log, "CHAT_STREAM", model, startedAt, error, inputLength);
+                }
+            };
             Thread streamThread = new Thread(() -> {
                 try {
                     Map<String, Object> requestBody = Map.of(
@@ -141,6 +159,7 @@ public class DeepSeekReasoningClient {
                         log.warn("DeepSeek 推理模型流式请求失败 HTTP {}: {}", statusCode, errorBody);
                         sink.error(new IllegalStateException(
                                 "DeepSeek reasoning API error " + statusCode));
+                        failure.accept(new IllegalStateException("HTTP " + statusCode));
                         return;
                     }
 
@@ -164,7 +183,9 @@ public class DeepSeekReasoningClient {
                         }
                     }
                     sink.complete();
+                    success.run();
                 } catch (Exception e) {
+                    failure.accept(e);
                     if (!sink.isCancelled()) {
                         sink.error(e);
                     }
@@ -172,7 +193,10 @@ public class DeepSeekReasoningClient {
             }, "deepseek-stream");
             streamThread.setDaemon(true);
 
-            sink.onCancel(() -> streamThread.interrupt());
+            sink.onCancel(() -> {
+                failure.accept(new IllegalStateException("cancelled"));
+                streamThread.interrupt();
+            });
             streamThread.start();
         }, FluxSink.OverflowStrategy.BUFFER);
     }

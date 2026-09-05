@@ -16,8 +16,8 @@ public final class RagQueryBuilder {
     }
 
     public static String diaryQueryText(String diaryContent, MusicMeta musicMeta) {
-        String body = normalize(diaryContent);
-        String lyric = normalize(musicMeta == null ? null : musicMeta.getUserLyric());
+        String body = normalize(SensitiveDataDetector.redact(diaryContent));
+        String lyric = normalize(SensitiveDataDetector.redact(musicMeta == null ? null : musicMeta.getUserLyric()));
         body = truncate(body, BODY_LIMIT);
         lyric = truncate(lyric, LYRIC_LIMIT);
 
@@ -31,12 +31,21 @@ public final class RagQueryBuilder {
     }
 
     public static String keyword(String value) {
-        return truncate(normalize(value), TOTAL_LIMIT);
+        return truncate(normalize(SensitiveDataDetector.redact(value)), TOTAL_LIMIT);
+    }
+
+    /**
+     * Returns the bounded text used by the embedding model. Unlike {@link #keyword(String)},
+     * this keeps the complete normalized query so long Chinese diary text is not reduced to
+     * the first few lexical fragments before vectorization.
+     */
+    public static String embeddingText(String value) {
+        return truncate(normalize(SensitiveDataDetector.redact(value)), TOTAL_LIMIT);
     }
 
     /** Removes presentation labels before a database LIKE fallback. */
     public static String lexicalText(String value) {
-        return normalize(value)
+        return normalize(SensitiveDataDetector.redact(value))
                 .replace("[用户日记正文]", "")
                 .replace("[用户主动选择的歌词]", "")
                 .trim();

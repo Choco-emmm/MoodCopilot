@@ -155,12 +155,12 @@ const formatDate = (isoStr: string) => {
   background-color: var(--theme-surface);
   border-radius: 4rpx;
   padding: 16rpx 32rpx;
-  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.03);
+  box-shadow: var(--theme-shadow-panel);
 }
 
 .search-icon {
   font-size: 32rpx;
-  color: #a09d98;
+  color: var(--theme-text-placeholder);
   margin-right: 16rpx;
 }
 
@@ -172,7 +172,7 @@ const formatDate = (isoStr: string) => {
 
 .clear-btn {
   font-size: 36rpx;
-  color: #a09d98;
+  color: var(--theme-text-placeholder);
   padding: 0 16rpx;
 }
 
@@ -193,7 +193,7 @@ const formatDate = (isoStr: string) => {
   background-color: var(--theme-surface);
   border-radius: 4rpx;
   padding: 32rpx;
-  border: 1px solid rgba(0,0,0,0.05);
+  border: 1rpx solid var(--theme-border);
   transition: color 0.25s ease, background-color 0.25s ease, border-color 0.25s ease, opacity 0.25s ease, transform 0.25s ease;
 }
 
@@ -238,8 +238,8 @@ const formatDate = (isoStr: string) => {
 
 .visibility-tag {
   font-size: 20rpx;
-  color: #4a7c62;
-  background-color: rgba(74, 124, 98, 0.1);
+  color: var(--theme-primary);
+  background-color: color-mix(in oklab, var(--theme-primary) 10%, var(--theme-surface));
   padding: 4rpx 12rpx;
   border-radius: 4rpx;
   font-weight: bold;
@@ -247,13 +247,13 @@ const formatDate = (isoStr: string) => {
 
 .diary-time {
   font-size: 24rpx;
-  color: #a09d98;
+  color: var(--theme-text-placeholder);
 }
 
 .music-tag {
   font-size: 20rpx;
   color: var(--theme-primary);
-  background-color: rgba(var(--theme-primary-rgb), 0.1);
+  background-color: color-mix(in oklab, var(--theme-primary) 10%, var(--theme-surface));
   padding: 4rpx 12rpx;
   border-radius: 4rpx;
 }
@@ -283,7 +283,7 @@ const formatDate = (isoStr: string) => {
   width: 160rpx;
   height: 160rpx;
   border-radius: 12rpx;
-  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.05);
+  box-shadow: var(--theme-shadow-panel);
 }
 
 .more-img-mask {
@@ -292,8 +292,8 @@ const formatDate = (isoStr: string) => {
   top: 0;
   width: 160rpx;
   height: 160rpx;
-  background-color: rgba(0,0,0,0.5);
-  color: #fff;
+  background-color: var(--theme-overlay);
+  color: var(--theme-text-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -304,9 +304,19 @@ const formatDate = (isoStr: string) => {
 
 .loading-state, .empty-state, .no-more {
   text-align: center;
-  color: #a09d98;
+  color: var(--theme-text-placeholder);
   font-size: 24rpx;
   padding: 40rpx 0;
 }
+</style>
+
+<style scoped>
+.search-header { padding: 26rpx var(--theme-page-padding) 14rpx; border-bottom: 1rpx solid var(--theme-border); }
+.search-bar { padding: 14rpx 18rpx; border: 1rpx solid var(--theme-border); border-radius: var(--theme-radius-sm); background: var(--theme-surface); box-shadow: none; }
+.search-results { padding: 18rpx var(--theme-page-padding); }
+.diary-list { gap: 0; border-top: 1rpx solid var(--theme-border); }
+.diary-card { padding: 22rpx 0; border-width: 0 0 1rpx; border-radius: 0; background: transparent; }
+.diary-content { font-family: "Noto Serif SC", "Songti SC", "STSong", serif; font-size: 26rpx; line-height: 1.75; }
+.preview-img, .more-img-mask { border-radius: var(--theme-radius-sm); }
 </style>
 

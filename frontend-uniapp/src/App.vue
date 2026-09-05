@@ -75,7 +75,8 @@ view[role='button']:focus-visible {
 }
 
 /* -------------------------------------
-   Premium Global UI Utilities
+   Product Design System utilities
+   Paper-warm surfaces, restrained borders, and clear editorial hierarchy.
    ------------------------------------- */
 
 /* 1. 微动效 Hover & Active Effects */
@@ -88,35 +89,29 @@ view[role='button']:focus-visible {
 
 /* 2. 多层平滑阴影 Smooth Shadows */
 .smooth-shadow {
-  box-shadow: 0 4rpx 12rpx color-mix(in oklab, var(--theme-primary) 3%, transparent),
-              0 12rpx 24rpx color-mix(in oklab, var(--theme-primary) 3%, transparent),
-              0 24rpx 48rpx color-mix(in oklab, var(--theme-primary) 3%, transparent);
+  box-shadow: var(--theme-shadow-panel);
 }
 .smooth-shadow-lg {
-  box-shadow: 0 8rpx 24rpx color-mix(in oklab, var(--theme-primary) 4%, transparent),
-              0 24rpx 48rpx color-mix(in oklab, var(--theme-primary) 4%, transparent),
-              0 48rpx 96rpx color-mix(in oklab, var(--theme-primary) 4%, transparent);
+  box-shadow: var(--theme-shadow-dialog);
 }
 
 /* 3. 玻璃拟物化 Glassmorphism */
 .glass-card {
-  background: color-mix(in oklab, var(--theme-surface) 60%, transparent);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid color-mix(in oklab, var(--theme-surface) 30%, transparent);
+  background: var(--theme-surface);
+  border: 1rpx solid var(--theme-border);
 }
 
 /* 夜间模式的玻璃材质适配 */
 @media (prefers-color-scheme: dark) {
   .glass-card {
-    background: color-mix(in oklab, var(--theme-surface) 60%, transparent);
-    border: 1px solid color-mix(in oklab, var(--theme-surface) 8%, transparent);
+    background: var(--theme-surface);
+    border-color: var(--theme-border);
   }
 }
 
 /* 4. 尊贵渐变 Premium Gradient */
 .premium-gradient-bg {
-  background: linear-gradient(135deg, var(--theme-surface), var(--theme-bg));
+  background: var(--theme-surface);
 }
 
 /* 5. 淡入动画 Fade In */

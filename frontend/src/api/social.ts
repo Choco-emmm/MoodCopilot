@@ -49,9 +49,16 @@ export const chatApi = {
   deleteConversation: (id: number) => api.delete(`/chat/conversations/${id}`),
   getWelcomeTopics: () => api.get('/chat/welcome-topics'),
   getHistory: (id: number) => api.get(`/chat/conversations/${id}/history`),
+  getPersona: (id: number) => api.get(`/chat/conversations/${id}/persona`),
+  updatePersona: (id: number, data: { role?: string; tone?: string[]; behaviorFlags?: string[]; disabledBehaviorFlags?: string[]; customTone?: string; customResponseStyle?: string }) =>
+    api.put(`/chat/conversations/${id}/persona`, data),
+  resetPersona: (id: number) => api.delete(`/chat/conversations/${id}/persona`),
   saveHistory: (id: number, messages: any[]) => api.put(`/chat/conversations/${id}/history`, { messages }),
-  reply: (id: number, message: string, references: string[] = [], useReasoning = false, eventId?: number) =>
-    api.post(`/chat/conversations/${id}/reply`, { message, references, useReasoning, ...(eventId ? { eventId } : {}) }),
+  reply: (id: number, message: string, references: string[] = [], useReasoning = false, eventId?: number, referencePurpose?: string,
+    referenceItems?: Array<{ sourceType: string; sourceId: number; referencePurpose?: string }>) =>
+    api.post(`/chat/conversations/${id}/reply`, { message, references, useReasoning,
+      ...(eventId ? { eventId } : {}), ...(referencePurpose ? { referencePurpose } : {}),
+      ...(referenceItems?.length ? { referenceItems } : {}) }),
   compressConversation: (id: number) =>
     api.post<{ compressed: boolean; message: string; summary?: string }>(`/chat/conversations/${id}/compress`),
   replyStream: async (
@@ -65,6 +72,8 @@ export const chatApi = {
     onReferences?: (items: Array<{ type: string; diaryId: string; date: string; snippet: string }>) => void,
     onToolReferences?: (items: Array<{ type: string; diaryId?: string; date: string; snippet: string; toolName: string }>) => void,
     onStatus?: (status: { stage: string; message: string }) => void,
+    referencePurpose?: string,
+    referenceItems?: Array<{ sourceType: string; sourceId: number; referencePurpose?: string }>,
   ): Promise<void> => {
     const token = localStorage.getItem('token')
     let doneReceived = false
@@ -75,7 +84,9 @@ export const chatApi = {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ message, references, useReasoning, ...(eventId ? { eventId } : {}) }),
+        body: JSON.stringify({ message, references, useReasoning,
+          ...(eventId ? { eventId } : {}), ...(referencePurpose ? { referencePurpose } : {}),
+          ...(referenceItems?.length ? { referenceItems } : {}) }),
         signal: ctrl.signal,
         openWhenHidden: true,
         onmessage(event) {

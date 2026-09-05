@@ -83,7 +83,7 @@ const submitFeedback = async () => {
 
 .page-desc {
   font-size: 28rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
   line-height: 1.5;
 }
 
@@ -91,7 +91,7 @@ const submitFeedback = async () => {
   background-color: var(--theme-surface);
   border-radius: 4rpx;
   padding: 32rpx;
-  box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.02);
+  box-shadow: var(--theme-shadow-panel);
   margin-bottom: 48rpx;
 }
 
@@ -106,14 +106,14 @@ const submitFeedback = async () => {
 .word-count {
   text-align: right;
   font-size: 24rpx;
-  color: #a09d98;
+  color: var(--theme-text-placeholder);
   margin-top: 16rpx;
 }
 
 .submit-btn {
   background-color: var(--theme-primary);
-  color: var(--theme-surface);
-  border-radius: 4rpx;
+  color: var(--theme-text-on-primary);
+  border-radius: var(--theme-radius-sm);
   font-size: 32rpx;
   font-weight: bold;
   padding: 24rpx 0;

@@ -46,6 +46,10 @@ public class GraphConsolidationService {
     private final RagMemoryService ragMemoryService;
     private final NotificationService notificationService;
     private final UserMapper userMapper;
+    private final PromptComposer promptComposer;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ContextMetadataRecorder contextMetadataRecorder;
 
     public GraphConsolidationService(@Qualifier("analysisChatClient") ChatClient chatClient,
             DiaryKnowledgeGraphMapper graphMapper,
@@ -55,7 +59,8 @@ public class GraphConsolidationService {
             org.springframework.data.redis.core.StringRedisTemplate redisTemplate,
             RagMemoryService ragMemoryService,
             NotificationService notificationService,
-            UserMapper userMapper) {
+            UserMapper userMapper,
+            PromptComposer promptComposer) {
         this.chatClient = chatClient;
         this.graphMapper = graphMapper;
         this.graphService = graphService;
@@ -65,6 +70,7 @@ public class GraphConsolidationService {
         this.ragMemoryService = ragMemoryService;
         this.notificationService = notificationService;
         this.userMapper = userMapper;
+        this.promptComposer = promptComposer;
     }
 
     public record ConsolidatedGraphResponse(@JsonProperty("triples") List<ConsolidatedTriple> triples) {
@@ -98,8 +104,15 @@ public class GraphConsolidationService {
         }
 
         String prompt = buildPrompt(existing);
+        if (contextMetadataRecorder != null) {
+            contextMetadataRecorder.recordModelInvocation(userId, null, ContextPurpose.CHAT,
+                    null, new TaskContext("GENERAL", "只审查和提出可追溯的图谱归并", List.of(), null),
+                    "FLASH", "FLASH");
+        }
         String json = chatClient.prompt()
-                .system(CONSOLIDATION_PROMPT)
+                .system(promptComposer.compose(CONSOLIDATION_PROMPT, userId,
+                        new TaskContext("GENERAL", "只审查和提出可追溯的图谱归并", List.of(), null),
+                        ContextPurpose.CHAT, ""))
                 .user(prompt)
                 .call()
                 .content();

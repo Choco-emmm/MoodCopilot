@@ -5,7 +5,10 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.JsonUtils;
+import com.moodcopilot.ai.ContextPurpose;
+import com.moodcopilot.ai.PromptComposer;
 import com.moodcopilot.ai.RagMemoryService;
+import com.moodcopilot.ai.TaskContext;
 import com.moodcopilot.ai.mq.AiTaskProducer;
 import com.moodcopilot.config.AiPromptProperties;
 import com.moodcopilot.entity.DiaryAnalysisEntity;
@@ -89,6 +92,10 @@ public class LifeChapterService {
     private final int maxGapDays;
     private final int minEvidenceCount;
     private final double boundaryConfidenceThreshold;
+    private final PromptComposer promptComposer;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.moodcopilot.ai.ContextMetadataRecorder contextMetadataRecorder;
 
     public LifeChapterService(UserLifeChapterMapper chapterMapper,
                               UserLifeChapterVersionMapper versionMapper,
@@ -109,7 +116,8 @@ public class LifeChapterService {
                               StringRedisTemplate redisTemplate,
                               @Value("${timeline.max-gap-days:14}") int maxGapDays,
                               @Value("${timeline.min-evidence-count:3}") int minEvidenceCount,
-                              @Value("${timeline.boundary-confidence-threshold:0.85}") double boundaryConfidenceThreshold) {
+                              @Value("${timeline.boundary-confidence-threshold:0.85}") double boundaryConfidenceThreshold,
+                              PromptComposer promptComposer) {
         this.chapterMapper = chapterMapper;
         this.versionMapper = versionMapper;
         this.chapterDiaryMapper = chapterDiaryMapper;
@@ -130,6 +138,7 @@ public class LifeChapterService {
         this.maxGapDays = maxGapDays;
         this.minEvidenceCount = minEvidenceCount;
         this.boundaryConfidenceThreshold = boundaryConfidenceThreshold;
+        this.promptComposer = promptComposer;
     }
 
     public record ChapterDiarySource(Long id, String date, String excerpt, String summary) {}
@@ -479,8 +488,16 @@ public class LifeChapterService {
             return;
         }
         try {
+            String systemPrompt = promptComposer.compose(aiPrompts.getLifeChapterSummarySystemPrompt(), userId,
+                    new TaskContext("GENERAL", "总结已经确定来源的个人阶段", List.of(), null), ContextPurpose.CHAPTER_GENERATION, "")
+                    + "\n不得修改阶段边界、来源归属、事件事实或历史版本。";
+            if (contextMetadataRecorder != null) {
+                contextMetadataRecorder.recordModelInvocation(userId, null, ContextPurpose.CHAPTER_GENERATION,
+                        null, new TaskContext("GENERAL", "总结已经确定来源的个人阶段", List.of(), null),
+                        "FLASH", "FLASH");
+            }
             Map<String, Object> result = objectMapper.readValue(JsonUtils.cleanJson(analysisChatClient.prompt()
-                    .system(aiPrompts.getLifeChapterSummarySystemPrompt()).user(buildGenerationPrompt(chapter, diaryIds, eventIds))
+                    .system(systemPrompt).user(buildGenerationPrompt(chapter, diaryIds, eventIds))
                     .call().content()), new TypeReference<Map<String, Object>>() {});
             String title = boundedText(result.get("title"), 128);
             String summary = boundedText(result.get("themeSummary"), 512);

@@ -43,4 +43,21 @@ class XmlPromptRendererTest {
         assertTrue(rendered.contains("</retrieved_context>"));
         assertTrue(rendered.endsWith("</conversation_context>"));
     }
+
+    @Test
+    void rendersReferencePurposeAsStructuredMetadata() {
+        ContextSource source = new ContextSource("USER_DIARY", "2014", "user", "original", null,
+                null, ContextSource.TrustLevel.AUTHORITATIVE, 1006L);
+        UserReference reference = new UserReference("<quoted>内容</quoted>", source,
+                ReferencePurpose.ANALYZE, 1D, 60, false);
+        ContextEnvelope envelope = new ContextEnvelope("ctx", null, 1006L, ContextPurpose.CHAT,
+                Instant.now(), "2", List.of(), List.of(), List.of(reference), List.of(), List.of(), List.of());
+
+        String rendered = new XmlPromptRenderer().render(envelope);
+
+        assertTrue(rendered.contains("<user_references>"));
+        assertTrue(rendered.contains("reference_purpose=\"ANALYZE\""));
+        assertTrue(rendered.contains("&lt;quoted&gt;内容&lt;/quoted&gt;"));
+        assertTrue(rendered.contains("trust=\"AUTHORITATIVE\""));
+    }
 }

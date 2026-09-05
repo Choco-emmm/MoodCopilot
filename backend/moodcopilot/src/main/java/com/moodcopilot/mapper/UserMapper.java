@@ -10,6 +10,10 @@ import java.util.List;
 @Mapper
 public interface UserMapper extends BaseMapper<UserEntity> {
 
+    /** Serializes immutable per-user Persona version allocation. */
+    @Select("SELECT * FROM users WHERE id = #{id} FOR UPDATE")
+    UserEntity selectByIdForUpdate(@org.apache.ibatis.annotations.Param("id") Long id);
+
     @Select("SELECT DISTINCT d.author_user_id FROM diaries d " +
             "JOIN users u ON d.author_user_id = u.id " +
             "WHERE DATE(d.created_at) = CURDATE() - INTERVAL 1 DAY " +

@@ -79,6 +79,58 @@
         <p v-if="signatureMsg" class="settings-hint">{{ signatureMsg }}</p>
       </SettingSection>
 
+      <SettingSection title="AI 个性" tag="AI">
+        <div class="persona-panel">
+          <p class="settings-desc">自定义 MoodCopilot 的互动方式。它只影响表达风格，不会改变数据权限或模型选择。</p>
+          <label class="persona-label" for="persona-role">互动身份</label>
+          <select id="persona-role" v-model="persona.role" class="persona-select">
+            <option v-for="option in personaRoleOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+          </select>
+          <label class="persona-label">语气</label>
+          <div class="persona-options">
+            <label v-for="option in personaToneOptions" :key="option.value" class="persona-option">
+              <input v-model="persona.tone" type="checkbox" :value="option.value" />
+              <span>{{ option.label }}</span>
+            </label>
+          </div>
+          <label class="persona-label" for="persona-custom-tone">自定义语气</label>
+          <n-input id="persona-custom-tone" v-model:value="persona.customTone" :maxlength="160"
+            placeholder="例如：冷静务实，像可靠的前辈" />
+          <p class="settings-desc">用一句话补充预设之外的表达感觉，只影响语气。</p>
+          <label class="persona-label">回答方式</label>
+          <div class="persona-options">
+            <label v-for="option in personaBehaviorOptions" :key="option.value" class="persona-option">
+              <input v-model="persona.behaviorFlags" type="checkbox" :value="option.value" />
+              <span>{{ option.label }}</span>
+            </label>
+          </div>
+          <label class="persona-label" for="persona-response-style">自定义回答方式</label>
+          <n-input id="persona-response-style" v-model:value="persona.customResponseStyle" type="textarea" :maxlength="800"
+            placeholder="例如：先给结论，再说明关键原因；代码放在解释之后" />
+          <p class="settings-desc">只影响回答组织方式，不改变权限、记忆或模型选择。</p>
+          <div class="persona-actions">
+            <n-button type="primary" secondary :loading="savingPersona" @click="savePersona">保存 AI 个性</n-button>
+            <n-button :disabled="savingPersona" @click="resetPersona">恢复默认</n-button>
+          </div>
+          <p v-if="personaMsg" class="settings-hint" :class="{ 'persona-error': personaError }">{{ personaMsg }}</p>
+          <div class="persona-preview">
+            <div class="persona-preview-head">
+              <span class="persona-label">效果预览</span>
+              <n-button size="small" secondary :loading="previewingPersona" :disabled="previewingPersona" @click="previewPersona">试试这个设置</n-button>
+            </div>
+              <div class="persona-preview-controls">
+                <n-input v-model:value="personaSampleMessage" :maxlength="300" placeholder="输入一个示例问题" />
+                <select v-model="personaPreviewModel" class="persona-preview-model" aria-label="预览模式">
+                  <option value="0">普通对话</option>
+                  <option value="1">深度思考</option>
+                </select>
+              </div>
+            <p v-if="personaPreview" class="persona-preview-result">{{ personaPreview }}</p>
+            <p class="settings-desc">预览不会读取或写入你的日记、记忆、事件和聊天记录。</p>
+          </div>
+        </div>
+      </SettingSection>
+
       <SettingSection title="主题外观" tag="Theme">
         <!-- 模式切换 -->
         <div class="theme-mode-row">
@@ -389,6 +441,43 @@ let passwordCodeTimer: number | null = null
 const suggestionContent = ref('')
 const submittingSuggestion = ref(false)
 
+const personaRoleOptions = [
+  { value: 'personal_assistant', label: '通用个人助手' },
+  { value: 'study_partner', label: '学习伙伴' },
+  { value: 'coding_partner', label: '编程协作伙伴' },
+  { value: 'writing_partner', label: '写作伙伴' },
+  { value: 'life_companion', label: '生活陪伴者' },
+]
+const personaToneOptions = [
+  { value: 'natural', label: '自然' },
+  { value: 'warm', label: '温和' },
+  { value: 'direct', label: '直接' },
+  { value: 'clear', label: '清晰' },
+  { value: 'concise', label: '简洁' },
+  { value: 'precise', label: '严谨' },
+  { value: 'formal', label: '正式' }, { value: 'playful', label: '轻松' },
+  { value: 'empathetic', label: '共情' }, { value: 'calm', label: '沉静' },
+  { value: 'analytical', label: '分析型' }, { value: 'encouraging', label: '鼓励' },
+  { value: 'humorous', label: '幽默' }, { value: 'critical', label: '批判思考' },
+]
+const personaBehaviorOptions = [
+  { value: 'CONCLUSION_FIRST', label: '先说结论' },
+  { value: 'ASK_WHEN_AMBIGUOUS', label: '不明确时先追问' },
+  { value: 'CODE_FIRST', label: '代码优先' },
+  { value: 'LESS_REASSURANCE', label: '少一些安慰' },
+  { value: 'DIRECT_FEEDBACK', label: '直接反馈' },
+  { value: 'STEP_BY_STEP', label: '分步骤说明' },
+  { value: 'CONCISE', label: '控制篇幅' },
+]
+const persona = ref({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' })
+const savingPersona = ref(false)
+const previewingPersona = ref(false)
+const personaMsg = ref('')
+const personaError = ref(false)
+const personaSampleMessage = ref('帮我比较 PostgreSQL 和 MySQL')
+const personaPreview = ref('')
+const personaPreviewModel = ref<'0' | '1'>('0')
+
 const showCropModal = ref(false)
 const cropImageSrc = ref('')
 const cropCanvas = ref<HTMLCanvasElement | null>(null)
@@ -420,6 +509,63 @@ async function hydrateSettingsData() {
   editingName.value = auth.displayName ?? ''
   editingSignature.value = auth.signature ?? ''
   suggestionContent.value = ''
+  personaMsg.value = ''
+  personaPreview.value = ''
+  try {
+    const response = await authApi.getAiPersona()
+    const data = response.data?.data
+    if (data) {
+      persona.value = {
+        role: data.role || 'personal_assistant',
+        tone: Array.isArray(data.tone) && data.tone.length ? data.tone : ['natural', 'clear'],
+        behaviorFlags: Array.isArray(data.behaviorFlags) ? data.behaviorFlags : ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'],
+        disabledBehaviorFlags: Array.isArray(data.disabledBehaviorFlags) ? data.disabledBehaviorFlags : [],
+        customTone: data.customTone || '',
+        customResponseStyle: data.customResponseStyle || '',
+      }
+    }
+  } catch (error) {
+    logWarn('profile', '读取 AI 个性失败', error)
+  }
+}
+
+async function savePersona() {
+  savingPersona.value = true
+  personaError.value = false
+  personaMsg.value = ''
+  try {
+    const response = await authApi.updateAiPersona({ ...persona.value, customTone: persona.value.customTone.trim(), customResponseStyle: persona.value.customResponseStyle.trim() })
+    const data = response.data?.data
+    if (data) {
+      persona.value = { role: data.role, tone: data.tone || [], behaviorFlags: data.behaviorFlags || [], disabledBehaviorFlags: data.disabledBehaviorFlags || [], customTone: data.customTone || '', customResponseStyle: data.customResponseStyle || '' }
+    }
+    personaMsg.value = 'AI 个性已更新'
+  } catch (error: any) {
+    personaError.value = true
+    personaMsg.value = error?.response?.data?.message || '保存 AI 个性失败'
+  } finally {
+    savingPersona.value = false
+  }
+}
+
+function resetPersona() {
+  persona.value = { role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'], disabledBehaviorFlags: [], customTone: '', customResponseStyle: '' }
+  personaMsg.value = '已恢复默认，点击保存后生效'
+  personaError.value = false
+}
+
+async function previewPersona() {
+  if (!personaSampleMessage.value.trim()) return
+  previewingPersona.value = true
+  personaPreview.value = ''
+  try {
+    const response = await authApi.previewAiPersona({ persona: persona.value, sampleMessage: personaSampleMessage.value.trim(), useReasoning: personaPreviewModel.value === '1' })
+    personaPreview.value = response.data?.data || '暂时没有生成预览'
+  } catch (error: any) {
+    personaPreview.value = error?.response?.data?.message || '预览失败，请稍后重试'
+  } finally {
+    previewingPersona.value = false
+  }
 }
 
 async function submitSuggestion() {
@@ -509,10 +655,12 @@ function drawCrop() {
   ctx.clearRect(0, 0, size, size)
 
   const cssVars = getComputedStyle(document.documentElement)
-  const surfaceSoft = cssVars.getPropertyValue('--color-surface-soft').trim() || 'rgba(0, 0, 0, 0.06)'
-  const primary = cssVars.getPropertyValue('--color-primary').trim() || 'rgba(0, 0, 0, 0.4)'
-  ctx.fillStyle = surfaceSoft
-  ctx.fillRect(0, 0, size, size)
+  const surfaceSoft = cssVars.getPropertyValue('--color-surface-soft').trim()
+  const primary = cssVars.getPropertyValue('--color-primary').trim()
+  if (surfaceSoft) {
+    ctx.fillStyle = surfaceSoft
+    ctx.fillRect(0, 0, size, size)
+  }
 
   const imgW = cropImg.naturalWidth
   const imgH = cropImg.naturalHeight
@@ -524,14 +672,16 @@ function drawCrop() {
 
   ctx.drawImage(cropImg, drawX, drawY, drawW, drawH)
 
-  ctx.save()
-  ctx.strokeStyle = primary
-  ctx.globalAlpha = 0.35
-  ctx.lineWidth = 2
-  ctx.beginPath()
-  ctx.arc(size / 2, size / 2, size / 2 - 4, 0, Math.PI * 2)
-  ctx.stroke()
-  ctx.restore()
+  if (primary) {
+    ctx.save()
+    ctx.strokeStyle = primary
+    ctx.globalAlpha = 0.35
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(size / 2, size / 2, size / 2 - 4, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.restore()
+  }
 }
 
 function onDragStart(e: MouseEvent) {
@@ -918,13 +1068,101 @@ onBeforeUnmount(() => {
 .settings-avatar-placeholder {
   font-size: 20px;
   font-family: var(--font-display);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 .settings-row {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.persona-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.persona-label {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.persona-select {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 9px 10px;
+  font: inherit;
+}
+.persona-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.persona-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.persona-option:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary-hover);
+}
+.persona-option input {
+  accent-color: var(--color-primary);
+}
+.persona-actions,
+.persona-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+.persona-error {
+  color: var(--color-error) !important;
+}
+.persona-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+.persona-preview-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.persona-preview-model {
+  min-height: 34px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 0 9px;
+  font: inherit;
+}
+.persona-preview-result {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 2px solid var(--color-primary);
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
 }
 
 .settings-hint {
@@ -973,7 +1211,7 @@ onBeforeUnmount(() => {
   width: 100%;
   max-width: 320px;
   aspect-ratio: 1;
-  background: #000;
+  background: var(--color-backdrop);
   border-radius: 12px;
   overflow: hidden;
   touch-action: none;
@@ -1090,11 +1328,11 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   padding: 3px;
   background: var(--t-bg);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.07), inset 0 0 0 1px rgba(0,0,0,0.04);
+  box-shadow: var(--shadow-sm);
   transition: box-shadow 0.25s var(--ease-out, ease), transform 0.25s var(--ease-out, ease);
 }
 .theme-item:hover .theme-preview {
-  box-shadow: 0 4px 14px rgba(0,0,0,0.1), inset 0 0 0 1px rgba(0,0,0,0.06);
+  box-shadow: var(--shadow-md);
   transform: scale(1.05);
 }
 .theme-item.active .theme-preview {
@@ -1170,7 +1408,7 @@ onBeforeUnmount(() => {
   background: var(--color-surface) !important;
   border: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent) !important;
   border-radius: 12px !important;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.08) !important;
+  box-shadow: var(--shadow-lg) !important;
 }
 .settings-modal.n-card > .n-card-header {
   background: transparent !important;

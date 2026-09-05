@@ -81,7 +81,7 @@ public class MemoryExtractionService {
             1.1 涉及自杀、自残、轻生、不想活、伤害自己或心理危机的内容，只能标记为 memoryType=short_term_state、isCore=false。它是需要关注的近期状态，不是诊断，也不是永久人格标签。
             2. 【重要】默认必须输出所有旧属性，保持 attributeKey 和 attributeValue 不变。只有当新日记提供了明确的新证据，才能修改该属性的 attributeValue。旧属性已有的 isCore 值应保留，除非新证据明确表明该特征的性质发生了变化。
             3. 【重要】要删除某个属性，必须将 attributeValue 设为精确字符串 "DELETE_MARKER"（不含引号）。仅在新证据明确推翻旧特征时才使用。
-            4. 【重要】attributeKey 必须极度垂直和原子化，每条只描述一个具体维度。不要使用宽泛词如"性格""习惯"，应拆分为"社交偏好""情绪模式""运动习惯""工作风格"等。
+            4. 【重要】attributeKey 必须是简洁、用户可读的中文属性名称，必须包含中文字符。严禁新建英文、snake_case、数据库字段名或拼音内部键，例如 interest、baking_class_start、user_interest；如果无法形成准确的中文名称就不要提取。每条只描述一个具体维度，不要使用宽泛词如"性格""习惯"，应拆分为"社交偏好""情绪模式""运动习惯""工作风格"等。旧属性若由输入明确提供，必须原样保留其原始键。
             5. attributeValue 使用一句简洁中文，避免重复和空话。
 
             示例一 — 提取稳定特征：
@@ -125,6 +125,11 @@ public class MemoryExtractionService {
     private final NotificationService notificationService;
     private final MemoryOrchestrator memoryOrchestrator;
     private final ZoneId businessTimeZone;
+    private final PromptComposer promptComposer;
+    private final ContextPlanner contextPlanner;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ContextMetadataRecorder contextMetadataRecorder;
 
     public MemoryExtractionService(ChatClient analysisChatClient,
             UserProfileMemoryMapper userProfileMemoryMapper,
@@ -138,7 +143,7 @@ public class MemoryExtractionService {
             MemoryOrchestrator memoryOrchestrator) {
         this(analysisChatClient, userProfileMemoryMapper, objectMapper, transactionOperations, diaryMapper, null,
                 userMapper, redisTemplate, ragMemoryService, notificationService, memoryOrchestrator,
-                "Asia/Shanghai");
+                "Asia/Shanghai", null, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -153,7 +158,9 @@ public class MemoryExtractionService {
             RagMemoryService ragMemoryService,
             NotificationService notificationService,
             MemoryOrchestrator memoryOrchestrator,
-            @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId) {
+            @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId,
+            PromptComposer promptComposer,
+            @org.springframework.context.annotation.Lazy ContextPlanner contextPlanner) {
         this.analysisChatClient = analysisChatClient;
         this.userProfileMemoryMapper = userProfileMemoryMapper;
         this.objectMapper = objectMapper;
@@ -166,6 +173,8 @@ public class MemoryExtractionService {
         this.notificationService = notificationService;
         this.memoryOrchestrator = memoryOrchestrator;
         this.businessTimeZone = parseZoneId(timeZoneId);
+        this.promptComposer = promptComposer;
+        this.contextPlanner = contextPlanner;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -217,15 +226,17 @@ public class MemoryExtractionService {
             MusicMeta musicMeta, String imageDescriptions, LocalDate evidenceDate) {
         com.moodcopilot.entity.DiaryAnalysisEntity analysis = diaryAnalysisMapper.selectById(diaryId);
         if (analysis != null && analysis.getMemorySignalsJson() != null) {
+            String safeDiaryContent = SensitiveDataDetector.redact(diaryContent);
+            MusicMeta safeMusicMeta = redactMusicMeta(musicMeta);
             List<MemoryAttribute> attributes = analysis.getMemorySignalsJson().stream()
                     .map(signal -> new MemoryAttribute(signal.attributeKey(), signal.attributeValue(), signal.isCore(),
                             signal.memoryType(), signal.assertionType(), signal.confidence(), signal.evidence(),
                             signal.validFrom(), signal.validUntil()))
                     .toList();
             List<MemoryAttribute> sanitized = retainUserGroundedAttributes(
-                    sanitizeAttributes(attributes), buildUserEvidence(diaryContent, musicMeta));
+                    sanitizeAttributes(attributes), buildUserEvidence(safeDiaryContent, safeMusicMeta), "diary_inferred");
             memoryOrchestrator.processExtractedMemories(userId, sanitized, "diary_inferred", diaryId, null,
-                    buildUserEvidence(diaryContent, musicMeta), evidenceDate);
+                    buildUserEvidence(safeDiaryContent, safeMusicMeta), evidenceDate);
             log.info("已复用日记主分析中的记忆信号，userId={}，diaryId={}，signalCount={}", userId, diaryId,
                     sanitized.size());
             return;
@@ -240,34 +251,61 @@ public class MemoryExtractionService {
         Long userId = source.userId();
         long totalStartedAt = System.nanoTime();
         try {
+            String safeDiaryContent = SensitiveDataDetector.redact(diaryContent);
+            MusicMeta safeMusicMeta = redactMusicMeta(musicMeta);
+            String safeImageDescriptions = SensitiveDataDetector.redact(imageDescriptions);
             List<UserProfileMemoryEntity> existing = listUserMemories(userId);
             log.info("开始提取长期画像，userId={}，diaryId={}，旧属性数={}，日记长度={}，hasMusic={}，hasImages={}",
                     userId, source.diaryId(), existing.size(), diaryContent == null ? 0 : diaryContent.length(),
                     musicMeta != null, imageDescriptions != null && !imageDescriptions.isBlank());
             // RAG 检索与当前日记语义相关的历史内容，帮助 LLM 发现跨日记的模式
             long ragStartedAt = System.nanoTime();
-            String ragQuery = RagQueryBuilder.diaryQueryText(diaryContent, musicMeta);
-            String ragContext = ragMemoryService.buildRagContext(userId, ragQuery, 3, null,
-                    ContextPurpose.DIARY_ANALYSIS, RagMemoryService.SOURCE_DIARY);
+            String ragQuery = RagQueryBuilder.diaryQueryText(safeDiaryContent, safeMusicMeta);
+            RagQuery structuredQuery = new RagQuery(userId, "legacy_memory_extraction", ragQuery,
+                    List.of(RagMemoryService.SOURCE_DIARY), null, 3, ContextPurpose.DIARY_ANALYSIS);
+            List<ContextItem> ragItems = ragMemoryService.retrieveContextItems(structuredQuery);
+            ContextEnvelope plannedContext = contextPlanner == null
+                    ? new ContextEnvelope(java.util.UUID.randomUUID().toString(), null, userId,
+                            ContextPurpose.DIARY_ANALYSIS, java.time.Instant.now(), "2", List.of(), List.of(),
+                            List.of(), ragItems, List.of(), List.of())
+                    : contextPlanner.planEnvelope(userId, null, "", List.of(), ragItems,
+                            ContextPurpose.DIARY_ANALYSIS).envelope();
             long ragDurationMs = elapsedMillis(ragStartedAt);
-            String prompt = buildExtractionUserPrompt(diaryContent, existing, ragContext, musicMeta, imageDescriptions);
+            String prompt = buildExtractionUserPrompt(safeDiaryContent, safeMusicMeta, safeImageDescriptions);
+            // This path exists only for old diary_analysis rows without saved signals.
+            // Record the invocation without persisting any prompt or diary content.
             long modelStartedAt = System.nanoTime();
+            TaskContext taskContext = new TaskContext("GENERAL", "只从用户来源中提取可验证的长期画像", List.of(), null);
+            if (contextMetadataRecorder != null) {
+                contextMetadataRecorder.record(plannedContext, Map.of(
+                        "taskType", taskContext.taskType(), "requestedModel", "FLASH",
+                        "actualModel", "FLASH", "useReasoning", false));
+            }
             String json = analysisChatClient.prompt()
-                    .system(MEMORY_EXTRACTION_PROMPT)
+                    .system(memoryExtractionSystemPrompt(userId, taskContext, plannedContext))
                     .user(prompt)
                     .call()
                     .content();
             long modelDurationMs = elapsedMillis(modelStartedAt);
             String cleanedJson = JsonUtils.cleanJson(json);
             if (cleanedJson.isEmpty()) {
-                log.warn("用户 {} 画像提取未返回有效的 JSON，返回原始内容: \n{}", userId, json);
+                // Model output may repeat private user material. Keep diagnostic data
+                // limited to non-content metadata rather than logging the payload.
+                log.warn("长期画像提取未返回有效 JSON，userId={}，responseLength={}",
+                        userId, json == null ? 0 : json.length());
                 return;
             }
             MemoryExtractionResponse response = objectMapper.readValue(cleanedJson, MemoryExtractionResponse.class);
+            Set<String> legacyAttributeKeys = existing.stream()
+                    .map(UserProfileMemoryEntity::getAttributeKey)
+                    .filter(java.util.Objects::nonNull)
+                    .map(this::normalizeWhitespace)
+                    .collect(Collectors.toSet());
             List<MemoryAttribute> sanitizedAttributes = retainUserGroundedAttributes(
-                    sanitizeAttributes(response.attributes()), buildUserEvidence(diaryContent, musicMeta));
+                    sanitizeAttributes(response.attributes(), legacyAttributeKeys),
+                    buildUserEvidence(safeDiaryContent, safeMusicMeta), source.sourceType());
             memoryOrchestrator.processExtractedMemories(userId, sanitizedAttributes, source.sourceType(),
-                    source.diaryId(), source.conversationId(), diaryContent, source.evidenceDate());
+                    source.diaryId(), source.conversationId(), buildUserEvidence(safeDiaryContent, safeMusicMeta), source.evidenceDate());
             log.info("长期画像提取完成，userId={}，diaryId={}，新属性数={}，旧属性数={}，ragDurationMs={}，modelDurationMs={}，totalDurationMs={}，promptLength={}，responseLength={}",
                     userId, source.diaryId(), sanitizedAttributes.size(), existing.size(), ragDurationMs, modelDurationMs,
                     elapsedMillis(totalStartedAt), prompt.length(), json == null ? 0 : json.length());
@@ -276,6 +314,14 @@ public class MemoryExtractionService {
                     elapsedMillis(totalStartedAt), e.getMessage(), e);
             throw new IllegalStateException("长期记忆提取失败", e);
         }
+    }
+
+    private String memoryExtractionSystemPrompt(Long userId, TaskContext taskContext, ContextEnvelope envelope) {
+        if (promptComposer == null) {
+            return SystemPolicy.text() + "\n\n" + MEMORY_EXTRACTION_PROMPT;
+        }
+        return promptComposer.compose(MEMORY_EXTRACTION_PROMPT, userId, taskContext,
+                ContextPurpose.DIARY_ANALYSIS, envelope);
     }
 
     private long elapsedMillis(long startedAt) {
@@ -296,6 +342,11 @@ public class MemoryExtractionService {
      * 只有能回溯到用户正文或用户主动选择歌词的信号，才允许进入记忆编排器。
      */
     private List<MemoryAttribute> retainUserGroundedAttributes(List<MemoryAttribute> attributes, String userEvidence) {
+        return retainUserGroundedAttributes(attributes, userEvidence, null);
+    }
+
+    private List<MemoryAttribute> retainUserGroundedAttributes(List<MemoryAttribute> attributes, String userEvidence,
+            String sourceType) {
         if (attributes == null || attributes.isEmpty()) {
             return List.of();
         }
@@ -307,7 +358,14 @@ public class MemoryExtractionService {
                         log.info("跳过无法回溯到用户内容的记忆信号，attributeKey={}，sourceEvidenceLength={}",
                                 attribute.attributeKey(), evidence.length());
                     }
-                    return grounded;
+                    if (!grounded) return false;
+                    if (MemorySafetyPolicy.isTechnicalKnowledgeClaim(attribute.attributeKey(), attribute.attributeValue())
+                            && !MemorySafetyPolicy.hasExplicitTechnicalBackground(attribute.evidence())) {
+                        log.info("跳过未经用户明确声明的技术背景记忆，attributeKey={}，sourceType={}",
+                                attribute.attributeKey(), sourceType);
+                        return false;
+                    }
+                    return true;
                 })
                 .toList();
     }
@@ -449,6 +507,7 @@ public class MemoryExtractionService {
     public String buildUserMemoryPrompt() {
         Long userId = currentUser().getId();
         List<UserProfileMemoryEntity> memories = listUserMemories(userId);
+        memories = memories.stream().filter(this::isSafeForModelContext).toList();
         if (memories.isEmpty()) {
             log.info("当前用户暂无长期画像，userId={}", userId);
             return "";
@@ -476,6 +535,7 @@ public class MemoryExtractionService {
      */
     public String buildCoreUserMemoryPrompt(Long userId) {
         List<UserProfileMemoryEntity> coreMemories = listUserCoreMemories(userId);
+        coreMemories = coreMemories.stream().filter(this::isSafeForModelContext).toList();
         if (coreMemories.isEmpty()) {
             log.info("当前用户暂无核心画像，userId={}", userId);
             return "";
@@ -504,6 +564,12 @@ public class MemoryExtractionService {
                 .filter(memory -> Boolean.TRUE.equals(memory.getIsCore())).toList();
     }
 
+    private boolean isSafeForModelContext(UserProfileMemoryEntity memory) {
+        return memory != null
+                && !SensitiveDataDetector.containsSensitiveData(memory.getAttributeKey())
+                && !SensitiveDataDetector.containsSensitiveData(memory.getAttributeValue());
+    }
+
     public List<UserProfileMemoryEntity> listCurrentUserMemories() {
         return listUserMemories(currentUser().getId());
     }
@@ -527,8 +593,7 @@ public class MemoryExtractionService {
 
     // ---- 私有方法 ----
 
-    private String buildExtractionUserPrompt(String diaryContent, List<UserProfileMemoryEntity> existing,
-            String ragContext, MusicMeta musicMeta, String imageDescriptions) {
+    private String buildExtractionUserPrompt(String diaryContent, MusicMeta musicMeta, String imageDescriptions) {
         StringBuilder sb = new StringBuilder();
         if (musicMeta != null) {
             sb.append("[音乐分享]\n");
@@ -550,20 +615,7 @@ public class MemoryExtractionService {
             sb.append("[图片描述]\n").append(imageDescriptions).append("\n");
             sb.append("（图片内容可反映用户的兴趣、生活方式和情感状态）\n\n");
         }
-        sb.append("新日记：\n").append(diaryContent).append("\n\n旧属性列表：\n");
-        if (existing.isEmpty()) {
-            sb.append("- 无\n");
-        } else {
-            for (UserProfileMemoryEntity memory : existing) {
-                sb.append("- ").append(memory.getAttributeKey()).append("：")
-                        .append(memory.getAttributeValue())
-                        .append(" (isCore=").append(Boolean.TRUE.equals(memory.getIsCore())).append(")\n");
-            }
-        }
-        if (ragContext != null && !ragContext.isBlank()) {
-            sb.append("\n").append(ragContext).append("\n");
-            sb.append("（以上历史记录仅供参考模式识别，请以新日记为主要提取依据）\n");
-        }
+        sb.append("新日记：\n").append(diaryContent);
         return sb.toString();
     }
 
@@ -635,9 +687,19 @@ public class MemoryExtractionService {
     }
 
     public List<MemoryAttribute> sanitizeAttributes(List<MemoryAttribute> attributes) {
+        return sanitizeAttributes(attributes, Set.of());
+    }
+
+    /**
+     * Sanitizes model output and rejects newly invented English/internal keys.
+     * Exact keys already present in the user's active profile are allowed only
+     * for compatibility with the extractor's "preserve old attributes" contract.
+     */
+    public List<MemoryAttribute> sanitizeAttributes(List<MemoryAttribute> attributes, Set<String> legacyAttributeKeys) {
         if (attributes == null || attributes.isEmpty()) {
             return List.of();
         }
+        Set<String> allowedLegacyKeys = legacyAttributeKeys == null ? Set.of() : legacyAttributeKeys;
         Map<String, MemoryAttribute> deduped = new LinkedHashMap<>();
         for (MemoryAttribute attribute : attributes) {
             if (attribute == null || attribute.attributeKey() == null || attribute.attributeValue() == null) {
@@ -646,6 +708,14 @@ public class MemoryExtractionService {
             String key = sanitizeAttributeKey(attribute.attributeKey());
             String value = sanitizeAttributeValue(attribute.attributeValue());
             if (key.isEmpty() || value.isEmpty()) {
+                continue;
+            }
+            if (!MemorySafetyPolicy.isChineseAttributeKey(key) && !allowedLegacyKeys.contains(key)) {
+                log.warn("忽略新生成的非中文属性键，attributeKey={}", key);
+                continue;
+            }
+            if (!SensitiveDataDetector.allowedForMemory(key, value, attribute.evidence())) {
+                log.warn("忽略包含敏感数据的记忆信号，attributeKey={}", key);
                 continue;
             }
             String requestedType = attribute.memoryType() == null
@@ -688,6 +758,18 @@ public class MemoryExtractionService {
                 .replaceAll("\\p{Cntrl}", " ")
                 .replaceAll("\\s+", " ")
                 .trim();
+    }
+
+    private MusicMeta redactMusicMeta(MusicMeta source) {
+        if (source == null) return null;
+        return new MusicMeta(
+                SensitiveDataDetector.redact(source.getTitle()),
+                SensitiveDataDetector.redact(source.getArtist()),
+                source.getCoverUrl(),
+                SensitiveDataDetector.redact(source.getUserLyric()),
+                source.getSongUrl(),
+                SensitiveDataDetector.redact(source.getMoodTags()),
+                SensitiveDataDetector.redact(source.getThemeSummary()));
     }
 
     private String truncate(String raw, int maxLength) {

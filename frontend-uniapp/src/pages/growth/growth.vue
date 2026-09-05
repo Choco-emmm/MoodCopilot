@@ -124,8 +124,8 @@ const handleTaskAction = async (task: any) => {
 }
 
 .level-badge {
-  background: linear-gradient(135deg, #FFD700, #FDB931);
-  color: #fff;
+  background: var(--theme-primary);
+  color: var(--theme-text-on-primary);
   font-size: 28rpx;
   font-weight: bold;
   padding: 4rpx 16rpx;
@@ -143,7 +143,7 @@ const handleTaskAction = async (task: any) => {
   border-radius: 4rpx;
   padding: 32rpx;
   margin-bottom: 32rpx;
-  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.03);
+  box-shadow: var(--theme-shadow-panel);
 }
 
 .exp-info {
@@ -161,12 +161,12 @@ const handleTaskAction = async (task: any) => {
 
 .exp-label {
   font-size: 28rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
 }
 
 .progress-bar {
   height: 16rpx;
-  background-color: rgba(var(--theme-primary-rgb), 0.1);
+  background-color: color-mix(in oklab, var(--theme-primary) 10%, var(--theme-surface));
   border-radius: 4rpx;
   overflow: hidden;
   margin-bottom: 16rpx;
@@ -182,7 +182,7 @@ const handleTaskAction = async (task: any) => {
   display: flex;
   justify-content: space-between;
   font-size: 24rpx;
-  color: #a09d98;
+  color: var(--theme-text-placeholder);
 }
 
 .section-title {
@@ -206,7 +206,7 @@ const handleTaskAction = async (task: any) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.02);
+  box-shadow: none;
 }
 
 .task-info {
@@ -223,7 +223,7 @@ const handleTaskAction = async (task: any) => {
 
 .task-desc {
   font-size: 24rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
 }
 
 .task-action {
@@ -234,22 +234,37 @@ const handleTaskAction = async (task: any) => {
 
 .task-progress {
   font-size: 26rpx;
-  color: #a09d98;
+  color: var(--theme-text-placeholder);
 }
 
 .action-btn {
   margin: 0;
   font-size: 24rpx;
   background-color: var(--theme-primary);
-  color: var(--theme-surface);
-  border-radius: 4rpx;
+  color: var(--theme-text-on-primary);
+  border-radius: var(--theme-radius-sm);
   padding: 0 24rpx;
   height: 56rpx;
   line-height: 56rpx;
 }
 
 .action-btn.completed {
-  background-color: #e0e0e0;
+  background-color: var(--theme-surface-hover);
   color: var(--theme-text-placeholder);
 }
+</style>
+
+<style scoped>
+.growth-page { padding: 28rpx var(--theme-page-padding) calc(112rpx + env(safe-area-inset-bottom)); }
+.header { margin: 20rpx 0 30rpx; padding-bottom: 14rpx; border-bottom: 1rpx solid var(--theme-border); }
+.page-title { font-family: "Noto Serif SC", "Songti SC", "STSong", serif; font-size: 42rpx; }
+.level-badge { border-radius: var(--theme-radius-sm); background: var(--theme-primary); color: var(--theme-text-on-primary); }
+.card { margin-bottom: 22rpx; padding: 26rpx; border: 1rpx solid var(--theme-border); border-radius: var(--theme-radius-md); box-shadow: none; }
+.current-exp { font-family: "Noto Serif SC", "Songti SC", "STSong", serif; font-size: 54rpx; }
+.section-title { margin-bottom: 16rpx; font-family: "Noto Serif SC", "Songti SC", "STSong", serif; font-size: 30rpx; }
+.task-list { gap: 0; border-top: 1rpx solid var(--theme-border); }
+.task-item { padding: 20rpx 0; border-bottom: 1rpx solid var(--theme-border); background: transparent; box-shadow: none; }
+.task-name { font-size: 26rpx; }
+.task-desc { font-size: 21rpx; }
+.action-btn { border-radius: var(--theme-radius-sm); background: var(--theme-primary); color: var(--theme-text-on-primary); }
 </style>

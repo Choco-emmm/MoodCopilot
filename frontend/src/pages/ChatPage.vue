@@ -58,6 +58,49 @@
           <n-button size="small" type="primary" :disabled="creatingConversation" @click="createConversation">新建</n-button>
         </div>
 
+        <div v-if="activeConvId" class="chat-persona-toolbar">
+          <button type="button" class="chat-persona-trigger" @click="personaOpen = !personaOpen">
+            本会话风格 <span aria-hidden="true">{{ personaOpen ? '收起' : '调整' }}</span>
+          </button>
+          <div v-if="personaOpen" class="chat-persona-panel">
+            <div class="chat-persona-heading">
+              <strong>只影响这一场对话</strong>
+              <span>{{ conversationPersonaUsesGlobal ? '当前正在使用全局设置' : '当前会话正在使用独立设置' }}；不会改变权限、记忆或模型选择</span>
+            </div>
+            <label class="chat-persona-label" for="chat-persona-role">互动身份</label>
+            <select id="chat-persona-role" v-model="conversationPersona.role" class="chat-persona-select">
+              <option v-for="option in personaRoleOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+            <span class="chat-persona-label">语气</span>
+            <div class="chat-persona-options">
+              <button v-for="option in personaToneOptions" :key="option.value" type="button"
+                :class="['chat-persona-option', { active: conversationPersona.tone.includes(option.value) }]"
+                @click="toggleConversationTone(option.value)">{{ option.label }}</button>
+            </div>
+            <label class="chat-persona-label" for="chat-persona-response-style">自定义回答方式</label>
+            <textarea id="chat-persona-response-style" v-model="conversationPersona.customResponseStyle" class="chat-persona-input chat-persona-textarea"
+              maxlength="800" placeholder="例如：先给结论，再说明关键原因；代码放在解释之后"></textarea>
+            <span class="chat-persona-help">只影响回答组织方式，不改变权限、记忆或模型选择。</span>
+            <label class="chat-persona-label" for="chat-persona-custom-tone">自定义语气</label>
+            <input id="chat-persona-custom-tone" v-model="conversationPersona.customTone" class="chat-persona-input"
+              maxlength="160" placeholder="例如：冷静务实，像可靠的前辈" />
+            <span class="chat-persona-help">用一句话描述希望听起来怎样，只影响表达风格。</span>
+            <span class="chat-persona-label">回答方式</span>
+            <div class="chat-persona-options">
+              <button v-for="option in personaBehaviorOptions" :key="option.value" type="button"
+                :class="['chat-persona-option', { active: conversationPersona.behaviorFlags.includes(option.value) }]"
+                @click="toggleConversationBehavior(option.value)">{{ option.label }}</button>
+            </div>
+            <div class="chat-persona-actions">
+              <button type="button" class="chat-persona-save" :disabled="personaSaving" @click="saveConversationPersona">
+                {{ personaSaving ? '保存中' : '应用到本会话' }}
+              </button>
+              <button type="button" class="chat-persona-reset" :disabled="personaSaving" @click="resetConversationPersona">恢复全局设置</button>
+            </div>
+            <p v-if="personaMessage" class="chat-persona-message">{{ personaMessage }}</p>
+          </div>
+        </div>
+
         <div class="chat-messages" ref="msgBox">
           <div v-if="messages.length === 0" class="chat-empty">
             <h2 class="chat-header-title">MoodCopilot</h2>
@@ -156,6 +199,11 @@
         </div>
 
         <div ref="chatInputArea">
+          <div v-if="currentTaskLabel" class="chat-task-context" aria-live="polite">
+            <span>当前任务</span>
+            <strong>{{ currentTaskLabel }}</strong>
+            <em>{{ currentTaskHint }}</em>
+          </div>
           <ChatInputBox
             v-model:draft="draft"
             :streaming="streaming"
@@ -198,6 +246,9 @@ import ChatStreamingItem from '../components/chat/ChatStreamingItem.vue'
 import ChatInputBox from '../components/chat/ChatInputBox.vue'
 import { useChat } from '../composables/useChat'
 import { displayConversationTitle } from '../utils/chatTitle'
+import { chatApi } from '../api/social'
+import { authApi } from '../api/auth'
+import { computed, ref, watch } from 'vue'
 
 const {
   authStore, userInitial,
@@ -216,6 +267,142 @@ const {
   msgBox, chatInputArea,
   handleDraftFocus, handleDraftEnter, goToDiary,
 } = useChat()
+
+const personaRoleOptions = [
+  { value: 'personal_assistant', label: '通用个人助手' },
+  { value: 'study_partner', label: '学习伙伴' },
+  { value: 'coding_partner', label: '编程协作伙伴' },
+  { value: 'writing_partner', label: '写作伙伴' },
+  { value: 'life_companion', label: '生活陪伴者' },
+]
+const personaToneOptions = [
+  { value: 'natural', label: '自然' }, { value: 'warm', label: '温和' },
+  { value: 'direct', label: '直接' }, { value: 'clear', label: '清晰' },
+  { value: 'concise', label: '简洁' }, { value: 'precise', label: '严谨' },
+  { value: 'formal', label: '正式' }, { value: 'playful', label: '轻松' },
+  { value: 'empathetic', label: '共情' }, { value: 'calm', label: '沉静' },
+  { value: 'analytical', label: '分析型' }, { value: 'encouraging', label: '鼓励' },
+  { value: 'humorous', label: '幽默' }, { value: 'critical', label: '批判思考' },
+]
+const personaBehaviorOptions = [
+  { value: 'CONCLUSION_FIRST', label: '先说结论' }, { value: 'ASK_WHEN_AMBIGUOUS', label: '不明确时先追问' },
+  { value: 'CODE_FIRST', label: '代码优先' }, { value: 'LESS_REASSURANCE', label: '少一些安慰' },
+  { value: 'DIRECT_FEEDBACK', label: '直接反馈' }, { value: 'STEP_BY_STEP', label: '分步骤说明' },
+  { value: 'CONCISE', label: '控制篇幅' },
+]
+const personaOpen = ref(false)
+const personaSaving = ref(false)
+const personaMessage = ref('')
+const conversationPersonaUsesGlobal = ref(true)
+const defaultPersona = () => ({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' })
+const conversationPersona = ref(defaultPersona())
+const globalPersonaSnapshot = ref(defaultPersona())
+
+const currentTask = computed(() => resolveTaskHint(draft.value))
+const currentTaskLabel = computed(() => currentTask.value?.label || '')
+const currentTaskHint = computed(() => currentTask.value?.hint || '')
+
+function resolveTaskHint(message: string) {
+  const text = (message || '').trim().toLowerCase()
+  if (!text) return null
+  if (/代码|编程|bug|报错|java|redis|sql|typescript|python|接口/.test(text) && !text.includes('歌词翻译')) {
+    return { label: '编程协作', hint: '会按技术问题的方式回答' }
+  }
+  if (/翻译|translate|译成/.test(text)) return { label: '翻译', hint: '会保留原意与表达重点' }
+  if (/写一篇|润色|改写|文案|作文|起草/.test(text)) return { label: '写作', hint: '会结合体裁与用途组织内容' }
+  if (/讲解|怎么学|学习|原理|为什么/.test(text)) return { label: '学习', hint: '会按需要展开概念和例子' }
+  if (/计划|规划|安排|路线|拆解/.test(text)) return { label: '规划', hint: '会帮你明确下一步' }
+  if (/难过|焦虑|压力|内耗|崩溃|陪我聊/.test(text)) return { label: '陪伴交流', hint: '会优先回应你当下的感受' }
+  return { label: '通用对话', hint: '会直接完成你的请求' }
+}
+
+watch(activeConvId, (id) => {
+  personaOpen.value = false
+  personaMessage.value = ''
+  if (id) void loadConversationPersona(id)
+}, { immediate: true })
+
+async function loadConversationPersona(id: number) {
+  try {
+    const [overrideResponse, globalResponse] = await Promise.all([chatApi.getPersona(id), authApi.getAiPersona()])
+    const overridePayload = overrideResponse.data
+    const globalPayload = globalResponse.data
+    const override = overridePayload && Object.prototype.hasOwnProperty.call(overridePayload, 'data')
+      ? overridePayload.data : overridePayload
+    const global = globalPayload && Object.prototype.hasOwnProperty.call(globalPayload, 'data')
+      ? globalPayload.data : globalPayload
+    const data = override || global
+    conversationPersonaUsesGlobal.value = !override
+    globalPersonaSnapshot.value = {
+      role: global?.role || defaultPersona().role,
+      tone: Array.isArray(global?.tone) && global.tone.length ? global.tone : defaultPersona().tone,
+      behaviorFlags: Array.isArray(global?.behaviorFlags) ? global.behaviorFlags : defaultPersona().behaviorFlags,
+      disabledBehaviorFlags: Array.isArray(global?.disabledBehaviorFlags) ? global.disabledBehaviorFlags : [],
+      customTone: global?.customTone || '',
+      customResponseStyle: global?.customResponseStyle || '',
+    }
+    conversationPersona.value = {
+      role: data?.role || defaultPersona().role,
+      tone: Array.isArray(data?.tone) && data.tone.length ? data.tone : defaultPersona().tone,
+      behaviorFlags: Array.isArray(data?.behaviorFlags) ? data.behaviorFlags : defaultPersona().behaviorFlags,
+      disabledBehaviorFlags: Array.isArray(data?.disabledBehaviorFlags) ? data.disabledBehaviorFlags : [],
+      customTone: data?.customTone || '',
+      customResponseStyle: data?.customResponseStyle || '',
+    }
+  } catch {
+    conversationPersonaUsesGlobal.value = true
+    conversationPersona.value = defaultPersona()
+  }
+}
+
+function toggleConversationTone(value: string) {
+  const tone = new Set(conversationPersona.value.tone)
+  tone.has(value) ? tone.delete(value) : tone.add(value)
+  conversationPersona.value.tone = [...tone]
+}
+
+function toggleConversationBehavior(value: string) {
+  const behaviorFlags = new Set(conversationPersona.value.behaviorFlags)
+  behaviorFlags.has(value) ? behaviorFlags.delete(value) : behaviorFlags.add(value)
+  conversationPersona.value.behaviorFlags = [...behaviorFlags]
+}
+
+async function saveConversationPersona() {
+  if (!activeConvId.value || personaSaving.value) return
+  personaSaving.value = true
+  personaMessage.value = ''
+  try {
+    await chatApi.updatePersona(activeConvId.value, {
+      ...conversationPersona.value,
+      customTone: conversationPersona.value.customTone.trim(),
+      customResponseStyle: conversationPersona.value.customResponseStyle.trim(),
+      disabledBehaviorFlags: [...new Set([
+        ...conversationPersona.value.disabledBehaviorFlags,
+        ...globalPersonaSnapshot.value.behaviorFlags.filter(flag => !conversationPersona.value.behaviorFlags.includes(flag)),
+      ])],
+    })
+    conversationPersonaUsesGlobal.value = false
+    personaMessage.value = '本会话风格已应用'
+  } catch (error: any) {
+    personaMessage.value = error?.response?.data?.message || '保存失败，请稍后重试'
+  } finally {
+    personaSaving.value = false
+  }
+}
+
+async function resetConversationPersona() {
+  if (!activeConvId.value || personaSaving.value) return
+  personaSaving.value = true
+  try {
+    await chatApi.resetPersona(activeConvId.value)
+    await loadConversationPersona(activeConvId.value)
+    personaMessage.value = '已恢复全局设置'
+  } catch (error: any) {
+    personaMessage.value = error?.response?.data?.message || '恢复失败，请稍后重试'
+  } finally {
+    personaSaving.value = false
+  }
+}
 
 function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   references.value = references.value.filter((r: any) => r.type !== 'quote')
@@ -252,6 +439,162 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .06em;
+}
+
+.chat-persona-toolbar {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 20px 8px;
+}
+.chat-task-context {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: 720px;
+  margin: 0 auto 6px;
+  padding: 0 20px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+.chat-task-context span {
+  color: var(--color-text-muted);
+}
+.chat-task-context strong {
+  color: var(--color-primary);
+  font-weight: 650;
+}
+.chat-task-context em {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-persona-trigger {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  padding: 6px 11px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.chat-persona-trigger:hover,
+.chat-persona-trigger:focus-visible {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.chat-persona-panel {
+  position: absolute;
+  z-index: 8;
+  top: 34px;
+  right: 20px;
+  width: min(360px, calc(100vw - 40px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+.chat-persona-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--color-text);
+  font-size: 13px;
+}
+.chat-persona-heading span {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+.chat-persona-label {
+  margin-top: 4px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.chat-persona-select,
+.chat-persona-input,
+.chat-persona-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+.chat-persona-select {
+  min-height: 34px;
+  padding: 0 8px;
+}
+.chat-persona-input {
+  min-height: 34px;
+  padding: 0 8px;
+}
+.chat-persona-textarea {
+  min-height: 58px;
+  padding: 8px;
+  resize: vertical;
+  font-size: 12px;
+}
+.chat-persona-select:focus,
+.chat-persona-input:focus,
+.chat-persona-textarea:focus {
+  outline: 2px solid color-mix(in oklab, var(--color-primary) 24%, transparent);
+  border-color: var(--color-primary);
+}
+.chat-persona-help {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.chat-persona-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chat-persona-option,
+.chat-persona-reset,
+.chat-persona-save {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  padding: 6px 9px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.chat-persona-option.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary-hover);
+}
+.chat-persona-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.chat-persona-save {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.chat-persona-reset:disabled,
+.chat-persona-save:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+}
+.chat-persona-message {
+  margin: 0;
+  color: var(--color-success);
+  font-size: 12px;
 }
 
 @keyframes bounce-subtle {
@@ -576,7 +919,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   display: block;
   max-width: 360px;
   background: var(--color-surface);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-md);
   z-index: 10;
   position: relative;
   padding: 6px 10px;
@@ -637,7 +980,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   max-width: 400px;
   white-space: normal;
   background: var(--color-surface);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-md);
   z-index: 10;
   position: relative;
 }
@@ -713,7 +1056,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 }
 :deep(.compressing-subtip) {
   font-size: 11px;
-  color: var(--color-text-muted, #8a919f);
+  color: var(--color-text-muted);
   margin-top: 2px;
 }
 
@@ -865,7 +1208,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   background-image: linear-gradient(135deg, var(--color-surface) 0%, color-mix(in oklab, var(--color-primary) 1%, var(--color-surface)) 100%) !important;
   border: none !important;
   border-radius: 16px !important;
-  box-shadow: 0 1px 2px rgba(32,32,29,0.03), 0 4px 16px color-mix(in oklab, var(--color-primary) 4%, transparent) !important;
+  box-shadow: var(--shadow-md) !important;
 }
 
 .chat-messages::after {
@@ -942,7 +1285,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   color: var(--color-on-primary);
   font-weight: 600;
   font-size: 13px;
-  box-shadow: 0 4px 10px rgba(95, 131, 111, 0.15);
+  box-shadow: 0 4px 10px color-mix(in oklab, var(--color-primary) 15%, transparent);
   border: 1.5px solid var(--color-surface);
   overflow: hidden;
 }
@@ -986,13 +1329,13 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   background-image: repeating-linear-gradient(
     transparent,
     transparent 27px,
-    rgba(139, 115, 85, 0.15) 27px,
-    rgba(139, 115, 85, 0.15) 28px
+    color-mix(in oklab, var(--color-primary) 15%, transparent) 27px,
+    color-mix(in oklab, var(--color-primary) 15%, transparent) 28px
   ) !important;
   background-attachment: local !important;
-  border: 1px solid color-mix(in oklab, rgba(139, 115, 85, 0.2) 100%, transparent) !important;
+  border: 1px solid color-mix(in oklab, var(--color-primary) 20%, transparent) !important;
   border-radius: 2px 15px 3px 18px / 15px 3px 18px 2px !important;
-  box-shadow: 2px 4px 12px rgba(139, 115, 85, 0.05) !important;
+  box-shadow: 2px 4px 12px color-mix(in oklab, var(--color-primary) 5%, transparent) !important;
   color: var(--color-text) !important;
   line-height: 28px !important;
   position: relative;
@@ -1014,7 +1357,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   border: 1px solid var(--color-border) !important;
   border-radius: 4px !important;
   padding: 16px 20px !important;
-  box-shadow: 0 4px 16px rgba(32, 32, 29, 0.06) !important;
+  box-shadow: var(--shadow-md) !important;
   font-family: var(--font-display) !important;
   color: var(--color-text) !important;
   font-size: 15.5px !important;
@@ -1214,5 +1557,3 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 
 }
 </style>
-
-

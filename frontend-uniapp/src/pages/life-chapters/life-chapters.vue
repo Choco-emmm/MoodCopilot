@@ -147,7 +147,7 @@ function openEvents() { uni.navigateTo({ url: '/pages/life-events/life-events' }
 .eyebrow { display: block; margin-bottom: 12rpx; color: var(--theme-primary); font-size: 20rpx; font-weight: 700; letter-spacing: 4rpx; }
 .page-title { display: block; color: var(--theme-text-primary); font-family: Georgia, serif; font-size: 58rpx; font-weight: 700; }
 .page-desc { display: block; margin-top: 18rpx; color: var(--theme-text-secondary); font-size: 25rpx; line-height: 1.7; }
-.candidate-panel { margin-bottom: 42rpx; padding: 24rpx; border: 1rpx solid var(--theme-border); background: var(--theme-surface); }.section-label, .candidate-title, .candidate-reason, .candidate-count { display: block; }.section-label { color: var(--theme-primary); font-size: 20rpx; font-weight: 700; letter-spacing: 3rpx; }.candidate-title { margin-top: 8rpx; color: var(--theme-text-primary); font-size: 31rpx; font-weight: 650; }.candidate-item { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; margin-top: 20rpx; padding-top: 20rpx; border-top: 1rpx solid var(--theme-border); }.candidate-date { display: block; color: var(--theme-text-primary); font-size: 24rpx; font-weight: 650; }.candidate-reason { margin-top: 6rpx; color: var(--theme-text-secondary); font-size: 23rpx; line-height: 1.5; }.candidate-count { margin-top: 5rpx; color: var(--theme-text-placeholder); font-size: 20rpx; }.candidate-actions { display: flex; flex-shrink: 0; align-items: center; gap: 18rpx; }.candidate-action { color: var(--theme-text-secondary); font-size: 21rpx; }.candidate-action.accept { padding: 12rpx 16rpx; background: var(--theme-primary); color: var(--theme-surface); }
+.candidate-panel { margin-bottom: 42rpx; padding: 24rpx; border: 1rpx solid var(--theme-border); background: var(--theme-surface); }.section-label, .candidate-title, .candidate-reason, .candidate-count { display: block; }.section-label { color: var(--theme-primary); font-size: 20rpx; font-weight: 700; letter-spacing: 3rpx; }.candidate-title { margin-top: 8rpx; color: var(--theme-text-primary); font-size: 31rpx; font-weight: 650; }.candidate-item { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; margin-top: 20rpx; padding-top: 20rpx; border-top: 1rpx solid var(--theme-border); }.candidate-date { display: block; color: var(--theme-text-primary); font-size: 24rpx; font-weight: 650; }.candidate-reason { margin-top: 6rpx; color: var(--theme-text-secondary); font-size: 23rpx; line-height: 1.5; }.candidate-count { margin-top: 5rpx; color: var(--theme-text-placeholder); font-size: 20rpx; }.candidate-actions { display: flex; flex-shrink: 0; align-items: center; gap: 18rpx; }.candidate-action { color: var(--theme-text-secondary); font-size: 21rpx; }.candidate-action.accept { padding: 12rpx 16rpx; background: var(--theme-primary); color: var(--theme-text-on-primary); }
 .chapter-list { border-top: 1rpx solid var(--theme-border); }
 .chapter-item { display: flex; gap: 24rpx; padding: 32rpx 0 40rpx; border-bottom: 1rpx solid var(--theme-border); }
 .chapter-marker { display: flex; width: 48rpx; height: 48rpx; flex-shrink: 0; align-items: center; justify-content: center; border: 1rpx solid var(--theme-primary); border-radius: 50%; color: var(--theme-primary); font-size: 19rpx; }
@@ -170,4 +170,16 @@ function openEvents() { uni.navigateTo({ url: '/pages/life-events/life-events' }
 .source-excerpt, .version-item text:last-child { flex: 1; min-width: 220rpx; color: var(--theme-text-secondary); font-size: 22rpx; line-height: 1.5; }
 .empty-source { color: var(--theme-text-placeholder); font-size: 22rpx; }
 @media (max-width: 520px) { .candidate-item { align-items: flex-start; flex-direction: column; }.candidate-actions { align-self: flex-end; } }
+</style>
+
+<style scoped>
+.life-page { padding: 28rpx var(--theme-page-padding) calc(112rpx + env(safe-area-inset-bottom)); }
+.page-header { margin: 20rpx 0 34rpx; padding-bottom: 14rpx; border-bottom: 1rpx solid var(--theme-border); }
+.page-title, .chapter-title { font-family: "Noto Serif SC", "Songti SC", "STSong", serif; }
+.page-title { font-size: 44rpx; }
+.candidate-panel { padding: 22rpx; border-left: 2rpx solid var(--theme-primary); }
+.chapter-list { border-top: 1rpx solid var(--theme-border); }
+.chapter-item { gap: 18rpx; padding: 24rpx 0 30rpx; }
+.chapter-title { font-size: 30rpx; }
+.chapter-reflection { border-left-color: var(--theme-border); }
 </style>

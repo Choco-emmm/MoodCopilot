@@ -450,8 +450,8 @@ public class DiaryService {
                         lyricsStr = "（歌词未获取到，请根据歌曲名和歌手推测）";
                         log.info("歌词获取为空，使用歌名兜底分析");
                     }
-                    var result = aiAnalysisService.analyzeMusicSync(musicMeta.getTitle(), musicMeta.getArtist(),
-                            lyricsStr);
+                    var result = aiAnalysisService.analyzeMusicSync(userId, musicMeta.getTitle(),
+                            musicMeta.getArtist(), lyricsStr);
                     musicMeta.setMoodTags(result.getLeft());
                     musicMeta.setThemeSummary(result.getRight());
                     log.info("同步补全音乐氛围成功");
@@ -623,8 +623,9 @@ public class DiaryService {
 
         LambdaQueryWrapper<DiaryEntity> query = new LambdaQueryWrapper<DiaryEntity>()
                 .eq(DiaryEntity::getAuthorUserId, user.getId())
+                .eq(DiaryEntity::getIsDeleted, false)
                 .orderByDesc(DiaryEntity::getCreatedAt)
-                .last("LIMIT 20");
+                ;
 
         if (keyword != null) {
             query.like(DiaryEntity::getContent, keyword);
@@ -636,7 +637,7 @@ public class DiaryService {
             query.le(DiaryEntity::getCreatedAt, endDate.atTime(LocalTime.MAX));
         }
 
-        List<DiarySearchResult.DiarySummary> diaries = diaryMapper.selectList(query).stream()
+        List<DiarySearchResult.DiarySummary> diaries = diaryMapper.selectPage(Page.of(1, 20), query).getRecords().stream()
                 .map(diary -> {
                     StringBuilder prefixSb = new StringBuilder();
                     if (diary.getMusicMeta() != null && diary.getMusicMeta().getTitle() != null
@@ -1017,8 +1018,8 @@ public class DiaryService {
 
         if (forceGenerate && !contents.isEmpty()) {
             String memCtx = buildMemoryContext(userId);
-            aiSummary = aiAnalysisService.generateMonthlySummary(contents, analyses, memCtx);
-            AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateMonthlyGuidance(contents, analyses);
+            aiSummary = aiAnalysisService.generateMonthlySummary(userId, contents, analyses, memCtx);
+            AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateMonthlyGuidance(userId, contents, analyses);
             insights = guidance.insights();
             suggestions = guidance.suggestions();
             followUpPrompt = guidance.followUpPrompt();
@@ -1187,8 +1188,8 @@ public class DiaryService {
 
         if (forceGenerate && !contents.isEmpty()) {
             String memCtx = buildMemoryContext(userId);
-            aiSummary = aiAnalysisService.generateWeeklySummary(contents, analyses, memCtx);
-            AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateWeeklyGuidance(contents, analyses);
+            aiSummary = aiAnalysisService.generateWeeklySummary(userId, contents, analyses, memCtx);
+            AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateWeeklyGuidance(userId, contents, analyses);
             insights = guidance.insights();
             suggestions = guidance.suggestions();
             followUpPrompt = guidance.followUpPrompt();
@@ -2058,7 +2059,7 @@ public class DiaryService {
             else
                 analyses.add(null);
         }
-        String suggestion = aiAnalysisService.generateCoaching(contents, analyses);
+        String suggestion = aiAnalysisService.generateCoaching(user.getId(), contents, analyses);
         Map<String, Object> result = Map.of("suggestion", suggestion, "diaryCount", recent.size());
 
         try {
@@ -2092,7 +2093,7 @@ public class DiaryService {
 
     public List<String> generateEncouragements(long diaryId) {
         DiaryEntity diary = findPublicDiary(diaryId);
-        return aiAnalysisService.generateEncouragements(diary.getContent());
+        return aiAnalysisService.generateEncouragements(currentUser().getId(), diary.getContent());
     }
 
     @Transactional

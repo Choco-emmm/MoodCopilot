@@ -93,13 +93,23 @@ const formatDate = (value: string) => {
 <style scoped>
 .collection-detail-page { display: flex; height: 100vh; min-height: 100vh; flex-direction: column; background-color: var(--theme-bg); }
 .content { min-height: 0; flex: 1; padding: 32rpx; box-sizing: border-box; }
-.collection-header { padding-bottom: 32rpx; border-bottom: 1px solid rgba(var(--theme-primary-rgb), 0.12); }
+.collection-header { padding-bottom: 32rpx; border-bottom: 1rpx solid var(--theme-border); }
 .title { display: block; font-size: 40rpx; font-weight: 600; color: var(--theme-text-primary); }
 .description { display: block; margin-top: 12rpx; font-size: 26rpx; color: var(--theme-text-secondary); }
 .state { padding: 120rpx 32rpx; text-align: center; color: var(--theme-text-secondary); }
 .diary-list { padding-top: 24rpx; }
-.diary-item { padding: 28rpx 0; border-bottom: 1px solid rgba(var(--theme-primary-rgb), 0.1); }
+.diary-item { padding: 28rpx 0; border-bottom: 1rpx solid var(--theme-border); }
 .diary-date { display: block; font-size: 24rpx; color: var(--theme-text-secondary); }
 .diary-content { display: -webkit-box; margin-top: 10rpx; overflow: hidden; color: var(--theme-text-primary); font-size: 30rpx; line-height: 1.6; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .list-status { display: block; padding: 28rpx 0 48rpx; color: var(--theme-text-placeholder); font-size: 22rpx; text-align: center; }
+</style>
+
+<style scoped>
+.collection-detail-page { background: var(--theme-bg); }
+.content { padding: 28rpx var(--theme-page-padding) calc(112rpx + env(safe-area-inset-bottom)); }
+.collection-header { padding-bottom: 16rpx; }
+.title { font-family: "Noto Serif SC", "Songti SC", "STSong", serif; font-size: 42rpx; }
+.diary-list { padding-top: 0; border-top: 1rpx solid var(--theme-border); }
+.diary-item { padding: 24rpx 0; }
+.diary-content { font-family: "Noto Serif SC", "Songti SC", "STSong", serif; font-size: 27rpx; line-height: 1.75; }
 </style>

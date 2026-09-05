@@ -139,7 +139,7 @@ public class AiPostProcessService {
     private void processGraph(DiaryEntity diary, long userId, String imageDescriptions) {
         long diaryId = diary.getId();
         List<AiAnalysisService.KnowledgeTriple> triples = aiAnalysisService.extractKnowledgeGraph(
-                diary.getContent(), diary.getMusicMeta(), imageDescriptions);
+                userId, diary.getContent(), diary.getMusicMeta(), imageDescriptions);
         List<DiaryKnowledgeGraphEntity> oldTriples = graphMapper.selectList(new LambdaQueryWrapper<DiaryKnowledgeGraphEntity>()
                 .eq(DiaryKnowledgeGraphEntity::getDiaryId, diaryId).eq(DiaryKnowledgeGraphEntity::getUserId, userId));
         List<DiaryKnowledgeGraphEntity> newEntities = new ArrayList<>();

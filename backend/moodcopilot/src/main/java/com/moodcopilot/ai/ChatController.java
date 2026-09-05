@@ -28,15 +28,15 @@ public class ChatController {
     private final ChatService chatService;
     private final MemoryExtractionService memoryExtractionService;
     private final ObjectMapper objectMapper;
-    private final com.moodcopilot.event.LifeEventService lifeEventService;
+    private final ChatReferenceResolver chatReferenceResolver;
 
     public ChatController(ChatService chatService, MemoryExtractionService memoryExtractionService,
             ObjectMapper objectMapper,
-            @org.springframework.context.annotation.Lazy com.moodcopilot.event.LifeEventService lifeEventService) {
+            ChatReferenceResolver chatReferenceResolver) {
         this.chatService = chatService;
         this.memoryExtractionService = memoryExtractionService;
         this.objectMapper = objectMapper;
-        this.lifeEventService = lifeEventService;
+        this.chatReferenceResolver = chatReferenceResolver;
     }
 
     // ---- 一次性批量初始化画像（初始化后可删除此接口）----
@@ -75,7 +75,7 @@ public class ChatController {
 
     /**
      * SSE 流式聊天入口。
-     * 每次请求都会先把当前用户的长期画像转成背景 prompt，再交给 ChatService 统一拼装完整上下文。
+     * 聊天请求统一交由 ChatService/ContextPlanner 组装用户隔离的上下文。
      */
     @PostMapping(value = "/conversations/{id}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> chat(@PathVariable Long id, @RequestBody Map<String, Object> body,
@@ -86,30 +86,37 @@ public class ChatController {
         String originalMessage = (String) body.get("message");
         chatService.scheduleConversationTitle(id, originalMessage);
         String message = originalMessage;
-        String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
+        // ContextPlanner owns the current, user-isolated memory snapshot. Do not
+        // serialize it once here and query it again inside ChatService.
+        String memoryBackground = "";
+        UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        List<ChatReferenceRequest> referenceRequests = parseReferenceItems(body.get("referenceItems"));
         Object eventIdObj = body.get("eventId");
         if (eventIdObj != null) {
             try {
                 Long eventId = Long.parseLong(String.valueOf(eventIdObj));
-                UserEntity eventUser = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-                String eventCtx = lifeEventService.buildEventContextForChat(eventUser.getId(), eventId);
-                if (!eventCtx.isBlank()) memoryBackground += "\n" + eventCtx;
+                referenceRequests = appendEventReference(referenceRequests, eventId);
             } catch (Exception e) {
                 log.warn("处理回访重要事件失败: {}", e.getMessage());
             }
         }
-        @SuppressWarnings("unchecked")
-        List<String> references = (List<String>) body.get("references");
+        List<String> references = parseLegacyReferences(body.get("references"));
+        ReferencePurpose referencePurpose = parseReferencePurpose(body.get("referencePurpose"));
+        List<UserReference> resolvedReferences = chatReferenceResolver.resolve(user.getId(), referenceRequests, referencePurpose);
+        List<String> referenceEvidence = resolvedReferences.isEmpty()
+                ? (references == null ? List.of() : references)
+                : resolvedReferences.stream().map(UserReference::content).toList();
+        List<String> promptReferences = resolvedReferences.isEmpty() ? references : List.of();
         boolean useReasoning = Boolean.TRUE.equals(body.get("useReasoning"));
         log.info("收到流式聊天请求，conversationId={}，messageLength={}，referenceCount={}，useReasoning={}",
                 id, message == null ? 0 : message.length(), references == null ? 0 : references.size(), useReasoning);
-        UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = user.getId();
         Authentication currentAuth = SecurityContextHolder.getContext().getAuthentication();
         StringBuilder aiReplyBuffer = new StringBuilder();
         ChatService.ChatStreamContext ctx;
         try {
-            ctx = chatService.chat(id, message, references, memoryBackground, useReasoning);
+            ctx = chatService.chat(id, message, promptReferences, memoryBackground, useReasoning, referencePurpose,
+                    resolvedReferences);
         } catch (com.moodcopilot.common.RateLimitException e) {
             log.info("AI 限流触发，conversationId={}，type={}", id, e.getType());
             throw new org.springframework.web.server.ResponseStatusException(
@@ -166,7 +173,7 @@ public class ChatController {
                             id, aiReplyBuffer.length());
                     try {
                         String cleanReply = removePreToolDuplicate(aiReplyBuffer.toString());
-                        memoryExtractionService.extractAndSyncMemoryFromChat(userId, id, userEvidenceMessage, references,
+                        memoryExtractionService.extractAndSyncMemoryFromChat(userId, id, userEvidenceMessage, referenceEvidence,
                                 cleanReply);
                         log.info("流式聊天后画像增量更新已提交，conversationId={}", id);
                     } catch (Exception e) {
@@ -248,28 +255,33 @@ public class ChatController {
         String originalMessage = (String) body.get("message");
         chatService.scheduleConversationTitle(id, originalMessage);
         String message = originalMessage;
-        String memoryBackground = memoryExtractionService.buildCoreUserMemoryPrompt();
+        String memoryBackground = "";
+        UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        List<ChatReferenceRequest> referenceRequests = parseReferenceItems(body.get("referenceItems"));
         Object eventIdObj = body.get("eventId");
         if (eventIdObj != null) {
             try {
                 Long eventId = Long.parseLong(String.valueOf(eventIdObj));
-                UserEntity eventUser = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-                String eventCtx = lifeEventService.buildEventContextForChat(eventUser.getId(), eventId);
-                if (!eventCtx.isBlank()) memoryBackground += "\n" + eventCtx;
+                referenceRequests = appendEventReference(referenceRequests, eventId);
             } catch (Exception e) {
                 log.warn("处理回访重要事件失败: {}", e.getMessage());
             }
         }
-        @SuppressWarnings("unchecked")
-        List<String> references = (List<String>) body.get("references");
+        List<String> references = parseLegacyReferences(body.get("references"));
+        ReferencePurpose referencePurpose = parseReferencePurpose(body.get("referencePurpose"));
+        List<UserReference> resolvedReferences = chatReferenceResolver.resolve(user.getId(), referenceRequests, referencePurpose);
+        List<String> referenceEvidence = resolvedReferences.isEmpty()
+                ? (references == null ? List.of() : references)
+                : resolvedReferences.stream().map(UserReference::content).toList();
+        List<String> promptReferences = resolvedReferences.isEmpty() ? references : List.of();
         boolean useReasoning = Boolean.TRUE.equals(body.get("useReasoning"));
         log.info("收到非流式聊天请求，conversationId={}，messageLength={}，referenceCount={}，useReasoning={}",
                 id, message == null ? 0 : message.length(), references == null ? 0 : references.size(), useReasoning);
-        UserEntity user = (UserEntity) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         Long userId = user.getId();
         String reply;
         try {
-            reply = chatService.reply(id, message, references, memoryBackground, useReasoning);
+            reply = chatService.reply(id, message, promptReferences, memoryBackground, useReasoning, referencePurpose,
+                    resolvedReferences);
         } catch (com.moodcopilot.common.RateLimitException e) {
             log.info("AI 限流触发（非流式），conversationId={}，type={}", id, e.getType());
             throw new org.springframework.web.server.ResponseStatusException(
@@ -278,12 +290,60 @@ public class ChatController {
         log.info("非流式聊天完成，准备触发画像增量更新，conversationId={}，replyLength={}",
                 id, reply == null ? 0 : reply.length());
         try {
-            memoryExtractionService.extractAndSyncMemoryFromChat(userId, id, originalMessage, references, reply);
+            memoryExtractionService.extractAndSyncMemoryFromChat(userId, id, originalMessage, referenceEvidence, reply);
             log.info("非流式聊天后画像增量更新已提交，conversationId={}", id);
         } catch (Exception e) {
             log.warn("非流式聊天后触发长期画像更新失败，conversationId={}，reason={}", id, e.getMessage());
         }
         return ApiResponse.ok(reply);
+    }
+
+    private ReferencePurpose parseReferencePurpose(Object value) {
+        if (value == null) return ReferencePurpose.DISCUSS;
+        try {
+            return ReferencePurpose.valueOf(String.valueOf(value).trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException ignored) {
+            log.info("忽略不支持的引用用途，使用默认用途，valueType={}", value.getClass().getSimpleName());
+            return ReferencePurpose.DISCUSS;
+        }
+    }
+
+    private List<ChatReferenceRequest> parseReferenceItems(Object value) {
+        if (!(value instanceof List<?> raw)) return List.of();
+        List<ChatReferenceRequest> result = new ArrayList<>();
+        for (Object item : raw) {
+            if (!(item instanceof Map<?, ?> map)) continue;
+            String sourceType = map.get("sourceType") == null ? null : String.valueOf(map.get("sourceType"));
+            Object sourceIdValue = map.get("sourceId");
+            if (sourceIdValue == null) {
+                sourceIdValue = "diary".equalsIgnoreCase(sourceType) ? map.get("diaryId") : map.get("eventId");
+            }
+            try {
+                Long sourceId = sourceIdValue == null ? null : Long.valueOf(String.valueOf(sourceIdValue));
+                result.add(new ChatReferenceRequest(sourceType, sourceId,
+                        map.get("referencePurpose") == null ? null : String.valueOf(map.get("referencePurpose"))));
+            } catch (NumberFormatException ignored) {
+                log.info("忽略无效的结构化引用 sourceType={}", sourceType);
+            }
+        }
+        return result;
+    }
+
+    private List<String> parseLegacyReferences(Object value) {
+        if (!(value instanceof List<?> raw)) return List.of();
+        return raw.stream()
+                .filter(item -> item instanceof String)
+                .map(item -> ((String) item).trim())
+                .filter(item -> !item.isBlank())
+                .limit(2)
+                .toList();
+    }
+
+    private List<ChatReferenceRequest> appendEventReference(List<ChatReferenceRequest> requests, Long eventId) {
+        if (eventId == null || eventId <= 0) return requests;
+        List<ChatReferenceRequest> result = new ArrayList<>(requests == null ? List.of() : requests);
+        result.add(new ChatReferenceRequest("event", eventId, null));
+        return result;
     }
 
     /**

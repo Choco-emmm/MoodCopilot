@@ -13,7 +13,7 @@
     <!-- Controls -->
     <view v-if="mode === 'create'" class="composer-controls">
       <label class="composer-ai-toggle" @click="analyze = !analyze">
-        <checkbox :checked="analyze" color="var(--theme-primary)" style="transform:scale(0.8);" />
+        <checkbox :checked="analyze" :color="currentTheme.primary" style="transform:scale(0.8);" />
         <text class="toggle-text">AI 分析我的情绪</text>
       </label>
       <view v-if="analyze" class="analysis-model-choice">
@@ -123,6 +123,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { post, upload, get, request } from '@/utils/request';
+import { currentTheme } from '@/stores/theme';
 
 import { onLoad } from '@dcloudio/uni-app';
 
@@ -436,7 +437,7 @@ const previewImage = (current: string) => {
   align-items: center;
   margin-bottom: 40rpx;
   padding-bottom: 32rpx;
-  border-bottom: 1px solid rgba(var(--theme-primary-rgb), 0.15);
+  border-bottom: 1rpx solid var(--theme-border);
 }
 .composer-ai-toggle {
   display: flex;
@@ -452,7 +453,7 @@ const previewImage = (current: string) => {
 .composer-visibility {
   display: flex;
   flex-direction: row;
-  background-color: rgba(var(--theme-primary-rgb), 0.08);
+  background-color: color-mix(in oklab, var(--theme-primary) 8%, var(--theme-surface));
   border-radius: 8rpx;
   padding: 8rpx;
 }
@@ -465,16 +466,16 @@ const previewImage = (current: string) => {
 }
 .composer-vis-opt.active {
   background-color: var(--theme-primary);
-  color: #fff;
+  color: var(--theme-text-on-primary);
 }
 
 /* Editor */
 .composer-editor {
   flex: 1;
   background-color: var(--theme-surface);
-  border-radius: 24rpx;
+  border-radius: var(--theme-radius-md);
   padding: 40rpx;
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.04);
+  box-shadow: var(--theme-shadow-panel);
   margin-bottom: 32rpx;
   position: relative;
 }
@@ -514,8 +515,8 @@ const previewImage = (current: string) => {
   right: -12rpx;
   width: 40rpx;
   height: 40rpx;
-  background-color: rgba(0, 0, 0, 0.5);
-  color: #fff;
+  background-color: var(--theme-overlay);
+  color: var(--theme-text-on-primary);
   border-radius: 20rpx;
   display: flex;
   align-items: center;
@@ -527,7 +528,7 @@ const previewImage = (current: string) => {
   height: 160rpx;
   border-radius: 20rpx;
   background-color: var(--theme-surface);
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.05);
+  box-shadow: var(--theme-shadow-panel);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -535,11 +536,11 @@ const previewImage = (current: string) => {
 }
 
 .upload-btn:active {
-  background-color: rgba(0,0,0, 0.05);
+  background-color: var(--theme-surface-hover);
 }
 .upload-icon {
   font-size: 64rpx;
-  color: #ccc;
+  color: var(--theme-text-placeholder);
   font-weight: 300;
 }
 .composer-word-count {
@@ -547,10 +548,10 @@ const previewImage = (current: string) => {
   bottom: 32rpx;
   right: 40rpx;
   font-size: 24rpx;
-  color: #a09c94;
+  color: var(--theme-text-placeholder);
 }
 .text-error {
-  color: #d9534f;
+  color: var(--theme-accent);
 }
 
 /* Hint */
@@ -584,7 +585,7 @@ const previewImage = (current: string) => {
 .composer-submit {
   flex: 1;
   background: var(--theme-primary);
-  color: #fff;
+  color: var(--theme-text-on-primary);
   border-radius: 12rpx;
   font-size: 32rpx;
   font-weight: 700;
@@ -595,11 +596,11 @@ const previewImage = (current: string) => {
 
 .composer-submit:active:not(.disabled) {
   transform: scale(0.97);
-  box-shadow: 0 4rpx 12rpx rgba(var(--theme-primary-rgb), 0.2);
+  box-shadow: var(--theme-shadow-panel);
 }
 
 .composer-submit.disabled {
-  background-color: #ccc;
+  background-color: var(--theme-surface-hover);
   box-shadow: none;
   opacity: 0.6;
 }
@@ -615,39 +616,39 @@ const previewImage = (current: string) => {
   flex: 1;
   color: var(--theme-text-primary);
   background-color: var(--theme-surface);
-  border: 1px solid rgba(var(--theme-primary-rgb), 0.1);
+  border: 1rpx solid var(--theme-border);
   border-radius: 16rpx;
   padding: 24rpx;
   font-size: 28rpx;
-  box-shadow: inset 0 2rpx 8rpx rgba(0,0,0,0.02);
+  box-shadow: none;
 }
 
 .music-parse-btn {
   background-color: var(--theme-primary);
-  color: #fff;
+  color: var(--theme-text-on-primary);
   border-radius: 16rpx;
   font-size: 28rpx;
   padding: 0 32rpx;
   height: 84rpx;
   line-height: 84rpx;
   margin: 0;
-  box-shadow: 0 4rpx 12rpx rgba(var(--theme-primary-rgb), 0.2);
+  box-shadow: var(--theme-shadow-panel);
 }
 .music-parse-btn::after {
   border: none;
 }
 .music-parse-btn[disabled] {
-  background-color: rgba(var(--theme-primary-rgb), 0.5);
-  color: rgba(255,255,255,0.8);
+  background-color: color-mix(in oklab, var(--theme-primary) 50%, var(--theme-surface));
+  color: var(--theme-text-on-primary);
   box-shadow: none;
 }
 
 .lyrics-selector {
   margin-top: 20rpx;
   overflow: hidden;
-  border: 1rpx solid rgba(var(--theme-primary-rgb), 0.13);
+  border: 1rpx solid var(--theme-border);
   border-radius: 8rpx;
-  background-color: rgba(var(--theme-primary-rgb), 0.025);
+  background-color: color-mix(in oklab, var(--theme-primary) 3%, var(--theme-surface));
 }
 
 .lyrics-toolbar {
@@ -675,7 +676,7 @@ const previewImage = (current: string) => {
   font-size: 22rpx;
 }
 
-.lyrics-error { color: #c84d4d; }
+.lyrics-error { color: var(--theme-accent); }
 
 .selected-lyrics {
   display: flex;
@@ -691,7 +692,7 @@ const previewImage = (current: string) => {
   padding: 12rpx 14rpx;
   border-left: 4rpx solid var(--theme-primary);
   border-radius: 4rpx;
-  background: rgba(var(--theme-primary-rgb), .08);
+  background: color-mix(in oklab, var(--theme-primary) 8%, var(--theme-surface));
   color: var(--theme-primary);
   font-size: 23rpx;
   line-height: 1.55;
@@ -706,7 +707,7 @@ const previewImage = (current: string) => {
 
 .lyrics-list {
   max-height: 430rpx;
-  border-top: 1rpx solid rgba(var(--theme-primary-rgb), .1);
+  border-top: 1rpx solid var(--theme-border);
 }
 
 .lyric-item {
@@ -716,7 +717,7 @@ const previewImage = (current: string) => {
   min-height: 40rpx;
   padding: 18rpx 20rpx;
   color: var(--theme-text-primary);
-  border-bottom: 1rpx solid rgba(var(--theme-primary-rgb), .07);
+  border-bottom: 1rpx solid var(--theme-border);
   font-size: 25rpx;
   line-height: 1.55;
 }
@@ -726,17 +727,17 @@ const previewImage = (current: string) => {
   min-width: 28rpx;
   height: 28rpx;
   margin-top: 4rpx;
-  border: 1rpx solid rgba(var(--theme-primary-rgb), .35);
+  border: 1rpx solid var(--theme-border);
   border-radius: 50%;
-  color: #fff;
+  color: var(--theme-text-on-primary);
   font-size: 19rpx;
   line-height: 28rpx;
   text-align: center;
 }
 
-.lyric-item.selected { background-color: rgba(var(--theme-primary-rgb), .07); color: var(--theme-primary); }
+.lyric-item.selected { background-color: color-mix(in oklab, var(--theme-primary) 7%, var(--theme-surface)); color: var(--theme-primary); }
 .lyric-item.selected .lyric-check { border-color: var(--theme-primary); background: var(--theme-primary); }
-.lyric-item:active { background-color: rgba(var(--theme-primary-rgb), .1); }
+.lyric-item:active { background-color: color-mix(in oklab, var(--theme-primary) 10%, var(--theme-surface)); }
 
 /* A compact writing flow: write first, attach media deliberately, then save. */
 .composer { height: 100vh; min-height: 100vh; padding: 0; overflow: hidden; box-sizing: border-box; }
@@ -758,7 +759,7 @@ const previewImage = (current: string) => {
 .image-list { gap: 12rpx; }
 .image-item, .upload-btn { width: 118rpx; height: 118rpx; border-radius: 6rpx; }
 .uploaded-img { border-radius: 6rpx; }
-.upload-btn { border: 1rpx dashed rgba(var(--theme-primary-rgb), .28); background: rgba(var(--theme-primary-rgb), .025); box-shadow: none; }
+.upload-btn { border: 1rpx dashed color-mix(in oklab, var(--theme-primary) 28%, transparent); background: color-mix(in oklab, var(--theme-primary) 3%, transparent); box-shadow: none; }
 .upload-icon { color: var(--theme-primary); font-size: 48rpx; }
 .delete-btn { top: -8rpx; right: -8rpx; width: 34rpx; height: 34rpx; border: 2rpx solid var(--theme-surface); font-size: 21rpx; line-height: 34rpx; }
 .composer-word-count { right: 25rpx; bottom: 18rpx; font-size: 20rpx; }
@@ -771,7 +772,7 @@ const previewImage = (current: string) => {
 .music-input { height: 72rpx; padding: 0 18rpx; border-radius: 7rpx; font-size: 24rpx; box-sizing: border-box; box-shadow: none; }
 .music-parse-btn { height: 72rpx; padding: 0 23rpx; border-radius: 7rpx; font-size: 24rpx; line-height: 72rpx; box-shadow: none; }
 .music-preview { display: flex; align-items: center; gap: 16rpx; padding: 16rpx; border: 1rpx solid var(--theme-border); border-radius: 7rpx; background: var(--theme-surface); }
-.music-cover { width: 92rpx; height: 92rpx; flex: 0 0 92rpx; border-radius: 5rpx; background: rgba(var(--theme-primary-rgb), .08); }
+.music-cover { width: 92rpx; height: 92rpx; flex: 0 0 92rpx; border-radius: 5rpx; background: color-mix(in oklab, var(--theme-primary) 8%, var(--theme-surface)); }
 .music-info { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .music-title { overflow: hidden; color: var(--theme-text-primary); font-size: 25rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .music-artist { overflow: hidden; margin-top: 6rpx; color: var(--theme-text-secondary); font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
@@ -780,5 +781,23 @@ const previewImage = (current: string) => {
 .composer-footer { display: block; margin-top: 24rpx; padding: 0; }
 .composer-privacy-note { display: block; margin-bottom: 14rpx; color: var(--theme-text-secondary); font-size: 21rpx; line-height: 1.5; }
 .composer-submit { width: 100%; padding: 0; height: 82rpx; border-radius: 7rpx; font-size: 28rpx; line-height: 82rpx; }
+</style>
+
+<style scoped>
+.composer-content { padding: 28rpx var(--theme-page-padding) calc(124rpx + env(safe-area-inset-bottom)); }
+.composer-header { margin-bottom: 24rpx; padding-bottom: 16rpx; border-bottom: 1rpx solid var(--theme-border); }
+.composer-title { font-family: "Noto Serif SC", "Songti SC", "STSong", serif; font-size: 42rpx; }
+.composer-subtitle { font-size: 23rpx; line-height: 1.65; }
+.composer-controls { margin-bottom: 16rpx; border-color: var(--theme-border); }
+.composer-editor { padding: 24rpx; border-radius: var(--theme-radius-md); background: var(--theme-surface); box-shadow: var(--theme-shadow-panel); }
+.composer-textarea { min-height: 250rpx; font-family: "Noto Serif SC", "Songti SC", "STSong", serif; font-size: 28rpx; line-height: 1.8; }
+.upload-btn, .music-input, .music-parse-btn, .composer-submit { border-radius: var(--theme-radius-sm); }
+.upload-btn { border-color: var(--theme-border); background: color-mix(in oklab, var(--theme-primary) 3%, var(--theme-surface)); }
+.music-input { border-color: var(--theme-border); background: var(--theme-bg); }
+.music-parse-btn, .composer-submit { background: var(--theme-primary); color: var(--theme-text-on-primary); }
+.composer-submit { height: 76rpx; line-height: 76rpx; font-size: 27rpx; }
+.composer-submit.disabled { background: var(--theme-surface-hover); color: var(--theme-text-placeholder); }
+.lyrics-selector { border-color: var(--theme-border); background: var(--theme-surface); }
+.selected-lyric { border-radius: var(--theme-radius-sm); background: color-mix(in oklab, var(--theme-primary) 8%, var(--theme-surface)); }
 </style>
 

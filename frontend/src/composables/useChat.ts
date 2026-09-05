@@ -190,7 +190,7 @@ export function useChat() {
       logWarn('chat', '获取完整日记内容失败，使用截断版本', d.id, e)
     }
     stream.references.value.push({
-      label: '日记 · ' + d.date, content: d.snippet, fullContent, diaryId: d.id,
+      label: '日记 · ' + d.date, content: d.snippet, fullContent, diaryId: d.id, sourceType: 'diary',
     })
   }
 

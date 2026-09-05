@@ -14,7 +14,7 @@ public record ContextEnvelope(
         String plannerVersion,
         List<ContextItem> coreMemory,
         List<ContextItem> shortTermState,
-        List<ContextItem> userReferences,
+        List<UserReference> userReferences,
         List<ContextItem> retrievedContext,
         List<ContextItem> timelineContext,
         List<ContextItem> toolResults) {
@@ -32,7 +32,7 @@ public record ContextEnvelope(
         toolResults = immutable(toolResults);
     }
 
-    private static List<ContextItem> immutable(List<ContextItem> values) {
+    private static <T> List<T> immutable(List<T> values) {
         return values == null ? List.of() : List.copyOf(values.stream().filter(Objects::nonNull).toList());
     }
 }

@@ -132,9 +132,9 @@ public class SummaryService {
             }
         }
         
-        String aiSummary = aiAnalysisService.generateCustomSummary(sampledContents, sampledAnalyses);
+        String aiSummary = aiAnalysisService.generateCustomSummary(user.getId(), sampledContents, sampledAnalyses);
         AiAnalysisService.ReportGuidance guidance = aiAnalysisService.generateCustomGuidance(
-                title, sampledContents, sampledAnalyses);
+                user.getId(), title, sampledContents, sampledAnalyses);
 
         var sortedTopics = topicCounts.entrySet().stream()
                 .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())

@@ -188,7 +188,7 @@ public class DailyFollowUpScheduler {
                         ? "复杂"
                         : analyses.get(0).moodLabel();
 
-                String coaching = aiAnalysisService.generateCoaching(contents, analyses);
+                String coaching = aiAnalysisService.generateCoaching(userId, contents, analyses);
 
                 String greeting = greetingByHour(currentHour);
                 String message = String.format(

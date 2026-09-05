@@ -147,19 +147,19 @@ const openCollection = (id: number) => {
   font-size: 28rpx;
   background-color: var(--theme-primary);
   color: var(--theme-surface);
-  border-radius: 999rpx;
+  border-radius: var(--theme-radius-sm);
   padding: 0 32rpx;
 }
 
 .collection-card {
   background-color: var(--theme-surface);
-  border-radius: 16rpx;
+  border-radius: var(--theme-radius-md);
   padding: 32rpx;
   margin-bottom: 24rpx;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.03);
+  box-shadow: var(--theme-shadow-panel);
 }
 
 .col-info {
@@ -177,14 +177,14 @@ const openCollection = (id: number) => {
 
 .col-desc {
   font-size: 24rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
 }
 
 .col-count {
   font-size: 28rpx;
   color: var(--theme-primary);
   font-weight: bold;
-  background-color: rgba(var(--theme-primary-rgb), 0.1);
+  background-color: color-mix(in oklab, var(--theme-primary) 10%, var(--theme-surface));
   padding: 8rpx 16rpx;
   border-radius: 8rpx;
   margin-left: 16rpx;
@@ -193,13 +193,13 @@ const openCollection = (id: number) => {
 .empty-state, .loading-state {
   text-align: center;
   padding: 100rpx;
-  color: #7d7870;
+  color: var(--theme-text-secondary);
 }
 
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: var(--theme-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -222,14 +222,14 @@ const openCollection = (id: number) => {
 }
 
 .modal-input {
-  border: 1px solid #e0e0e0;
+  border: 1rpx solid var(--theme-border);
   padding: 16rpx 24rpx;
   border-radius: 4rpx;
   margin-bottom: 24rpx;
 }
 
 .modal-textarea {
-  border: 1px solid #e0e0e0;
+  border: 1rpx solid var(--theme-border);
   padding: 16rpx 24rpx;
   border-radius: 4rpx;
   width: 100%;
@@ -250,7 +250,7 @@ const openCollection = (id: number) => {
 }
 
 .cancel-btn {
-  background-color: #f0f0f0;
+  background-color: var(--theme-surface-hover);
   color: var(--theme-text-primary);
 }
 
@@ -258,4 +258,20 @@ const openCollection = (id: number) => {
   background-color: var(--theme-primary);
   color: var(--theme-surface);
 }
+</style>
+
+<style scoped>
+.collections-page { padding: 28rpx var(--theme-page-padding) calc(112rpx + env(safe-area-inset-bottom)); }
+.header { align-items: flex-end; margin: 20rpx 0 30rpx; padding-bottom: 14rpx; border-bottom: 1rpx solid var(--theme-border); }
+.page-title { font-family: "Noto Serif SC", "Songti SC", "STSong", serif; font-size: 42rpx; }
+.create-btn { height: 56rpx; line-height: 56rpx; border-radius: var(--theme-radius-sm); background: var(--theme-primary); color: var(--theme-text-on-primary); font-size: 22rpx; }
+.collection-card { margin-bottom: 12rpx; padding: 22rpx 20rpx; border: 1rpx solid var(--theme-border); border-radius: var(--theme-radius-md); box-shadow: none; }
+.col-name { font-family: "Noto Serif SC", "Songti SC", "STSong", serif; font-size: 28rpx; }
+.col-desc { font-size: 21rpx; }
+.col-count { padding: 6rpx 10rpx; border-radius: var(--theme-radius-sm); font-size: 20rpx; }
+.modal-content { border-radius: var(--theme-radius-lg); box-shadow: var(--theme-shadow-dialog); }
+.modal-input, .modal-textarea { border-color: var(--theme-border); border-radius: var(--theme-radius-sm); background: var(--theme-bg); }
+.cancel-btn, .confirm-btn { border-radius: var(--theme-radius-sm); }
+.cancel-btn { background: var(--theme-surface-hover); }
+.confirm-btn { background: var(--theme-primary); color: var(--theme-text-on-primary); }
 </style>

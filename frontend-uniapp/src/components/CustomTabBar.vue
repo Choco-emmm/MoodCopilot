@@ -20,12 +20,12 @@
             v-else
             class="tab-icon active-icon mask-icon" 
             :class="item.maskClass"
-            :style="{ backgroundColor: currentTheme.primary }"
+            :style="{ backgroundColor: 'var(--theme-primary)' }"
           ></view>
         </view>
         <text 
           class="tab-text" 
-          :style="{ color: current === index ? currentTheme.primary : 'var(--theme-text-placeholder)', fontWeight: current === index ? 'bold' : 'normal' }"
+          :style="{ color: current === index ? 'var(--theme-primary)' : 'var(--theme-text-placeholder)', fontWeight: current === index ? 'bold' : 'normal' }"
         >
           {{ item.text }}
         </text>
@@ -35,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { currentTheme, themeStyle } from '@/stores/theme';
+import { themeStyle } from '@/stores/theme';
 
 const props = defineProps<{
   current: number
@@ -80,12 +80,11 @@ const switchTab = (url: string, index: number) => {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 100rpx;
+  height: 96rpx;
   padding-bottom: env(safe-area-inset-bottom);
   box-sizing: content-box;
   background: var(--theme-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 -1rpx 0 var(--theme-border);
   display: flex;
   flex-direction: column;
   z-index: 90;
@@ -102,7 +101,7 @@ const switchTab = (url: string, index: number) => {
   flex-direction: row;
   justify-content: space-around;
   align-items: center;
-  height: 100rpx;
+  height: 96rpx;
 }
 
 .tab-item {
@@ -112,7 +111,10 @@ const switchTab = (url: string, index: number) => {
   justify-content: center;
   flex: 1;
   height: 100%;
+  transition: opacity 0.2s ease;
 }
+
+.tab-item:active { opacity: 0.62; }
 
 .icon-container {
   width: 48rpx;
@@ -162,7 +164,7 @@ const switchTab = (url: string, index: number) => {
 }
 
 .tab-text {
-  font-size: 20rpx;
+  font-size: 21rpx;
   line-height: 1;
   transition: color 0.2s;
 }

@@ -114,6 +114,17 @@ public class MemoryOrchestrator {
             String key = clean(attr.attributeKey(), 64);
             String value = clean(attr.attributeValue(), 500);
             if (key.isBlank() || value.isBlank()) continue;
+            if (!SensitiveDataDetector.allowedForMemory(key, value, attr.evidence())) {
+                log.warn("记忆编排最终拦截敏感数据，userId={}，attributeKey={}", userId, key);
+                continue;
+            }
+            if (!"explicit".equals(safeSource)
+                    && MemorySafetyPolicy.isTechnicalKnowledgeClaim(key, value)
+                    && !MemorySafetyPolicy.hasExplicitTechnicalBackground(defaultEvidence)) {
+                log.info("记忆编排跳过未经明确声明的技术背景，userId={}，attributeKey={}，sourceType={}",
+                        userId, key, safeSource);
+                continue;
+            }
             String type = MemorySafetyPolicy.normalizeType(normalizeType(attr.memoryType()), attr.attributeKey(), attr.attributeValue());
             boolean allowCore = MemorySafetyPolicy.allowCore(type, attr.attributeKey(), attr.attributeValue());
             Boolean requestedIsCore = allowCore ? attr.isCore() : Boolean.FALSE;
@@ -127,6 +138,15 @@ public class MemoryOrchestrator {
                     || ("explicit".equals(assertion) && evidenceGrounded
                     && verifiedExplicitEvidence(safeSource, modelEvidence, defaultEvidence))
                     ? "explicit" : safeSource;
+            // A self-declared technical background is valid evidence, but an
+            // extraction model must not turn one chat turn into a permanent skill
+            // or occupation fact. Keep it in the normal candidate/evidence path;
+            // repeated independent dates may still promote it. A direct user action
+            // (source=explicit) remains the only immediate formal-write path.
+            if (!"explicit".equals(safeSource)
+                    && MemorySafetyPolicy.isTechnicalKnowledgeClaim(key, value)) {
+                actualSource = safeSource;
+            }
 
             if ("DELETE_MARKER".equals(value)) {
                 rejectActive(userId, key, type, "MODEL_NEGATION");
@@ -407,6 +427,7 @@ public class MemoryOrchestrator {
         return memoryMapper.selectList(new LambdaQueryWrapper<UserProfileMemoryEntity>()
                 .eq(UserProfileMemoryEntity::getUserId, userId)
                 .eq(UserProfileMemoryEntity::getStatus, ACTIVE)
+                .and(w -> w.isNull(UserProfileMemoryEntity::getValidFrom).or().le(UserProfileMemoryEntity::getValidFrom, businessDate()))
                 .and(w -> w.isNull(UserProfileMemoryEntity::getValidUntil).or().ge(UserProfileMemoryEntity::getValidUntil, businessDate()))
                 .orderByAsc(UserProfileMemoryEntity::getAttributeKey)).stream()
                 .filter(memory -> !isShortTermExpired(memory))
@@ -466,7 +487,8 @@ public class MemoryOrchestrator {
         if (distinctIds.isEmpty()) return Map.of();
         Map<Long, DiarySourcePreview> result = new LinkedHashMap<>();
         for (DiaryEntity diary : diaryMapper.selectBatchIds(distinctIds)) {
-            if (!Long.valueOf(userId).equals(diary.getAuthorUserId())) continue;
+            if (!Long.valueOf(userId).equals(diary.getAuthorUserId())
+                    || Boolean.TRUE.equals(diary.getIsDeleted())) continue;
             result.put(diary.getId(), new DiarySourcePreview(diary.getId(), diary.getCreatedAt(), diaryExcerpt(diary.getContent())));
         }
         return result;
@@ -660,27 +682,42 @@ public class MemoryOrchestrator {
             return;
         }
 
-        UserProfileMemoryEntity memory = saveFormal(candidate.getUserId(), candidate.getAttributeKey(), candidate.getAttributeValue(),
-                candidate.getMemoryType(), candidate.getSourceType(), candidate.getSourceDiaryId(), candidate.getSourceConversationId(),
-                effective, candidate.getValidFrom(), "AUTO_UPGRADED", candidate.getIsCore());
-        evidenceMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserMemoryEvidenceEntity>()
-                .eq(UserMemoryEvidenceEntity::getCandidateId, candidate.getId()).set(UserMemoryEvidenceEntity::getMemoryId, memory.getId()));
-        candidate.setConfidence(effective);
-        candidate.setStatus("APPROVED");
+        // Claim the candidate before creating a formal-memory version. The enclosing
+        // transaction rolls this transition back if formal persistence fails, while a
+        // concurrent consumer that loses the compare-and-set creates nothing.
+        int updated;
         try {
-            int updated = candidateMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserMemoryCandidateEntity>()
+            updated = candidateMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserMemoryCandidateEntity>()
                     .eq(UserMemoryCandidateEntity::getId, candidate.getId())
                     .eq(UserMemoryCandidateEntity::getUserId, candidate.getUserId())
                     .eq(UserMemoryCandidateEntity::getStatus, PENDING)
                     .set(UserMemoryCandidateEntity::getConfidence, effective)
                     .set(UserMemoryCandidateEntity::getStatus, APPROVED));
-            if (updated == 0) return;
         } catch (DuplicateKeyException duplicate) {
-            // Another worker won the same promotion. The transaction remains idempotent:
-            // reload and merge into the existing approved branch on the next delivery.
+            // An equivalent branch may have been confirmed between the earlier
+            // lookup and this compare-and-set. Reload the winner; never emit a
+            // second formal memory or notification from the losing delivery.
+            UserMemoryCandidateEntity approvedWinner = findApprovedEquivalentCandidate(candidate);
+            if (approvedWinner != null && !approvedWinner.getId().equals(candidate.getId())) {
+                mergePendingIntoApproved(candidate, approvedWinner);
+            }
             log.info("忽略重复候选升级冲突，candidateId={}，userId={}", candidate.getId(), candidate.getUserId());
             return;
         }
+        if (updated == 0) {
+            // The scheduled snapshot is stale (user action or another consumer has
+            // changed it). The current state owns the next action.
+            log.info("候选升级未抢占到 PENDING 状态，跳过正式写入，candidateId={}，userId={}",
+                    candidate.getId(), candidate.getUserId());
+            return;
+        }
+        candidate.setConfidence(effective);
+        candidate.setStatus(APPROVED);
+        UserProfileMemoryEntity memory = saveFormal(candidate.getUserId(), candidate.getAttributeKey(), candidate.getAttributeValue(),
+                candidate.getMemoryType(), candidate.getSourceType(), candidate.getSourceDiaryId(), candidate.getSourceConversationId(),
+                effective, candidate.getValidFrom(), "AUTO_UPGRADED", candidate.getIsCore());
+        evidenceMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserMemoryEvidenceEntity>()
+                .eq(UserMemoryEvidenceEntity::getCandidateId, candidate.getId()).set(UserMemoryEvidenceEntity::getMemoryId, memory.getId()));
         notifyFormalized(candidate.getUserId(), candidate.getAttributeKey(), candidate.getAttributeValue(), "多次证据已满足升级条件");
     }
 

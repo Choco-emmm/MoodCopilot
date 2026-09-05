@@ -35,7 +35,7 @@ export function useChatStream(
   const useReasoning = ref(false)
   const references = ref<ChatReference[]>([])
   const lastReplyError = ref<string | null>(null)
-  const lastReplyRequest = ref<{ convId: number; content: string; refContents: string[]; useReasoning: boolean; eventId?: number } | null>(null)
+  const lastReplyRequest = ref<{ convId: number; content: string; refContents: string[]; referenceItems: Array<{ sourceType: string; sourceId: number }>; useReasoning: boolean; eventId?: number } | null>(null)
   const streamingRefs = ref<RagRef[]>([])
   const showStreamingRefs = ref(false)
 
@@ -70,7 +70,11 @@ export function useChatStream(
       finalContent = `[用户引用了之前的发言：\n"${quoteRefItem.content}"]\n\n用户的回复是：\n${content}`
     }
 
-    const refContents = references.value.filter(r => r.type !== 'quote').slice(0, 2).map(r => r.fullContent || r.content)
+    const selectedReferences = references.value.filter(r => r.type !== 'quote').slice(0, 2)
+    const refContents = selectedReferences.map(r => r.fullContent || r.content)
+    const referenceItems = selectedReferences
+      .filter(r => (r.sourceType === 'diary' || r.sourceType === 'event') && Number.isFinite(r.diaryId || r.eventId))
+      .map(r => ({ sourceType: r.sourceType as string, sourceId: Number(r.diaryId || r.eventId) }))
     messages.value.push({
       id: nextMsgId(), role: 'user', content,
       createdAt: new Date().toISOString(),
@@ -94,14 +98,14 @@ export function useChatStream(
       return
     }
 
-    await sendReply(convId, finalContent, refContents, useReasoning.value, false, eventId, isFirstUserMessage)
+    await sendReply(convId, finalContent, refContents, referenceItems, useReasoning.value, false, eventId, isFirstUserMessage)
   }
 
   // ── Retry ──
 
   async function retryLastReply() {
     if (!lastReplyRequest.value || streaming.value) return
-    const { convId, content, refContents, useReasoning: requestedUseReasoning, eventId } = lastReplyRequest.value
+    const { convId, content, refContents, referenceItems, useReasoning: requestedUseReasoning, eventId } = lastReplyRequest.value
     if (activeConvId.value !== convId) {
       lastReplyError.value = '会话已切换，请在当前会话重新发送。'
       return
@@ -109,12 +113,12 @@ export function useChatStream(
     streaming.value = true
     streamingText.value = ''
     isThinking.value = true
-    await sendReply(convId, content, refContents, requestedUseReasoning, true, eventId)
+    await sendReply(convId, content, refContents, referenceItems, requestedUseReasoning, true, eventId)
   }
 
   // ── Stream Reply ──
 
-  async function sendReply(convId: number, content: string, refContents: string[], requestedUseReasoning: boolean, isRetry: boolean, eventId?: number, refreshTitle = false) {
+  async function sendReply(convId: number, content: string, refContents: string[], referenceItems: Array<{ sourceType: string; sourceId: number }>, requestedUseReasoning: boolean, isRetry: boolean, eventId?: number, refreshTitle = false) {
     if (streamAbortCtrl) {
       streamAbortCtrl.abort()
       streamAbortCtrl = null
@@ -168,6 +172,8 @@ export function useChatStream(
           }
           scrollManager.scrollBottom()
         },
+        undefined,
+        referenceItems,
       )
 
       if (activeConvId.value !== convId) return
@@ -186,7 +192,7 @@ export function useChatStream(
       const errorText = chatErrorMessage(e?.status, bizMessage, requestedUseReasoning)
       if (activeConvId.value === convId) {
         lastReplyError.value = errorText
-        lastReplyRequest.value = { convId, content, refContents, useReasoning: requestedUseReasoning, eventId }
+        lastReplyRequest.value = { convId, content, refContents, referenceItems, useReasoning: requestedUseReasoning, eventId }
         if (!isRetry) {
           messages.value.push({ id: nextMsgId(), role: 'ai', content: errorText })
         }

@@ -31,4 +31,11 @@ class MemorySafetyPolicyTest {
         assertFalse(MemoryExtractionService.isUserEvidenceGrounded(imageDescription, diary));
         assertTrue(MemoryExtractionService.isUserEvidenceGrounded("心情不错", diary));
     }
+
+    @Test
+    void technicalSkillClaimRequiresExplicitFirstPersonEvidence() {
+        assertTrue(MemorySafetyPolicy.isTechnicalKnowledgeClaim("技术能力", "熟悉 Java 后端开发"));
+        assertFalse(MemorySafetyPolicy.hasExplicitTechnicalBackground("帮我解释一下 Java 的 Redis 连接池"));
+        assertTrue(MemorySafetyPolicy.hasExplicitTechnicalBackground("我是 Java 后端开发工程师"));
+    }
 }
