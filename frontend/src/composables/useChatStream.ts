@@ -43,6 +43,7 @@ export function useChatStream(
   let streamRafId: number | null = null
   let streamAbortCtrl: AbortController | null = null
   let syncCooldownUntil = 0
+  let resumePromise: Promise<void> | null = null
 
   // ── Send ──
 
@@ -81,7 +82,7 @@ export function useChatStream(
       references: refContents.length ? refContents : undefined,
       quoteRef,
     })
-    saveToBackend(convId).catch(() => {})
+    await saveToBackend(convId).catch(() => {})
     references.value = []
     draft.value = ''
     tryExpToast('chat', '聊天 +5 EXP')
@@ -114,6 +115,104 @@ export function useChatStream(
     streamingText.value = ''
     isThinking.value = true
     await sendReply(convId, content, refContents, referenceItems, requestedUseReasoning, true, eventId)
+  }
+
+  // ── Refresh recovery ──
+
+  async function resumeActiveRun(convId: number): Promise<void> {
+    if (!convId || streaming.value || resumePromise) return
+    const runId = chatApi.getActiveRun(convId)
+    if (!runId) return
+    if (messages.value.some(message => message.id === `${runId}:assistant`)) {
+      chatApi.clearActiveRun(convId, runId)
+      return
+    }
+    try {
+      await chatApi.getRunStatus(convId, runId)
+    } catch (error: any) {
+      if (error?.response?.status === 404 || error?.status === 404) {
+        chatApi.clearActiveRun(convId, runId)
+        return
+      }
+      // 状态查询的临时失败不应丢弃 runId，后续 SSE 仍可自行重试。
+    }
+
+    const ctrl = new AbortController()
+    streamAbortCtrl = ctrl
+    streaming.value = true
+    streamingText.value = ''
+    isThinking.value = true
+    streamingRefs.value = []
+    showStreamingRefs.value = false
+
+    resumePromise = (async () => {
+      let fullReply = ''
+      let currentRefs: RagRef[] = []
+      try {
+        await chatApi.resumeReplyStream(
+          convId,
+          runId,
+          (chunk: string) => {
+            fullReply += chunk
+            pendingStreamText = fullReply
+            if (isThinking.value) isThinking.value = false
+            if (streamRafId === null) {
+              streamRafId = requestAnimationFrame(() => {
+                const keepScroll = scrollManager.isNearBottom()
+                streamingText.value = pendingStreamText
+                streamRafId = null
+                if (keepScroll) scrollManager.scrollBottom()
+              })
+            }
+          },
+          ctrl,
+          (items: any) => {
+            currentRefs = items
+            streamingRefs.value = items
+          },
+          (toolItems: any) => {
+            currentRefs = [...currentRefs, ...toolItems]
+            streamingRefs.value = currentRefs
+          },
+          (status: { stage: string; message: string }) => {
+            if (status.stage === 'compressing') {
+              isCompressing.value = true
+              compressingMessage.value = status.message || '正在优化对话上下文...'
+            } else if (status.stage === 'thinking') {
+              isCompressing.value = false
+              isThinking.value = true
+            }
+            scrollManager.scrollBottom()
+          },
+        )
+
+        if (activeConvId.value === convId && !messages.value.some(message => message.id === `${runId}:assistant`)) {
+          messages.value.push({
+            id: `${runId}:assistant`,
+            role: 'ai',
+            content: fullReply || '我刚才没有组织好语言，你可以再说一遍吗？',
+            createdAt: new Date().toISOString(),
+            ragReferences: currentRefs.length ? currentRefs : undefined,
+          })
+        }
+        lastReplyError.value = null
+        lastReplyRequest.value = null
+      } catch (e: any) {
+        if (e?.name !== 'AbortError' && activeConvId.value === convId) {
+          lastReplyError.value = e?.message || '恢复聊天生成失败，请稍后重试。'
+        }
+      } finally {
+        isCompressing.value = false
+        streamAbortCtrl = null
+        await finishSend(convId)
+      }
+    })()
+
+    try {
+      await resumePromise
+    } finally {
+      resumePromise = null
+    }
   }
 
   // ── Stream Reply ──
@@ -217,11 +316,13 @@ export function useChatStream(
     isThinking.value = false
     references.value = []
     scrollManager.scrollBottom()
-    try {
-      await saveToBackend(convId)
-    } catch (e) {
-      logWarn('chat', '发送后保存历史失败', e)
-      syncCooldownUntil = Date.now() + 5000
+    if (activeConvId.value === convId) {
+      try {
+        await saveToBackend(convId)
+      } catch (e) {
+        logWarn('chat', '发送后保存历史失败', e)
+        syncCooldownUntil = Date.now() + 5000
+      }
     }
     loadConversations()
     if (refreshTitle) void waitForConversationTitle(convId)
@@ -259,6 +360,6 @@ export function useChatStream(
     draft, streaming, streamingText, isThinking, isCompressing, compressingMessage, useReasoning, references,
     lastReplyError, lastReplyRequest, streamingRefs, showStreamingRefs,
     syncCooldownUntil,
-    send, retryLastReply, abortStream, removeRef,
+    send, retryLastReply, resumeActiveRun, abortStream, removeRef,
   }
 }

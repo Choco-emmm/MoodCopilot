@@ -311,6 +311,10 @@ export function useChat() {
       await conv.createConversation()
     }
 
+    if (conv.activeConvId.value) {
+      await stream.resumeActiveRun(conv.activeConvId.value)
+    }
+
     if (shouldAutoSend) { await nextTick(); handleSend() }
 
     if (window.visualViewport) {
@@ -353,6 +357,9 @@ export function useChat() {
       history.replaceState({ ...history.state, eventId: undefined }, '')
     }
     await selectPendingConversation()
+    if (conv.activeConvId.value) {
+      await stream.resumeActiveRun(conv.activeConvId.value)
+    }
     loadRecentDiaryOptions()
     if (window.visualViewport) {
       viewportBaseHeight.value = Math.max(window.visualViewport.height, window.innerHeight)

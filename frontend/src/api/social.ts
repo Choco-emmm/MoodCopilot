@@ -61,6 +61,13 @@ export const chatApi = {
       ...(referenceItems?.length ? { referenceItems } : {}) }),
   compressConversation: (id: number) =>
     api.post<{ compressed: boolean; message: string; summary?: string }>(`/chat/conversations/${id}/compress`),
+  getRunStatus: (conversationId: number, runId: string) =>
+    api.get(`/chat/conversations/${conversationId}/runs/${encodeURIComponent(runId)}`),
+  clearActiveRun: (conversationId: number, runId?: string) => {
+    const key = chatRunStorageKey(conversationId)
+    if (!runId || sessionStorage.getItem(key) === runId) sessionStorage.removeItem(key)
+  },
+  getActiveRun: (conversationId: number) => sessionStorage.getItem(chatRunStorageKey(conversationId)),
   replyStream: async (
     id: number,
     message: string,
@@ -75,50 +82,141 @@ export const chatApi = {
     referencePurpose?: string,
     referenceItems?: Array<{ sourceType: string; sourceId: number; referencePurpose?: string }>,
   ): Promise<void> => {
-    const token = localStorage.getItem('token')
-    let doneReceived = false
-    try {
-      await fetchEventSource(`/api/chat/conversations/${id}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ message, references, useReasoning,
-          ...(eventId ? { eventId } : {}), ...(referencePurpose ? { referencePurpose } : {}),
-          ...(referenceItems?.length ? { referenceItems } : {}) }),
-        signal: ctrl.signal,
-        openWhenHidden: true,
-        onmessage(event) {
-          const raw = event.data
-          try {
-            const msg = JSON.parse(raw)
-            if (msg.type === 'status') {
-              onStatus?.({ stage: msg.stage, message: msg.message })
-            } else if (msg.type === 'references') {
-              onReferences?.(msg.items ?? [])
-            } else if (msg.type === 'tool_references') {
-              onToolReferences?.(msg.items ?? [])
-            } else if (msg.type === 'chunk') {
-              onChunk(msg.content ?? '')
-            } else if (msg.type === 'done') {
-              doneReceived = true
-            }
-          } catch {
-            if (raw !== '[DONE]') onChunk(raw)
-          }
-        },
-        onerror(err) {
-          if (doneReceived) {
-            ctrl.abort()
-            throw new Error('__SSE_DONE__')
-          }
-          throw err
-        },
-      })
-    } catch (e: any) {
-      if (e?.message === '__SSE_DONE__') return
-      throw e
-    }
+    const clientRequestId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const startResponse = await api.post(`/chat/conversations/${id}/runs`, {
+      clientRequestId,
+      message,
+      references,
+      useReasoning,
+      ...(eventId ? { eventId } : {}),
+      ...(referencePurpose ? { referencePurpose } : {}),
+      ...(referenceItems?.length ? { referenceItems } : {}),
+    })
+    const startPayload = startResponse.data?.data ?? startResponse.data
+    const runId = String(startPayload?.runId || '')
+    if (!runId) throw new Error('生成任务创建失败')
+
+    sessionStorage.setItem(chatRunStorageKey(id), runId)
+
+    await consumeChatRunStream(id, runId, 0, {
+      onChunk,
+      onReferences,
+      onToolReferences,
+      onStatus,
+      ctrl,
+    })
   },
+  resumeReplyStream: async (
+    id: number,
+    runId: string,
+    onChunk: (text: string) => void,
+    ctrl: AbortController,
+    onReferences?: (items: Array<{ type: string; diaryId: string; date: string; snippet: string }>) => void,
+    onToolReferences?: (items: Array<{ type: string; diaryId?: string; date: string; snippet: string; toolName: string }>) => void,
+    onStatus?: (status: { stage: string; message: string }) => void,
+  ): Promise<void> => {
+    const storedRunId = sessionStorage.getItem(chatRunStorageKey(id))
+    if (storedRunId !== runId) return
+    await consumeChatRunStream(id, runId, 0, {
+      onChunk,
+      onReferences,
+      onToolReferences,
+      onStatus,
+      ctrl,
+    })
+  },
+}
+
+const chatRunStorageKey = (conversationId: number) => `chat:active-run:${conversationId}`
+
+type ChatRunCallbacks = {
+  onChunk: (text: string) => void
+  onReferences?: (items: Array<{ type: string; diaryId: string; date: string; snippet: string }>) => void
+  onToolReferences?: (items: Array<{ type: string; diaryId?: string; date: string; snippet: string; toolName: string }>) => void
+  onStatus?: (status: { stage: string; message: string }) => void
+  ctrl: AbortController
+}
+
+async function consumeChatRunStream(
+  id: number,
+  runId: string,
+  initialSequence: number,
+  callbacks: ChatRunCallbacks,
+): Promise<void> {
+    const { onChunk, onReferences, onToolReferences, onStatus, ctrl } = callbacks
+    const token = localStorage.getItem('token')
+    let sequence = Math.max(0, initialSequence)
+    let doneReceived = false
+    let terminalError: Error | null = null
+    let retryCount = 0
+    const wait = (ms: number) => new Promise<void>(resolve => window.setTimeout(resolve, ms))
+
+    while (!doneReceived && !ctrl.signal.aborted) {
+      try {
+        await fetchEventSource(`/api/chat/conversations/${id}/runs/${runId}/stream?after=${sequence}`, {
+          method: 'GET',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          openWhenHidden: true,
+          signal: ctrl.signal,
+          async onopen(response) {
+            if (!response.ok) throw new Error(`SSE 连接失败（${response.status}）`)
+            retryCount = 0
+          },
+          onmessage(event) {
+            const raw = event.data
+            try {
+              const msg = JSON.parse(raw)
+              const nextSequence = Number(msg.seq)
+              if (Number.isFinite(nextSequence) && nextSequence > sequence) sequence = nextSequence
+              if (msg.type === 'status') {
+                onStatus?.({ stage: msg.stage, message: msg.message })
+              } else if (msg.type === 'references') {
+                onReferences?.(msg.items ?? [])
+              } else if (msg.type === 'tool_references') {
+                onToolReferences?.(msg.items ?? [])
+              } else if (msg.type === 'chunk') {
+                onChunk(msg.content ?? '')
+              } else if (msg.type === 'done') {
+                doneReceived = true
+              } else if (msg.type === 'error') {
+                terminalError = new Error(msg.message || 'AI 服务暂时无法完成本次回答')
+                doneReceived = true
+              }
+            } catch {
+              if (raw !== '[DONE]') onChunk(raw)
+            }
+          },
+          onerror(error) {
+            throw error
+          },
+        })
+      } catch (error: any) {
+        if (ctrl.signal.aborted) throw error
+        if (terminalError) break
+        retryCount += 1
+        if (retryCount > 8) throw error
+        await wait(Math.min(1000 * 2 ** (retryCount - 1), 15000))
+      }
+
+      if (!doneReceived && !ctrl.signal.aborted) {
+        retryCount += 1
+        if (retryCount > 8) throw new Error('SSE 连接多次中断，请稍后重试')
+        await wait(Math.min(1000 * 2 ** (retryCount - 1), 15000))
+      }
+    }
+
+    if (terminalError) {
+      clearStoredRun(id, runId)
+      throw terminalError
+    }
+    if (ctrl.signal.aborted) throw new DOMException('聊天流已取消', 'AbortError')
+    if (doneReceived) clearStoredRun(id, runId)
+}
+
+function clearStoredRun(conversationId: number, runId: string) {
+  const key = chatRunStorageKey(conversationId)
+  if (sessionStorage.getItem(key) === runId) sessionStorage.removeItem(key)
 }

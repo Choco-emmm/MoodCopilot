@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -27,16 +28,19 @@ public class ChatController {
 
     private final ChatService chatService;
     private final MemoryExtractionService memoryExtractionService;
+    private final ChatGenerationService chatGenerationService;
     private final ObjectMapper objectMapper;
     private final ChatReferenceResolver chatReferenceResolver;
 
     public ChatController(ChatService chatService, MemoryExtractionService memoryExtractionService,
             ObjectMapper objectMapper,
-            ChatReferenceResolver chatReferenceResolver) {
+            ChatReferenceResolver chatReferenceResolver,
+            ChatGenerationService chatGenerationService) {
         this.chatService = chatService;
         this.memoryExtractionService = memoryExtractionService;
         this.objectMapper = objectMapper;
         this.chatReferenceResolver = chatReferenceResolver;
+        this.chatGenerationService = chatGenerationService;
     }
 
     // ---- 一次性批量初始化画像（初始化后可删除此接口）----
@@ -63,6 +67,58 @@ public class ChatController {
     @PostMapping("/conversations")
     public ApiResponse<Object> createConversation(@RequestBody Map<String, String> body) {
         return ApiResponse.ok(chatService.createConversation(body.get("title")));
+    }
+
+    /** 创建与 HTTP 连接解耦的聊天生成任务。 */
+    @PostMapping("/conversations/{id}/runs")
+    public ApiResponse<ChatGenerationService.RunSnapshot> startRun(@PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        UserEntity user = currentUser();
+        chatService.validateConversationOwnership(id, user);
+        String message = body.get("message") == null ? "" : String.valueOf(body.get("message"));
+        if (message.isBlank()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "消息不能为空");
+        }
+        List<ChatReferenceRequest> referenceRequests = parseReferenceItems(body.get("referenceItems"));
+        Object eventIdObj = body.get("eventId");
+        if (eventIdObj != null) {
+            try {
+                referenceRequests = appendEventReference(referenceRequests, Long.parseLong(String.valueOf(eventIdObj)));
+            } catch (Exception e) {
+                log.warn("处理生成任务事件引用失败: {}", e.getMessage());
+            }
+        }
+        List<String> references = parseLegacyReferences(body.get("references"));
+        ReferencePurpose purpose = parseReferencePurpose(body.get("referencePurpose"));
+        List<UserReference> resolved = chatReferenceResolver.resolve(user.getId(), referenceRequests, purpose);
+        List<String> promptReferences = resolved.isEmpty() ? references : List.of();
+        boolean useReasoning = Boolean.TRUE.equals(body.get("useReasoning"));
+        String clientRequestId = body.get("clientRequestId") == null
+                ? UUID.randomUUID().toString() : String.valueOf(body.get("clientRequestId"));
+        ChatGenerationService.StartRequest request = new ChatGenerationService.StartRequest(
+                user.getId(), id, clientRequestId, message, promptReferences, resolved, purpose,
+                useReasoning, SecurityContextHolder.getContext().getAuthentication());
+        return ApiResponse.ok(chatGenerationService.start(request));
+    }
+
+    @GetMapping(value = "/conversations/{id}/runs/{runId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> streamRun(@PathVariable Long id, @PathVariable String runId,
+            @RequestParam(defaultValue = "0") long after) {
+        UserEntity user = currentUser();
+        return chatGenerationService.stream(runId, user.getId(), id, Math.max(0, after));
+    }
+
+    @GetMapping("/conversations/{id}/runs/{runId}")
+    public ApiResponse<ChatGenerationService.RunSnapshot> runStatus(@PathVariable Long id,
+            @PathVariable String runId) {
+        return ApiResponse.ok(chatGenerationService.snapshot(runId, currentUser().getId(), id));
+    }
+
+    @PostMapping("/conversations/{id}/runs/{runId}/cancel")
+    public ApiResponse<Void> cancelRun(@PathVariable Long id, @PathVariable String runId) {
+        chatGenerationService.cancel(runId, currentUser().getId(), id);
+        return ApiResponse.ok(null);
     }
 
     @DeleteMapping("/conversations/{id}")
@@ -327,6 +383,15 @@ public class ChatController {
             }
         }
         return result;
+    }
+
+    private UserEntity currentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof UserEntity user)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.UNAUTHORIZED, "登录状态已失效");
+        }
+        return user;
     }
 
     private List<String> parseLegacyReferences(Object value) {

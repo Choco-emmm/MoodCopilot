@@ -170,6 +170,11 @@ public class ChatService {
         chatTitleService.requestGeneration(conversationId, user.getId(), firstMessage);
     }
 
+    /** 校验异步聊天任务创建时的会话归属，避免任务先创建后才异步失败。 */
+    public void validateConversationOwnership(Long conversationId, UserEntity user) {
+        requireOwnedConversation(conversationId, user);
+    }
+
     public void deleteConversation(Long conversationId) {
         UserEntity user = currentUser();
         ChatConversationEntity conv = conversationMapper.selectById(conversationId);
