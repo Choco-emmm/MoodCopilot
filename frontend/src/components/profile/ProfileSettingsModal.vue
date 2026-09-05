@@ -79,9 +79,13 @@
         <p v-if="signatureMsg" class="settings-hint">{{ signatureMsg }}</p>
       </SettingSection>
 
-      <SettingSection title="AI 个性" tag="AI">
-        <div class="persona-panel">
-          <p class="settings-desc">自定义 MoodCopilot 的互动方式。它只影响表达风格，不会改变数据权限或模型选择。</p>
+      <SettingSection title="自定义 MoodCopilot 全局个性" tag="AI">
+        <button type="button" class="persona-toggle" :aria-expanded="personaExpanded" @click="personaExpanded = !personaExpanded">
+          <span>调整 MoodCopilot 的身份、语气和回答方式</span>
+          <span aria-hidden="true">{{ personaExpanded ? '收起' : '展开' }}</span>
+        </button>
+        <div v-if="personaExpanded" class="persona-panel">
+          <p class="settings-desc">这项设置会影响 MoodCopilot 各项 AI 功能的表达方式，包括聊天、日记分析、事件回顾和报告等。</p>
           <label class="persona-label" for="persona-role">互动身份</label>
           <select id="persona-role" v-model="persona.role" class="persona-select">
             <option v-for="option in personaRoleOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
@@ -473,6 +477,7 @@ const personaBehaviorOptions = [
 const persona = ref({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' })
 const savingPersona = ref(false)
 const previewingPersona = ref(false)
+const personaExpanded = ref(false)
 const personaMsg = ref('')
 const personaError = ref(false)
 const personaSampleMessage = ref('帮我比较 PostgreSQL 和 MySQL')
@@ -1084,6 +1089,27 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 10px;
 }
+.persona-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.persona-toggle:hover,
+.persona-toggle:focus-visible {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
 .persona-label {
   color: var(--color-text-secondary);
   font-size: 12px;
@@ -1407,6 +1433,9 @@ onBeforeUnmount(() => {
 <style>
 /* Override naive-ui modal default white background */
 .settings-modal.n-card {
+  width: min(760px, calc(100vw - 32px)) !important;
+  max-width: calc(100vw - 32px) !important;
+  max-height: calc(100vh - 32px) !important;
   background: var(--color-surface) !important;
   border: 1px solid color-mix(in oklab, var(--color-border) 40%, transparent) !important;
   border-radius: 12px !important;

@@ -21,6 +21,7 @@
       @add-event="$emit('add-event-ref', $event)"
       @retry-events="$emit('load-recent-events')"
       @open-events="$emit('load-recent-events')"
+      @open-persona="$emit('open-persona')"
     />
     <div class="chat-input-row">
       <n-input
@@ -84,6 +85,7 @@ defineEmits<{
   (e: 'load-recent-diaries'): void
   (e: 'load-recent-events'): void
   (e: 'focus'): void
+  (e: 'open-persona'): void
 }>()
 </script>
 

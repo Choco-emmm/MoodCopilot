@@ -58,12 +58,12 @@
           <n-button size="small" type="primary" :disabled="creatingConversation" @click="createConversation">新建</n-button>
         </div>
 
-        <div class="chat-persona-toolbar">
-          <button type="button" class="chat-persona-trigger" @click="personaOpen = !personaOpen">
-            本会话风格 <span aria-hidden="true">{{ personaOpen ? '收起' : '调整' }}</span>
-          </button>
-          <div v-if="personaOpen" class="chat-persona-panel">
+        <Teleport to="body">
+          <div v-if="personaOpen" class="chat-persona-modal" @click.self="personaOpen = false">
+            <section class="chat-persona-panel" role="dialog" aria-modal="true" aria-labelledby="chat-persona-title">
+              <button type="button" class="chat-persona-close" aria-label="关闭本会话风格设置" @click="personaOpen = false">×</button>
             <div class="chat-persona-heading">
+              <strong id="chat-persona-title">本会话风格</strong>
               <strong>{{ activeConvId ? '只影响这一场对话' : '新对话风格' }}</strong>
               <span>{{ activeConvId
                 ? (conversationPersonaUsesGlobal ? '当前正在使用全局设置' : '当前会话正在使用独立设置')
@@ -100,8 +100,9 @@
               <button type="button" class="chat-persona-reset" :disabled="personaSaving" @click="resetConversationPersona">恢复全局设置</button>
             </div>
             <p v-if="personaMessage" class="chat-persona-message">{{ personaMessage }}</p>
+            </section>
           </div>
-        </div>
+        </Teleport>
 
         <div class="chat-messages" ref="msgBox">
           <div v-if="messages.length === 0" class="chat-empty">
@@ -232,6 +233,7 @@
             @load-recent-diaries="loadRecentDiaryOptions"
             @load-recent-events="loadRecentEventOptions"
             @focus="handleDraftFocus"
+            @open-persona="openPersonaPanel"
           />
         </div>
       </div>
@@ -301,6 +303,16 @@ const conversationPersonaUsesGlobal = ref(true)
 const defaultPersona = () => ({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' })
 const conversationPersona = ref(defaultPersona())
 const globalPersonaSnapshot = ref(defaultPersona())
+
+function openPersonaPanel() {
+  personaMessage.value = ''
+  personaOpen.value = true
+  if (personaLoading.value) return
+  const id = activeConvId.value
+  const token = ++personaLoadToken
+  if (id) void loadConversationPersona(id, token)
+  else void loadGlobalPersona(token)
+}
 
 const currentTask = computed(() => resolveTaskHint(draft.value))
 const currentTaskLabel = computed(() => currentTask.value?.label || '')
@@ -504,12 +516,6 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   letter-spacing: .06em;
 }
 
-.chat-persona-toolbar {
-  position: relative;
-  display: flex;
-  justify-content: flex-end;
-  padding: 0 20px 8px;
-}
 .chat-task-context {
   display: flex;
   align-items: baseline;
@@ -534,27 +540,21 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.chat-persona-trigger {
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  padding: 6px 11px;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.chat-persona-trigger:hover,
-.chat-persona-trigger:focus-visible {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+.chat-persona-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--color-backdrop);
 }
 .chat-persona-panel {
-  position: absolute;
-  z-index: 8;
-  top: 34px;
-  right: 20px;
-  width: min(360px, calc(100vw - 40px));
+  position: relative;
+  width: min(440px, 100%);
+  max-height: min(760px, calc(100vh - 32px));
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -564,12 +564,33 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   background: var(--color-surface);
   box-shadow: var(--shadow-lg);
 }
+.chat-persona-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.chat-persona-close:hover,
+.chat-persona-close:focus-visible {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
 .chat-persona-heading {
   display: flex;
   flex-direction: column;
   gap: 3px;
   color: var(--color-text);
   font-size: 13px;
+  padding-right: 32px;
 }
 .chat-persona-heading span {
   color: var(--color-text-muted);
@@ -658,6 +679,27 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   margin: 0;
   color: var(--color-success);
   font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .chat-persona-modal {
+    align-items: center;
+    padding: 8px;
+  }
+
+  .chat-persona-panel {
+    max-height: calc(100vh - 16px);
+    border-radius: 10px 10px 8px 8px;
+  }
+
+  .chat-persona-actions {
+    flex-wrap: wrap;
+  }
+
+  .chat-persona-save,
+  .chat-persona-reset {
+    flex: 1 1 150px;
+  }
 }
 
 @keyframes bounce-subtle {

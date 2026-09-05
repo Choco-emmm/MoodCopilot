@@ -66,6 +66,15 @@
         </template>
       </div>
     </div>
+
+    <button
+      type="button"
+      class="ref-persona-btn"
+      aria-label="调整本会话风格"
+      @click="$emit('open-persona')"
+    >
+      本会话风格
+    </button>
   </div>
 </template>
 
@@ -90,6 +99,7 @@ defineEmits<{
   'add-event': [eventId: string]
   'retry-events': []
   'open-events': []
+  'open-persona': []
 }>()
 
 const showDiaryPopover = ref(false)
@@ -105,6 +115,25 @@ function closePopovers() {
 .ref-popover-wrapper {
   position: relative;
   display: inline-block;
+}
+
+.ref-persona-btn {
+  margin-left: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ref-persona-btn:hover,
+.ref-persona-btn:focus-visible {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .ref-popover-overlay {
