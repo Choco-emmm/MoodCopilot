@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -72,7 +73,7 @@ class MemoryOrchestratorTest {
 
         orchestrator.processExtractedMemories(7L,
                 List.of(new MemoryExtractionService.MemoryAttribute("社交偏好", "偏好安静交流", false,
-                        "preference", "inferred", .99, "用户可能更喜欢安静交流", null, null)),
+                        "preference", "inferred", .99, "最近更喜欢安静交流", null, null)),
                 "chat_candidate", null, 22L, "用户提到最近更喜欢安静交流", null);
 
         verify(candidateMapper).insert(any(UserMemoryCandidateEntity.class));
@@ -80,7 +81,32 @@ class MemoryOrchestratorTest {
     }
 
     @Test
-    void explicitEvidenceMustBeGroundedInUserText() {
+    void validEvidenceExcerptIsStoredInsteadOfTheWholeDiary() {
+        UserProfileMemoryMapper memoryMapper = mock(UserProfileMemoryMapper.class);
+        UserMemoryCandidateMapper candidateMapper = mock(UserMemoryCandidateMapper.class);
+        UserMemoryEvidenceMapper evidenceMapper = mock(UserMemoryEvidenceMapper.class);
+        UserMemoryRejectionMapper rejectionMapper = mock(UserMemoryRejectionMapper.class);
+        when(rejectionMapper.selectCount(any())).thenReturn(0L);
+        when(candidateMapper.selectList(any())).thenReturn(List.of());
+        when(evidenceMapper.selectCount(any())).thenReturn(0L);
+        when(evidenceMapper.selectList(any())).thenReturn(List.of());
+        when(memoryMapper.selectList(any())).thenReturn(List.of());
+        MemoryOrchestrator orchestrator = new MemoryOrchestrator(memoryMapper, candidateMapper, evidenceMapper,
+                rejectionMapper, mock(RagMemoryService.class), new ObjectMapper());
+
+        String diary = "今天有点累。最近更喜欢安静交流。还想吃苹果、香蕉、葡萄。";
+        orchestrator.processExtractedMemories(7L,
+                List.of(new MemoryExtractionService.MemoryAttribute("社交偏好", "偏好安静交流", false,
+                        "preference", "inferred", .99, "最近更喜欢安静交流", null, null)),
+                "diary_inferred", 2020L, null, diary, null);
+
+        var evidenceCaptor = forClass(UserMemoryEvidenceEntity.class);
+        verify(evidenceMapper).insert(evidenceCaptor.capture());
+        assertEquals("最近更喜欢安静交流", evidenceCaptor.getValue().getEvidenceText());
+    }
+
+    @Test
+    void unmatchedEvidenceDoesNotCreateCandidate() {
         UserProfileMemoryMapper memoryMapper = mock(UserProfileMemoryMapper.class);
         UserMemoryCandidateMapper candidateMapper = mock(UserMemoryCandidateMapper.class);
         UserMemoryEvidenceMapper evidenceMapper = mock(UserMemoryEvidenceMapper.class);
@@ -98,12 +124,12 @@ class MemoryOrchestratorTest {
                         "preference", "explicit", .99, "用户偏好独处", null, null)),
                 "chat_candidate", null, 22L, "用户没有明确表达这个结论", null);
 
-        verify(candidateMapper).insert(any(UserMemoryCandidateEntity.class));
+        verify(candidateMapper, never()).insert(any(UserMemoryCandidateEntity.class));
         verify(memoryMapper, never()).insert(any(UserProfileMemoryEntity.class));
     }
 
     @Test
-    void fabricatedExplicitExcerptCannotBecomeFormalAfterEvidenceFallback() {
+    void fabricatedExcerptDoesNotFallbackToTheWholeDiary() {
         UserProfileMemoryMapper memoryMapper = mock(UserProfileMemoryMapper.class);
         UserMemoryCandidateMapper candidateMapper = mock(UserMemoryCandidateMapper.class);
         UserMemoryEvidenceMapper evidenceMapper = mock(UserMemoryEvidenceMapper.class);
@@ -121,7 +147,7 @@ class MemoryOrchestratorTest {
                         "preference", "explicit", .99, "模型编造的证据", null, null)),
                 "diary_inferred", 12L, null, "我喜欢安静的地方", null);
 
-        verify(candidateMapper).insert(any(UserMemoryCandidateEntity.class));
+        verify(candidateMapper, never()).insert(any(UserMemoryCandidateEntity.class));
         verify(memoryMapper, never()).insert(any(UserProfileMemoryEntity.class));
     }
 
@@ -228,8 +254,8 @@ class MemoryOrchestratorTest {
 
         orchestrator.processExtractedMemories(1006L,
                 List.of(new MemoryExtractionService.MemoryAttribute("兴趣意向", "对qg工作室表现出强烈向往，希望加入其中",
-                        false, "preference", "inferred", .93, "用户表达希望加入QG工作室", null, null)),
-                "diary_inferred", 2015L, null, "我爱吃面包", null);
+                        false, "preference", "inferred", .93, "对qg工作室表现出强烈向往，希望加入其中", null, null)),
+                "diary_inferred", 2015L, null, "对qg工作室表现出强烈向往，希望加入其中", null);
 
         assertEquals("MERGED", pending.getStatus());
         assertEquals(1L, pending.getMergedIntoId());

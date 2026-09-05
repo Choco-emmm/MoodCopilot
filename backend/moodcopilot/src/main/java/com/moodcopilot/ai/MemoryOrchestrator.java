@@ -134,6 +134,12 @@ public class MemoryOrchestrator {
             boolean evidenceGrounded = isEvidenceGrounded(safeSource, modelEvidence, defaultEvidence);
             String evidence = modelEvidence;
             evidence = groundEvidence(safeSource, evidence, defaultEvidence);
+            if (("diary_inferred".equals(safeSource) || "chat_candidate".equals(safeSource))
+                    && (!evidenceGrounded || evidence.isBlank())) {
+                log.info("跳过证据无法定位到用户原文的记忆，userId={}，attributeKey={}，sourceType={}",
+                        userId, key, safeSource);
+                continue;
+            }
             String actualSource = "explicit".equals(safeSource)
                     || ("explicit".equals(assertion) && evidenceGrounded
                     && verifiedExplicitEvidence(safeSource, modelEvidence, defaultEvidence))
@@ -172,7 +178,7 @@ public class MemoryOrchestrator {
                 candidate = new UserMemoryCandidateEntity();
                 candidate.setUserId(userId);
                 candidate.setAttributeKey(key);
-                candidate.setNormalizedValue(normalize(value));
+                candidate.setNormalizedValue(MemoryCandidateMergePolicy.normalizeValue(value));
                 candidate.setAttributeValue(value);
                 candidate.setMemoryType(type);
                 candidate.setSourceType(safeSource);
@@ -935,7 +941,7 @@ public class MemoryOrchestrator {
                 .last("FOR UPDATE"));
         UserMemoryCandidateEntity approved = candidates.stream()
                 .filter(candidate -> APPROVED.equals(candidate.getStatus())
-                        && normalize(value).equals(candidate.getNormalizedValue()))
+                        && candidateValuesCompatible(candidate.getAttributeValue(), value))
                 .findFirst().orElse(null);
         if (approved != null) {
             candidates.stream()
@@ -1047,17 +1053,17 @@ public class MemoryOrchestrator {
 
     /**
      * 模型只能提供证据摘录，不能把自己的摘要或推理当作用户原话落库。
-     * 无法在用户输入中定位的摘录退回到完整用户输入，保证来源仍可审计。
+     * 无法在用户输入中定位的摘录直接失效，不得退回整篇用户输入。
      */
     private String groundEvidence(String source, String evidence, String sourceText) {
-        String grounded = clean(sourceText, 2000);
-        if (evidence.isBlank()) return grounded;
-        if (!("diary_inferred".equals(source) || "chat_candidate".equals(source))) return evidence;
-        if (grounded.isBlank()) return "";
+        if (!("diary_inferred".equals(source) || "chat_candidate".equals(source))) {
+            return evidence == null || evidence.isBlank() ? clean(sourceText, 2000) : evidence;
+        }
+        if (evidence == null || evidence.isBlank()) return "";
         String normalizedEvidence = normalize(evidence);
         String normalizedSource = normalize(sourceText);
-        return normalizedSource.contains(normalizedEvidence) || normalizedEvidence.contains(normalizedSource)
-                ? evidence : grounded;
+        return !normalizedEvidence.isBlank() && normalizedSource.contains(normalizedEvidence)
+                ? evidence : "";
     }
 
     private boolean isEvidenceGrounded(String source, String evidence, String sourceText) {
@@ -1065,8 +1071,7 @@ public class MemoryOrchestrator {
         if (!("diary_inferred".equals(source) || "chat_candidate".equals(source))) return true;
         String normalizedEvidence = normalize(evidence);
         String normalizedSource = normalize(sourceText);
-        return !normalizedEvidence.isBlank()
-                && (normalizedSource.contains(normalizedEvidence) || normalizedEvidence.contains(normalizedSource));
+        return !normalizedEvidence.isBlank() && normalizedSource.contains(normalizedEvidence);
     }
 
     private boolean containsExplicitUserMarker(String source) {

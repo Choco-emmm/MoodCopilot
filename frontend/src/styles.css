@@ -4780,6 +4780,12 @@ h3 {
   letter-spacing: 0.02em;
 }
 
+/* Persona 预览使用真实 Markdown 节点，不沿用旧纯文本预览的换行规则。 */
+.persona-preview-result.md-content {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 /* 段落间距 */
 .md-content p {
   margin-bottom: 0.8em;

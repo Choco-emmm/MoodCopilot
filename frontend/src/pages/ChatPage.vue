@@ -58,29 +58,27 @@
           <n-button size="small" type="primary" :disabled="creatingConversation" @click="createConversation">新建</n-button>
         </div>
 
-        <div v-if="activeConvId" class="chat-persona-toolbar">
+        <div class="chat-persona-toolbar">
           <button type="button" class="chat-persona-trigger" @click="personaOpen = !personaOpen">
             本会话风格 <span aria-hidden="true">{{ personaOpen ? '收起' : '调整' }}</span>
           </button>
           <div v-if="personaOpen" class="chat-persona-panel">
             <div class="chat-persona-heading">
-              <strong>只影响这一场对话</strong>
-              <span>{{ conversationPersonaUsesGlobal ? '当前正在使用全局设置' : '当前会话正在使用独立设置' }}；不会改变权限、记忆或模型选择</span>
+              <strong>{{ activeConvId ? '只影响这一场对话' : '新对话风格' }}</strong>
+              <span>{{ activeConvId
+                ? (conversationPersonaUsesGlobal ? '当前正在使用全局设置' : '当前会话正在使用独立设置')
+                : '当前正在使用全局设置，应用后会保存为本会话设置' }}</span>
             </div>
             <label class="chat-persona-label" for="chat-persona-role">互动身份</label>
             <select id="chat-persona-role" v-model="conversationPersona.role" class="chat-persona-select">
               <option v-for="option in personaRoleOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
-            <span class="chat-persona-label">语气</span>
+            <span class="chat-persona-label">预设语气</span>
             <div class="chat-persona-options">
               <button v-for="option in personaToneOptions" :key="option.value" type="button"
                 :class="['chat-persona-option', { active: conversationPersona.tone.includes(option.value) }]"
                 @click="toggleConversationTone(option.value)">{{ option.label }}</button>
             </div>
-            <label class="chat-persona-label" for="chat-persona-response-style">自定义回答方式</label>
-            <textarea id="chat-persona-response-style" v-model="conversationPersona.customResponseStyle" class="chat-persona-input chat-persona-textarea"
-              maxlength="800" placeholder="例如：先给结论，再说明关键原因；代码放在解释之后"></textarea>
-            <span class="chat-persona-help">只影响回答组织方式，不改变权限、记忆或模型选择。</span>
             <label class="chat-persona-label" for="chat-persona-custom-tone">自定义语气</label>
             <input id="chat-persona-custom-tone" v-model="conversationPersona.customTone" class="chat-persona-input"
               maxlength="160" placeholder="例如：冷静务实，像可靠的前辈" />
@@ -91,6 +89,10 @@
                 :class="['chat-persona-option', { active: conversationPersona.behaviorFlags.includes(option.value) }]"
                 @click="toggleConversationBehavior(option.value)">{{ option.label }}</button>
             </div>
+            <label class="chat-persona-label" for="chat-persona-response-style">自定义回答方式</label>
+            <textarea id="chat-persona-response-style" v-model="conversationPersona.customResponseStyle" class="chat-persona-input chat-persona-textarea"
+              maxlength="800" placeholder="例如：按“事实、判断、建议”分开说明，并明确标注不确定信息"></textarea>
+            <span class="chat-persona-help">只影响回答组织方式。</span>
             <div class="chat-persona-actions">
               <button type="button" class="chat-persona-save" :disabled="personaSaving" @click="saveConversationPersona">
                 {{ personaSaving ? '保存中' : '应用到本会话' }}
@@ -254,6 +256,7 @@ const {
   authStore, userInitial,
   conversations, activeConvId, creatingConversation,
   createConversation, selectConversation, deleteConversation,
+  ensureConversation,
   handleMobileConversationChange, deleteActiveConversation,
   messages,
   draft, streaming, streamingText, isThinking, isCompressing, compressingMessage, useReasoning, streamingRefs,
@@ -293,6 +296,7 @@ const personaBehaviorOptions = [
 const personaOpen = ref(false)
 const personaSaving = ref(false)
 const personaMessage = ref('')
+const personaLoading = ref(false)
 const conversationPersonaUsesGlobal = ref(true)
 const defaultPersona = () => ({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' })
 const conversationPersona = ref(defaultPersona())
@@ -316,42 +320,89 @@ function resolveTaskHint(message: string) {
   return { label: '通用对话', hint: '会直接完成你的请求' }
 }
 
+let personaLoadToken = 0
+
 watch(activeConvId, (id) => {
+  if (personaSaving.value) return
   personaOpen.value = false
   personaMessage.value = ''
-  if (id) void loadConversationPersona(id)
+  const token = ++personaLoadToken
+  if (id) void loadConversationPersona(id, token)
+  else void loadGlobalPersona(token)
 }, { immediate: true })
 
-async function loadConversationPersona(id: number) {
+function unwrapPersonaPayload(payload: any) {
+  return payload && Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload
+}
+
+function applyGlobalPersona(global: any) {
+  const fallback = defaultPersona()
+  globalPersonaSnapshot.value = {
+    role: global?.role || fallback.role,
+    tone: Array.isArray(global?.tone) && global.tone.length ? global.tone : fallback.tone,
+    behaviorFlags: Array.isArray(global?.behaviorFlags) ? global.behaviorFlags : fallback.behaviorFlags,
+    disabledBehaviorFlags: Array.isArray(global?.disabledBehaviorFlags) ? global.disabledBehaviorFlags : [],
+    customTone: global?.customTone || '',
+    customResponseStyle: global?.customResponseStyle || '',
+  }
+}
+
+function copyPersona(persona: ReturnType<typeof defaultPersona>) {
+  return {
+    role: persona.role,
+    tone: [...persona.tone],
+    behaviorFlags: [...persona.behaviorFlags],
+    disabledBehaviorFlags: [...persona.disabledBehaviorFlags],
+    customTone: persona.customTone,
+    customResponseStyle: persona.customResponseStyle,
+  }
+}
+
+async function loadGlobalPersona(token = ++personaLoadToken) {
+  personaLoading.value = true
+  try {
+    const global = unwrapPersonaPayload((await authApi.getAiPersona()).data)
+    if (token !== personaLoadToken) return
+    applyGlobalPersona(global)
+    conversationPersonaUsesGlobal.value = true
+    conversationPersona.value = copyPersona(globalPersonaSnapshot.value)
+  } catch {
+    if (token !== personaLoadToken) return
+    applyGlobalPersona(null)
+    conversationPersonaUsesGlobal.value = true
+    conversationPersona.value = defaultPersona()
+    personaMessage.value = '全局设置暂时无法加载，当前显示默认设置'
+  } finally {
+    if (token === personaLoadToken) personaLoading.value = false
+  }
+}
+
+async function loadConversationPersona(id: number, token = ++personaLoadToken) {
+  personaLoading.value = true
   try {
     const [overrideResponse, globalResponse] = await Promise.all([chatApi.getPersona(id), authApi.getAiPersona()])
-    const overridePayload = overrideResponse.data
-    const globalPayload = globalResponse.data
-    const override = overridePayload && Object.prototype.hasOwnProperty.call(overridePayload, 'data')
-      ? overridePayload.data : overridePayload
-    const global = globalPayload && Object.prototype.hasOwnProperty.call(globalPayload, 'data')
-      ? globalPayload.data : globalPayload
+    if (token !== personaLoadToken) return
+    const override = unwrapPersonaPayload(overrideResponse.data)
+    const global = unwrapPersonaPayload(globalResponse.data)
+    applyGlobalPersona(global)
+    const fallback = defaultPersona()
     const data = override || global
     conversationPersonaUsesGlobal.value = !override
-    globalPersonaSnapshot.value = {
-      role: global?.role || defaultPersona().role,
-      tone: Array.isArray(global?.tone) && global.tone.length ? global.tone : defaultPersona().tone,
-      behaviorFlags: Array.isArray(global?.behaviorFlags) ? global.behaviorFlags : defaultPersona().behaviorFlags,
-      disabledBehaviorFlags: Array.isArray(global?.disabledBehaviorFlags) ? global.disabledBehaviorFlags : [],
-      customTone: global?.customTone || '',
-      customResponseStyle: global?.customResponseStyle || '',
-    }
     conversationPersona.value = {
-      role: data?.role || defaultPersona().role,
-      tone: Array.isArray(data?.tone) && data.tone.length ? data.tone : defaultPersona().tone,
-      behaviorFlags: Array.isArray(data?.behaviorFlags) ? data.behaviorFlags : defaultPersona().behaviorFlags,
+      role: data?.role || fallback.role,
+      tone: Array.isArray(data?.tone) && data.tone.length ? data.tone : fallback.tone,
+      behaviorFlags: Array.isArray(data?.behaviorFlags) ? data.behaviorFlags : fallback.behaviorFlags,
       disabledBehaviorFlags: Array.isArray(data?.disabledBehaviorFlags) ? data.disabledBehaviorFlags : [],
       customTone: data?.customTone || '',
       customResponseStyle: data?.customResponseStyle || '',
     }
   } catch {
+    if (token !== personaLoadToken) return
     conversationPersonaUsesGlobal.value = true
-    conversationPersona.value = defaultPersona()
+    conversationPersona.value = copyPersona(globalPersonaSnapshot.value)
+    personaMessage.value = '会话设置暂时无法加载'
+  } finally {
+    if (token === personaLoadToken) personaLoading.value = false
   }
 }
 
@@ -368,11 +419,16 @@ function toggleConversationBehavior(value: string) {
 }
 
 async function saveConversationPersona() {
-  if (!activeConvId.value || personaSaving.value) return
+  if (personaSaving.value) return
   personaSaving.value = true
   personaMessage.value = ''
   try {
-    await chatApi.updatePersona(activeConvId.value, {
+    const conversationId = await ensureConversation()
+    if (!conversationId) {
+      personaMessage.value = '创建会话失败，请稍后重试'
+      return
+    }
+    await chatApi.updatePersona(conversationId, {
       ...conversationPersona.value,
       customTone: conversationPersona.value.customTone.trim(),
       customResponseStyle: conversationPersona.value.customResponseStyle.trim(),
@@ -381,6 +437,7 @@ async function saveConversationPersona() {
         ...globalPersonaSnapshot.value.behaviorFlags.filter(flag => !conversationPersona.value.behaviorFlags.includes(flag)),
       ])],
     })
+    await loadConversationPersona(conversationId)
     conversationPersonaUsesGlobal.value = false
     personaMessage.value = '本会话风格已应用'
   } catch (error: any) {
@@ -391,7 +448,13 @@ async function saveConversationPersona() {
 }
 
 async function resetConversationPersona() {
-  if (!activeConvId.value || personaSaving.value) return
+  if (personaSaving.value) return
+  if (!activeConvId.value) {
+    conversationPersonaUsesGlobal.value = true
+    conversationPersona.value = copyPersona(globalPersonaSnapshot.value)
+    personaMessage.value = '新对话当前使用全局设置'
+    return
+  }
   personaSaving.value = true
   try {
     await chatApi.resetPersona(activeConvId.value)

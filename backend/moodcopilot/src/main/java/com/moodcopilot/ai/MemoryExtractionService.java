@@ -62,6 +62,7 @@ public class MemoryExtractionService {
             }
 
             assertionType 只能是 explicit、inferred 或 negated。用户在日记/消息中明确说出的事实用 explicit；根据文字归纳出的模式用 inferred；明确否定旧事实用 negated。memoryType 只能是 preference、relationship、habit、event、short_term_state、pattern。confidence 仅供服务端评分，不能用来绕过证据门槛。
+            evidence 必须是能够支持当前属性的、来自用户正文或用户主动选择歌词的短连续原文片段，必须逐字摘录，不得写总结、推理、整篇日记或无关句子。无法找到准确原文片段时不要输出该属性。
 
             【isCore 判断规则 —— 极其重要！】
             请根据特征的底层程度判断 isCore（布尔值 true/false）：
@@ -374,7 +375,7 @@ public class MemoryExtractionService {
         String normalizedEvidence = normalizeForEvidence(evidence);
         String normalizedSource = normalizeForEvidence(source);
         return !normalizedEvidence.isBlank() && !normalizedSource.isBlank()
-                && (normalizedSource.contains(normalizedEvidence) || normalizedEvidence.contains(normalizedSource));
+                && normalizedSource.contains(normalizedEvidence);
     }
 
     private static String normalizeForEvidence(String value) {

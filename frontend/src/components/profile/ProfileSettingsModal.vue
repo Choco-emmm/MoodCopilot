@@ -106,8 +106,8 @@
           </div>
           <label class="persona-label" for="persona-response-style">自定义回答方式</label>
           <n-input id="persona-response-style" v-model:value="persona.customResponseStyle" type="textarea" :maxlength="800"
-            placeholder="例如：先给结论，再说明关键原因；代码放在解释之后" />
-          <p class="settings-desc">只影响回答组织方式，不改变权限、记忆或模型选择。</p>
+            placeholder="例如：按“事实、判断、建议”分开说明，并明确标注不确定信息" />
+          <p class="settings-desc">只影响回答组织方式。</p>
           <div class="persona-actions">
             <n-button type="primary" secondary :loading="savingPersona" @click="savePersona">保存 AI 个性</n-button>
             <n-button :disabled="savingPersona" @click="resetPersona">恢复默认</n-button>
@@ -125,7 +125,7 @@
                   <option value="1">深度思考</option>
                 </select>
               </div>
-            <p v-if="personaPreview" class="persona-preview-result">{{ personaPreview }}</p>
+            <div v-if="personaPreview" class="persona-preview-result md-content" v-html="personaPreviewHtml"></div>
             <p class="settings-desc">预览不会读取或写入你的日记、记忆、事件和聊天记录。</p>
           </div>
         </div>
@@ -370,6 +370,7 @@ import SettingSection from '../SettingSection.vue'
 import { authApi, suggestionApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
 import { logWarn } from '../../utils/logger'
+import { renderSafeMarkdown } from '../../utils/markdown'
 import { themeOptions, type ThemeOption } from '../../constants/theme'
 
 const props = defineProps<{
@@ -477,6 +478,7 @@ const personaError = ref(false)
 const personaSampleMessage = ref('帮我比较 PostgreSQL 和 MySQL')
 const personaPreview = ref('')
 const personaPreviewModel = ref<'0' | '1'>('0')
+const personaPreviewHtml = computed(() => renderSafeMarkdown(personaPreview.value))
 
 const showCropModal = ref(false)
 const cropImageSrc = ref('')

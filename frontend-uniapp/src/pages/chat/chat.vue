@@ -167,7 +167,7 @@
         <view class="persona-sheet-header">
           <view>
             <text class="persona-sheet-title">本次对话风格</text>
-            <text class="persona-sheet-hint">{{ conversationPersonaUsesGlobal ? '当前正在使用全局设置' : '当前会话正在使用独立设置' }}，不改变权限、记忆或模型选择</text>
+            <text class="persona-sheet-hint">{{ conversationPersonaUsesGlobal ? '当前正在使用全局设置' : '当前会话正在使用独立设置' }}</text>
           </view>
           <text class="sheet-close" @click="showPersonaPanel = false">×</text>
         </view>
@@ -201,8 +201,8 @@
             </label>
           </checkbox-group>
           <text class="persona-field-label">自定义回答方式</text>
-          <textarea v-model="conversationPersona.customResponseStyle" class="persona-textarea" maxlength="800" placeholder="例如：先给结论，再说明关键原因；代码放在解释之后" />
-          <text class="persona-field-help">只影响回答组织方式，不改变权限、记忆或模型选择。</text>
+          <textarea v-model="conversationPersona.customResponseStyle" class="persona-textarea" maxlength="800" placeholder="例如：按“事实、判断、建议”分开说明，并明确标注不确定信息" />
+          <text class="persona-field-help">只影响回答组织方式。</text>
 
           <view class="persona-actions">
             <button class="persona-save" :disabled="personaSaving" @click="saveConversationPersona">

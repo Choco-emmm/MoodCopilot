@@ -41,8 +41,8 @@
           </label>
         </checkbox-group>
         <text class="field-label">自定义回答方式</text>
-        <textarea v-model="persona.customResponseStyle" class="persona-textarea" maxlength="800" placeholder="例如：先给结论，再说明关键原因；代码放在解释之后" />
-        <text class="persona-field-help">只影响回答组织方式，不改变权限、记忆或模型选择。</text>
+        <textarea v-model="persona.customResponseStyle" class="persona-textarea" maxlength="800" placeholder="例如：按“事实、判断、建议”分开说明，并明确标注不确定信息" />
+        <text class="persona-field-help">只影响回答组织方式。</text>
         <view class="persona-actions">
           <button class="persona-save" :disabled="savingPersona" @click="savePersona">{{ savingPersona ? '保存中...' : '保存 AI 个性' }}</button>
           <button class="persona-reset" :disabled="savingPersona" @click="restoreDefaultPersona">恢复默认</button>

@@ -249,13 +249,7 @@ export function useChat() {
   async function handleSend() {
     const eventId = pendingEventId.value
     await stream.send(conv.creatingConversation.value, async () => {
-      conv.creatingConversation.value = true
-      try {
-        await conv.doCreateConversationOnServer()
-      } catch (e) {
-        logWarn('chat', '创建会话请求失败', e)
-      }
-      conv.creatingConversation.value = false
+      await conv.ensureConversation()
     }, eventId)
     pendingEventId.value = undefined
   }
@@ -377,6 +371,7 @@ export function useChat() {
     activeConvId: conv.activeConvId,
     creatingConversation: conv.creatingConversation,
     createConversation: conv.createConversation,
+    ensureConversation: conv.ensureConversation,
     selectConversation: conv.selectConversation,
     deleteConversation: conv.deleteConversation,
     handleMobileConversationChange,

@@ -41,6 +41,7 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
   const activeConvId = ref<number | null>(null)
   const messages = ref<Message[]>([])
   const creatingConversation = ref(false)
+  let ensureConversationPromise: Promise<number | null> | null = null
 
   // ── Load / Select ──
 
@@ -101,6 +102,27 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
     conversations.value.unshift(conv)
     activeConvId.value = conv.id
     sessionStorage.setItem('currentChatId', String(conv.id))
+  }
+
+  async function ensureConversation(): Promise<number | null> {
+    if (activeConvId.value) return activeConvId.value
+    if (ensureConversationPromise) return ensureConversationPromise
+
+    ensureConversationPromise = (async () => {
+      creatingConversation.value = true
+      try {
+        await doCreateConversationOnServer()
+        return activeConvId.value
+      } catch (e) {
+        logWarn('chat', '创建会话请求失败', e)
+        return null
+      } finally {
+        creatingConversation.value = false
+        ensureConversationPromise = null
+      }
+    })()
+
+    return ensureConversationPromise
   }
 
   async function deleteConversation(id: number) {
@@ -177,7 +199,7 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
   return {
     conversations, activeConvId, messages, creatingConversation,
     loadConversations, selectConversation, createConversation,
-    doCreateConversationOnServer, deleteConversation,
+    doCreateConversationOnServer, ensureConversation, deleteConversation,
     saveToBackend, loadFromBackend, waitForConversationTitle,
   }
 }

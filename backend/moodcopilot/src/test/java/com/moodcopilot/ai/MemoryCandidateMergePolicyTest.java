@@ -7,11 +7,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MemoryCandidateMergePolicyTest {
     @Test
-    void mergesSupportiveSameKeyExpressions() {
+    void mergesOnlyTheSameNormalizedValue() {
+        assertTrue(MemoryCandidateMergePolicy.compatible("喜欢咖啡", "喜欢咖啡"));
+        assertTrue(MemoryCandidateMergePolicy.compatible("喜欢  咖啡", "喜欢咖啡"));
+    }
+
+    @Test
+    void doesNotMergeSemanticallySimilarButDifferentValues() {
         assertTrue(MemoryCandidateMergePolicy.compatible(
-                "对QG工作室有强烈向往，多次表达希望加入，并以此鞭策自己努力",
-                "对QG工作室表现出强烈向往，希望加入其中"));
-        assertTrue(MemoryCandidateMergePolicy.compatible("喜欢咖啡", "喜欢喝咖啡"));
+                "对QG工作室表现出强烈向往，希望加入其中",
+                "对qg工作室表现出强烈向往，希望加入其中"));
+        assertFalse(MemoryCandidateMergePolicy.compatible("喜欢咖啡", "喜欢喝咖啡"));
+        assertFalse(MemoryCandidateMergePolicy.compatible(
+                "决定坚持进入QG工作室", "过去向往QG但现在因竞争激烈而动摇"));
     }
 
     @Test
