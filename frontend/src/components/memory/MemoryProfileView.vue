@@ -34,7 +34,7 @@
             <n-tag v-if="isSafetyState(candidate)" size="small" type="warning">近期状态</n-tag>
           </div>
           <span class="candidate-value">{{ candidate.attributeValue }}</span>
-          <small>{{ isSafetyState(candidate) ? '这是需要关注的近期状态，不属于核心长期画像。' : '确认后，这条内容才会进入正式画像。' }}</small>
+          <small>{{ isSafetyState(candidate) ? '这是近期状态，不属于核心长期画像。' : '确认后，这条内容才会进入正式画像。' }}</small>
           <span class="candidate-evidence-count">已有 {{ candidate.evidenceCount || 0 }} 条依据</span>
         </div>
         <div class="candidate-actions">
@@ -469,6 +469,7 @@ function startEditMemory(m: MemoryItem) {
 }
 
 function isSafetyState(item: any) {
+  if (String(item?.memoryType || '').toLowerCase() === 'short_term_state') return true
   const text = `${item?.attributeKey || ''} ${item?.attributeValue || ''}`
   return /自杀|自残|轻生|想死|不想活|结束生命|伤害自己|割腕|跳楼|心理危机|危机干预/.test(text)
 }

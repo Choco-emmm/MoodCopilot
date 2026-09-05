@@ -33,6 +33,15 @@ class MemorySafetyPolicyTest {
     }
 
     @Test
+    void recentStatesAreShortTermButStableFactsRemainTheirRequestedType() {
+        assertTrue(MemorySafetyPolicy.isTemporalState("近期投入状态", "连续多日高强度投入，暂时没有精力娱乐"));
+        assertEquals("short_term_state",
+                MemorySafetyPolicy.normalizeType("pattern", "近期投入状态", "连续多日高强度投入，暂时没有精力娱乐"));
+        assertEquals("habit",
+                MemorySafetyPolicy.normalizeType("habit", "学习习惯", "长期坚持每天学习"));
+    }
+
+    @Test
     void calendarLikeEventTimeDoesNotBecomeLongTermMemory() {
         assertTrue(MemorySafetyPolicy.isTransientScheduleFact("event", "期末考试时间", "2026-09-06 至 2026-09-12"));
         assertTrue(MemorySafetyPolicy.isTransientScheduleFact("event", "课程开始日期", "2026年9月6日"));

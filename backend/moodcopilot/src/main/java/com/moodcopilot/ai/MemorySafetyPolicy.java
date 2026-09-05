@@ -3,7 +3,7 @@ package com.moodcopilot.ai;
 import java.util.Locale;
 import java.util.Set;
 
-/** Prevents transient safety signals from becoming permanent core profile facts. */
+/** Prevents transient states from becoming permanent core profile facts. */
 public final class MemorySafetyPolicy {
     private static final Set<String> SUPPORTED_MEMORY_TYPES = Set.of(
             "preference", "relationship", "habit", "event", "short_term_state", "pattern");
@@ -21,6 +21,10 @@ public final class MemorySafetyPolicy {
     private static final String[] TRANSIENT_SCHEDULE_TERMS = {
             "时间", "日期", "开始", "结束", "截止", "安排", "预约", "考试", "课程", "上课", "会议", "面试",
             "出发", "行程", "旅行", "活动", "报名", "开学", "放假"
+    };
+    private static final String[] TEMPORAL_STATE_TERMS = {
+            "最近", "近期", "近来", "当前", "目前", "这段时间", "这阵子", "这几天", "这周", "本周",
+            "这段时期", "阶段性", "暂时", "短期", "连续多日", "最近一段时间"
     };
 
     private MemorySafetyPolicy() {
@@ -50,8 +54,15 @@ public final class MemorySafetyPolicy {
         return false;
     }
 
+    /** A recent, explicitly time-bounded state is not a stable profile fact. */
+    public static boolean isTemporalState(String attributeKey, String attributeValue) {
+        String text = normalize(attributeKey) + " " + normalize(attributeValue);
+        return containsAny(text, TEMPORAL_STATE_TERMS);
+    }
+
     public static String normalizeType(String requestedType, String attributeKey, String attributeValue) {
-        return isSafetyState(attributeKey, attributeValue) ? "short_term_state" : requestedType;
+        return isSafetyState(attributeKey, attributeValue) || isTemporalState(attributeKey, attributeValue)
+                ? "short_term_state" : requestedType;
     }
 
     public static boolean allowCore(String memoryType, String attributeKey, String attributeValue) {

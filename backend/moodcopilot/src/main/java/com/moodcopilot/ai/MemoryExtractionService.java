@@ -78,8 +78,9 @@ public class MemoryExtractionService {
             5. 请复查你的输出：输出的属性总数必须 >= 原有属性数（除非发生了明确的推翻）。
 
             规则：
-            1. 只保留相对稳定、跨时间成立的特征，不要记录一次性的当天状态。
-            1.1 涉及自杀、自残、轻生、不想活、伤害自己或心理危机的内容，只能标记为 memoryType=short_term_state、isCore=false。它是需要关注的近期状态，不是诊断，也不是永久人格标签。
+            1. 只保留相对稳定、跨时间成立的特征；一次性的当天状态不要提取。
+            1.1 使用 memoryType=short_term_state、isCore=false 表示有明确时间范围的近期状态，例如近期投入程度、当前压力、这段时间的精力或生活节奏。它们仅用于近期关怀参考，不是永久人格标签。
+            1.2 涉及自杀、自残、轻生、不想活、伤害自己或心理危机的内容必须使用 memoryType=short_term_state、isCore=false；这不是诊断。
             2. 【重要】默认必须输出所有旧属性，保持 attributeKey 和 attributeValue 不变。只有当新日记提供了明确的新证据，才能修改该属性的 attributeValue。旧属性已有的 isCore 值应保留，除非新证据明确表明该特征的性质发生了变化。
             3. 【重要】要删除某个属性，必须将 attributeValue 设为精确字符串 "DELETE_MARKER"（不含引号）。仅在新证据明确推翻旧特征时才使用。
             4. 【重要】attributeKey 必须是简洁、用户可读的中文属性名称，必须包含中文字符。严禁新建英文、snake_case、数据库字段名或拼音内部键，例如 interest、baking_class_start、user_interest；如果无法形成准确的中文名称就不要提取。每条只描述一个具体维度，不要使用宽泛词如"性格""习惯"，应拆分为"社交偏好""情绪模式""运动习惯""工作风格"等。旧属性若由输入明确提供，必须原样保留其原始键。

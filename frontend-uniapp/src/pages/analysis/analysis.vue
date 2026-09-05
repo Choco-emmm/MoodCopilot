@@ -824,7 +824,8 @@ const handleCoreMemoryChange = (event: any) => {
   editMemoryForm.value.isCore = event.detail.value;
 };
 
-const isSafetyState = (item: any) => /自杀|自残|轻生|想死|不想活|结束生命|伤害自己|割腕|跳楼|心理危机|危机干预/.test(`${item?.attributeKey || ''} ${item?.attributeValue || ''}`);
+const isSafetyState = (item: any) => String(item?.memoryType || '').toLowerCase() === 'short_term_state'
+  || /自杀|自残|轻生|想死|不想活|结束生命|伤害自己|割腕|跳楼|心理危机|危机干预/.test(`${item?.attributeKey || ''} ${item?.attributeValue || ''}`);
 const memoryStatusLabel = (status: string) => ({ active: '当前有效', superseded: '历史版本', expired: '已过期', rejected: '已拒绝' } as Record<string, string>)[status] || '历史记录';
 
 const openEditMemory = (m: any) => {
