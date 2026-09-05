@@ -14,9 +14,11 @@
             <thead>
               <tr>
                 <th>身份 / 等级</th>
-                <th>AI 聊天 <span class="quota-unit">/天</span></th>
-                <th>AI 分析 <span class="quota-unit">/天</span></th>
-                <th>深度思考 <span class="quota-unit">/天</span></th>
+                <th>日记分析 Flash <span class="quota-unit">/天</span></th>
+                <th>日记分析 Pro <span class="quota-unit">/天</span></th>
+                <th>聊天 Flash <span class="quota-unit">/天</span></th>
+                <th>聊天 Pro <span class="quota-unit">/天</span></th>
+                <th>章节整理 <span class="quota-unit">/天</span></th>
                 <th>共鸣检索 <span class="quota-unit">/天</span></th>
                 <th>图片上传 <span class="quota-unit">/天</span></th>
                 <th>图片分析 <span class="quota-unit">/天</span></th>
@@ -26,9 +28,11 @@
             <tbody>
               <tr v-for="row in quotaTable" :key="row.label" :class="{ 'quota-row-active': row.isCurrent }">
                 <td :class="{ 'quota-row-active': row.isCurrent }">{{ row.label }}</td>
-                <td>{{ row.chat }}</td>
-                <td>{{ row.analysis }}</td>
-                <td>{{ row.reasoning }}</td>
+                <td>{{ row.diaryFlash }}</td>
+                <td>{{ row.diaryPro }}</td>
+                <td>{{ row.chatFlash }}</td>
+                <td>{{ row.chatPro }}</td>
+                <td>{{ row.chapter }}</td>
                 <td>{{ row.resonance }}</td>
                 <td>{{ row.imageUpload }}</td>
                 <td>{{ row.imageAnalysis }}</td>
@@ -38,13 +42,14 @@
           </table>
         </div>
         <div class="quota-rules-desc">
-          <div class="rule-item"><strong>💡 AI 分析：</strong>发布或修改日记时自动触发（含基础配图提炼）。</div>
+          <div class="rule-item"><strong>💡 日记分析：</strong>发布或修改日记时按你选择的 Flash 或 Pro 模型触发。</div>
           <div class="rule-item"><strong>💡 图片分析：</strong>聊天时向 AI 追问图片内的具体文字、细节（基础提炼未涵盖的内容）时才触发。</div>
-          <div class="rule-item"><strong>💡 深度思考：</strong>发送聊天或分析日记前可手动选择，适合复杂心理分析、建议或情绪梳理。</div>
+          <div class="rule-item"><strong>💡 聊天：</strong>普通聊天和 Pro 聊天分别计算，每日额度互不占用。</div>
+          <div class="rule-item"><strong>💡 章节整理：</strong>重新整理时光画卷中的章节，每天最多 2 次。</div>
           <div class="rule-item" style="opacity: 0.7"><strong>💡 共鸣检索：</strong>功能加紧开发中，敬请期待...</div>
         </div>
 
-        <p class="quota-modal-footer">AI 聊天 / 分析 / 思考 / 检索 / 传图 每日 0 点重置 · 报告每月 1 日重置</p>
+        <p class="quota-modal-footer">聊天、日记分析、章节整理、检索和传图每日 0 点重置 · 报告每月 1 日重置</p>
       </div>
     </div>
   </Teleport>
@@ -63,9 +68,13 @@ defineEmits<{
 }>()
 
 const LEVEL_LABELS = ['Lv.1', 'Lv.2', 'Lv.3', 'Lv.4', 'Lv.5', 'Lv.6']
-const QUOTA_DATA = [
-  { chat: 15,  analysis: 5,  reasoning: 2,  resonance: 0,  report: 0,  imageUpload: 3,  imageAnalysis: 2 },
-  { chat: 25,  analysis: 8,  reasoning: 4,  resonance: 3,  report: 2,  imageUpload: 5,  imageAnalysis: 3 },
+const QUOTA_DATA: Array<Record<string, number>> = [
+  { diaryFlash: 5, diaryPro: 1, chatFlash: 15, chatPro: 1, chapter: 2, resonance: 0, report: 0, imageUpload: 3, imageAnalysis: 2 },
+  { diaryFlash: 8, diaryPro: 2, chatFlash: 25, chatPro: 2, chapter: 2, resonance: 3, report: 2, imageUpload: 5, imageAnalysis: 3 },
+  { diaryFlash: 12, diaryPro: 3, chatFlash: 35, chatPro: 3, chapter: 2, resonance: 5, report: 4, imageUpload: 8, imageAnalysis: 5 },
+  { diaryFlash: 16, diaryPro: 4, chatFlash: 45, chatPro: 4, chapter: 2, resonance: 8, report: 7, imageUpload: 12, imageAnalysis: 8 },
+  { diaryFlash: 20, diaryPro: 5, chatFlash: 55, chatPro: 5, chapter: 2, resonance: 10, report: 11, imageUpload: 16, imageAnalysis: 12 },
+  { diaryFlash: 25, diaryPro: 6, chatFlash: 65, chatPro: 6, chapter: 2, resonance: 12, report: 16, imageUpload: 20, imageAnalysis: 15 },
   { chat: 35,  analysis: 12, reasoning: 6,  resonance: 5,  report: 4,  imageUpload: 8,  imageAnalysis: 5 },
   { chat: 45,  analysis: 16, reasoning: 8,  resonance: 8,  report: 7,  imageUpload: 12, imageAnalysis: 8 },
   { chat: 55,  analysis: 20, reasoning: 10, resonance: 10, report: 11, imageUpload: 16, imageAnalysis: 12 },
@@ -78,9 +87,11 @@ const quotaTable = computed(() => {
     const isCurrent = label === `Lv.${props.level}`
     return {
       label,
-      chat: d.chat > 900 ? '不限' : d.chat + '次',
-      analysis: d.analysis + '次',
-      reasoning: d.reasoning + '次',
+      diaryFlash: d.diaryFlash + '次',
+      diaryPro: d.diaryPro + '次',
+      chatFlash: d.chatFlash > 900 ? '不限' : d.chatFlash + '次',
+      chatPro: d.chatPro + '次',
+      chapter: d.chapter + '次',
       resonance: d.resonance === 0 ? '—' : d.resonance + '次',
       report: d.report === 0 ? '—' : d.report > 900 ? '不限' : d.report + '次',
       imageUpload: d.imageUpload + '次',

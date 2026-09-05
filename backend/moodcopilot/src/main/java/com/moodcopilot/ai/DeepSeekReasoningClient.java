@@ -6,8 +6,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
@@ -78,13 +80,16 @@ public class DeepSeekReasoningClient {
                     systemPrompt == null ? 0 : systemPrompt.length(),
                     userPrompt == null ? 0 : userPrompt.length());
 
-            String response = restClient.post()
+            ResponseEntity<String> responseEntity = restClient.post()
                     .uri("/chat/completions")
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("Authorization", "Bearer " + apiKey)
                     .body(request)
                     .retrieve()
-                    .body(String.class);
+                    .toEntity(String.class);
+
+            String response = responseEntity.getBody();
+            logResponseShape(responseEntity.getStatusCode().value(), response);
 
             if (response == null || response.isBlank()) {
                 throw new IllegalStateException("DeepSeek reasoning response is empty");
@@ -92,9 +97,43 @@ public class DeepSeekReasoningClient {
 
             AiCallTiming.completed(log, "CHAT", model, startedAt, "SUCCESS", inputLength, response.length());
             return extractContent(response);
+        } catch (RestClientResponseException e) {
+            log.warn("Pro模型HTTP请求失败，model={}，status={}，responseLength={}，errorType={}",
+                    model, e.getStatusCode().value(),
+                    e.getResponseBodyAsString().length(), e.getClass().getSimpleName());
+            AiCallTiming.failed(log, "CHAT", model, startedAt, e, inputLength);
+            throw new IllegalStateException("DeepSeek reasoning request failed", e);
         } catch (Exception e) {
             AiCallTiming.failed(log, "CHAT", model, startedAt, e, inputLength);
             throw new IllegalStateException("DeepSeek reasoning request failed", e);
+        }
+    }
+
+    /** Logs response structure only; never logs response content or prompt data. */
+    private void logResponseShape(int status, String response) {
+        if (response == null || response.isBlank()) {
+            log.warn("Pro模型响应为空，model={}，status={}，responseLength=0", model, status);
+            return;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(response);
+            JsonNode choices = root.path("choices");
+            int choiceCount = choices.isArray() ? choices.size() : 0;
+            JsonNode choice = choiceCount == 0 ? null : choices.get(0);
+            JsonNode message = choice == null ? null : choice.path("message");
+            String content = message == null ? null : message.path("content").asText(null);
+            String reasoning = message == null ? null : message.path("reasoning_content").asText(null);
+            String finishReason = choice == null ? null : choice.path("finish_reason").asText(null);
+            JsonNode error = root.path("error");
+            String errorType = error.isObject() ? error.path("type").asText(null) : null;
+            log.info("Pro模型响应结构，model={}，status={}，responseLength={}，choiceCount={}，contentLength={}，reasoningLength={}，finishReason={}，errorType={}",
+                    model, status, response.length(), choiceCount,
+                    content == null ? 0 : content.length(),
+                    reasoning == null ? 0 : reasoning.length(),
+                    finishReason, errorType);
+        } catch (Exception parseError) {
+            log.warn("Pro模型响应不是可解析JSON，model={}，status={}，responseLength={}，parseErrorType={}",
+                    model, status, response.length(), parseError.getClass().getSimpleName());
         }
     }
 

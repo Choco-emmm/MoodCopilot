@@ -69,6 +69,7 @@ export const lifeEventApi = {
   updateDiaries: (id: number, diaryIds: number[]) => api.put<ApiResponse<LifeEvent>>(`/life-events/${id}/diaries`, { diaryIds }),
   updateStatus: (id: number, status: 'PENDING' | 'FOLLOWED_UP', note?: string) =>
     api.put<ApiResponse<LifeEvent>>(`/life-events/${id}/status`, { status, note: note || '' }),
+  remove: (id: number) => api.delete<ApiResponse<void>>(`/life-events/${id}`),
 }
 
 export interface LifeDiaryOption {

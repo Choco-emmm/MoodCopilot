@@ -48,9 +48,9 @@ public class DiaryController {
         } else if (user != null) {
             try {
                 if (request.isUseReasoning()) {
-                    rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REASONING);
+                    rateLimitService.tryAcquire(user, RateLimitService.AiApiType.DIARY_PRO);
                 } else {
-                    rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
+                    rateLimitService.tryAcquire(user, RateLimitService.AiApiType.DIARY_FLASH);
                 }
                 diary = diary.withAnalysisStatus("analyzing");
                 diaryService.submitAiAnalysisTask(diary.id(), diary.authorUserId(), request.isUseReasoning());

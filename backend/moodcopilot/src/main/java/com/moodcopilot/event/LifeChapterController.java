@@ -2,6 +2,7 @@ package com.moodcopilot.event;
 
 import com.moodcopilot.common.ApiResponse;
 import com.moodcopilot.entity.UserEntity;
+import com.moodcopilot.security.RateLimitService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,9 +17,11 @@ import java.util.List;
 public class LifeChapterController {
 
     private final LifeChapterService lifeChapterService;
+    private final RateLimitService rateLimitService;
 
-    public LifeChapterController(LifeChapterService lifeChapterService) {
+    public LifeChapterController(LifeChapterService lifeChapterService, RateLimitService rateLimitService) {
         this.lifeChapterService = lifeChapterService;
+        this.rateLimitService = rateLimitService;
     }
 
     @GetMapping
@@ -47,6 +50,7 @@ public class LifeChapterController {
 
     @PostMapping("/{id}/refresh")
     public ApiResponse<Void> refresh(@AuthenticationPrincipal UserEntity user, @PathVariable Long id) {
+        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAPTER_CONSOLIDATION);
         lifeChapterService.requestRefresh(user.getId(), id);
         return ApiResponse.ok();
     }

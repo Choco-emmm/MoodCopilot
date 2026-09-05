@@ -232,9 +232,10 @@ public class UserGrowthService {
     }
 
     private String buildLevelUpMessage(int level, UserEntity user) {
-        int chatLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.CHAT, level, false);
-        int analysisLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.ANALYSIS, level, false);
-        int reasoningLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.REASONING, level, false);
+        int chatFlashLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.CHAT_FLASH, level, false);
+        int chatProLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.CHAT_PRO, level, false);
+        int diaryFlashLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.DIARY_FLASH, level, false);
+        int diaryProLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.DIARY_PRO, level, false);
         int resonanceLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.RESONANCE, level, false);
         int reportLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.REPORT, level, false);
         int imageUploadLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.IMAGE_UPLOAD, level, false);
@@ -242,9 +243,10 @@ public class UserGrowthService {
 
         StringBuilder sb = new StringBuilder();
         sb.append("🎉 恭喜升级！你已达到 **Lv.").append(level).append("**\n\n");
-        sb.append("- AI 聊天：**").append(chatLimit).append("** 次/天\n");
-        sb.append("- AI 分析：**").append(analysisLimit).append("** 次/天\n");
-        sb.append("- 深度思考：**").append(reasoningLimit).append("** 次/天\n");
+        sb.append("- 聊天 Flash：**").append(chatFlashLimit).append("** 次/天\n");
+        sb.append("- 聊天 Pro：**").append(chatProLimit).append("** 次/天\n");
+        sb.append("- 日记分析 Flash：**").append(diaryFlashLimit).append("** 次/天\n");
+        sb.append("- 日记分析 Pro：**").append(diaryProLimit).append("** 次/天\n");
         if (resonanceLimit > 0) {
             sb.append("- 共鸣检索：**").append(resonanceLimit).append("** 次/天\n");
         }

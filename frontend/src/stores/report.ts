@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { diaryApi } from '../api'
+import { beginAiOperation } from '../utils/aiOperationFeedback'
 
 export interface DailyMood {
   date: string
@@ -61,14 +62,18 @@ export const useReportStore = defineStore('report', () => {
   }
 
   async function generateWeeklyAiSummary(weekOffset = 0) {
+    const feedback = beginAiOperation('生成周报总结')
     generatingWeekly.value = true
     reportError.value = null
     try {
       const res = await diaryApi.generateWeeklyReport(weekOffset)
       weeklyReport.value = res.data.data
+      feedback.success('周报总结已生成')
     } catch (e: any) {
       reportError.value = formatReportError(e)
+      feedback.error(reportError.value)
     } finally {
+      feedback.destroy()
       generatingWeekly.value = false
     }
   }
@@ -88,14 +93,18 @@ export const useReportStore = defineStore('report', () => {
   }
 
   async function generateMonthlyAiSummary(monthOffset = 0) {
+    const feedback = beginAiOperation('生成月报总结')
     generatingMonthly.value = true
     monthError.value = null
     try {
       const res = await diaryApi.generateMonthlyReport(monthOffset)
       monthlyReport.value = res.data.data
+      feedback.success('月报总结已生成')
     } catch (e: any) {
       monthError.value = formatReportError(e)
+      feedback.error(monthError.value)
     } finally {
+      feedback.destroy()
       generatingMonthly.value = false
     }
   }

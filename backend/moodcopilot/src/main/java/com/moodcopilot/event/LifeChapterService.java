@@ -43,6 +43,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -93,6 +94,9 @@ public class LifeChapterService {
     private final int minEvidenceCount;
     private final double boundaryConfidenceThreshold;
     private final PromptComposer promptComposer;
+
+    @org.springframework.beans.factory.annotation.Value("${timeline.refresh-debounce-minutes:10}")
+    private int refreshDebounceMinutes = 10;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.moodcopilot.ai.ContextMetadataRecorder contextMetadataRecorder;
@@ -222,12 +226,30 @@ public class LifeChapterService {
     public void onEventChanged(Long userId, Long eventId) {
         if (userId == null || eventId == null) return;
         UserLifeEventEntity event = lifeEventMapper.selectOne(new LambdaQueryWrapper<UserLifeEventEntity>()
-                .eq(UserLifeEventEntity::getId, eventId).eq(UserLifeEventEntity::getUserId, userId));
+                .eq(UserLifeEventEntity::getId, eventId).eq(UserLifeEventEntity::getUserId, userId)
+                .isNull(UserLifeEventEntity::getDeletedAt));
         if (event == null || event.getTargetDate() == null) return;
         List<Long> diaryIds = parseIds(event.getDiaryIdsJson());
         if (openDynamicChapter(userId) == null && diaryIds.isEmpty()) return;
         aiTaskProducer.submitTimelineRecomputeTask(userId, event.getTargetDate(),
                 "event:" + eventId + ":" + String.valueOf(event.getUpdatedAt()));
+    }
+
+    /** 删除事件后立即让包含它的章节向量失效，并异步重建动态章节摘要。 */
+    public void onEventDeleted(Long userId, Long eventId) {
+        if (userId == null || eventId == null) return;
+        List<LifeChapterEventEntity> sources = chapterEventMapper.selectList(new LambdaQueryWrapper<LifeChapterEventEntity>()
+                .eq(LifeChapterEventEntity::getEventId, eventId));
+        for (LifeChapterEventEntity source : sources) {
+            UserLifeChapterEntity chapter = chapterMapper.selectById(source.getChapterId());
+            if (chapter == null || !userId.equals(chapter.getUserId())) continue;
+            chapterEventMapper.deleteById(source.getId());
+            if (ragMemoryService != null) ragMemoryService.deleteLifeChapter(userId, chapter.getId());
+            refreshDynamicMetadata(chapter);
+            if ("DYNAMIC".equals(chapter.getSegmentType())) markDynamicDirtyAndQueue(chapter);
+            else markDirtyAndQueue(chapter);
+        }
+        log.info("事件删除后已失效相关章节向量，userId={}，eventId={}，chapterCount={}", userId, eventId, sources.size());
     }
 
     private UserLifeChapterEntity openDynamicChapter(Long userId) {
@@ -274,7 +296,8 @@ public class LifeChapterService {
 
     private void attachEventsForDate(Long userId, UserLifeChapterEntity chapter, LocalDate date) {
         List<UserLifeEventEntity> events = lifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>()
-                .eq(UserLifeEventEntity::getUserId, userId).eq(UserLifeEventEntity::getTargetDate, date));
+                .eq(UserLifeEventEntity::getUserId, userId).eq(UserLifeEventEntity::getTargetDate, date)
+                .isNull(UserLifeEventEntity::getDeletedAt));
         for (UserLifeEventEntity event : events) {
             if (parseIds(event.getDiaryIdsJson()).isEmpty() && countEventSources(chapter.getId()) == 0
                     && countDiarySources(chapter.getId()) == 0) continue;
@@ -302,11 +325,11 @@ public class LifeChapterService {
         for (LifeChapterEventEntity source : chapterEventMapper.selectList(new LambdaQueryWrapper<LifeChapterEventEntity>()
                 .eq(LifeChapterEventEntity::getChapterId, chapter.getId()))) {
             UserLifeEventEntity event = lifeEventMapper.selectById(source.getEventId());
-            if (event != null && event.getTargetDate() != null) dates.add(event.getTargetDate().atStartOfDay());
+            if (event != null && event.getDeletedAt() == null && event.getTargetDate() != null) dates.add(event.getTargetDate().atStartOfDay());
         }
-        if (dates.isEmpty()) return;
         LocalDateTime last = dates.stream().max(LocalDateTime::compareTo).orElse(null);
-        chapter.setLastSourceAt(last); chapter.setEndDate(chapter.getIsOpen() ? null : last.toLocalDate());
+        chapter.setLastSourceAt(last);
+        chapter.setEndDate(Boolean.TRUE.equals(chapter.getIsOpen()) || last == null ? null : last.toLocalDate());
         int count = countDiarySources(chapter.getId()) + countEventSources(chapter.getId());
         chapter.setDiaryCount(countDiarySources(chapter.getId()));
         if (count < minEvidenceCount) chapter.setGenerationStatus("COLLECTING");
@@ -318,12 +341,52 @@ public class LifeChapterService {
         int sources = countDiarySources(chapter.getId()) + countEventSources(chapter.getId());
         if (sources < minEvidenceCount) return;
         String snapshot = sourceSnapshotHash(chapter.getId());
-        if (snapshot.equals(chapter.getSourceSnapshotHash()) && "SUCCEEDED".equals(chapter.getGenerationStatus())) return;
-        LocalDateTime now = LocalDateTime.now(); chapter.setSourceSnapshotHash(snapshot);
-        chapter.setGenerationStatus("DIRTY"); if (chapter.getDirtySince() == null) chapter.setDirtySince(now);
+        String status = chapter.getGenerationStatus();
+        if (snapshot.equals(chapter.getSourceSnapshotHash())
+                && ("SUCCEEDED".equals(status) || "DIRTY".equals(status) || "GENERATING".equals(status))) return;
+        LocalDateTime now = LocalDateTime.now();
+        chapter.setSourceSnapshotHash(snapshot);
+        chapter.setGenerationStatus("DIRTY");
+        // Every new source restarts the quiet window. The scheduler below submits
+        // one refresh task only after the source set has stopped changing.
+        chapter.setDirtySince(now);
         chapter.setUpdatedAt(now); chapterMapper.updateById(chapter);
-        aiTaskProducer.submitLifeChapterRefreshTask(chapter.getId(), chapter.getUserId(), snapshot);
-        log.info("动态时间线阶段已标记更新，chapterId={}，sourceCount={}，snapshot={}", chapter.getId(), sources, snapshot);
+        log.info("动态时间线阶段已标记待整理，chapterId={}，sourceCount={}，debounceMinutes={}，snapshot={}",
+                chapter.getId(), sources, refreshDebounceMinutes, snapshot);
+    }
+
+    /** Submit one coalesced refresh after the dynamic chapter has been quiet. */
+    @Scheduled(fixedDelayString = "${timeline.refresh-dispatch-interval-ms:60000}")
+    public void dispatchDueDynamicChapterRefreshes() {
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(Math.max(1, refreshDebounceMinutes));
+        List<UserLifeChapterEntity> due = chapterMapper.selectList(new LambdaQueryWrapper<UserLifeChapterEntity>()
+                .eq(UserLifeChapterEntity::getSegmentType, "DYNAMIC")
+                .eq(UserLifeChapterEntity::getGenerationStatus, "DIRTY")
+                .le(UserLifeChapterEntity::getDirtySince, cutoff)
+                .isNotNull(UserLifeChapterEntity::getSourceSnapshotHash));
+        for (UserLifeChapterEntity chapter : due) {
+            String snapshot = chapter.getSourceSnapshotHash();
+            int claimed = chapterMapper.update(null, new LambdaUpdateWrapper<UserLifeChapterEntity>()
+                    .eq(UserLifeChapterEntity::getId, chapter.getId())
+                    .eq(UserLifeChapterEntity::getGenerationStatus, "DIRTY")
+                    .eq(UserLifeChapterEntity::getSourceSnapshotHash, snapshot)
+                    .set(UserLifeChapterEntity::getGenerationStatus, "READY")
+                    .set(UserLifeChapterEntity::getUpdatedAt, LocalDateTime.now()));
+            if (claimed != 1) continue;
+            try {
+                aiTaskProducer.submitLifeChapterRefreshTask(chapter.getId(), chapter.getUserId(), snapshot);
+                log.info("动态时间线阶段整理任务已提交，chapterId={}，snapshot={}", chapter.getId(), snapshot);
+            } catch (RuntimeException e) {
+                chapterMapper.update(null, new LambdaUpdateWrapper<UserLifeChapterEntity>()
+                        .eq(UserLifeChapterEntity::getId, chapter.getId())
+                        .eq(UserLifeChapterEntity::getGenerationStatus, "READY")
+                        .eq(UserLifeChapterEntity::getSourceSnapshotHash, snapshot)
+                        .set(UserLifeChapterEntity::getGenerationStatus, "DIRTY")
+                        .set(UserLifeChapterEntity::getUpdatedAt, LocalDateTime.now()));
+                log.warn("动态时间线阶段整理任务投递失败，chapterId={}，snapshot={}，reason={}",
+                        chapter.getId(), snapshot, e.getMessage());
+            }
+        }
     }
 
     private void createBoundaryCandidateIfMissing(Long userId, UserLifeChapterEntity left, LocalDate start,
@@ -353,12 +416,14 @@ public class LifeChapterService {
 
     private List<Long> eventIdsForDate(Long userId, LocalDate date) {
         return lifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>().eq(UserLifeEventEntity::getUserId, userId)
-                        .eq(UserLifeEventEntity::getTargetDate, date)).stream().map(UserLifeEventEntity::getId).toList();
+                        .eq(UserLifeEventEntity::getTargetDate, date).isNull(UserLifeEventEntity::getDeletedAt))
+                .stream().map(UserLifeEventEntity::getId).toList();
     }
 
     private boolean hasTransitionEvent(Long userId, LocalDate date) {
         return lifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>().eq(UserLifeEventEntity::getUserId, userId)
-                        .eq(UserLifeEventEntity::getTargetDate, date)).stream().map(UserLifeEventEntity::getTitle)
+                        .eq(UserLifeEventEntity::getTargetDate, date).isNull(UserLifeEventEntity::getDeletedAt))
+                .stream().map(UserLifeEventEntity::getTitle)
                 .filter(java.util.Objects::nonNull).anyMatch(title -> title.matches(".*(离职|搬家|毕业|分手|开始新关系|入职|转学|结婚|退休).*"));
     }
 
@@ -384,6 +449,7 @@ public class LifeChapterService {
         for (DiaryEntity diary : diaries) insertDiarySourceIfMissing(chapter.getId(), diary.getId());
         List<UserLifeEventEntity> events = lifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>()
                 .eq(UserLifeEventEntity::getUserId, chapter.getUserId()).le(UserLifeEventEntity::getTargetDate, end)
+                .isNull(UserLifeEventEntity::getDeletedAt)
                 .and(w -> w.ge(UserLifeEventEntity::getEndDate, start).or().isNull(UserLifeEventEntity::getEndDate)));
         for (UserLifeEventEntity event : events) {
             LocalDate eventEnd = event.getEndDate() == null ? event.getTargetDate() : event.getEndDate();
@@ -509,9 +575,16 @@ public class LifeChapterService {
             }
             transactionTemplate.executeWithoutResult(status ->
                     commitVersion(userId, chapterId, snapshot, title, summary, reflection, moods, diaryIds, eventIds));
-            if (ragMemoryService != null) {
+            UserLifeChapterEntity committed = chapterMapper.selectOne(new LambdaQueryWrapper<UserLifeChapterEntity>()
+                    .eq(UserLifeChapterEntity::getId, chapterId)
+                    .eq(UserLifeChapterEntity::getUserId, userId)
+                    .eq(UserLifeChapterEntity::getSourceSnapshotHash, snapshot)
+                    .eq(UserLifeChapterEntity::getGenerationStatus, "SUCCEEDED"));
+            if (committed != null && ragMemoryService != null) {
                 ragMemoryService.indexLifeChapter(userId, chapterId,
                         title + "\n" + summary + "\n" + reflection, snapshot);
+            } else {
+                log.info("跳过过期章节摘要向量化，chapterId={}，snapshot={}", chapterId, snapshot);
             }
         } catch (Exception e) {
             if (e instanceof RuntimeException runtime) throw runtime;
@@ -701,7 +774,7 @@ public class LifeChapterService {
                 .eq(LifeChapterEventEntity::getChapterId, left.getId()));
         for (LifeChapterEventEntity source : events) {
             UserLifeEventEntity event = lifeEventMapper.selectById(source.getEventId());
-            if (event != null && event.getTargetDate() != null && !event.getTargetDate().isBefore(boundary)) {
+            if (event != null && event.getDeletedAt() == null && event.getTargetDate() != null && !event.getTargetDate().isBefore(boundary)) {
                 chapterEventMapper.deleteById(source.getId()); insertEventSourceIfMissing(right.getId(), source.getEventId());
                 recordSourceMove(userId, "EVENT", source.getEventId(), left.getId(), right.getId(), "用户接受时间线边界");
             }
@@ -722,7 +795,7 @@ public class LifeChapterService {
             DiaryEntity diary = diaryMapper.selectById(source.getDiaryId()); if (diary != null && diary.getCreatedAt() != null) dates.add(diary.getCreatedAt());
         }
         for (LifeChapterEventEntity source : chapterEventMapper.selectList(new LambdaQueryWrapper<LifeChapterEventEntity>().eq(LifeChapterEventEntity::getChapterId, chapterId))) {
-            UserLifeEventEntity event = lifeEventMapper.selectById(source.getEventId()); if (event != null && event.getTargetDate() != null) dates.add(event.getTargetDate().atStartOfDay());
+            UserLifeEventEntity event = lifeEventMapper.selectById(source.getEventId()); if (event != null && event.getDeletedAt() == null && event.getTargetDate() != null) dates.add(event.getTargetDate().atStartOfDay());
         }
         return dates.stream().max(LocalDateTime::compareTo).orElse(null);
     }
@@ -776,7 +849,8 @@ public class LifeChapterService {
         List<Long> ids = chapterEventMapper.selectList(new LambdaQueryWrapper<LifeChapterEventEntity>()
                 .eq(LifeChapterEventEntity::getChapterId, chapterId)).stream().map(LifeChapterEventEntity::getEventId).toList();
         if (ids.isEmpty()) return List.of();
-        return lifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>().in(UserLifeEventEntity::getId, ids)).stream()
+        return lifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>().in(UserLifeEventEntity::getId, ids)
+                        .isNull(UserLifeEventEntity::getDeletedAt)).stream()
                 .map(e -> new ChapterEventSource(e.getId(), e.getTitle(), e.getTargetDate() == null ? "" : e.getTargetDate().toString(), e.getEndDate() == null ? "" : e.getEndDate().toString())).toList();
     }
 
@@ -791,7 +865,8 @@ public class LifeChapterService {
                 .append("：").append(analyses.containsKey(diary.getId()) ? excerpt(analyses.get(diary.getId()).getSummary(), 180) : excerpt(diary.getContent(), 180)).append("\n");
         if (!eventIds.isEmpty()) {
             prompt.append("重要事件：\n");
-            lifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>().in(UserLifeEventEntity::getId, eventIds))
+            lifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>().in(UserLifeEventEntity::getId, eventIds)
+                            .isNull(UserLifeEventEntity::getDeletedAt))
                     .forEach(event -> prompt.append("- ").append(event.getTargetDate()).append("：")
                             .append(excerpt(event.getTitle(), 128)).append(" ").append(excerpt(event.getDescription(), 180)).append("\n"));
         }
@@ -835,7 +910,9 @@ public class LifeChapterService {
         for (LifeChapterEventEntity source : chapterEventMapper.selectList(new LambdaQueryWrapper<LifeChapterEventEntity>()
                 .eq(LifeChapterEventEntity::getChapterId, chapterId).orderByAsc(LifeChapterEventEntity::getEventId))) {
             UserLifeEventEntity event = lifeEventMapper.selectById(source.getEventId());
-            parts.add("e:" + source.getEventId() + ":" + valueOr(event == null ? null : String.valueOf(event.getUpdatedAt()), ""));
+            if (event != null && event.getDeletedAt() == null) {
+                parts.add("e:" + source.getEventId() + ":" + valueOr(String.valueOf(event.getUpdatedAt()), ""));
+            }
         }
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(String.join("|", parts).getBytes(StandardCharsets.UTF_8))); }
         catch (Exception e) { throw new IllegalStateException("无法生成章节来源快照", e); }

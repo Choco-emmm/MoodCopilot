@@ -42,6 +42,14 @@ spring:
         prefetch: ${RABBITMQ_PREFETCH:5}
         retry:
           enabled: false
+  # AI 任务监听并发。保持现有队列拓扑不变，仅增加同一队列的消费者数量。
+  rabbitmq-task:
+    analysis-concurrency: ${RABBITMQ_ANALYSIS_CONCURRENCY:1}
+    analysis-max-concurrency: ${RABBITMQ_ANALYSIS_MAX_CONCURRENCY:2}
+    heavy-concurrency: ${RABBITMQ_HEAVY_CONCURRENCY:2}
+    heavy-max-concurrency: ${RABBITMQ_HEAVY_MAX_CONCURRENCY:4}
+    light-concurrency: ${RABBITMQ_LIGHT_CONCURRENCY:2}
+    light-max-concurrency: ${RABBITMQ_LIGHT_MAX_CONCURRENCY:8}
   #数据库的连接信息
   datasource:
     #    url: jdbc:mysql://localhost:3306/dems

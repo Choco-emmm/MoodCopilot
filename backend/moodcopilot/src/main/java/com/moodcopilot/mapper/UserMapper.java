@@ -20,9 +20,9 @@ public interface UserMapper extends BaseMapper<UserEntity> {
             "AND u.daily_notify_enabled = 1")
     List<Long> findActiveUsersWithDiariesYesterday();
 
-    @Select("SELECT DISTINCT e.user_id FROM user_life_events e " +
+            @Select("SELECT DISTINCT e.user_id FROM user_life_events e " +
             "JOIN users u ON e.user_id = u.id " +
-            "WHERE e.status = 'PENDING' AND e.follow_up_completed = 0 " +
+            "WHERE e.deleted_at IS NULL AND e.status = 'PENDING' AND e.follow_up_completed = 0 " +
             "AND e.next_follow_up_at IS NOT NULL AND e.next_follow_up_at <= #{now} " +
             "AND u.daily_notify_enabled = 1")
     List<Long> findUsersWithDueLifeEvents(@org.apache.ibatis.annotations.Param("now") java.time.LocalDateTime now);

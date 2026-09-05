@@ -79,7 +79,7 @@
         <p v-if="signatureMsg" class="settings-hint">{{ signatureMsg }}</p>
       </SettingSection>
 
-      <SettingSection title="自定义 MoodCopilot 全局个性" tag="AI">
+      <SettingSection title="自定义 MoodCopilot 全局个性" tag="Persona">
         <button type="button" class="persona-toggle" :aria-expanded="personaExpanded" @click="personaExpanded = !personaExpanded">
           <span>调整 MoodCopilot 的身份、语气和回答方式</span>
           <span aria-hidden="true">{{ personaExpanded ? '收起' : '展开' }}</span>
@@ -480,7 +480,7 @@ const previewingPersona = ref(false)
 const personaExpanded = ref(false)
 const personaMsg = ref('')
 const personaError = ref(false)
-const personaSampleMessage = ref('帮我比较 PostgreSQL 和 MySQL')
+const personaSampleMessage = ref('帮我规划一个轻松的周末安排')
 const personaPreview = ref('')
 const personaPreviewModel = ref<'0' | '1'>('0')
 const personaPreviewHtml = computed(() => renderSafeMarkdown(personaPreview.value))

@@ -360,6 +360,12 @@ public class MemoryExtractionService {
                                 attribute.attributeKey(), evidence.length());
                     }
                     if (!grounded) return false;
+                    if (MemorySafetyPolicy.isTransientScheduleFact(attribute.memoryType(),
+                            attribute.attributeKey(), attribute.attributeValue())) {
+                        log.info("跳过短期日程记忆信号，交由重要事件流程处理，attributeKey={}，sourceType={}",
+                                attribute.attributeKey(), sourceType);
+                        return false;
+                    }
                     if (MemorySafetyPolicy.isTechnicalKnowledgeClaim(attribute.attributeKey(), attribute.attributeValue())
                             && !MemorySafetyPolicy.hasExplicitTechnicalBackground(attribute.evidence())) {
                         log.info("跳过未经用户明确声明的技术背景记忆，attributeKey={}，sourceType={}",

@@ -111,6 +111,13 @@ export function useChatStream(
       lastReplyError.value = '会话已切换，请在当前会话重新发送。'
       return
     }
+    // The first failed attempt is represented by a temporary assistant error
+    // message. Remove it before retrying so the new answer remains directly
+    // attached to the original user message and its quote/reference card.
+    const lastMessage = messages.value[messages.value.length - 1]
+    if (lastMessage?.role === 'ai' && lastReplyError.value && lastMessage.content === lastReplyError.value) {
+      messages.value.pop()
+    }
     streaming.value = true
     streamingText.value = ''
     isThinking.value = true
@@ -343,8 +350,9 @@ export function useChatStream(
   // ── Error Message ──
 
   function chatErrorMessage(status?: number, bizMessage?: string, requestedUseReasoning = false): string {
-    if (status === 429 && requestedUseReasoning) return '深度思考额度已用完，请改用普通对话或明日再试。'
-    if (status === 429) return '普通对话额度已用完，请明日再试。'
+    if (status === 429 && bizMessage) return bizMessage
+    if (status === 429 && requestedUseReasoning) return '聊天 Pro 额度已用完，请改用聊天 Flash 或明日再试。'
+    if (status === 429) return '聊天 Flash 额度已用完，请明日再试。'
     if (status === 503) return 'AI 服务暂时不可用，请稍后重试。'
     if (bizMessage) return `发送失败：${bizMessage}`
     return '消息发送失败，请检查网络后重试。'

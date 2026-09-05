@@ -144,7 +144,7 @@ public class DailyFollowUpScheduler {
                     continue;
                 }
                 try {
-                    rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.ANALYSIS);
+                    rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.DIARY_FLASH);
                 } catch (RateLimitException e) {
                     skipped++;
                     continue;

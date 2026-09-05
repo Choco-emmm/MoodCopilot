@@ -485,10 +485,10 @@ public class ChatService {
         // 用户显式选择模型：深度思考额度不足时直接抛出限流异常（429），不再静默降级
         boolean useReasoning;
         if (requestedUseReasoning) {
-            rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REASONING);
+            rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT_PRO);
             useReasoning = true;
         } else {
-            rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT);
+            rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT_FLASH);
             useReasoning = false;
         }
         userGrowthService.addExp(user.getId(), ExpAction.CHAT, null);
@@ -1323,9 +1323,11 @@ public class ChatService {
     }
 
     private String buildTimeMetadata() {
-        String currentTime = java.time.LocalDateTime.now(businessTimeZone)
-                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd EEEE"));
-        return "\n\n<system_metadata>\n【当前系统时间】: " + currentTime + "\n</system_metadata>\n\n";
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(businessTimeZone);
+        String currentTime = now.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss EEEE"));
+        return "\n\n<system_metadata>\n【当前系统时间】: " + currentTime
+                + "\n【业务时区】: " + businessTimeZone.getId()
+                + "\n</system_metadata>\n\n";
     }
 
     private ZoneId parseBusinessTimeZone(String value) {

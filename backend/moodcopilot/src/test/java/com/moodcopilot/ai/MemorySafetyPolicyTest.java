@@ -33,6 +33,14 @@ class MemorySafetyPolicyTest {
     }
 
     @Test
+    void calendarLikeEventTimeDoesNotBecomeLongTermMemory() {
+        assertTrue(MemorySafetyPolicy.isTransientScheduleFact("event", "期末考试时间", "2026-09-06 至 2026-09-12"));
+        assertTrue(MemorySafetyPolicy.isTransientScheduleFact("event", "课程开始日期", "2026年9月6日"));
+        assertFalse(MemorySafetyPolicy.isTransientScheduleFact("event", "重要人生事件", "毕业"));
+        assertFalse(MemorySafetyPolicy.isTransientScheduleFact("preference", "喜欢的课程时间", "2026-09-06"));
+    }
+
+    @Test
     void technicalSkillClaimRequiresExplicitFirstPersonEvidence() {
         assertTrue(MemorySafetyPolicy.isTechnicalKnowledgeClaim("技术能力", "熟悉 Java 后端开发"));
         assertFalse(MemorySafetyPolicy.hasExplicitTechnicalBackground("帮我解释一下 Java 的 Redis 连接池"));

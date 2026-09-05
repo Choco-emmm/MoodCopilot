@@ -203,8 +203,8 @@ public class PersonaService {
         UserPersonaEntity draft = normalize(input, user.getId());
         EffectivePersona effective = compiler.compile(draft, null);
         boolean reasoning = Boolean.TRUE.equals(request.useReasoning());
-        if (reasoning) rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REASONING);
-        else rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT);
+        if (reasoning) rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT_PRO);
+        else rateLimitService.tryAcquire(user, RateLimitService.AiApiType.CHAT_FLASH);
         if (contextMetadataRecorder != null) {
             contextMetadataRecorder.recordModelInvocation(user.getId(), null, ContextPurpose.CHAT,
                     effective, new TaskContext("GENERAL", "完成隔离的 Persona 预览请求", List.of(), null),

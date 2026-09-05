@@ -202,11 +202,6 @@
         </div>
 
         <div ref="chatInputArea">
-          <div v-if="currentTaskLabel" class="chat-task-context" aria-live="polite">
-            <span>当前任务</span>
-            <strong>{{ currentTaskLabel }}</strong>
-            <em>{{ currentTaskHint }}</em>
-          </div>
           <ChatInputBox
             v-model:draft="draft"
             :streaming="streaming"
@@ -312,24 +307,6 @@ function openPersonaPanel() {
   const token = ++personaLoadToken
   if (id) void loadConversationPersona(id, token)
   else void loadGlobalPersona(token)
-}
-
-const currentTask = computed(() => resolveTaskHint(draft.value))
-const currentTaskLabel = computed(() => currentTask.value?.label || '')
-const currentTaskHint = computed(() => currentTask.value?.hint || '')
-
-function resolveTaskHint(message: string) {
-  const text = (message || '').trim().toLowerCase()
-  if (!text) return null
-  if (/代码|编程|bug|报错|java|redis|sql|typescript|python|接口/.test(text) && !text.includes('歌词翻译')) {
-    return { label: '编程协作', hint: '会按技术问题的方式回答' }
-  }
-  if (/翻译|translate|译成/.test(text)) return { label: '翻译', hint: '会保留原意与表达重点' }
-  if (/写一篇|润色|改写|文案|作文|起草/.test(text)) return { label: '写作', hint: '会结合体裁与用途组织内容' }
-  if (/讲解|怎么学|学习|原理|为什么/.test(text)) return { label: '学习', hint: '会按需要展开概念和例子' }
-  if (/计划|规划|安排|路线|拆解/.test(text)) return { label: '规划', hint: '会帮你明确下一步' }
-  if (/难过|焦虑|压力|内耗|崩溃|陪我聊/.test(text)) return { label: '陪伴交流', hint: '会优先回应你当下的感受' }
-  return { label: '通用对话', hint: '会直接完成你的请求' }
 }
 
 let personaLoadToken = 0

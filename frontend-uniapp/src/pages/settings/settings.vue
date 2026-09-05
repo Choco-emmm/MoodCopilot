@@ -57,7 +57,7 @@
               <view class="persona-preview-mode"><text>{{ personaPreviewModeLabels[personaPreviewModeIndex] }}</text><text class="picker-arrow">›</text></view>
             </picker>
           </view>
-          <textarea v-model="personaPreviewMessage" class="persona-textarea persona-preview-input" maxlength="1000" placeholder="输入一句示例问题，例如：帮我审查这段代码" />
+          <textarea v-model="personaPreviewMessage" class="persona-textarea persona-preview-input" maxlength="1000" placeholder="输入一句示例问题，例如：帮我规划一个轻松的周末安排" />
           <button class="persona-preview-button" :disabled="previewingPersona || !personaPreviewMessage.trim()" @click="previewPersona">{{ previewingPersona ? '生成中...' : '预览回答方式' }}</button>
           <text v-if="personaPreviewResult" class="persona-preview-result">{{ personaPreviewResult }}</text>
           <text v-if="personaPreviewError" class="persona-preview-error">{{ personaPreviewError }}</text>
@@ -133,7 +133,7 @@ const personaRoleIndex = ref(0);
 const personaReady = ref(false);
 const savingPersona = ref(false);
 const personaMessage = ref('');
-const personaPreviewMessage = ref('帮我审查这段代码');
+const personaPreviewMessage = ref('帮我规划一个轻松的周末安排');
 const personaPreviewModeLabels = ['快速预览', '深度预览'];
 const personaPreviewModeIndex = ref(0);
 const previewingPersona = ref(false);

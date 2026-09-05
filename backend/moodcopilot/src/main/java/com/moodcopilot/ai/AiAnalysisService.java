@@ -360,6 +360,10 @@ public class AiAnalysisService {
             }
             String type = signal.memoryType() == null ? "" : signal.memoryType().toLowerCase(java.util.Locale.ROOT);
             if (!MemorySafetyPolicy.isSupportedType(type)) continue;
+            if (MemorySafetyPolicy.isTransientScheduleFact(type, signal.attributeKey(), signal.attributeValue())) {
+                log.info("跳过短期日程记忆信号，交由重要事件流程处理，attributeKey={}", signal.attributeKey());
+                continue;
+            }
             boolean core = Boolean.TRUE.equals(signal.isCore())
                     && MemorySafetyPolicy.allowCore(type, signal.attributeKey(), signal.attributeValue());
             valid.add(new MemorySignal(signal.attributeKey(), signal.attributeValue(), type, assertion,

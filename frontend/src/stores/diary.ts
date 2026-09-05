@@ -90,6 +90,14 @@ export const useDiaryStore = defineStore('diary', () => {
       : 'failed'
   }
 
+  function notifyAnalysisQuota(status: string | null | undefined) {
+    if (status === 'failed_limit') {
+      window.$message?.warning('日记分析 Pro 额度已用完，日记已保存，可改用 Flash 或明日再试。', { duration: 5000 })
+    } else if (status === 'skipped_quota') {
+      window.$message?.warning('日记分析 Flash 额度已用完，日记已保存，明日再试。', { duration: 5000 })
+    }
+  }
+
   // ── Helpers ──
 
   function mergeDiary(updated: Diary) {
@@ -162,6 +170,7 @@ export const useDiaryStore = defineStore('diary', () => {
 
       if (diary.analysisStatus === 'skipped_quota' || diary.analysisStatus === 'failed_limit') {
         setUiAnalysisStatus(diary.analysisStatus)
+        notifyAnalysisQuota(diary.analysisStatus)
         errorMessage.value = diary.analysisStatus === 'failed_limit'
           ? '深度思考额度已用完，日记已保存，可稍后重新获取分析'
           : '今日 AI 分析次数已用完，日记已保存'
@@ -203,6 +212,7 @@ export const useDiaryStore = defineStore('diary', () => {
 
       if (updated.analysisStatus === 'skipped_quota' || updated.analysisStatus === 'failed_limit') {
         setUiAnalysisStatus(updated.analysisStatus)
+        notifyAnalysisQuota(updated.analysisStatus)
         errorMessage.value = updated.analysisStatus === 'failed_limit'
           ? '深度思考额度已用完，日记修改已保存，可稍后重新获取分析'
           : '今日 AI 分析次数已用完，日记修改已保存'
@@ -264,6 +274,7 @@ export const useDiaryStore = defineStore('diary', () => {
               ? 'skipped_quota'
               : updated.analysisStatus === 'skipped_user' ? 'skipped_user' : 'failed'
           errorMessage.value = updated.analysisError || 'AI 分析没有完成，请选择模型后重试'
+          notifyAnalysisQuota(updated.analysisStatus)
           clearAnalysisPollTimer()
           return
         }

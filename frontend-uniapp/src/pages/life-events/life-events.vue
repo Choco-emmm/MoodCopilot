@@ -20,6 +20,7 @@
             <view class="event-chat" @click="chatAbout(event)">聊聊这件事</view>
             <view v-if="event.status === 'PENDING'" class="event-action" @click="markDone(event)">标记已跟进</view>
             <view v-else-if="event.status === 'FOLLOWED_UP'" class="event-action" @click="updateStatus(event, 'PENDING')">恢复待跟进</view>
+            <view class="event-action danger-action" @click="removeEvent(event)">删除</view>
           </view>
         </view>
       </view>
@@ -61,7 +62,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import GlobalUI from '@/components/GlobalUI.vue'
-import { get, post, put } from '@/utils/request'
+import { del, get, post, put } from '@/utils/request'
 import { hasLoginToken, requireLogin } from '@/stores/login'
 import { currentTheme } from '@/stores/theme'
 
@@ -137,6 +138,18 @@ function chatAbout(event: LifeEvent) { uni.setStorageSync('pendingLifeEventId', 
 async function updateStatus(event: LifeEvent, status: string) { const res = await put<LifeEvent>(`/api/life-events/${event.id}/status`, { status }); if (res.code === 200 && res.data) Object.assign(event, res.data); return res.code === 200 }
 async function markDone(event: LifeEvent) { if (!await updateStatus(event, 'FOLLOWED_UP')) return; undoEvent.value = event; if (undoTimer) clearTimeout(undoTimer); undoTimer = setTimeout(() => { undoEvent.value = null }, 5000) }
 async function undoFollowUp() { const event = undoEvent.value; if (!event) return; if (undoTimer) clearTimeout(undoTimer); if (await updateStatus(event, 'PENDING')) undoEvent.value = null }
+function removeEvent(event: LifeEvent) {
+  uni.showModal({
+    title: '删除重要事件',
+    content: '只会删除事件，不会删除关联日记。确定继续吗？',
+    confirmText: '删除',
+    success: async ({ confirm }) => {
+      if (!confirm) return
+      const res = await del<any>(`/api/life-events/${event.id}`)
+      if (res.code === 200) events.value = events.value.filter(item => item.id !== event.id)
+    },
+  })
+}
 </script>
 
 <style scoped>
@@ -148,6 +161,7 @@ async function undoFollowUp() { const event = undoEvent.value; if (!event) retur
 .date-main, .event-title { font-family: "Noto Serif SC", "Songti SC", "STSong", serif; }
 .event-title { font-size: 28rpx; }
 .event-actions { gap: 18rpx; }
+.danger-action { color: var(--theme-primary); }
 .undo-toast { box-shadow: var(--theme-shadow-dialog); }
 .modal-overlay { background: var(--theme-overlay); }
 .editor-sheet, .info-sheet { border-radius: var(--theme-radius-lg) var(--theme-radius-lg) 0 0; box-shadow: var(--theme-shadow-dialog); }

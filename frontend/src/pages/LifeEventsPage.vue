@@ -34,6 +34,7 @@
           <button class="text-button primary" type="button" @click="chatAbout(event)">聊聊这件事</button>
           <button v-if="event.status === 'PENDING'" class="text-button" type="button" @click="markDone(event)">标记已跟进</button>
           <button v-else-if="event.status === 'FOLLOWED_UP'" class="text-button" type="button" @click="restore(event)">恢复待跟进</button>
+          <button class="text-button danger" type="button" @click="removeEvent(event)">删除</button>
         </div>
       </article>
     </section>
@@ -191,6 +192,13 @@ async function updateStatus(event: LifeEvent, status: 'PENDING' | 'FOLLOWED_UP')
 async function markDone(event: LifeEvent) { if (!await updateStatus(event, 'FOLLOWED_UP')) return; undoEvent.value = event; if (undoTimer) clearTimeout(undoTimer); undoTimer = setTimeout(() => { undoEvent.value = null }, 5000) }
 async function undoFollowUp() { const event = undoEvent.value; if (!event) return; if (undoTimer) clearTimeout(undoTimer); if (await updateStatus(event, 'PENDING')) undoEvent.value = null }
 function restore(event: LifeEvent) { void updateStatus(event, 'PENDING') }
+async function removeEvent(event: LifeEvent) {
+  if (!window.confirm(`确定删除“${event.title}”吗？只会删除事件，不会删除关联日记。`)) return
+  try {
+    await lifeEventApi.remove(event.id)
+    events.value = events.value.filter(item => item.id !== event.id)
+  } catch { error.value = '事件删除失败，请稍后再试。' }
+}
 </script>
 
 <style scoped>
@@ -208,6 +216,7 @@ function restore(event: LifeEvent) { void updateStatus(event, 'PENDING') }
 .event-body p { margin: 0 0 10px; color: var(--color-text-secondary); line-height: 1.65; }
 .event-meta { color: var(--color-text-muted); font-size: 12px; }.event-meta-link { display: inline-flex; gap: 4px; padding: 0; border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font: inherit; font-size: 12px; }
 .event-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }.text-button { border: 0; padding: 7px 0 7px 12px; background: transparent; color: var(--color-text-muted); cursor: pointer; font: inherit; font-size: 12px; white-space: nowrap; }.text-button.primary { color: var(--color-primary); font-weight: 650; }
+.text-button.danger { color: var(--color-error); }
 .state { padding: 42px 0; color: var(--color-text-muted); text-align: center; }.state.error, .editor-error { color: var(--color-error); }
 .undo-toast { position: fixed; right: 24px; bottom: 24px; z-index: 20; border: 1px solid var(--color-border); border-radius: 6px; padding: 11px 14px; background: var(--color-surface); color: var(--color-text); box-shadow: var(--shadow-lg); cursor: pointer; font: inherit; font-size: 13px; }.undo-toast span { color: var(--color-primary); font-weight: 700; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 24px; background: var(--color-overlay); }.event-editor { width: min(660px, 100%); max-height: min(760px, 92vh); overflow: auto; border: 1px solid var(--color-border); border-radius: 8px; padding: 26px; background: var(--color-surface); box-shadow: var(--shadow-xl); }.editor-header, .picker-heading, .editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.editor-header h3 { margin: 0; color: var(--color-text); font-family: var(--font-display); font-size: 1.5rem; }.close-button { border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; font-size: 26px; }.editor-form { display: grid; gap: 16px; margin-top: 24px; }.editor-form label { display: grid; gap: 7px; color: var(--color-text-secondary); font-size: 12px; }.editor-form input, .editor-form textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--color-border); border-radius: 4px; padding: 10px; background: var(--color-bg); color: var(--color-text); font: inherit; font-size: 14px; }.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }.diary-picker { border-top: 1px solid var(--color-border); padding-top: 16px; }.picker-heading strong { color: var(--color-text); font-size: 13px; }.picker-heading span, .picker-hint, .picker-empty { color: var(--color-text-muted); font-size: 12px; }.picker-hint { margin: 7px 0 12px; }.diary-option { display: flex !important; grid-template-columns: none !important; grid-template-rows: none !important; grid-auto-flow: column; align-items: start; gap: 10px !important; padding: 10px 0; border-top: 1px solid var(--color-border); }.diary-option input { width: auto; margin-top: 3px; }.diary-option span { display: grid; gap: 3px; }.diary-option strong { color: var(--color-text); font-size: 12px; }.diary-option small { color: var(--color-text-secondary); line-height: 1.5; }.editor-error { margin: 14px 0 0; font-size: 12px; }.editor-actions { justify-content: flex-end; margin-top: 24px; }.secondary-button { border-color: var(--color-border); background: transparent; color: var(--color-text-secondary); }.save-button:disabled { opacity: .55; cursor: wait; }

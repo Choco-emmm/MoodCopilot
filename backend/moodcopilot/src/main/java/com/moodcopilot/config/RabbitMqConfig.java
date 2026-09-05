@@ -8,6 +8,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 
 @Configuration
 public class RabbitMqConfig {
@@ -70,33 +71,44 @@ public class RabbitMqConfig {
     @Bean
     public SimpleRabbitListenerContainerFactory aiRabbitListenerContainerFactory(
             ConnectionFactory connectionFactory,
-            Jackson2JsonMessageConverter converter) {
-        return listenerFactory(connectionFactory, converter, 5);
+            Jackson2JsonMessageConverter converter,
+            @Value("${spring.rabbitmq-task.analysis-concurrency:1}") int concurrency,
+            @Value("${spring.rabbitmq-task.analysis-max-concurrency:2}") int maxConcurrency) {
+        return listenerFactory(connectionFactory, converter, 5, concurrency, maxConcurrency);
     }
 
     @Bean
     public SimpleRabbitListenerContainerFactory aiHeavyRabbitListenerContainerFactory(
             ConnectionFactory connectionFactory,
-            Jackson2JsonMessageConverter converter) {
-        return listenerFactory(connectionFactory, converter, 1);
+            Jackson2JsonMessageConverter converter,
+            @Value("${spring.rabbitmq-task.heavy-concurrency:2}") int concurrency,
+            @Value("${spring.rabbitmq-task.heavy-max-concurrency:4}") int maxConcurrency) {
+        return listenerFactory(connectionFactory, converter, 1, concurrency, maxConcurrency);
     }
 
     @Bean
     public SimpleRabbitListenerContainerFactory aiLightRabbitListenerContainerFactory(
             ConnectionFactory connectionFactory,
-            Jackson2JsonMessageConverter converter) {
-        return listenerFactory(connectionFactory, converter, 20);
+            Jackson2JsonMessageConverter converter,
+            @Value("${spring.rabbitmq-task.light-concurrency:2}") int concurrency,
+            @Value("${spring.rabbitmq-task.light-max-concurrency:8}") int maxConcurrency) {
+        return listenerFactory(connectionFactory, converter, 20, concurrency, maxConcurrency);
     }
 
     private SimpleRabbitListenerContainerFactory listenerFactory(ConnectionFactory connectionFactory,
                                                                   Jackson2JsonMessageConverter converter,
-                                                                  int prefetch) {
+                                                                  int prefetch,
+                                                                  int concurrency,
+                                                                  int maxConcurrency) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);
         factory.setMessageConverter(converter);
         factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
         factory.setDefaultRequeueRejected(false);
         factory.setPrefetchCount(prefetch);
+        int safeConcurrency = Math.max(1, concurrency);
+        factory.setConcurrentConsumers(safeConcurrency);
+        factory.setMaxConcurrentConsumers(Math.max(safeConcurrency, maxConcurrency));
         return factory;
     }
 }

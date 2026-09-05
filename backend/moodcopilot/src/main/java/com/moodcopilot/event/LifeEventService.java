@@ -170,6 +170,7 @@ public class LifeEventService {
             log.info("事件提取完成，识别数量={}，userId={}，diaryId={}", events.size(), userId, diaryId);
             withUserLock(userId, () -> {
                 List<UserLifeEventEntity> existing = listMergeableEvents(userId);
+                List<UserLifeEventEntity> deletedEvents = listDeletedEvents(userId);
                 deduplicateExistingEvents(existing);
                 for (ExtractedLifeEvent extracted : events) {
                     String title = clean(extracted.title(), 128);
@@ -202,6 +203,13 @@ public class LifeEventService {
                             .filter(candidate -> isSameEvent(candidate, title, schedule.startDate(), schedule.endDate(), content))
                             .findFirst().orElse(null);
                     if (matched == null) {
+                        UserLifeEventEntity deletedMatch = deletedEvents.stream()
+                                .filter(candidate -> isSameEvent(candidate, title, schedule.startDate(), schedule.endDate(), content))
+                                .findFirst().orElse(null);
+                        if (deletedMatch != null) {
+                            log.info("事件未创建，userId={}，diaryId={}，原因=匹配到用户已删除事件，eventId={}", userId, diaryId, deletedMatch.getId());
+                            continue;
+                        }
                         UserLifeEventEntity created = new UserLifeEventEntity();
                         created.setUserId(userId);
                         created.setTitle(title);
@@ -308,6 +316,7 @@ public class LifeEventService {
     public List<LifeEventView> listUserEvents(Long userId) {
         return userLifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>()
                 .eq(UserLifeEventEntity::getUserId, userId)
+                .isNull(UserLifeEventEntity::getDeletedAt)
                 .orderByDesc(UserLifeEventEntity::getTargetDate)
                 .orderByDesc(UserLifeEventEntity::getUpdatedAt)).stream().map(this::toView).toList();
     }
@@ -322,7 +331,8 @@ public class LifeEventService {
         if (userLifeEventMapper == null) return 0;
         LocalDateTime now = nowInEventZone();
         int repaired = 0;
-        List<UserLifeEventEntity> events = userLifeEventMapper.selectList(null);
+        List<UserLifeEventEntity> events = userLifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>()
+                .isNull(UserLifeEventEntity::getDeletedAt));
         for (UserLifeEventEntity entity : events) {
             boolean changed = false;
             String phase = phaseFor(entity.getTargetDate(), entity.getEndDate(), entity.getStartTime(), entity.getEndTime());
@@ -431,10 +441,25 @@ public class LifeEventService {
         return toView(entity);
     }
 
+    @Transactional
+    public void softDeleteEvent(Long userId, Long eventId) {
+        UserLifeEventEntity entity = findOwnedEventIncludingDeleted(userId, eventId);
+        if (entity == null) throw new ResponseStatusException(NOT_FOUND, "事件不存在");
+        if (entity.getDeletedAt() != null) return;
+        entity.setDeletedAt(nowInEventZone());
+        entity.setNextFollowUpAt(null);
+        entity.setFollowUpCompleted(true);
+        entity.setUpdatedAt(LocalDateTime.now());
+        userLifeEventMapper.updateById(entity);
+        if (lifeChapterService != null) lifeChapterService.onEventDeleted(userId, eventId);
+        log.info("重要事件已软删除，userId={}，eventId={}", userId, eventId);
+    }
+
     public Optional<UserLifeEventEntity> getPendingEventForFollowUp(Long userId) {
         return userLifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>()
                 .eq(UserLifeEventEntity::getUserId, userId)
-                .eq(UserLifeEventEntity::getStatus, "PENDING"))
+                .eq(UserLifeEventEntity::getStatus, "PENDING")
+                .isNull(UserLifeEventEntity::getDeletedAt))
                 .stream().filter(event -> !Boolean.TRUE.equals(event.getFollowUpCompleted()))
                 .filter(this::isFollowUpDue)
                 .min(Comparator.comparing(this::followUpAt, Comparator.nullsLast(Comparator.naturalOrder()))
@@ -570,7 +595,15 @@ public class LifeEventService {
 
     private List<UserLifeEventEntity> listMergeableEvents(Long userId) {
         return userLifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>()
-                .eq(UserLifeEventEntity::getUserId, userId).ne(UserLifeEventEntity::getStatus, "CANCELLED"));
+                .eq(UserLifeEventEntity::getUserId, userId)
+                .isNull(UserLifeEventEntity::getDeletedAt)
+                .ne(UserLifeEventEntity::getStatus, "CANCELLED"));
+    }
+
+    private List<UserLifeEventEntity> listDeletedEvents(Long userId) {
+        return userLifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>()
+                .eq(UserLifeEventEntity::getUserId, userId)
+                .isNotNull(UserLifeEventEntity::getDeletedAt));
     }
 
     private void deduplicateExistingEvents(List<UserLifeEventEntity> events) {
@@ -704,7 +737,17 @@ public class LifeEventService {
     }
     private UserLifeEventEntity findOwnedEvent(Long userId, Long eventId) {
         if (userId == null || eventId == null) return null;
-        return userLifeEventMapper.selectOne(new LambdaQueryWrapper<UserLifeEventEntity>().eq(UserLifeEventEntity::getId, eventId).eq(UserLifeEventEntity::getUserId, userId));
+        return userLifeEventMapper.selectOne(new LambdaQueryWrapper<UserLifeEventEntity>()
+                .eq(UserLifeEventEntity::getId, eventId)
+                .eq(UserLifeEventEntity::getUserId, userId)
+                .isNull(UserLifeEventEntity::getDeletedAt));
+    }
+
+    private UserLifeEventEntity findOwnedEventIncludingDeleted(Long userId, Long eventId) {
+        if (userId == null || eventId == null) return null;
+        return userLifeEventMapper.selectOne(new LambdaQueryWrapper<UserLifeEventEntity>()
+                .eq(UserLifeEventEntity::getId, eventId)
+                .eq(UserLifeEventEntity::getUserId, userId));
     }
     private LifeEventView toView(UserLifeEventEntity entity) {
         List<Long> ids = parseDiaryIds(entity.getDiaryIdsJson());

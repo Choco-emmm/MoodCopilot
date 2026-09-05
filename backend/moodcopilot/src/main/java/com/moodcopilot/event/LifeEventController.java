@@ -78,6 +78,12 @@ public class LifeEventController {
         return ApiResponse.ok(lifeEventService.updateEventStatus(user.getId(), id, status, note));
     }
 
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> deleteEvent(@AuthenticationPrincipal UserEntity user, @PathVariable Long id) {
+        lifeEventService.softDeleteEvent(user.getId(), id);
+        return ApiResponse.ok();
+    }
+
     @GetMapping("/pending-follow-up")
     public ApiResponse<Map<String, Object>> getPendingFollowUp(@AuthenticationPrincipal UserEntity user) {
         var eventOpt = lifeEventService.getPendingEventForFollowUp(user.getId());

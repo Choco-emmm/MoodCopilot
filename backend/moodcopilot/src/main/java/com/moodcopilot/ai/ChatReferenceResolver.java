@@ -69,7 +69,8 @@ public class ChatReferenceResolver {
     private UserReference resolveEvent(Long userId, Long eventId, ReferencePurpose purpose) {
         UserLifeEventEntity event = eventMapper.selectOne(new LambdaQueryWrapper<UserLifeEventEntity>()
                 .eq(UserLifeEventEntity::getId, eventId)
-                .eq(UserLifeEventEntity::getUserId, userId));
+                .eq(UserLifeEventEntity::getUserId, userId)
+                .isNull(UserLifeEventEntity::getDeletedAt));
         if (event == null || event.getTitle() == null || event.getTitle().isBlank()) return null;
         StringBuilder content = new StringBuilder("事件：").append(event.getTitle().trim());
         if (event.getDescription() != null && !event.getDescription().isBlank()) {

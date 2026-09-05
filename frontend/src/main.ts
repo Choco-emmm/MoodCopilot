@@ -35,13 +35,6 @@ if (auth.isAuthenticated) {
 
 app.mount('#app')
 
-// 移动端调试台（仅开发环境）
-if (import.meta.env.DEV) {
-  import('vconsole').then(({ default: VConsole }) => {
-    new VConsole({ theme: 'light' })
-  })
-}
-
 function cleanupLegacyPwa() {
   if (!('serviceWorker' in navigator)) return
 

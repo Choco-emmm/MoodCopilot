@@ -18,6 +18,10 @@ public final class MemorySafetyPolicy {
     private static final String[] SKILL_CLAIM_TERMS = {
             "掌握", "熟悉", "精通", "擅长", "专家", "技能", "水平", "能力", "开发", "工程师", "程序员", "职业"
     };
+    private static final String[] TRANSIENT_SCHEDULE_TERMS = {
+            "时间", "日期", "开始", "结束", "截止", "安排", "预约", "考试", "课程", "上课", "会议", "面试",
+            "出发", "行程", "旅行", "活动", "报名", "开学", "放假"
+    };
 
     private MemorySafetyPolicy() {
     }
@@ -53,6 +57,19 @@ public final class MemorySafetyPolicy {
     public static boolean allowCore(String memoryType, String attributeKey, String attributeValue) {
         return !"short_term_state".equals(memoryType)
                 && !isSafetyState(attributeKey, attributeValue);
+    }
+
+    /** Calendar-like facts belong to the event scheduler, not the long-term profile. */
+    public static boolean isTransientScheduleFact(String memoryType, String attributeKey, String attributeValue) {
+        if (!"event".equalsIgnoreCase(memoryType)) return false;
+        String key = normalize(attributeKey);
+        String value = normalize(attributeValue);
+        if (key.isBlank() || value.isBlank()) return false;
+        boolean scheduleKey = containsAny(key, TRANSIENT_SCHEDULE_TERMS);
+        boolean dateValue = value.matches(".*\\d{4}[-年/]\\d{1,2}([-/月]\\d{1,2})?.*")
+                || value.matches(".*\\d{1,2}月\\d{1,2}日.*")
+                || value.matches(".*\\d{1,2}:\\d{2}.*");
+        return scheduleKey && dateValue;
     }
 
     /**

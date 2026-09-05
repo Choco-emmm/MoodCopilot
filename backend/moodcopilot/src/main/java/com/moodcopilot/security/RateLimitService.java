@@ -23,9 +23,11 @@ public class RateLimitService {
     }
 
     public enum AiApiType {
-        CHAT(ResetPeriod.DAILY),
-        ANALYSIS(ResetPeriod.DAILY),
-        REASONING(ResetPeriod.DAILY),
+        CHAT_FLASH(ResetPeriod.DAILY),
+        CHAT_PRO(ResetPeriod.DAILY),
+        DIARY_FLASH(ResetPeriod.DAILY),
+        DIARY_PRO(ResetPeriod.DAILY),
+        CHAPTER_CONSOLIDATION(ResetPeriod.DAILY),
         RESONANCE(ResetPeriod.DAILY),
         REPORT(ResetPeriod.MONTHLY),
         IMAGE_UPLOAD(ResetPeriod.DAILY),
@@ -45,15 +47,15 @@ public class RateLimitService {
     }
 
     // Row 0 = Pro, Row 1..6 = Lv.1..Lv.6
-    // Col order must match AiApiType enum: CHAT, ANALYSIS, REASONING, RESONANCE, REPORT, IMAGE_UPLOAD, IMAGE_ANALYSIS
+    // Col order must match AiApiType enum: CHAT_FLASH, CHAT_PRO, DIARY_FLASH, DIARY_PRO, CHAPTER_CONSOLIDATION, RESONANCE, REPORT, IMAGE_UPLOAD, IMAGE_ANALYSIS
     private static final int[][] QUOTA = {
-            {150, 50,  30,  50,  30,  50, 50},   // Pro
-            {15,  5,   2,   0,   0,   3,  2},    // Lv.1
-            {25,  8,   4,   3,   2,   5,  3},    // Lv.2
-            {35,  12,  6,   5,   4,   8,  5},    // Lv.3
-            {45,  16,  8,   8,   7,   12, 8},    // Lv.4
-            {55,  20,  10,  10,  11,  16, 12},   // Lv.5
-            {65,  25,  12,  12,  16,  20, 15},   // Lv.6
+            {150, 15, 50, 15, 2, 30, 50, 50, 50},   // Pro
+            {15,  1,  5,  1, 2,  0,  0,  3,  2},    // Lv.1
+            {25,  2,  8,  2, 2,  3,  2,  5,  3},    // Lv.2
+            {35,  3,  12, 3, 2,  5,  4,  8,  5},    // Lv.3
+            {45,  4,  16, 4, 2,  8,  7,  12, 8},    // Lv.4
+            {55,  5,  20, 5, 2, 10, 11, 16, 12},   // Lv.5
+            {65,  6,  25, 6, 2, 12, 16, 20, 15},   // Lv.6
     };
 
     public static int getDynamicLimit(AiApiType type, Integer level, boolean isPro) {
@@ -194,9 +196,11 @@ public class RateLimitService {
 
     private String typeLabel(AiApiType type) {
         return switch (type) {
-            case CHAT -> "AI 聊天";
-            case ANALYSIS -> "AI 分析";
-            case REASONING -> "AI 深度思考";
+            case CHAT_FLASH -> "聊天 Flash";
+            case CHAT_PRO -> "聊天 Pro";
+            case DIARY_FLASH -> "日记分析 Flash";
+            case DIARY_PRO -> "日记分析 Pro";
+            case CHAPTER_CONSOLIDATION -> "章节重新整理";
             case RESONANCE -> "共鸣检索";
             case REPORT -> "报告生成";
             case IMAGE_UPLOAD -> "图片上传";

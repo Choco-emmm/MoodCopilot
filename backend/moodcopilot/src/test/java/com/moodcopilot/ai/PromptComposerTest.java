@@ -11,6 +11,29 @@ import static org.mockito.Mockito.when;
 
 class PromptComposerTest {
     @Test
+    void expandsPersonaFlagsIntoExecutableGuidance() {
+        PersonaPromptSupport support = new PersonaPromptSupport(mock(PersonaService.class));
+        EffectivePersona persona = new EffectivePersona(
+                "personal_assistant",
+                List.of("analytical", "humorous"),
+                List.of("LESS_REASSURANCE"),
+                List.<String>of(),
+                3,
+                2,
+                false,
+                "hash");
+
+        String prompt = support.decorate("base", persona,
+                new TaskContext("GENERAL", "直接回答", List.of(), null),
+                ContextPurpose.CHAT);
+
+        assertTrue(prompt.contains("<behavior_flags>LESS_REASSURANCE</behavior_flags>"));
+        assertTrue(prompt.contains("减少安慰、鼓励和情绪包装"));
+        assertTrue(prompt.contains("优先拆分问题、说明依据和因果关系"));
+        assertTrue(prompt.contains("只在合适且不冒犯的场合使用轻微幽默"));
+    }
+
+    @Test
     void rendersStructuredEnvelopeOnlyAtTheComposerBoundary() {
         PersonaPromptSupport support = mock(PersonaPromptSupport.class);
         when(support.decorate("base", (EffectivePersona) null, null, ContextPurpose.CHAT))

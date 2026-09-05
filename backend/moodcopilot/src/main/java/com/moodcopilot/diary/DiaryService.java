@@ -290,9 +290,9 @@ public class DiaryService {
             } else {
                 try {
                     if (request.isUseReasoning()) {
-                        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REASONING);
+                        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.DIARY_PRO);
                     } else {
-                        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.ANALYSIS);
+                        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.DIARY_FLASH);
                     }
 
                     // 删除旧的分析结果，防止前端在轮询时错误获取到旧数据
@@ -372,8 +372,8 @@ public class DiaryService {
             throw new ResponseStatusException(BAD_REQUEST, "当前日记不需要重新分析");
         }
         try {
-            rateLimitService.tryAcquire(user, useReasoning ? RateLimitService.AiApiType.REASONING
-                    : RateLimitService.AiApiType.ANALYSIS);
+            rateLimitService.tryAcquire(user, useReasoning ? RateLimitService.AiApiType.DIARY_PRO
+                    : RateLimitService.AiApiType.DIARY_FLASH);
         } catch (RateLimitException e) {
             DiaryEntity limited = new DiaryEntity();
             limited.setId(diaryId);

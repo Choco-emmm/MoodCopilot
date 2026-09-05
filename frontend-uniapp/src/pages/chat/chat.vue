@@ -117,11 +117,6 @@
           <view class="chat-model-picker">{{ useReasoning ? '深度思考' : '普通对话' }} <text class="chat-model-arrow">⌄</text></view>
         </picker>
       </view>
-      <view v-if="currentTaskHint" class="chat-task-context">
-        <text class="chat-task-label">当前任务</text>
-        <text class="chat-task-name">{{ currentTaskHint.label }}</text>
-        <text class="chat-task-detail">{{ currentTaskHint.hint }}</text>
-      </view>
       <!-- 引用预览 -->
       <view v-if="activeQuote" class="quote-preview-bar fade-in">
         <text class="quote-icon">❝</text>
@@ -311,7 +306,6 @@ const activeDiaryReferenceId = ref<number | null>(null);
 const eventReference = ref<{ id: number; title: string } | null>(null);
 const useReasoning = ref(false);
 const chatModelOptions = ['普通对话', '深度思考'];
-const currentTaskHint = computed(() => resolveTaskHint(inputContent.value));
 const showPersonaPanel = ref(false);
 const personaSaving = ref(false);
 const personaMessage = ref('');
@@ -356,20 +350,6 @@ const globalPersonaSnapshot = ref({ role: 'personal_assistant', tone: ['natural'
 
 const onChatModelChange = (event: any) => {
   useReasoning.value = Number(event.detail.value) === 1;
-};
-
-const resolveTaskHint = (message: string) => {
-  const text = (message || '').trim().toLowerCase();
-  if (!text) return null;
-  if (/代码|编程|bug|报错|java|redis|sql|typescript|python|接口/.test(text) && !text.includes('歌词翻译')) {
-    return { label: '编程协作', hint: '会按技术问题的方式回答' };
-  }
-  if (/翻译|translate|译成/.test(text)) return { label: '翻译', hint: '会保留原意与表达重点' };
-  if (/写一篇|润色|改写|文案|作文|起草/.test(text)) return { label: '写作', hint: '会结合体裁与用途组织内容' };
-  if (/讲解|怎么学|学习|原理|为什么/.test(text)) return { label: '学习', hint: '会按需要展开概念和例子' };
-  if (/计划|规划|安排|路线|拆解/.test(text)) return { label: '规划', hint: '会帮你明确下一步' };
-  if (/难过|焦虑|压力|内耗|崩溃|陪我聊/.test(text)) return { label: '陪伴交流', hint: '会优先回应你当下的感受' };
-  return { label: '通用对话', hint: '会直接完成你的请求' };
 };
 
 const defaultPersona = () => ({
@@ -1498,8 +1478,11 @@ const scrollToBottom = (target?: 'waiting') => {
 
 .persona-mask {
   position: fixed;
-  inset: 0;
-  z-index: 100000;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1000000;
   display: flex;
   align-items: flex-end;
   background: var(--theme-overlay);
@@ -1507,8 +1490,8 @@ const scrollToBottom = (target?: 'waiting') => {
 
 .persona-sheet {
   width: 100%;
-  height: 82vh;
-  max-height: calc(100vh - 24rpx);
+  height: calc(100vh - 48rpx);
+  max-height: none;
   border-radius: var(--theme-radius-lg) var(--theme-radius-lg) 0 0;
   background: var(--theme-surface);
   box-shadow: var(--theme-shadow-dialog);
@@ -1551,7 +1534,7 @@ const scrollToBottom = (target?: 'waiting') => {
   min-height: 0;
   height: 0;
   max-height: none;
-  padding: 8rpx 32rpx 64rpx;
+  padding: 8rpx 32rpx calc(96rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 
