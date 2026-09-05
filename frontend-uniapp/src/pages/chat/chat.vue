@@ -1507,11 +1507,16 @@ const scrollToBottom = (target?: 'waiting') => {
 
 .persona-sheet {
   width: 100%;
-  max-height: 82vh;
+  height: 82vh;
+  max-height: calc(100vh - 24rpx);
   border-radius: var(--theme-radius-lg) var(--theme-radius-lg) 0 0;
   background: var(--theme-surface);
   box-shadow: var(--theme-shadow-dialog);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .persona-sheet-header {
@@ -1542,8 +1547,11 @@ const scrollToBottom = (target?: 'waiting') => {
 }
 
 .persona-sheet-content {
-  max-height: calc(82vh - 112rpx);
-  padding: 8rpx 32rpx 40rpx;
+  flex: 1;
+  min-height: 0;
+  height: 0;
+  max-height: none;
+  padding: 8rpx 32rpx 64rpx;
   box-sizing: border-box;
 }
 

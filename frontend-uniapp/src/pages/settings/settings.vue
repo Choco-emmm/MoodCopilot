@@ -89,9 +89,10 @@
 <script setup lang="ts">
 
 import { ref, onMounted, onUnmounted } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import { get, post, put } from '@/utils/request';
 import GlobalUI from '@/components/GlobalUI.vue';
-import { currentTheme } from '@/stores/theme';
+import { currentTheme, syncNavigationBarColor } from '@/stores/theme';
 
 const loading = ref(true);
 
@@ -160,6 +161,10 @@ onUnmounted(() => {
 
 onMounted(() => {
   fetchProfile();
+});
+
+onShow(() => {
+  syncNavigationBarColor();
 });
 
 const fetchProfile = async () => {

@@ -4,7 +4,8 @@
 			"path": "pages/index/index",
 			"style": {
 				"navigationBarTitleText": "我的日记本",
-				"navigationStyle": "custom"
+				"navigationStyle": "custom",
+				"animationType": "none"
 			}
 		},
 		{
@@ -12,6 +13,7 @@
 			"style": {
 				"navigationBarTitleText": "洞察",
 				"navigationBarTextStyle": "black",
+				"animationType": "none",
 				"enablePullDownRefresh": true
 			}
 		},
@@ -19,98 +21,112 @@
 			"path": "pages/chat/chat",
 			"style": {
 				"navigationBarTitleText": "陪伴",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		},
 		{
 			"path": "pages/write/write",
 			"style": {
 				"navigationBarTitleText": "写日记",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		},
 		{
 			"path": "pages/profile/profile",
 			"style": {
 				"navigationBarTitleText": "我的",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		},
 		{
 			"path": "pages/detail/detail",
 			"style": {
 				"navigationBarTitleText": "日记详情",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		},
 		{
 			"path": "pages/notifications/notifications",
 			"style": {
 				"navigationBarTitleText": "消息中心",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		},
 		{
 			"path": "pages/collections/collections",
 			"style": {
 				"navigationBarTitleText": "我的合集",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		},
 		{
 			"path": "pages/collections/detail",
 			"style": {
 				"navigationBarTitleText": "合集详情",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		},
 		{
 			"path": "pages/growth/growth",
 			"style": {
 				"navigationBarTitleText": "成长中心",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		},
 		{
 			"path": "pages/feedback/feedback",
 			"style": {
 				"navigationBarTitleText": "意见反馈",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		},
 		{
 			"path": "pages/search/search",
 			"style": {
 				"navigationBarTitleText": "搜索日记",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		},
 		{
 			"path": "pages/settings/settings",
 			"style": {
 				"navigationBarTitleText": "个人设置",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		},
 		{
 			"path": "pages/summaries/summaries",
 			"style": {
 				"navigationBarTitleText": "情绪报告",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		},
 		{
 			"path": "pages/life-events/life-events",
 			"style": {
 				"navigationBarTitleText": "重要事件",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		},
 		{
 			"path": "pages/life-chapters/life-chapters",
 			"style": {
 				"navigationBarTitleText": "时光画卷",
-				"navigationBarTextStyle": "black"
+				"navigationBarTextStyle": "black",
+				"animationType": "none"
 			}
 		}
 	],
