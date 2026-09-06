@@ -79,7 +79,7 @@ public class AIConfiguration {
 
     @Bean
     public ChatClient analysisChatClient(ChatClient.Builder builder,
-            @Value("${spring.ai.analysis.max-tokens:16384}") int analysisMaxTokens) {
+            @Value("${spring.ai.analysis.max-tokens:32768}") int analysisMaxTokens) {
         // 分析模型客户端：专门用于日记分析、周/月报总结、长期画像提取。
         // 分析任务可能包含思考过程，使用独立输出预算；聊天客户端继续使用全局默认值。
         log.info("初始化分析模型客户端，maxTokens={}", analysisMaxTokens);

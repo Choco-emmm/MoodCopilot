@@ -34,11 +34,13 @@ public class DeepSeekReasoningClient {
     private final String apiKey;
     private final String model;
     private final String baseUrl;
+    private final int maxTokens;
 
     public DeepSeekReasoningClient(
             @Value("${spring.ai.openai.base-url:https://api.deepseek.com}") String baseUrl,
             @Value("${spring.ai.openai.api-key:}") String apiKey,
             @Value("${DEEPSEEK_REASONING_MODEL:deepseek-v4-pro}") String model,
+            @Value("${spring.ai.reasoning.max-tokens:32768}") int maxTokens,
             ObjectMapper objectMapper) {
         this.baseUrl = normalizeBaseUrl(baseUrl);
         // 这里不走 Spring AI 的 ChatClient，直接用原生 HTTP 请求，是为了绕开 thinking/reasoning_content
@@ -54,6 +56,7 @@ public class DeepSeekReasoningClient {
                 .build();
         this.apiKey = apiKey == null ? "" : apiKey.trim();
         this.model = model == null || model.isBlank() ? "deepseek-v4-pro" : model.trim();
+        this.maxTokens = Math.max(1024, maxTokens);
         this.objectMapper = objectMapper;
     }
 
@@ -73,7 +76,7 @@ public class DeepSeekReasoningClient {
                             Map.of("role", "system", "content", systemPrompt),
                             Map.of("role", "user", "content", userPrompt)),
                     "temperature", 0.6,
-                    "max_tokens", 2048,
+                    "max_tokens", maxTokens,
                     "stream", false);
 
             log.info("调用思考模型，model={}，systemLength={}，userLength={}", model,
@@ -93,6 +96,11 @@ public class DeepSeekReasoningClient {
 
             if (response == null || response.isBlank()) {
                 throw new IllegalStateException("DeepSeek reasoning response is empty");
+            }
+
+            JsonNode choice = objectMapper.readTree(response).path("choices").path(0);
+            if ("length".equalsIgnoreCase(choice.path("finish_reason").asText())) {
+                throw new IllegalStateException("DeepSeek reasoning response truncated: finishReason=LENGTH");
             }
 
             AiCallTiming.completed(log, "CHAT", model, startedAt, "SUCCESS", inputLength, response.length());
@@ -169,7 +177,7 @@ public class DeepSeekReasoningClient {
                                     Map.of("role", "system", "content", systemPrompt),
                                     Map.of("role", "user", "content", userPrompt)),
                             "temperature", 0.6,
-                            "max_tokens", 2048,
+                            "max_tokens", maxTokens,
                             "stream", true);
 
                     String json = objectMapper.writeValueAsString(requestBody);
@@ -244,6 +252,9 @@ public class DeepSeekReasoningClient {
         // 兼容不同返回结构：标准 OpenAI 格式放在 choices[0].message.content。
         JsonNode root = objectMapper.readTree(response);
         JsonNode choice = root.path("choices").path(0);
+        if ("length".equalsIgnoreCase(choice.path("finish_reason").asText())) {
+            throw new IllegalStateException("DeepSeek reasoning response truncated: finishReason=LENGTH");
+        }
         String content = choice.path("message").path("content").asText(null);
         if (content == null || content.isBlank()) {
             content = choice.path("content").asText(null);

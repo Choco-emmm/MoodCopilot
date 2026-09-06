@@ -203,6 +203,10 @@ public class AiAnalysisService {
             try {
                 String json;
                 analysisSystemPrompt = analysisSystemPrompt(userId, plannedContext);
+                if (attempt > 1) {
+                    analysisSystemPrompt += "\n\n【重试约束】上一轮输出达到模型长度限制。请压缩 summary 和 feedback，" +
+                            "只保留与本次日记直接相关的内容；严格只返回完整、可解析的 JSON，不要输出额外解释。";
+                }
                 promptFingerprint = promptFingerprint(analysisSystemPrompt, userPrompt);
                 if (attempt == 1) {
                     logDiaryPromptDiagnostics(userId, promptFingerprint, analysisSystemPrompt, userPrompt,
@@ -224,6 +228,12 @@ public class AiAnalysisService {
                     ChatResponse response = responseSpec.chatResponse();
                     json = responseSpec.content();
                     logChatResponseDiagnostics(userId, modelName, response, json, modelStartedAt);
+                    String finishReason = finishReason(response);
+                    if ("length".equalsIgnoreCase(finishReason)) {
+                        log.warn("日记 AI 输出达到 max_tokens，按失败处理并重试，userId={}，model={}，attempt={}/{}, promptFingerprint={}",
+                                userId, modelName, attempt, maxRetries, promptFingerprint);
+                        throw new IllegalStateException("AI 输出达到长度限制，finishReason=LENGTH");
+                    }
                 }
                 log.info("日记 AI 模型调用返回，userId={}，model={}，attempt={}/{}, durationMs={}，responseLength={}，emptyResponse={}",
                         userId, modelName, attempt, maxRetries, elapsedMillis(modelStartedAt),
@@ -266,6 +276,16 @@ public class AiAnalysisService {
             }
         }
         throw new IllegalStateException("AI 分析调用失败");
+    }
+
+    private String finishReason(ChatResponse response) {
+        if (response == null || response.getResults() == null) return null;
+        for (Generation generation : response.getResults()) {
+            if (generation == null || generation.getMetadata() == null) continue;
+            String finishReason = generation.getMetadata().getFinishReason();
+            if (finishReason != null && !finishReason.isBlank()) return finishReason;
+        }
+        return null;
     }
 
     private long elapsedMillis(long startedAt) {

@@ -44,7 +44,7 @@ public class MemoryExtractionService {
     private static final int ATTRIBUTE_VALUE_MAX_LENGTH = 500;
     private static final String DELETE_MARKER = "DELETE_MARKER";
     private static final int CHAT_MIN_USER_MESSAGE_LENGTH = 4;
-    private static final int CHAT_TRIGGER_SCORE_THRESHOLD = 1;
+    private static final int CHAT_TRIGGER_SCORE_THRESHOLD = 2;
     private static final Set<String> CHAT_LONG_TERM_KEYWORDS = Set.of(
             "一直", "最近总", "总是", "老是", "经常", "越来越", "最近", "长期", "目标", "习惯", "性格", "关系",
             "家庭", "父母", "伴侣", "朋友", "失眠", "压力大", "工作压力", "压力源");
@@ -491,7 +491,7 @@ public class MemoryExtractionService {
         }
 
         // 第二层：信息量打分，避免仅靠长度误触发。
-        int score = scoreChatEvidence(normalizedUserMessage, normalizedRefs, normalizedAiReply);
+        int score = scoreChatEvidence(normalizedUserMessage, normalizedRefs);
         int scoreThreshold = CHAT_TRIGGER_SCORE_THRESHOLD;
         if (score < scoreThreshold) {
             log.info("memory-chat | skip | reason=low_score | userId={} | score={} | threshold={}",
@@ -659,16 +659,13 @@ public class MemoryExtractionService {
                 .toList();
     }
 
-    private int scoreChatEvidence(String userMessage, List<String> refs, String aiReply) {
+    private int scoreChatEvidence(String userMessage, List<String> refs) {
         int score = 0;
         if (userMessage.length() >= CHAT_MIN_USER_MESSAGE_LENGTH) score++;
         if (containsLongTermKeyword(userMessage)) {
             score += 2;
         }
         if (!refs.isEmpty()) {
-            score++;
-        }
-        if (aiReply.length() >= 120) {
             score++;
         }
         return score;

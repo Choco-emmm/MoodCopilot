@@ -89,10 +89,13 @@ spring:
       chat:
         options:
           model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
-          max-tokens: 8192
+          max-tokens: ${AI_CHAT_FLASH_MAX_TOKENS:32768}
+    reasoning:
+      # Pro 聊天的思考过程和最终回答共享输出预算。
+      max-tokens: ${AI_CHAT_PRO_MAX_TOKENS:32768}
     analysis:
-      # 分析模型的 max_tokens 包含思考过程和最终 JSON；聊天仍使用 openai.chat.options 的默认值。
-      max-tokens: ${AI_ANALYSIS_MAX_TOKENS:16384}
+      # 日记分析模型的 max_tokens 包含思考过程和最终 JSON。
+      max-tokens: ${AI_ANALYSIS_MAX_TOKENS:32768}
     rag:
       embedding:
         api-url: ${RAG_EMBEDDING_API_URL:https://api.siliconflow.cn/v1/embeddings}

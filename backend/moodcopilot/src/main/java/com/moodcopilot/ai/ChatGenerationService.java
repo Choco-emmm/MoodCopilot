@@ -143,20 +143,11 @@ public class ChatGenerationService {
                 return;
             }
             appendAssistantMessage(request, runId, reply.toString());
-            List<String> evidence = request.resolvedReferences() == null
-                    ? (request.references() == null ? List.of() : request.references())
-                    : request.resolvedReferences().stream().map(UserReference::content).toList();
-            try {
-                memoryExtractionService.extractAndSyncMemoryFromChat(
-                        request.userId(), request.conversationId(), request.message(), evidence, reply.toString());
-            } catch (Exception e) {
-                log.warn("聊天结果已保存，但画像增量更新失败 runId={} conversationId={} reason={}", runId,
-                        request.conversationId(), e.getMessage());
-            }
             if (!writeEvent(runId, event("done", Map.of()))) {
                 throw new IllegalStateException("保存聊天完成事件失败");
             }
             setStatus(runId, "SUCCEEDED");
+            scheduleMemoryExtraction(request, runId, reply.toString());
         } catch (CancellationException e) {
             log.info("聊天生成任务已取消 runId={} userId={} conversationId={}", runId,
                     request.userId(), request.conversationId());
@@ -172,6 +163,28 @@ public class ChatGenerationService {
         } finally {
             SecurityContextHolder.setContext(previous);
         }
+    }
+
+    /**
+     * 画像增量提取不能阻塞聊天完成事件。聊天回答已经落库并通知前端完成后，
+     * 再使用独立 AI 任务执行画像更新；失败只记录日志，不影响本轮聊天状态。
+     */
+    private void scheduleMemoryExtraction(StartRequest request, String runId, String reply) {
+        List<String> evidence = request.resolvedReferences() == null
+                ? (request.references() == null ? List.of() : List.copyOf(request.references()))
+                : request.resolvedReferences().stream().map(UserReference::content).toList();
+        aiExecutor.execute(() -> {
+            long startedAt = System.nanoTime();
+            try {
+                memoryExtractionService.extractAndSyncMemoryFromChat(
+                        request.userId(), request.conversationId(), request.message(), evidence, reply);
+                log.info("聊天画像异步更新完成 runId={} userId={} conversationId={} durationMs={}", runId,
+                        request.userId(), request.conversationId(), elapsedMillis(startedAt));
+            } catch (Exception e) {
+                log.warn("聊天结果已保存，但画像异步更新失败 runId={} userId={} conversationId={} durationMs={} reason={}",
+                        runId, request.userId(), request.conversationId(), elapsedMillis(startedAt), e.getMessage());
+            }
+        });
     }
 
     public RunSnapshot snapshot(String runId, long userId, long conversationId) {
@@ -336,4 +349,7 @@ public class ChatGenerationService {
     private String eventsKey(String runId) { return RUN_PREFIX + runId + ":events"; }
     private String stringValue(Object value, String fallback) { return value == null ? fallback : String.valueOf(value); }
     private long longValue(Object value) { try { return Long.parseLong(String.valueOf(value)); } catch (Exception e) { return 0; } }
+    private long elapsedMillis(long startedAt) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+    }
 }
