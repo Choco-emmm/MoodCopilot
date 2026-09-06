@@ -143,7 +143,7 @@ function polarityClass(polarity?: number) {
 </script>
 
 <style scoped>
-.consolidation-preview-modal { width: 600px; max-width: 90vw; }
+:deep(.consolidation-preview-modal) { width: min(600px, 90vw); max-width: 90vw; }
 .diary-analysis-preview { max-width: 420px; }
 .preview-desc { margin-top: 0; color: var(--color-text-secondary); font-size: 13px; margin-bottom: 16px; }
 .preview-list-panel { max-height: 35vh; overflow-y: auto; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; padding: 12px; margin-bottom: 16px; }

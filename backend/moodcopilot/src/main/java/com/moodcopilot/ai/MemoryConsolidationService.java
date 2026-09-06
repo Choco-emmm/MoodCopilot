@@ -255,6 +255,9 @@ public class MemoryConsolidationService {
         Integer promptTokens = null;
         Integer completionTokens = null;
         Integer totalTokens = null;
+        int generationTextLength = 0;
+        int messageMetadataKeyCount = 0;
+        int toolCallCount = 0;
         ChatResponseMetadata metadata = response.getMetadata();
         if (metadata != null) {
             model = metadata.getModel();
@@ -270,16 +273,28 @@ public class MemoryConsolidationService {
         String finishReason = null;
         String generationMetadataKeys = "";
         if (!generations.isEmpty() && generations.get(0) != null) {
-            ChatGenerationMetadata generationMetadata = generations.get(0).getMetadata();
-            if (generationMetadata != null) {
-                finishReason = generationMetadata.getFinishReason();
-                generationMetadataKeys = generationMetadata.keySet().toString();
+            for (Generation generation : generations) {
+                if (generation == null) continue;
+                if (generation.getOutput() != null) {
+                    String text = generation.getOutput().getText();
+                    generationTextLength += text == null ? 0 : text.length();
+                    messageMetadataKeyCount += generation.getOutput().getMetadata() == null
+                            ? 0 : generation.getOutput().getMetadata().size();
+                    toolCallCount += generation.getOutput().getToolCalls() == null
+                            ? 0 : generation.getOutput().getToolCalls().size();
+                }
+                ChatGenerationMetadata generationMetadata = generation.getMetadata();
+                if (generationMetadata != null) {
+                    if (finishReason == null) finishReason = generationMetadata.getFinishReason();
+                    generationMetadataKeys = generationMetadata.keySet().toString();
+                }
             }
         }
 
-        log.info("长期画像整理模型响应诊断，userId={}，model={}，responseId={}，generationCount={}，contentLength={}，finishReason={}，promptTokens={}，completionTokens={}，totalTokens={}，generationMetadataKeys={}，modelDurationMs={}",
+        log.info("长期画像整理模型响应诊断，userId={}，model={}，responseId={}，generationCount={}，contentLength={}，generationTextLength={}，messageMetadataKeyCount={}，toolCallCount={}，finishReason={}，promptTokens={}，completionTokens={}，totalTokens={}，generationMetadataKeys={}，modelDurationMs={}",
                 userId, safeLogValue(model), safeLogValue(responseId), generations.size(),
-                content == null ? 0 : content.length(), safeLogValue(finishReason),
+                content == null ? 0 : content.length(), generationTextLength, messageMetadataKeyCount, toolCallCount,
+                safeLogValue(finishReason),
                 promptTokens, completionTokens, totalTokens, generationMetadataKeys,
                 elapsedMillis(modelStartedAt));
     }

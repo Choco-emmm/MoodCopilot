@@ -7,6 +7,11 @@ import com.moodcopilot.diary.DiaryAnalysis;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.Usage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -196,11 +201,13 @@ public class AiAnalysisService {
                 if (useReasoning) {
                     json = reasoningClient.generate(analysisSystemPrompt, userPrompt);
                 } else {
-                    json = analysisChatClient.prompt()
+                    ChatClient.CallResponseSpec responseSpec = analysisChatClient.prompt()
                             .system(analysisSystemPrompt)
                             .user(userPrompt)
-                            .call()
-                            .content();
+                            .call();
+                    ChatResponse response = responseSpec.chatResponse();
+                    json = responseSpec.content();
+                    logChatResponseDiagnostics(userId, modelName, response, json, modelStartedAt);
                 }
                 log.info("日记 AI 模型调用返回，userId={}，model={}，attempt={}/{}, durationMs={}，responseLength={}，emptyResponse={}",
                         userId, modelName, attempt, maxRetries, elapsedMillis(modelStartedAt),
@@ -252,6 +259,63 @@ public class AiAnalysisService {
         String message = error.getMessage();
         if (message == null || message.isBlank()) return "(empty)";
         return message.length() > 300 ? message.substring(0, 300) : message;
+    }
+
+    /**
+     * 记录 Spring AI 响应的结构，不记录模型正文、Prompt 或用户内容。
+     * 用于区分模型空响应和适配器未提取出 content 的情况。
+     */
+    private void logChatResponseDiagnostics(Long userId, String modelName, ChatResponse response,
+                                             String content, long modelStartedAt) {
+        if (response == null) {
+            log.warn("日记 AI 响应结构为空，userId={}，model={}，contentLength=0，modelDurationMs={}",
+                    userId, modelName, elapsedMillis(modelStartedAt));
+            return;
+        }
+
+        List<Generation> generations = response.getResults() == null ? List.of() : response.getResults();
+        ChatResponseMetadata responseMetadata = response.getMetadata();
+        Usage usage = responseMetadata == null ? null : responseMetadata.getUsage();
+        String finishReason = null;
+        String generationMetadataKeys = "";
+        int textLength = 0;
+        int messageMetadataKeys = 0;
+        int toolCallCount = 0;
+
+        for (Generation generation : generations) {
+            if (generation == null) continue;
+            if (generation.getOutput() != null) {
+                String text = generation.getOutput().getText();
+                textLength += text == null ? 0 : text.length();
+                messageMetadataKeys += generation.getOutput().getMetadata() == null
+                        ? 0 : generation.getOutput().getMetadata().size();
+                toolCallCount += generation.getOutput().getToolCalls() == null
+                        ? 0 : generation.getOutput().getToolCalls().size();
+            }
+            ChatGenerationMetadata metadata = generation.getMetadata();
+            if (metadata != null) {
+                if (finishReason == null) finishReason = metadata.getFinishReason();
+                generationMetadataKeys = metadata.keySet().toString();
+            }
+        }
+
+        log.info("日记 AI 响应结构诊断，userId={}，model={}，responseId={}，generationCount={}，"
+                        + "contentLength={}，generationTextLength={}，messageMetadataKeyCount={}，toolCallCount={}，"
+                        + "finishReason={}，promptTokens={}，completionTokens={}，totalTokens={}，"
+                        + "generationMetadataKeys={}，modelDurationMs={}",
+                userId, modelName,
+                responseMetadata == null ? "(empty)" : safeLogValue(responseMetadata.getId()),
+                generations.size(), content == null ? 0 : content.length(), textLength, messageMetadataKeys,
+                toolCallCount, safeLogValue(finishReason),
+                usage == null ? null : usage.getPromptTokens(),
+                usage == null ? null : usage.getCompletionTokens(),
+                usage == null ? null : usage.getTotalTokens(),
+                generationMetadataKeys, elapsedMillis(modelStartedAt));
+    }
+
+    private String safeLogValue(String value) {
+        if (value == null || value.isBlank()) return "(empty)";
+        return value.length() > 120 ? value.substring(0, 120) : value;
     }
 
     /** Model-call audit is best effort and intentionally contains no prompt content. */
