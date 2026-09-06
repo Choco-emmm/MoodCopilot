@@ -90,6 +90,9 @@ spring:
         options:
           model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
           max-tokens: 8192
+    analysis:
+      # 分析模型的 max_tokens 包含思考过程和最终 JSON；聊天仍使用 openai.chat.options 的默认值。
+      max-tokens: ${AI_ANALYSIS_MAX_TOKENS:16384}
     rag:
       embedding:
         api-url: ${RAG_EMBEDDING_API_URL:https://api.siliconflow.cn/v1/embeddings}

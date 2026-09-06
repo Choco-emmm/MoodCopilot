@@ -29,6 +29,7 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.model.function.FunctionCallback;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
 import org.springframework.context.annotation.Bean;
@@ -77,10 +78,14 @@ public class AIConfiguration {
     }
 
     @Bean
-    public ChatClient analysisChatClient(ChatClient.Builder builder) {
+    public ChatClient analysisChatClient(ChatClient.Builder builder,
+            @Value("${spring.ai.analysis.max-tokens:16384}") int analysisMaxTokens) {
         // 分析模型客户端：专门用于日记分析、周/月报总结、长期画像提取。
-        // 这里保持"分析"和"聊天"两套客户端的概念分离，便于后续切模型。
-        return builder.build();
+        // 分析任务可能包含思考过程，使用独立输出预算；聊天客户端继续使用全局默认值。
+        log.info("初始化分析模型客户端，maxTokens={}", analysisMaxTokens);
+        return builder
+                .defaultOptions(OpenAiChatOptions.builder().maxTokens(analysisMaxTokens).build())
+                .build();
     }
 
     @Bean
