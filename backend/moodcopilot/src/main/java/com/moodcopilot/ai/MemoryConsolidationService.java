@@ -10,6 +10,11 @@ import com.moodcopilot.notification.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.Usage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
@@ -115,13 +120,18 @@ public class MemoryConsolidationService {
         long modelStartedAt = System.nanoTime();
         String json;
         try {
-            json = chatClient.prompt()
+            ChatClient.CallResponseSpec responseSpec = chatClient.prompt()
                     .system(promptComposer.compose(CONSOLIDATION_PROMPT, userId,
                             new TaskContext("GENERAL", "只审查和提出可追溯的画像归并", List.of(), null),
                             ContextPurpose.CHAT, ""))
                     .user(prompt)
-                    .call()
-                    .content();
+                    .call();
+            ChatResponse response = responseSpec.chatResponse();
+            json = responseSpec.content();
+            logModelResponseDiagnostics(userId, response, json, modelStartedAt);
+            if (json == null || json.isBlank()) {
+                throw new IllegalStateException("AI 模型返回空内容");
+            }
             log.info("长期画像整理模型调用结束，userId={}，responseLength={}，modelDurationMs={}，totalDurationMs={}",
                     userId, json == null ? 0 : json.length(), elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt));
         } catch (Exception e) {
@@ -191,6 +201,58 @@ public class MemoryConsolidationService {
         String message = error.getMessage();
         if (message == null || message.isBlank()) return "(empty)";
         return message.length() > 300 ? message.substring(0, 300) : message;
+    }
+
+    /**
+     * 只记录模型响应的结构元数据，不记录完整响应、Prompt 或用户记忆内容。
+     * Spring AI 的 content() 为空时，必须通过这些字段区分空候选、截断和模型异常。
+     */
+    private void logModelResponseDiagnostics(Long userId, ChatResponse response, String content,
+                                              long modelStartedAt) {
+        if (response == null) {
+            log.warn("长期画像整理模型响应为空，userId={}，responseObject=null，contentLength=0，modelDurationMs={}",
+                    userId, elapsedMillis(modelStartedAt));
+            return;
+        }
+
+        List<Generation> generations = response.getResults() == null ? List.of() : response.getResults();
+        String model = null;
+        String responseId = null;
+        Integer promptTokens = null;
+        Integer completionTokens = null;
+        Integer totalTokens = null;
+        ChatResponseMetadata metadata = response.getMetadata();
+        if (metadata != null) {
+            model = metadata.getModel();
+            responseId = metadata.getId();
+            Usage usage = metadata.getUsage();
+            if (usage != null) {
+                promptTokens = usage.getPromptTokens();
+                completionTokens = usage.getCompletionTokens();
+                totalTokens = usage.getTotalTokens();
+            }
+        }
+
+        String finishReason = null;
+        String generationMetadataKeys = "";
+        if (!generations.isEmpty() && generations.get(0) != null) {
+            ChatGenerationMetadata generationMetadata = generations.get(0).getMetadata();
+            if (generationMetadata != null) {
+                finishReason = generationMetadata.getFinishReason();
+                generationMetadataKeys = generationMetadata.keySet().toString();
+            }
+        }
+
+        log.info("长期画像整理模型响应诊断，userId={}，model={}，responseId={}，generationCount={}，contentLength={}，finishReason={}，promptTokens={}，completionTokens={}，totalTokens={}，generationMetadataKeys={}，modelDurationMs={}",
+                userId, safeLogValue(model), safeLogValue(responseId), generations.size(),
+                content == null ? 0 : content.length(), safeLogValue(finishReason),
+                promptTokens, completionTokens, totalTokens, generationMetadataKeys,
+                elapsedMillis(modelStartedAt));
+    }
+
+    private String safeLogValue(String value) {
+        if (value == null || value.isBlank()) return "(empty)";
+        return value.length() > 120 ? value.substring(0, 120) : value;
     }
 
     public void applyConsolidation(Long userId, List<ConsolidationItem> items) {
