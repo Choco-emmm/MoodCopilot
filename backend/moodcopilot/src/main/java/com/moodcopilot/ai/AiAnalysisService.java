@@ -21,6 +21,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.time.LocalDate;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
@@ -146,15 +148,19 @@ public class AiAnalysisService {
         long totalStartedAt = System.nanoTime();
         StringBuilder sb = new StringBuilder();
         ContextEnvelope plannedContext = null;
+        int ragQueryLength = 0;
         if (userId != null) {
             try {
+                String ragQueryText = RagQueryBuilder.diaryQueryText(content, musicMeta);
+                ragQueryLength = ragQueryText.length();
                 RagQuery ragQuery = new RagQuery(userId, "diary_analysis",
-                        RagQueryBuilder.diaryQueryText(content, musicMeta),
+                        ragQueryText,
                         List.of(RagMemoryService.SOURCE_DIARY), null, 5, ContextPurpose.DIARY_ANALYSIS);
                 List<ContextItem> retrieved = ragMemoryService.retrieveContextItems(ragQuery);
                  ContextPlanner.ContextPlan contextPlan = contextPlanner.planEnvelope(userId, null, "",
-                          List.of(), retrieved, ContextPurpose.DIARY_ANALYSIS);
+                           List.of(), retrieved, ContextPurpose.DIARY_ANALYSIS);
                   plannedContext = contextPlan.envelope();
+                  logDiaryContextDiagnostics(userId, ragQueryLength, retrieved.size(), plannedContext);
                  EffectivePersona persona = personaService == null ? null : personaService.compileForUser(userId);
                  contextMetadataRecorder.record(contextPlan.envelope(), Map.of(
                          "personaVersion", persona == null || persona.globalVersion() == null ? 0 : persona.globalVersion(),
@@ -163,8 +169,9 @@ public class AiAnalysisService {
                          "requestedModel", useReasoning ? "PRO" : "FLASH",
                          "actualModel", useReasoning ? "PRO" : "FLASH",
                          "useReasoning", useReasoning));
-             } catch (Exception e) {
-                log.warn("Failed to retrieve memory contexts for user {}: {}", userId, e.getMessage());
+              } catch (Exception e) {
+                 log.warn("日记 AI RAG/上下文构建失败，userId={}，ragQueryLength={}，stage=retrieve_or_plan，errorType={}，message={}",
+                         userId, ragQueryLength, e.getClass().getSimpleName(), safeErrorMessage(e));
             }
         }
         sb.append("[本次日记]\n").append(content);
@@ -188,14 +195,23 @@ public class AiAnalysisService {
         String userPrompt = sb.toString();
 
         int maxRetries = 3;
+        String analysisSystemPrompt = null;
+        String promptFingerprint = null;
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             long modelStartedAt = System.nanoTime();
             String modelName = useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash";
             try {
                 String json;
-                String analysisSystemPrompt = analysisSystemPrompt(userId, plannedContext);
-                log.info("日记 AI 模型调用开始，userId={}，model={}，attempt={}/{}, promptLength={}，contentLength={}，imageDescriptionLength={}，hasMusic={}",
-                        userId, modelName, attempt, maxRetries, analysisSystemPrompt.length() + userPrompt.length(),
+                analysisSystemPrompt = analysisSystemPrompt(userId, plannedContext);
+                promptFingerprint = promptFingerprint(analysisSystemPrompt, userPrompt);
+                if (attempt == 1) {
+                    logDiaryPromptDiagnostics(userId, promptFingerprint, analysisSystemPrompt, userPrompt,
+                            content, musicMeta, imageDescriptions, plannedContext);
+                }
+                log.info("日记 AI 模型调用开始，userId={}，model={}，attempt={}/{}, promptFingerprint={}，contextId={}，promptLength={}，contentLength={}，imageDescriptionLength={}，hasMusic={}",
+                        userId, modelName, attempt, maxRetries, promptFingerprint,
+                        plannedContext == null ? "(none)" : plannedContext.contextId(),
+                        analysisSystemPrompt.length() + userPrompt.length(),
                         content == null ? 0 : content.length(), imageDescriptions == null ? 0 : imageDescriptions.length(),
                         musicMeta != null);
                 if (useReasoning) {
@@ -213,8 +229,8 @@ public class AiAnalysisService {
                         userId, modelName, attempt, maxRetries, elapsedMillis(modelStartedAt),
                         json == null ? 0 : json.length(), json == null || json.isBlank());
                 if (json == null || json.isBlank()) {
-                    log.warn("日记 AI 返回空内容，userId={}，model={}，attempt={}/{}, durationMs={}，errorType=EmptyModelResponse",
-                            userId, modelName, attempt, maxRetries, elapsedMillis(modelStartedAt));
+                    log.warn("日记 AI 返回空内容，userId={}，model={}，attempt={}/{}, promptFingerprint={}，durationMs={}，errorType=EmptyModelResponse",
+                            userId, modelName, attempt, maxRetries, promptFingerprint, elapsedMillis(modelStartedAt));
                 }
                 DiaryAnalysisResult parsed = parseAiResponse(json);
                 List<MemorySignal> groundedSignals = validateMemorySignals(
@@ -226,24 +242,25 @@ public class AiAnalysisService {
                 return new DiaryAnalysisResult(parsed.analysis(), groundedSignals);
             } catch (JsonProcessingException e) {
                 if (attempt < maxRetries) {
-                    log.warn("日记 AI 响应解析失败，将重试，model={}，attempt={}/{}, modelDurationMs={}，error={}",
-                            modelName, attempt, maxRetries, elapsedMillis(modelStartedAt),
+                    log.warn("日记 AI 响应解析失败，将重试，userId={}，model={}，attempt={}/{}, promptFingerprint={}，modelDurationMs={}，error={}",
+                            userId, modelName, attempt, maxRetries, promptFingerprint, elapsedMillis(modelStartedAt),
                             e.getClass().getSimpleName() + ":" + safeErrorMessage(e));
                 } else {
-                    log.error("日记 AI 响应解析最终失败，model={}，attempts={}，modelDurationMs={}，totalDurationMs={}，error={}",
-                            modelName, maxRetries, elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt),
+                    log.error("日记 AI 响应解析最终失败，userId={}，model={}，attempts={}，promptFingerprint={}，modelDurationMs={}，totalDurationMs={}，error={}",
+                            userId, modelName, maxRetries, promptFingerprint, elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt),
                             e.getClass().getSimpleName() + ":" + safeErrorMessage(e));
                     throw new IllegalStateException("AI 分析响应无法解析", e);
                 }
             } catch (Exception e) {
                 if (attempt < maxRetries) {
-                    log.warn("日记 AI 模型调用失败，将重试，model={}，attempt={}/{}, modelDurationMs={}，totalDurationMs={}，error={}",
-                            modelName, attempt, maxRetries, elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt),
+                    log.warn("日记 AI 模型调用失败，将重试，userId={}，model={}，attempt={}/{}, promptFingerprint={}，modelDurationMs={}，totalDurationMs={}，error={}",
+                            userId, modelName, attempt, maxRetries, promptFingerprint,
+                            elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt),
                             e.getClass().getSimpleName() + ":" + safeErrorMessage(e));
                     continue;
                 }
-                log.error("日记 AI 模型调用最终失败，model={}，attempts={}，modelDurationMs={}，totalDurationMs={}，error={}",
-                        modelName, attempt, elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt),
+                log.error("日记 AI 模型调用最终失败，userId={}，model={}，attempts={}，promptFingerprint={}，modelDurationMs={}，totalDurationMs={}，error={}",
+                        userId, modelName, attempt, promptFingerprint, elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt),
                         e.getClass().getSimpleName() + ":" + safeErrorMessage(e));
                 throw new IllegalStateException("AI 分析调用失败", e);
             }
@@ -282,21 +299,35 @@ public class AiAnalysisService {
         int messageMetadataKeys = 0;
         int toolCallCount = 0;
 
+        int generationIndex = 0;
         for (Generation generation : generations) {
             if (generation == null) continue;
+            String generationText = null;
+            int generationToolCallCount = 0;
             if (generation.getOutput() != null) {
-                String text = generation.getOutput().getText();
-                textLength += text == null ? 0 : text.length();
+                generationText = generation.getOutput().getText();
+                textLength += generationText == null ? 0 : generationText.length();
                 messageMetadataKeys += generation.getOutput().getMetadata() == null
                         ? 0 : generation.getOutput().getMetadata().size();
-                toolCallCount += generation.getOutput().getToolCalls() == null
+                generationToolCallCount = generation.getOutput().getToolCalls() == null
                         ? 0 : generation.getOutput().getToolCalls().size();
+                toolCallCount += generationToolCallCount;
             }
             ChatGenerationMetadata metadata = generation.getMetadata();
+            String generationFinishReason = null;
             if (metadata != null) {
-                if (finishReason == null) finishReason = metadata.getFinishReason();
+                generationFinishReason = metadata.getFinishReason();
+                if (finishReason == null) finishReason = generationFinishReason;
                 generationMetadataKeys = metadata.keySet().toString();
             }
+            log.info("日记 AI generation 诊断，userId={}，model={}，generationIndex={}，textLength={}，"
+                            + "toolCallCount={}，outputMetadataKeyCount={}，finishReason={}，generationMetadataKeys={}",
+                    userId, modelName, generationIndex++, generationText == null ? 0 : generationText.length(),
+                    generationToolCallCount,
+                    generation.getOutput() == null || generation.getOutput().getMetadata() == null
+                            ? 0 : generation.getOutput().getMetadata().size(),
+                    safeLogValue(generationFinishReason),
+                    metadata == null ? "[]" : metadata.keySet());
         }
 
         log.info("日记 AI 响应结构诊断，userId={}，model={}，responseId={}，generationCount={}，"
@@ -311,6 +342,86 @@ public class AiAnalysisService {
                 usage == null ? null : usage.getCompletionTokens(),
                 usage == null ? null : usage.getTotalTokens(),
                 generationMetadataKeys, elapsedMillis(modelStartedAt));
+        log.info("日记 AI 响应提取诊断，userId={}，model={}，contentBlank={}，generationTextLength={}，"
+                        + "adapterContentMismatch={}，toolCallCount={}，finishReason={}",
+                userId, modelName, content == null || content.isBlank(), textLength,
+                (content == null || content.isBlank()) && textLength > 0, toolCallCount,
+                safeLogValue(finishReason));
+    }
+
+    private void logDiaryContextDiagnostics(Long userId, int queryLength, int retrievedCount,
+            ContextEnvelope envelope) {
+        if (envelope == null) {
+            log.info("日记 AI 上下文诊断，userId={}，ragQueryLength={}，retrievedCount={}，contextPresent=false",
+                    userId, queryLength, retrievedCount);
+            return;
+        }
+        log.info("日记 AI 上下文诊断，userId={}，contextId={}，ragQueryLength={}，retrievedCount={}，"
+                        + "coreMemoryCount={}，coreMemoryChars={}，shortTermCount={}，shortTermChars={}，"
+                        + "userReferenceCount={}，retrievedContextCount={}，retrievedContextChars={}，"
+                        + "timelineCount={}，toolResultCount={}，retrievedSourceTypes={}",
+                userId, envelope.contextId(), queryLength, retrievedCount,
+                envelope.coreMemory().size(), contentLength(envelope.coreMemory()),
+                envelope.shortTermState().size(), contentLength(envelope.shortTermState()),
+                envelope.userReferences().size(), envelope.retrievedContext().size(),
+                contentLength(envelope.retrievedContext()), envelope.timelineContext().size(),
+                envelope.toolResults().size(), sourceTypeCounts(envelope.retrievedContext()));
+    }
+
+    private void logDiaryPromptDiagnostics(Long userId, String promptFingerprint,
+            String systemPrompt, String userPrompt, String content,
+            com.moodcopilot.entity.MusicMeta musicMeta, String imageDescriptions,
+            ContextEnvelope envelope) {
+        int systemChars = systemPrompt == null ? 0 : systemPrompt.length();
+        int userChars = userPrompt == null ? 0 : userPrompt.length();
+        int totalBytes = utf8Length(systemPrompt) + utf8Length(userPrompt);
+        int lyricChars = musicMeta == null || musicMeta.getUserLyric() == null
+                ? 0 : musicMeta.getUserLyric().length();
+        log.info("日记 AI 提示词诊断，userId={}，contextId={}，promptFingerprint={}，"
+                        + "systemChars={}，userChars={}，totalChars={}，totalUtf8Bytes={}，"
+                        + "diaryChars={}，lyricChars={}，imageDescriptionChars={}，"
+                        + "retrievedContextChars={}，hasMusic={}，hasImages={}",
+                userId, envelope == null ? "(none)" : envelope.contextId(), promptFingerprint,
+                systemChars, userChars, systemChars + userChars, totalBytes,
+                content == null ? 0 : content.length(), lyricChars,
+                imageDescriptions == null ? 0 : imageDescriptions.length(),
+                envelope == null ? 0 : contentLength(envelope.retrievedContext()),
+                musicMeta != null, imageDescriptions != null && !imageDescriptions.isBlank());
+    }
+
+    private int contentLength(List<ContextItem> items) {
+        if (items == null) return 0;
+        return items.stream().filter(java.util.Objects::nonNull)
+                .mapToInt(item -> item.content() == null ? 0 : item.content().length()).sum();
+    }
+
+    private Map<String, Long> sourceTypeCounts(List<ContextItem> items) {
+        if (items == null) return Map.of();
+        return items.stream().filter(java.util.Objects::nonNull)
+                .map(ContextItem::source)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.groupingBy(ContextSource::sourceType, java.util.TreeMap::new, Collectors.counting()));
+    }
+
+    private int utf8Length(String value) {
+        return value == null ? 0 : value.getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    /** Stable per-request correlation value; it does not expose prompt text. */
+    private String promptFingerprint(String systemPrompt, String userPrompt) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(((systemPrompt == null ? "" : systemPrompt)
+                    + "\n---USER---\n"
+                    + (userPrompt == null ? "" : userPrompt)).getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(16);
+            for (int i = 0; i < 8; i++) {
+                hex.append(String.format("%02x", bytes[i]));
+            }
+            return hex.toString();
+        } catch (Exception e) {
+            return "unavailable";
+        }
     }
 
     private String safeLogValue(String value) {
