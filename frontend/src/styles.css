@@ -1490,6 +1490,8 @@ h3 {
 
 .notification-page-header {
   align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .notification-page-subtitle {

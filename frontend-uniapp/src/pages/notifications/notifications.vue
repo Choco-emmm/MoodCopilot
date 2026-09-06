@@ -1,6 +1,17 @@
 <template>
   <view class="notifications-page" :style="globalThemeStyle">
     <GlobalUI />
+    <view class="notifications-header">
+      <text class="notifications-title">通知</text>
+      <button
+        v-if="unreadCount > 0"
+        class="mark-all-read-button"
+        :disabled="markAllLoading"
+        @click="markAllRead"
+      >
+        {{ markAllLoading ? '处理中' : '全部已读' }}
+      </button>
+    </view>
     <view v-if="loading" class="loading-state">
       <text>加载中...</text>
     </view>
@@ -39,14 +50,25 @@ import { currentTheme } from '@/stores/theme';
 const notifications = ref<any[]>([]);
 const loading = ref(true);
 const loadingMore = ref(false);
+const markAllLoading = ref(false);
+const unreadCount = ref(0);
 const page = ref(1);
 const hasMore = ref(true);
 const pageSize = 20;
 const socialNotificationTypes = new Set(['RESONANCE', 'COMMENT', 'FOLLOW']);
 
 onMounted(() => {
-  void fetchNotifications();
+  void Promise.all([fetchNotifications(), fetchUnreadCount()]);
 });
+
+const fetchUnreadCount = async () => {
+  try {
+    const res = await get('/api/notifications/unread-count');
+    if (res.code === 200) unreadCount.value = Number(res.data?.count || 0);
+  } catch (e) {
+    console.error(e);
+  }
+};
 
 const fetchNotifications = async (isLoadMore = false) => {
   if (loadingMore.value || (isLoadMore && !hasMore.value)) return;
@@ -78,6 +100,7 @@ const markRead = async (notification: any) => {
     const res = await put(`/api/notifications/${notification.id}/read`);
     if (res.code === 200) {
       notification.isRead = true;
+      unreadCount.value = Math.max(0, unreadCount.value - 1);
       uni.$emit('refreshUnreadCount');
       return true;
     }
@@ -85,6 +108,23 @@ const markRead = async (notification: any) => {
     console.error(e);
   }
   return false;
+};
+
+const markAllRead = async () => {
+  if (unreadCount.value === 0 || markAllLoading.value) return;
+  markAllLoading.value = true;
+  try {
+    const res = await put('/api/notifications/read-all');
+    if (res.code === 200) {
+      notifications.value = notifications.value.map((item) => ({ ...item, isRead: true }));
+      unreadCount.value = 0;
+      uni.$emit('refreshUnreadCount');
+    }
+  } catch (e) {
+    console.error(e);
+  } finally {
+    markAllLoading.value = false;
+  }
 };
 
 const openNotification = async (notification: any) => {
@@ -157,6 +197,40 @@ const formatTime = (dateStr: string) => {
   background-color: var(--theme-bg);
   padding: 32rpx;
   box-sizing: border-box;
+}
+
+.notifications-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  margin-bottom: 24rpx;
+}
+
+.notifications-title {
+  color: var(--theme-text-primary);
+  font-size: 40rpx;
+  font-weight: 600;
+}
+
+.mark-all-read-button {
+  min-width: 148rpx;
+  height: 64rpx;
+  margin: 0;
+  padding: 0 24rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-surface);
+  color: var(--theme-primary);
+  font-size: 24rpx;
+  line-height: 62rpx;
+}
+
+.mark-all-read-button::after { border: 0; }
+
+.mark-all-read-button[disabled] {
+  color: var(--theme-text-placeholder);
+  opacity: 0.7;
 }
 
 .loading-state, .empty-state {

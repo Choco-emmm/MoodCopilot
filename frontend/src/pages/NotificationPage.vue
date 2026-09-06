@@ -8,6 +8,14 @@
           <h2>通知</h2>
           <p class="notification-page-subtitle">查看最新互动与系统提醒。</p>
         </div>
+        <n-button
+          v-if="notif.unreadCount > 0"
+          size="small"
+          secondary
+          @click="notif.markAllRead()"
+        >
+          全部已读
+        </n-button>
       </div>
 
       <div v-if="notif.loading && notif.items.length === 0" class="empty-state compact">
