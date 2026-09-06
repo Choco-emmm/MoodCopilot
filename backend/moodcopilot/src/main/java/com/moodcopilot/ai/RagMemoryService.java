@@ -987,36 +987,16 @@ public class RagMemoryService {
                 }
                 hits.sort(java.util.Comparator.comparing(RagHit::score, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
                 int rawHits = hits.size();
-                List<RagHit> validHits = hits.stream()
-                        .filter(h -> h.score() != null && h.score() > 0.001 && h.score() < 0.55)
-                        .toList();
-                validHits = new ArrayList<>(validHits);
-                validHits.sort(java.util.Comparator.comparing(RagHit::score, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
-                
-                // 动态阈值截断：用相对比例排除与 Top 1 差距过大的噪音，Top 1 本身太弱时直接丢弃
-                List<RagHit> qualityHits = new ArrayList<>();
-                if (!validHits.isEmpty()) {
-                    double topScore = validHits.get(0).score();
-                    // Top 1 质量过低说明检索无意义，直接返回空
-                    if (topScore < 0.03) {
-                        log.info("RAG 检索跳过：topScore={} 过低，无有效匹配", String.format("%.3f", topScore));
-                        return List.of();
-                    }
-                    // 相对阈值：排除超过 Top 1 3 倍的噪音，同时硬上限 0.55
-                    double threshold = Math.min(0.55, Math.max(topScore * 3.0, topScore + 0.10));
-                    qualityHits = validHits.stream().filter(h -> h.score() <= threshold).toList();
-                }
-                qualityHits = new ArrayList<>(qualityHits);
-                qualityHits.sort(java.util.Comparator.comparing(RagHit::score, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
+                List<RagHit> qualityHits = filterQualityHits(hits);
                 log.info("RAG 搜索完成 userId={} totalHits={} qualityHits={}",
                         userId, rawHits, qualityHits.size());
 
                 if (!qualityHits.isEmpty()) {
-                    double topScore = qualityHits.get(0).score() != null ? qualityHits.get(0).score() : -1;
-                    double avgScore = qualityHits.stream().filter(h -> h.score() != null)
+                    double topDistance = qualityHits.get(0).score() != null ? qualityHits.get(0).score() : -1;
+                    double avgDistance = qualityHits.stream().filter(h -> h.score() != null)
                             .mapToDouble(RagHit::score).average().orElse(-1);
-                    log.info("RAG qualityHits topScore={} avgScore={}",
-                            String.format("%.3f", topScore), String.format("%.3f", avgScore));
+                    log.info("RAG qualityHits topDistance={} avgDistance={}",
+                            String.format("%.3f", topDistance), String.format("%.3f", avgDistance));
                 }
                 return qualityHits;
                     });
@@ -1037,6 +1017,28 @@ public class RagMemoryService {
             return RagSearchResult.lexicalFallback(
                     lexicalFallback(userId, normalizedQuery, safeTopK, timeRange, safeSourceTypes));
         }
+    }
+
+    /**
+     * RediSearch COSINE KNN 返回 distance，而不是相似度：0 表示完全相同，数值越小表示越相似。
+     */
+    static List<RagHit> filterQualityHits(List<RagHit> hits) {
+        // 保留 0 距离命中，只过滤超过质量上限的远距离结果。
+        List<RagHit> validHits = hits.stream()
+                .filter(h -> h.score() != null && h.score() >= 0.0 && h.score() <= 0.55)
+                .sorted(java.util.Comparator.comparing(RagHit::score))
+                .toList();
+
+        if (validHits.isEmpty()) {
+            return List.of();
+        }
+
+        // 动态阈值排除与 Top 1 差距过大的噪音，同时保持 0.55 的硬上限。
+        double topDistance = validHits.get(0).score();
+        double threshold = Math.min(0.55, Math.max(topDistance * 3.0, topDistance + 0.10));
+        return validHits.stream()
+                .filter(h -> h.score() <= threshold)
+                .toList();
     }
 
     private List<RagHit> lexicalFallback(long userId, String query, int topK,

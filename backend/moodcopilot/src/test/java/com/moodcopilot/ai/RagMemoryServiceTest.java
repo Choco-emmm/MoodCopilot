@@ -138,6 +138,31 @@ class RagMemoryServiceTest {
         assertEquals(0.3D, resp3.get(0).score());
     }
 
+    @Test
+    void cosineDistanceKeepsExactAndNearMatchesAndDropsOnlyDistantResults() {
+        List<RagMemoryService.RagHit> qualityHits = RagMemoryService.filterQualityHits(List.of(
+                new RagMemoryService.RagHit("远距离", 0.56D, "diary:1", 1L, RagMemoryService.SOURCE_DIARY),
+                new RagMemoryService.RagHit("近距离", 0.009D, "diary:2", 2L, RagMemoryService.SOURCE_DIARY),
+                new RagMemoryService.RagHit("完全相同", 0.0D, "diary:3", 3L, RagMemoryService.SOURCE_DIARY),
+                new RagMemoryService.RagHit("无距离", null, "diary:4", 4L, RagMemoryService.SOURCE_DIARY)));
+
+        assertEquals(List.of("完全相同", "近距离"), qualityHits.stream()
+                .map(RagMemoryService.RagHit::content)
+                .toList());
+    }
+
+    @Test
+    void cosineDistanceUsesRelativeCutoffForNoise() {
+        List<RagMemoryService.RagHit> qualityHits = RagMemoryService.filterQualityHits(List.of(
+                new RagMemoryService.RagHit("最佳", 0.1D, "diary:1", 1L, RagMemoryService.SOURCE_DIARY),
+                new RagMemoryService.RagHit("相关", 0.2D, "diary:2", 2L, RagMemoryService.SOURCE_DIARY),
+                new RagMemoryService.RagHit("噪音", 0.45D, "diary:3", 3L, RagMemoryService.SOURCE_DIARY)));
+
+        assertEquals(List.of("最佳", "相关"), qualityHits.stream()
+                .map(RagMemoryService.RagHit::content)
+                .toList());
+    }
+
     private UserProfileMemoryEntity memory(Long id, String key, String value) {
         UserProfileMemoryEntity memory = new UserProfileMemoryEntity();
         memory.setId(id);
