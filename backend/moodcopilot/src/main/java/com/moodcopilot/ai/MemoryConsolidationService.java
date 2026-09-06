@@ -83,6 +83,7 @@ public class MemoryConsolidationService {
     }
 
     public List<ConsolidationItem> previewConsolidation(Long userId) {
+        long totalStartedAt = System.nanoTime();
         // Rate limit logic
         String today = java.time.LocalDate.now().toString();
         String redisKey = "memory:consolidate:counter:" + userId + ":" + today;
@@ -100,9 +101,10 @@ public class MemoryConsolidationService {
             throw new RuntimeException("用户记忆条目过少，无需整理");
         }
 
-        log.info("开始预览整合用户 {} 的长期画像", userId);
+        log.info("长期画像整理开始，userId={}，memoryCount={}", userId, existing.size());
 
         String prompt = buildConsolidationPrompt(existing);
+        log.info("长期画像整理准备调用模型，userId={}，promptLength={}", userId, prompt.length());
 
         if (contextMetadataRecorder != null) {
             contextMetadataRecorder.recordModelInvocation(userId, null, ContextPurpose.CHAT,
@@ -110,13 +112,24 @@ public class MemoryConsolidationService {
                     "FLASH", "FLASH");
         }
 
-        String json = chatClient.prompt()
-                .system(promptComposer.compose(CONSOLIDATION_PROMPT, userId,
-                        new TaskContext("GENERAL", "只审查和提出可追溯的画像归并", List.of(), null),
-                        ContextPurpose.CHAT, ""))
-                .user(prompt)
-                .call()
-                .content();
+        long modelStartedAt = System.nanoTime();
+        String json;
+        try {
+            json = chatClient.prompt()
+                    .system(promptComposer.compose(CONSOLIDATION_PROMPT, userId,
+                            new TaskContext("GENERAL", "只审查和提出可追溯的画像归并", List.of(), null),
+                            ContextPurpose.CHAT, ""))
+                    .user(prompt)
+                    .call()
+                    .content();
+            log.info("长期画像整理模型调用结束，userId={}，responseLength={}，modelDurationMs={}，totalDurationMs={}",
+                    userId, json == null ? 0 : json.length(), elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt));
+        } catch (Exception e) {
+            log.error("长期画像整理模型调用异常，userId={}，modelDurationMs={}，totalDurationMs={}，exceptionType={}，rootCauseType={}，message={}",
+                    userId, elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt),
+                    e.getClass().getSimpleName(), rootCauseType(e), safeMessage(e), e);
+            throw new RuntimeException("AI 模型调用失败", e);
+        }
 
         try {
             String cleanedJson = JsonUtils.cleanJson(json);
@@ -146,12 +159,38 @@ public class MemoryConsolidationService {
 
             // An empty list is a valid preview: it means the current formal memories
             // do not have a safe, source-backed consolidation proposal.
-            if (items.isEmpty()) return List.of();
-            return sanitizeItems(userId, existing, items);
+            if (items.isEmpty()) {
+                log.info("长期画像整理完成，userId={}，resultCount=0，totalDurationMs={}",
+                        userId, elapsedMillis(totalStartedAt));
+                return List.of();
+            }
+            List<ConsolidationItem> result = sanitizeItems(userId, existing, items);
+            log.info("长期画像整理完成，userId={}，resultCount={}，totalDurationMs={}",
+                    userId, result.size(), elapsedMillis(totalStartedAt));
+            return result;
         } catch (Exception e) {
-            log.error("整合用户 {} 画像失败: {}", userId, e.getMessage());
+            log.error("长期画像整理结果解析异常，userId={}，totalDurationMs={}，exceptionType={}，rootCauseType={}，message={}",
+                    userId, elapsedMillis(totalStartedAt), e.getClass().getSimpleName(), rootCauseType(e), safeMessage(e), e);
             throw new RuntimeException("AI 返回格式解析失败", e);
         }
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+    }
+
+    private String rootCauseType(Throwable error) {
+        Throwable root = error;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        return root.getClass().getSimpleName();
+    }
+
+    private String safeMessage(Throwable error) {
+        String message = error.getMessage();
+        if (message == null || message.isBlank()) return "(empty)";
+        return message.length() > 300 ? message.substring(0, 300) : message;
     }
 
     public void applyConsolidation(Long userId, List<ConsolidationItem> items) {

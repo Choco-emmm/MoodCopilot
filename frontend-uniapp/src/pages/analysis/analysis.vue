@@ -2265,3 +2265,106 @@ const deleteTriple = (id: number) => {
   margin-top: 10rpx;
 }
 </style>
+
+<style scoped>
+/* Memory cards restore the earlier editorial layout without relying on full-width rules. */
+.memory-overview {
+  margin-bottom: 18rpx;
+  padding: 0 4rpx;
+}
+
+.memory-groups {
+  border-top: 0;
+}
+
+.memory-group {
+  border: 0;
+}
+
+.memory-group + .memory-group {
+  margin-top: 22rpx;
+}
+
+.memory-group-header {
+  min-height: 76rpx;
+  padding: 12rpx 4rpx 16rpx;
+  border-bottom: 0;
+}
+
+.memory-group-expanded .memory-group-header {
+  padding-bottom: 14rpx;
+}
+
+.memory-group-title {
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.memory-group-count {
+  font-size: 19rpx;
+}
+
+.memory-group-toggle {
+  min-width: 72rpx;
+  color: var(--theme-primary);
+  font-size: 19rpx;
+  text-align: right;
+}
+
+.memory-list {
+  display: flex;
+  gap: 14rpx;
+  padding: 0 2rpx 2rpx;
+  border-top: 0;
+}
+
+.memory-row {
+  min-height: 0;
+  align-items: flex-start;
+  gap: 14rpx;
+  padding: 24rpx 20rpx 22rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: 12rpx;
+  background: var(--theme-surface);
+  box-shadow: var(--theme-shadow-panel);
+}
+
+.memory-row:active {
+  background: var(--theme-surface-hover);
+}
+
+.memory-row-head {
+  margin-bottom: 8rpx;
+}
+
+.memory-value {
+  margin-top: 0;
+  color: var(--theme-text-primary);
+  font-size: 26rpx;
+  line-height: 1.7;
+}
+
+.memory-list .memory-source-row {
+  display: none;
+}
+
+.memory-updated {
+  margin-top: 13rpx;
+  font-size: 18rpx;
+}
+
+.memory-row-actions {
+  gap: 8rpx;
+  padding-top: 2rpx;
+}
+
+.memory-row-actions .memory-edit {
+  padding: 6rpx 4rpx;
+}
+
+.memory-row-actions .del-btn {
+  width: 42rpx;
+  height: 42rpx;
+  border-radius: var(--theme-radius-sm);
+}
+</style>
