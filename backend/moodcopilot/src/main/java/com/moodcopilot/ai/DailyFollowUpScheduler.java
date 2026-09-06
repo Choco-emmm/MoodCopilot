@@ -1,10 +1,6 @@
 package com.moodcopilot.ai;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.moodcopilot.common.RateLimitException;
-import com.moodcopilot.diary.DiaryAnalysis;
-import com.moodcopilot.entity.DiaryAnalysisEntity;
-import com.moodcopilot.entity.DiaryEntity;
 import com.moodcopilot.entity.UserLifeEventEntity;
 import com.moodcopilot.event.LifeEventService;
 import com.moodcopilot.mapper.DiaryAnalysisMapper;
@@ -25,7 +21,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.LinkedHashSet;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -42,11 +37,7 @@ public class DailyFollowUpScheduler {
             "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end", Long.class);
 
     private final UserMapper userMapper;
-    private final DiaryMapper diaryMapper;
-    private final DiaryAnalysisMapper diaryAnalysisMapper;
-    private final AiAnalysisService aiAnalysisService;
     private final NotificationService notificationService;
-    private final RateLimitService rateLimitService;
     private final StringRedisTemplate redisTemplate;
     private final LifeEventService lifeEventService;
     private final ZoneId eventTimeZone;
@@ -62,11 +53,7 @@ public class DailyFollowUpScheduler {
             LifeEventService lifeEventService,
             @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId) {
         this.userMapper = userMapper;
-        this.diaryMapper = diaryMapper;
-        this.diaryAnalysisMapper = diaryAnalysisMapper;
-        this.aiAnalysisService = aiAnalysisService;
         this.notificationService = notificationService;
-        this.rateLimitService = rateLimitService;
         this.redisTemplate = redisTemplate;
         this.lifeEventService = lifeEventService;
         this.eventTimeZone = parseTimeZone(timeZoneId);
@@ -85,26 +72,23 @@ public class DailyFollowUpScheduler {
     }
 
     /**
-     * 每小时触发一次，打散用户通知时间。
-     * 每个用户每天只在偏好时间收到一次通知，避免一刀切的早上 6 点推送。
+     * 每小时触发一次，处理到期的重要事件回访。
+     * 普通的连续记录/每日陪伴通知已停用。
      */
     @Scheduled(cron = "0 0 * * * *")
     public void sendDailyFollowUp() {
         LocalDateTime now = LocalDateTime.now(eventTimeZone);
-        int currentHour = now.getHour();
-        log.info("每日跟进定时任务触发，currentHour={}", currentHour);
+        log.info("事件回访定时任务触发，currentHour={}", now.getHour());
 
-        LinkedHashSet<Long> userIdSet = new LinkedHashSet<>(userMapper.findActiveUsersWithDiariesYesterday());
-        userIdSet.addAll(userMapper.findUsersWithDueLifeEvents(now));
+        LinkedHashSet<Long> userIdSet = new LinkedHashSet<>(userMapper.findUsersWithDueLifeEvents(now));
         List<Long> userIds = new ArrayList<>(userIdSet);
         if (userIds.isEmpty()) {
-            log.info("没有需要发送每日通知的用户");
+            log.info("没有需要发送事件回访通知的用户");
             return;
         }
 
         String today = now.toLocalDate().toString();
         int sent = 0;
-        int skipped = 0;
         for (Long userId : userIds) {
             String dailyClaim = null;
             boolean notificationPersisted = false;
@@ -140,66 +124,11 @@ public class DailyFollowUpScheduler {
                     }
                     continue;
                 }
-                if (!isPreferredHour(userId, currentHour)) {
-                    continue;
-                }
-                try {
-                    rateLimitService.tryAcquire(userId, RateLimitService.AiApiType.DIARY_FLASH);
-                } catch (RateLimitException e) {
-                    skipped++;
-                    continue;
-                }
-
-                List<DiaryEntity> recent = diaryMapper.selectList(
-                        new LambdaQueryWrapper<DiaryEntity>()
-                                .eq(DiaryEntity::getAuthorUserId, userId)
-                                .orderByDesc(DiaryEntity::getCreatedAt)
-                                .last("LIMIT 7"));
-
-                List<Long> ids = recent.stream().map(DiaryEntity::getId).toList();
-                List<DiaryAnalysisEntity> analysisEntities = ids.isEmpty()
-                        ? List.of()
-                        : diaryAnalysisMapper.selectBatchIds(ids);
-                Map<Long, DiaryAnalysisEntity> analysisMap = analysisEntities.stream()
-                        .collect(java.util.stream.Collectors.toMap(
-                                DiaryAnalysisEntity::getDiaryId,
-                                analysis -> analysis,
-                                (left, right) -> left,
-                                LinkedHashMap::new));
-
-                List<AiAnalysisService.DiaryEntryContext> contents = new ArrayList<>();
-                List<DiaryAnalysis> analyses = new ArrayList<>();
-                for (DiaryEntity d : recent) {
-                    contents.add(new AiAnalysisService.DiaryEntryContext(d.getCreatedAt().toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("MM-dd")), d.getContent()));
-                    DiaryAnalysisEntity a = analysisMap.get(d.getId());
-                    if (a != null) {
-                        analyses.add(new DiaryAnalysis(a.getMoodLabel(), a.getMoodIntensity(),
-                                a.getTopicLabelsJson(),
-                                a.getSecondaryMoodsJson() != null ? a.getSecondaryMoodsJson() : List.of(),
-                                a.getSummary(), a.getFeedback()));
-                    } else {
-                        analyses.add(null);
-                    }
-                }
-
-                int streak = calcStreak(userId);
-
-                String yesterdayMood = analyses.isEmpty() || analyses.get(0) == null
-                        ? "复杂"
-                        : analyses.get(0).moodLabel();
-
-                String coaching = aiAnalysisService.generateCoaching(userId, contents, analyses);
-
-                String greeting = greetingByHour(currentHour);
-                String message = String.format(
-                        "%s！已连续记录 %d 天，昨天是「%s」。\n\n%s", greeting, streak, yesterdayMood, coaching);
-
-                notificationPersisted = notificationService.notifyDailyFollowUp(userId, message);
-                if (!notificationPersisted) {
-                    log.warn("每日陪伴通知未落库，userId={}，允许后续重试", userId);
-                    continue;
-                }
-                sent++;
+                // 普通的“连续记录/每日陪伴”通知已停用；重要事件回访仍由上面的分支发送。
+                // 释放本轮闸门，避免停用通知占用当天的发送资格。
+                releaseDailyClaim(userId, today, dailyClaim);
+                dailyClaim = null;
+                continue;
             } catch (Exception e) {
                 log.warn("用户 {} 每日通知生成失败: {}", userId, e.getMessage());
             } finally {
@@ -208,26 +137,7 @@ public class DailyFollowUpScheduler {
                 }
             }
         }
-        log.info("每日跟进通知完成: 发送 {} 条, 额度不足跳过 {} 人", sent, skipped);
-    }
-
-    /**
-     * 判断当前小时是否为该用户的偏好通知时间。
-     * 使用 userId 哈希映射到 6-22 之间的某个小时，打散用户通知负载。
-     */
-    private boolean isPreferredHour(long userId, int currentHour) {
-        int assignedHour = (int) (userId % 17) + 6;
-        return currentHour == assignedHour;
-    }
-
-    private String greetingByHour(int hour) {
-        if (hour >= 5 && hour < 12) {
-            return "早上好";
-        }
-        if (hour >= 12 && hour < 18) {
-            return "下午好";
-        }
-        return "晚上好";
+        log.info("事件回访通知完成: 发送 {} 条", sent);
     }
 
     private String claimDailySend(long userId, String today) {
@@ -250,39 +160,6 @@ public class DailyFollowUpScheduler {
         } catch (Exception e) {
             log.debug("释放每日通知闸门失败, userId={}", userId, e);
         }
-    }
-
-    private int calcStreak(Long userId) {
-        String cacheKey = "streak:%d:%s".formatted(userId, LocalDate.now());
-        try {
-            String cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null) {
-                return Integer.parseInt(cached);
-            }
-        } catch (Exception e) {
-            log.debug("连续天数缓存读取失败, userId={}", userId, e);
-        }
-
-        int streak = 0;
-        LocalDate date = LocalDate.now();
-        while (true) {
-            long count = diaryMapper.selectCount(
-                    new LambdaQueryWrapper<DiaryEntity>()
-                            .eq(DiaryEntity::getAuthorUserId, userId)
-                            .ge(DiaryEntity::getCreatedAt, date.atStartOfDay())
-                            .lt(DiaryEntity::getCreatedAt, date.plusDays(1).atStartOfDay()));
-            if (count == 0)
-                break;
-            streak++;
-            date = date.minusDays(1);
-        }
-
-        try {
-            redisTemplate.opsForValue().set(cacheKey, String.valueOf(streak), Duration.ofHours(6));
-        } catch (Exception e) {
-            log.debug("连续天数缓存写入失败, userId={}", userId, e);
-        }
-        return streak;
     }
 
     private ZoneId parseTimeZone(String timeZoneId) {

@@ -215,14 +215,6 @@
 
       <SettingSection title="提醒与陪伴" tag="Routine">
         <div class="settings-row justify-between">
-          <span class="text-sm">每日心情日记提醒</span>
-          <n-switch
-            :value="auth.dailyNotifyEnabled"
-            :loading="toggling"
-            @update:value="toggleNotify"
-          />
-        </div>
-        <div class="settings-row justify-between mt-12">
           <span class="text-sm">长期记忆画像生成通知</span>
           <n-switch
             :value="auth.profileNotifyEnabled"
@@ -844,17 +836,6 @@ async function saveSignature() {
     signatureMsg.value = '保存失败'
   } finally {
     savingSignature.value = false
-  }
-}
-
-async function toggleNotify(val: boolean) {
-  toggling.value = true
-  try {
-    await auth.updateSettings(val)
-  } catch (e) {
-    logWarn('profile', '更新通知设置失败', e)
-  } finally {
-    toggling.value = false
   }
 }
 
