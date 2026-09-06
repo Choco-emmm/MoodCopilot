@@ -174,6 +174,30 @@ class LifeEventServiceTest {
     }
 
     @Test
+    void secondAutomaticFollowUpMarksEventAsFollowedUp() {
+        UserLifeEventMapper eventMapper = mock(UserLifeEventMapper.class);
+        UserLifeEventEntity event = new UserLifeEventEntity();
+        event.setId(16L);
+        event.setUserId(7L);
+        event.setStatus("PENDING");
+        event.setTargetDate(LocalDate.now().minusDays(3));
+        event.setFollowUpCount(1);
+        event.setFollowUpCompleted(false);
+        event.setNextFollowUpAt(LocalDateTime.now().minusHours(1).withNano(0));
+        when(eventMapper.selectOne(any(Wrapper.class))).thenReturn(event);
+        when(eventMapper.update(any(), any(Wrapper.class))).thenReturn(1);
+
+        LifeEventService service = new LifeEventService(eventMapper, mock(DiaryMapper.class),
+                mock(ChatClient.class), new ObjectMapper(), mock(AiPromptProperties.class));
+
+        assertEquals(true, service.recordFollowUpSent(7L, 16L, event.getNextFollowUpAt()));
+        assertEquals(2, event.getFollowUpCount());
+        assertEquals("FOLLOWED_UP", event.getStatus());
+        assertEquals(true, event.getFollowUpCompleted());
+        org.junit.jupiter.api.Assertions.assertNull(event.getNextFollowUpAt());
+    }
+
+    @Test
     void markingEventFollowedUpStopsFutureAutomaticFollowUps() {
         UserLifeEventMapper eventMapper = mock(UserLifeEventMapper.class);
         UserLifeEventEntity event = new UserLifeEventEntity();

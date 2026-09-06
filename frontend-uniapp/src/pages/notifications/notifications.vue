@@ -128,22 +128,22 @@ const markAllRead = async () => {
 };
 
 const openNotification = async (notification: any) => {
-  const didMarkRead = await markRead(notification);
+  await markRead(notification);
   const eventId = Number(notification.lifeEventId || notification.eventId);
-  if (didMarkRead && Number.isFinite(eventId) && eventId > 0) {
+  if (Number.isFinite(eventId) && eventId > 0) {
     uni.setStorageSync('pendingLifeEventId', eventId);
     uni.switchTab({ url: '/pages/chat/chat' });
     return;
   }
-  if (didMarkRead && notification.diaryId) {
+  if (notification.diaryId) {
     uni.navigateTo({ url: `/pages/detail/detail?id=${notification.diaryId}` });
     return;
   }
-  if (didMarkRead && ['MEMORY_UPDATED', 'GRAPH_UPDATED'].includes(notification.type)) {
+  if (['MEMORY_UPDATED', 'GRAPH_UPDATED'].includes(notification.type)) {
     uni.switchTab({ url: '/pages/analysis/analysis' });
     return;
   }
-  if (didMarkRead && notification.type === 'PROFILE_UPDATED') {
+  if (notification.type === 'PROFILE_UPDATED') {
     uni.switchTab({ url: '/pages/profile/profile' });
   }
 };

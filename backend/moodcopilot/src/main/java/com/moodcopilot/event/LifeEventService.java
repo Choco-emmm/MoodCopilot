@@ -63,7 +63,7 @@ public class LifeEventService {
     private static final ZoneId DEFAULT_EVENT_TIME_ZONE = ZoneId.of("Asia/Shanghai");
     private static final int DEFAULT_FOLLOW_UP_DELAY_DAYS = 2;
     private static final int MAX_FOLLOW_UP_DELAY_DAYS = 30;
-    private static final int MAX_FOLLOW_UPS_WITHOUT_END_DATE = 2;
+    private static final int MAX_AUTOMATIC_FOLLOW_UPS = 2;
 
     private final UserLifeEventMapper userLifeEventMapper;
     private final DiaryMapper diaryMapper;
@@ -504,9 +504,14 @@ public class LifeEventService {
         String phase = phaseFor(entity.getTargetDate(), entity.getEndDate(), entity.getStartTime(), entity.getEndTime());
         LocalDateTime nextFollowUpAt;
         boolean completed;
-        if ("PAST".equals(phase) || (entity.getEndDate() == null && count >= MAX_FOLLOW_UPS_WITHOUT_END_DATE)) {
+        if (count >= MAX_AUTOMATIC_FOLLOW_UPS) {
             nextFollowUpAt = null;
             completed = true;
+            entity.setStatus("FOLLOWED_UP");
+        } else if ("PAST".equals(phase)) {
+            // 过去事件也保留第二次自动回访的机会；两次通知完成后再自动结束事件。
+            nextFollowUpAt = now.plusDays(DEFAULT_FOLLOW_UP_DELAY_DAYS);
+            completed = false;
         } else if ("UPCOMING".equals(phase)) {
             nextFollowUpAt = afterEndFollowUpAt(entity);
             completed = false;
@@ -523,6 +528,7 @@ public class LifeEventService {
                 .eq("user_id", userId)
                 .eq("status", "PENDING")
                 .eq("next_follow_up_at", scheduledAt)
+                .set("status", entity.getStatus())
                 .set("last_follow_up_at", now)
                 .set("follow_up_count", count)
                 .set("temporal_phase", phase)
