@@ -37,7 +37,6 @@ import AppHeader from '../components/AppHeader.vue'
 import LifeChapterContent from '../components/LifeChapterContent.vue'
 import { lifeChapterApi, type LifeChapter, type LifeChapterVersion, type LifeTimelineCandidate } from '../api/life'
 import { useRouter } from 'vue-router'
-import { beginAiOperation } from '../utils/aiOperationFeedback'
 
 const chapters = ref<LifeChapter[]>([])
 const loading = ref(true)
@@ -89,14 +88,13 @@ function openDiary(id: number) { router.push(`/diary/${id}`) }
 function openEvents() { router.push('/life-events') }
 
 async function refreshChapter(chapter: LifeChapter) {
-  const feedback = beginAiOperation('重新整理这个阶段')
+  window.$message?.info('已开始整理这个阶段，完成后会通知你。', { duration: 3500 })
   refreshingId.value = chapter.id
   try {
     await lifeChapterApi.refresh(chapter.id)
     await loadChapters()
-    feedback.success('整理任务已提交，后台会继续生成新的阶段总结')
   } catch {
-    feedback.error('阶段整理失败，请稍后重试')
+    window.$message?.error('阶段整理任务提交失败，请稍后重试', { duration: 5000 })
   }
   finally { window.setTimeout(() => { if (refreshingId.value === chapter.id) refreshingId.value = null }, 1200) }
 }

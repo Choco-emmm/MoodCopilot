@@ -54,6 +54,7 @@ export const memoryApi = {
   forget: (id: number) => api.delete(`/memory/${id}`),
   update: (id: number, data: { attributeValue: string; isCore?: boolean }) => api.put(`/memory/${id}`, data),
   previewConsolidate: () => api.post('/memory/consolidate/preview'),
+  consolidationTask: (taskId: string) => api.get(`/memory/consolidate/tasks/${taskId}`),
   applyConsolidate: (data: any) => api.post('/memory/consolidate/apply', data),
 }
 
@@ -63,5 +64,6 @@ export const graphApi = {
   updateTriple: (id: number, data: { headEntity: string; relation: string; tailEntity: string }) => api.put(`/graph/triples/${id}`, data),
   deleteTriple: (id: number) => api.delete(`/graph/triples/${id}`),
   previewConsolidate: () => api.post('/graph/consolidate/preview'),
+  consolidationTask: (taskId: string) => api.get(`/graph/consolidate/tasks/${taskId}`),
   applyConsolidate: (data: any) => api.post('/graph/consolidate/apply', data)
 }

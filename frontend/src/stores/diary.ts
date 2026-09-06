@@ -7,6 +7,7 @@ import type { DiaryImageMetaPayload } from '../api/diary'
 import { normalizeResourceUrl } from '../utils/resource'
 import { tryExpToast } from '../utils/toast'
 import { logWarn } from '../utils/logger'
+import { useAiPreviewStore } from './aiPreview'
 import { useCommentStore, type DiaryComment } from './comment'
 
 export interface MusicMeta {
@@ -54,6 +55,7 @@ export interface DiaryAnalysis {
 }
 
 export const useDiaryStore = defineStore('diary', () => {
+  const aiPreviewStore = useAiPreviewStore()
   const myDiaries = ref<Diary[]>([])
   const publicDiaries = ref<Diary[]>([])
   const activeDiary = ref<Diary | null>(null)
@@ -285,7 +287,7 @@ export const useDiaryStore = defineStore('diary', () => {
           mergeDiary(updated)
           analysisStatus.value = 'complete'
           globalAnalysisDiary.value = updated
-          showGlobalAnalysisModal.value = true
+          aiPreviewStore.enqueue({ kind: 'DIARY_ANALYSIS', diary: updated })
           clearAnalysisPollTimer()
         }
       } catch (e) {
@@ -322,7 +324,7 @@ export const useDiaryStore = defineStore('diary', () => {
       errorMessage.value = updated.analysisError || null
       if (updated.analysis) {
         globalAnalysisDiary.value = updated
-        showGlobalAnalysisModal.value = true
+        aiPreviewStore.enqueue({ kind: 'DIARY_ANALYSIS', diary: updated })
       }
       return updated
     } catch (e) {

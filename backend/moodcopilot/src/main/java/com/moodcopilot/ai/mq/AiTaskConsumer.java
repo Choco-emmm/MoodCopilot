@@ -5,6 +5,9 @@ import com.moodcopilot.diary.DiaryService;
 import com.moodcopilot.ai.AiPostProcessService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.moodcopilot.event.LifeChapterService;
+import com.moodcopilot.ai.MemoryConsolidationService;
+import com.moodcopilot.ai.GraphConsolidationService;
+import com.moodcopilot.notification.NotificationService;
 import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,13 +28,22 @@ public class AiTaskConsumer {
     private final DiaryService diaryService;
     private final AiPostProcessService postProcessService;
     private final LifeChapterService lifeChapterService;
+    private final MemoryConsolidationService memoryConsolidationService;
+    private final GraphConsolidationService graphConsolidationService;
+    private final NotificationService notificationService;
 
     public AiTaskConsumer(AiTaskService taskService, @Lazy DiaryService diaryService,
-                          AiPostProcessService postProcessService, LifeChapterService lifeChapterService) {
+                          AiPostProcessService postProcessService, LifeChapterService lifeChapterService,
+                          MemoryConsolidationService memoryConsolidationService,
+                          GraphConsolidationService graphConsolidationService,
+                          NotificationService notificationService) {
         this.taskService = taskService;
         this.diaryService = diaryService;
         this.postProcessService = postProcessService;
         this.lifeChapterService = lifeChapterService;
+        this.memoryConsolidationService = memoryConsolidationService;
+        this.graphConsolidationService = graphConsolidationService;
+        this.notificationService = notificationService;
     }
 
     @RabbitListener(queues = RabbitMqConfig.ANALYSIS_QUEUE, containerFactory = "aiHeavyRabbitListenerContainerFactory")
@@ -86,6 +98,10 @@ public class AiTaskConsumer {
                 lifeChapterService.refreshChapterTask(task.getUserId(), chapterId, task.getAnalysisVersion());
             } else if (AiTaskMessage.TYPE_TIMELINE_RECOMPUTE.equals(task.getTaskType())) {
                 lifeChapterService.recomputeTimeline(task.getUserId(), java.time.LocalDate.parse(task.getAggregateId()), task.getAnalysisVersion());
+            } else if (AiTaskMessage.TYPE_MEMORY_CONSOLIDATION.equals(task.getTaskType())) {
+                memoryConsolidationService.runConsolidationTask(task.getUserId(), task.getTaskId());
+            } else if (AiTaskMessage.TYPE_GRAPH_CONSOLIDATION.equals(task.getTaskType())) {
+                graphConsolidationService.runConsolidationTask(task.getUserId(), task.getTaskId());
             } else {
                 long diaryId = Long.parseLong(task.getAggregateId());
                 postProcessService.process(task.getTaskType(), diaryId, task.getUserId(),
@@ -106,6 +122,9 @@ public class AiTaskConsumer {
                 lifeChapterService.markGenerationFailed(task.getUserId(), Long.valueOf(task.getAggregateId()),
                         task.getAnalysisVersion(), e.getMessage());
             }
+            if (isFinalFailure(task, e)) {
+                notifyConsolidationFailure(task, e);
+            }
             channel.basicAck(tag, false);
             log.error("AI 任务处理失败，已写入任务状态，taskId={}，taskType={}，queueWaitMs={}，executionDurationMs={}，error={}",
                     task.getTaskId(), task.getTaskType(), queueWaitMs, elapsedMillis(executionStartedAt), e.getMessage(), e);
@@ -114,6 +133,23 @@ public class AiTaskConsumer {
 
     private long elapsedMillis(long startedAt) {
         return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+    }
+
+    private boolean isFinalFailure(AiTaskEntity task, Exception error) {
+        return isUnrecoverable(error) || (task.getAttempts() != null && task.getMaxAttempts() != null
+                && task.getAttempts() >= task.getMaxAttempts());
+    }
+
+    private void notifyConsolidationFailure(AiTaskEntity task, Exception error) {
+        String type = switch (task.getTaskType()) {
+            case AiTaskMessage.TYPE_MEMORY_CONSOLIDATION -> "MEMORY_CONSOLIDATION_COMPLETED";
+            case AiTaskMessage.TYPE_GRAPH_CONSOLIDATION -> "GRAPH_CONSOLIDATION_COMPLETED";
+            default -> null;
+        };
+        if (type == null) return;
+        String label = AiTaskMessage.TYPE_MEMORY_CONSOLIDATION.equals(task.getTaskType()) ? "长期画像整理" : "知识图谱整理";
+        notificationService.notifyGlobalEvent(task.getUserId(), type,
+                java.util.Map.of("message", label + "失败，请稍后重试", "taskId", task.getTaskId()));
     }
 
     private boolean isUnrecoverable(Throwable error) {

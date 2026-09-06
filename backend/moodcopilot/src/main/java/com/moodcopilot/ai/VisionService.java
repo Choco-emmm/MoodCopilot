@@ -32,6 +32,9 @@ import org.springframework.context.annotation.Lazy;
 @Service
 public class VisionService {
 
+    private static final int MAX_DIARY_IMAGES = 6;
+    private static final int MAX_DESCRIPTION_CHARS = 6000;
+
     private record VisionImageTask(int index, String imageUrl, String channel) {
     }
 
@@ -88,6 +91,13 @@ public class VisionService {
     public String describeImages(List<String> imageUrls, List<DiaryImageMeta> imageMeta) {
         if (imageUrls == null || imageUrls.isEmpty())
             return "";
+        if (imageUrls.size() > MAX_DIARY_IMAGES) {
+            log.warn("VLM 图片数量超过上限，已截取，requestedCount={}，maxCount={}", imageUrls.size(), MAX_DIARY_IMAGES);
+            imageUrls = imageUrls.subList(0, MAX_DIARY_IMAGES);
+            if (imageMeta != null && imageMeta.size() > MAX_DIARY_IMAGES) {
+                imageMeta = imageMeta.subList(0, MAX_DIARY_IMAGES);
+            }
+        }
         if (!isConfigured()) {
             log.warn("VLM 未配置（VISION_API_KEY 为空），跳过 {} 张图片的描述", imageUrls.size());
             return "";
@@ -117,6 +127,11 @@ public class VisionService {
                     .forEach(parts::add);
         }
         String result = parts.isEmpty() ? "" : String.join("; ", parts);
+        if (result.length() > MAX_DESCRIPTION_CHARS) {
+            log.warn("VLM 图片辅助描述超过分析输入上限，已截断，originalLength={}，maxLength={}",
+                    result.length(), MAX_DESCRIPTION_CHARS);
+            result = result.substring(0, MAX_DESCRIPTION_CHARS);
+        }
         if (!result.isBlank()) {
             log.info("VLM 图片描述完成 {} 张 → {} chars", parts.size(), result.length());
         }

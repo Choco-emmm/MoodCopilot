@@ -16,6 +16,10 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import com.moodcopilot.entity.DiaryKnowledgeGraphEntity;
 import com.moodcopilot.ai.GraphConsolidationService;
+import com.moodcopilot.ai.mq.AiTaskEntity;
+import com.moodcopilot.ai.mq.AiTaskMessage;
+import com.moodcopilot.ai.mq.AiTaskProducer;
+import com.moodcopilot.ai.mq.AiTaskService;
 
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
@@ -25,10 +29,15 @@ public class GraphController {
 
     private final GraphService graphService;
     private final GraphConsolidationService graphConsolidationService;
+    private final AiTaskProducer aiTaskProducer;
+    private final AiTaskService aiTaskService;
 
-    public GraphController(GraphService graphService, GraphConsolidationService graphConsolidationService) {
+    public GraphController(GraphService graphService, GraphConsolidationService graphConsolidationService,
+                           AiTaskProducer aiTaskProducer, AiTaskService aiTaskService) {
         this.graphService = graphService;
         this.graphConsolidationService = graphConsolidationService;
+        this.aiTaskProducer = aiTaskProducer;
+        this.aiTaskService = aiTaskService;
     }
 
     @GetMapping("/user-graph")
@@ -66,11 +75,29 @@ public class GraphController {
     }
 
     @PostMapping("/consolidate/preview")
-    public ApiResponse<List<GraphConsolidationService.ConsolidatedTriple>> previewConsolidate(@AuthenticationPrincipal UserEntity user) {
+    public ApiResponse<java.util.Map<String, Object>> previewConsolidate(@AuthenticationPrincipal UserEntity user) {
         if (user == null) {
             throw new ResponseStatusException(UNAUTHORIZED, "登录状态已失效");
         }
-        return ApiResponse.ok(graphConsolidationService.previewConsolidation(user.getId()));
+        graphConsolidationService.reserveConsolidation(user.getId());
+        String taskId = aiTaskProducer.submitGraphConsolidationTask(user.getId());
+        return ApiResponse.ok(java.util.Map.of("taskId", taskId, "status", "PENDING"));
+    }
+
+    @GetMapping("/consolidate/tasks/{taskId}")
+    public ApiResponse<java.util.Map<String, Object>> consolidationTask(@AuthenticationPrincipal UserEntity user,
+                                                                         @PathVariable String taskId) {
+        AiTaskEntity task = aiTaskService.getTask(taskId);
+        if (task == null || !user.getId().equals(task.getUserId())
+                || !AiTaskMessage.TYPE_GRAPH_CONSOLIDATION.equals(task.getTaskType())) {
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "整理任务不存在");
+        }
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("taskId", taskId);
+        result.put("status", task.getStatus());
+        if ("SUCCEEDED".equals(task.getStatus())) result.put("triples", graphConsolidationService.readTaskResult(taskId));
+        if (task.getLastError() != null) result.put("error", task.getLastError());
+        return ApiResponse.ok(result);
     }
 
     @PostMapping("/consolidate/apply")

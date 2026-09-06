@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 public class GraphConsolidationService {
 
     private static final Logger log = LoggerFactory.getLogger(GraphConsolidationService.class);
+    private static final String RESULT_KEY_PREFIX = "ai:consolidation:graph:result:";
 
     private static final String CONSOLIDATION_PROMPT = """
             你是一个可审计的图谱去重助手。只允许合并完全相同或明确同义的三元组，不得删除事实、改写因果含义或合并相反极性。
@@ -86,7 +88,11 @@ public class GraphConsolidationService {
     }
 
     public List<ConsolidatedTriple> previewConsolidation(Long userId) {
-        // Rate limit logic
+        reserveConsolidation(userId);
+        return previewConsolidationInternal(userId);
+    }
+
+    public void reserveConsolidation(Long userId) {
         String today = java.time.LocalDate.now().toString();
         String redisKey = "graph:consolidate:count:" + userId + ":" + today;
         Long count = redisTemplate.opsForValue().increment(redisKey);
@@ -97,6 +103,9 @@ public class GraphConsolidationService {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行2次关系图谱整理");
         }
+    }
+
+    public List<ConsolidatedTriple> previewConsolidationInternal(Long userId) {
 
         List<DiaryKnowledgeGraphEntity> existing = graphService.getTriplesForUser(userId);
         if (existing.isEmpty() || existing.size() < 3) {
@@ -124,6 +133,31 @@ public class GraphConsolidationService {
         } catch (Exception e) {
             log.error("Failed to parse LLM response for graph consolidation", e);
             throw new RuntimeException("AI 返回格式错误，请稍后重试");
+        }
+    }
+
+    public void runConsolidationTask(Long userId, String taskId) {
+        try {
+            List<ConsolidatedTriple> result = previewConsolidationInternal(userId);
+            redisTemplate.opsForValue().set(RESULT_KEY_PREFIX + taskId,
+                    objectMapper.writeValueAsString(result), Duration.ofHours(2));
+            notificationService.notifyGlobalEvent(userId, "GRAPH_CONSOLIDATION_COMPLETED",
+                    Map.of("message", "知识图谱整理已完成", "taskId", taskId, "resultCount", result.size()));
+        } catch (Exception e) {
+            log.warn("知识图谱整理任务失败，userId={}，taskId={}，error={}", userId, taskId, e.getMessage());
+            throw e instanceof RuntimeException runtime ? runtime : new IllegalStateException(e);
+        }
+    }
+
+    public List<ConsolidatedTriple> readTaskResult(String taskId) {
+        String value = redisTemplate.opsForValue().get(RESULT_KEY_PREFIX + taskId);
+        if (value == null || value.isBlank()) return null;
+        try {
+            return objectMapper.readValue(value, objectMapper.getTypeFactory()
+                    .constructCollectionType(List.class, ConsolidatedTriple.class));
+        } catch (Exception e) {
+            log.warn("知识图谱整理结果读取失败，taskId={}，errorType={}", taskId, e.getClass().getSimpleName());
+            return null;
         }
     }
 

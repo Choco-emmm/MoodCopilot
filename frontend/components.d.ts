@@ -31,7 +31,6 @@ declare module 'vue' {
     MemoryGraphView: typeof import('./src/components/memory/MemoryGraphView.vue')['default']
     MemoryProfileView: typeof import('./src/components/memory/MemoryProfileView.vue')['default']
     MusicCard: typeof import('./src/components/MusicCard.vue')['default']
-    NButton: typeof import('naive-ui')['NButton']
     NCard: typeof import('naive-ui')['NCard']
     NConfigProvider: typeof import('naive-ui')['NConfigProvider']
     NDialogProvider: typeof import('naive-ui')['NDialogProvider']

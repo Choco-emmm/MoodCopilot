@@ -39,6 +39,8 @@ export const useNotificationStore = defineStore('notification', () => {
 
   function isInsightUpdateType(type: string | null | undefined) {
     return type === 'PROFILE_UPDATED' || type === 'MEMORY_UPDATED' || type === 'GRAPH_UPDATED'
+      || type === 'MEMORY_CONSOLIDATION_COMPLETED' || type === 'GRAPH_CONSOLIDATION_COMPLETED'
+      || type === 'CHAPTER_UPDATED'
   }
 
   function createInsightUpdateToast(type: string, message?: string, diff?: any) {
@@ -46,14 +48,22 @@ export const useNotificationStore = defineStore('notification', () => {
 
     const title = type === 'PROFILE_UPDATED'
       ? '👤 画像资料更新'
-      : type === 'MEMORY_UPDATED'
-        ? '🧠 画像更新'
-        : '🕸️ 图谱更新'
+        : type === 'MEMORY_UPDATED'
+          ? '🧠 画像更新'
+        : type === 'GRAPH_UPDATED'
+          ? '🕸️ 图谱更新'
+          : type === 'CHAPTER_UPDATED'
+            ? '📖 时光画卷更新'
+            : '✨ AI 整理完成'
     const fallbackMessage = type === 'PROFILE_UPDATED'
       ? '✨ 你的个人资料已更新'
-      : type === 'MEMORY_UPDATED'
-        ? '✨ AI 已更新了关于你的长期记忆'
-        : '🕸️ AI 已提取了新的事件因果关系'
+        : type === 'MEMORY_UPDATED'
+          ? '✨ AI 已更新了关于你的长期记忆'
+        : type === 'GRAPH_UPDATED'
+          ? '🕸️ AI 已提取了新的事件因果关系'
+          : type === 'CHAPTER_UPDATED'
+            ? '📖 时光画卷整理已完成'
+            : message || '✨ AI 整理已完成'
 
     const nodes: any[] = []
     const lineStyle = (color: string) => ({

@@ -349,6 +349,8 @@ public class AiTaskService {
             case AiTaskMessage.TYPE_GRAPH_EXTRACTION -> RabbitMqConfig.GRAPH_QUEUE;
             case AiTaskMessage.TYPE_LIFE_CHAPTER_REFRESH -> RabbitMqConfig.LIFE_CHAPTER_QUEUE;
             case AiTaskMessage.TYPE_TIMELINE_RECOMPUTE -> RabbitMqConfig.LIFE_CHAPTER_QUEUE;
+            case AiTaskMessage.TYPE_MEMORY_CONSOLIDATION -> RabbitMqConfig.MEMORY_QUEUE;
+            case AiTaskMessage.TYPE_GRAPH_CONSOLIDATION -> RabbitMqConfig.GRAPH_QUEUE;
             case AiTaskMessage.TYPE_DIARY_RAG_INDEX, AiTaskMessage.TYPE_GRAPH_RAG_INDEX,
                     AiTaskMessage.TYPE_MEMORY_RAG_INDEX -> RabbitMqConfig.RAG_QUEUE;
             case AiTaskMessage.TYPE_REPORT_INVALIDATION -> RabbitMqConfig.REPORT_QUEUE;

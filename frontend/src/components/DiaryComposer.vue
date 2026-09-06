@@ -185,7 +185,7 @@
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif,image/heic"
-            :disabled="uploadingImage || imageList.length >= 9"
+            :disabled="uploadingImage || imageList.length >= 6"
             hidden
             @change="handleImageSelect"
           />
@@ -194,7 +194,7 @@
           </template>
           <template v-else>
             <span class="composer-image-add-plus">+</span>
-            <span>添加图片</span>
+            <span>添加图片（最多6张）</span>
           </template>
         </label>
       </div>
@@ -525,6 +525,11 @@ async function handleImageSelect(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
+  if (imageList.value.length >= 6) {
+    window.$message?.warning('一篇日记最多上传 6 张图片')
+    input.value = ''
+    return
+  }
   uploadingImage.value = true
   try {
     const prepared = await prepareImageUpload(file)

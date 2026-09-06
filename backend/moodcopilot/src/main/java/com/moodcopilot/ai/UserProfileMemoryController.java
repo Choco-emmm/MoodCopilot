@@ -8,6 +8,10 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.moodcopilot.entity.UserMemoryCandidateEntity;
+import com.moodcopilot.ai.mq.AiTaskEntity;
+import com.moodcopilot.ai.mq.AiTaskMessage;
+import com.moodcopilot.ai.mq.AiTaskProducer;
+import com.moodcopilot.ai.mq.AiTaskService;
 
 @RestController
 @RequestMapping("/api/memory")
@@ -16,19 +20,44 @@ public class UserProfileMemoryController {
     private final MemoryExtractionService memoryExtractionService;
     private final MemoryConsolidationService memoryConsolidationService;
     private final MemoryOrchestrator memoryOrchestrator;
+    private final AiTaskProducer aiTaskProducer;
+    private final AiTaskService aiTaskService;
 
     public UserProfileMemoryController(MemoryExtractionService memoryExtractionService,
                                        MemoryConsolidationService memoryConsolidationService,
-                                       MemoryOrchestrator memoryOrchestrator) {
+                                       MemoryOrchestrator memoryOrchestrator,
+                                       AiTaskProducer aiTaskProducer,
+                                       AiTaskService aiTaskService) {
         this.memoryExtractionService = memoryExtractionService;
         this.memoryConsolidationService = memoryConsolidationService;
         this.memoryOrchestrator = memoryOrchestrator;
+        this.aiTaskProducer = aiTaskProducer;
+        this.aiTaskService = aiTaskService;
     }
 
     @PostMapping("/consolidate/preview")
-    public ApiResponse<List<MemoryConsolidationService.ConsolidationItem>> previewConsolidate() {
+    public ApiResponse<Map<String, Object>> previewConsolidate() {
         var user = (com.moodcopilot.entity.UserEntity) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        return ApiResponse.ok(memoryConsolidationService.previewConsolidation(user.getId()));
+        memoryConsolidationService.reserveConsolidation(user.getId());
+        String taskId = aiTaskProducer.submitMemoryConsolidationTask(user.getId());
+        return ApiResponse.ok(Map.of("taskId", taskId, "status", "PENDING"));
+    }
+
+    @GetMapping("/consolidate/tasks/{taskId}")
+    public ApiResponse<Map<String, Object>> consolidationTask(@PathVariable String taskId,
+                                                               @AuthenticationPrincipal com.moodcopilot.entity.UserEntity user) {
+        AiTaskEntity task = aiTaskService.getTask(taskId);
+        if (task == null || !user.getId().equals(task.getUserId())
+                || !AiTaskMessage.TYPE_MEMORY_CONSOLIDATION.equals(task.getTaskType())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.NOT_FOUND, "整理任务不存在");
+        }
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("taskId", taskId);
+        result.put("status", task.getStatus());
+        if ("SUCCEEDED".equals(task.getStatus())) result.put("items", memoryConsolidationService.readTaskResult(taskId));
+        if (task.getLastError() != null) result.put("error", task.getLastError());
+        return ApiResponse.ok(result);
     }
 
     @PostMapping("/consolidate/apply")

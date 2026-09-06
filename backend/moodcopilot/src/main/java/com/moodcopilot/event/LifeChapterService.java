@@ -31,6 +31,7 @@ import com.moodcopilot.mapper.UserLifeChapterVersionSourceMapper;
 import com.moodcopilot.mapper.UserLifeTimelineCandidateMapper;
 import com.moodcopilot.mapper.UserLifeChapterSourceMoveMapper;
 import com.moodcopilot.mapper.UserLifeEventMapper;
+import com.moodcopilot.notification.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -94,6 +95,7 @@ public class LifeChapterService {
     private final int minEvidenceCount;
     private final double boundaryConfidenceThreshold;
     private final PromptComposer promptComposer;
+    private final NotificationService notificationService;
 
     @org.springframework.beans.factory.annotation.Value("${timeline.refresh-debounce-minutes:10}")
     private int refreshDebounceMinutes = 10;
@@ -121,7 +123,8 @@ public class LifeChapterService {
                               @Value("${timeline.max-gap-days:14}") int maxGapDays,
                               @Value("${timeline.min-evidence-count:3}") int minEvidenceCount,
                               @Value("${timeline.boundary-confidence-threshold:0.85}") double boundaryConfidenceThreshold,
-                              PromptComposer promptComposer) {
+                              PromptComposer promptComposer,
+                              NotificationService notificationService) {
         this.chapterMapper = chapterMapper;
         this.versionMapper = versionMapper;
         this.chapterDiaryMapper = chapterDiaryMapper;
@@ -143,6 +146,7 @@ public class LifeChapterService {
         this.minEvidenceCount = minEvidenceCount;
         this.boundaryConfidenceThreshold = boundaryConfidenceThreshold;
         this.promptComposer = promptComposer;
+        this.notificationService = notificationService;
     }
 
     public record ChapterDiarySource(Long id, String date, String excerpt, String summary) {}
@@ -626,6 +630,8 @@ public class LifeChapterService {
             }
         }
         log.info("人生章节版本已生成，chapterId={}，version={}", chapterId, nextVersion);
+        notificationService.notifyGlobalEvent(userId, "CHAPTER_UPDATED",
+                Map.of("message", "时光画卷整理已完成", "chapterId", chapterId, "version", nextVersion));
     }
 
     public void markGenerationFailed(Long userId, Long chapterId, String snapshot, String error) {
@@ -637,6 +643,8 @@ public class LifeChapterService {
                 .set(UserLifeChapterEntity::getGenerationStatus, "FAILED")
                 .set(UserLifeChapterEntity::getLastGenerationError, message)
                 .set(UserLifeChapterEntity::getUpdatedAt, LocalDateTime.now()));
+        notificationService.notifyGlobalEvent(userId, "CHAPTER_UPDATED",
+                Map.of("message", "时光画卷整理失败，请稍后重试", "chapterId", chapterId));
     }
 
     public List<ChapterView> listUserChapters(Long userId) {

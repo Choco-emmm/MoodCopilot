@@ -21,6 +21,7 @@ import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -33,6 +34,7 @@ import java.util.stream.Collectors;
 public class MemoryConsolidationService {
 
     private static final Logger log = LoggerFactory.getLogger(MemoryConsolidationService.class);
+    private static final String RESULT_KEY_PREFIX = "ai:consolidation:memory:result:";
 
     private static final String CONSOLIDATION_PROMPT = """
             你是一个可审计的个人记忆去重助手。你的任务只允许提出可解释的归并，不得重新生成或改写用户事实。
@@ -88,8 +90,11 @@ public class MemoryConsolidationService {
     }
 
     public List<ConsolidationItem> previewConsolidation(Long userId) {
-        long totalStartedAt = System.nanoTime();
-        // Rate limit logic
+        reserveConsolidation(userId);
+        return previewConsolidationInternal(userId);
+    }
+
+    public void reserveConsolidation(Long userId) {
         String today = java.time.LocalDate.now().toString();
         String redisKey = "memory:consolidate:counter:" + userId + ":" + today;
         Long count = redisTemplate.opsForValue().increment(redisKey);
@@ -100,6 +105,10 @@ public class MemoryConsolidationService {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "每天最多只能进行20次个人画像整理");
         }
+    }
+
+    public List<ConsolidationItem> previewConsolidationInternal(Long userId) {
+        long totalStartedAt = System.nanoTime();
 
         List<UserProfileMemoryEntity> existing = memoryExtractionService.listUserMemories(userId);
         if (existing.isEmpty() || existing.size() < 2) {
@@ -182,6 +191,31 @@ public class MemoryConsolidationService {
             log.error("长期画像整理结果解析异常，userId={}，totalDurationMs={}，exceptionType={}，rootCauseType={}，message={}",
                     userId, elapsedMillis(totalStartedAt), e.getClass().getSimpleName(), rootCauseType(e), safeMessage(e), e);
             throw new RuntimeException("AI 返回格式解析失败", e);
+        }
+    }
+
+    public void runConsolidationTask(Long userId, String taskId) {
+        try {
+            List<ConsolidationItem> result = previewConsolidationInternal(userId);
+            redisTemplate.opsForValue().set(RESULT_KEY_PREFIX + taskId,
+                    objectMapper.writeValueAsString(result), Duration.ofHours(2));
+            notificationService.notifyGlobalEvent(userId, "MEMORY_CONSOLIDATION_COMPLETED",
+                    Map.of("message", "长期画像整理已完成", "taskId", taskId, "resultCount", result.size()));
+        } catch (Exception e) {
+            log.warn("长期画像整理任务失败，userId={}，taskId={}，error={}", userId, taskId, safeMessage(e));
+            throw e instanceof RuntimeException runtime ? runtime : new IllegalStateException(e);
+        }
+    }
+
+    public List<ConsolidationItem> readTaskResult(String taskId) {
+        String value = redisTemplate.opsForValue().get(RESULT_KEY_PREFIX + taskId);
+        if (value == null || value.isBlank()) return null;
+        try {
+            return objectMapper.readValue(value, objectMapper.getTypeFactory()
+                    .constructCollectionType(List.class, ConsolidationItem.class));
+        } catch (Exception e) {
+            log.warn("长期画像整理结果读取失败，taskId={}，errorType={}", taskId, e.getClass().getSimpleName());
+            return null;
         }
     }
 

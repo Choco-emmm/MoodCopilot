@@ -185,9 +185,14 @@ public class AiAnalysisService {
         int maxRetries = 3;
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             long modelStartedAt = System.nanoTime();
+            String modelName = useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash";
             try {
                 String json;
                 String analysisSystemPrompt = analysisSystemPrompt(userId, plannedContext);
+                log.info("日记 AI 模型调用开始，userId={}，model={}，attempt={}/{}, promptLength={}，contentLength={}，imageDescriptionLength={}，hasMusic={}",
+                        userId, modelName, attempt, maxRetries, analysisSystemPrompt.length() + userPrompt.length(),
+                        content == null ? 0 : content.length(), imageDescriptions == null ? 0 : imageDescriptions.length(),
+                        musicMeta != null);
                 if (useReasoning) {
                     json = reasoningClient.generate(analysisSystemPrompt, userPrompt);
                 } else {
@@ -196,6 +201,13 @@ public class AiAnalysisService {
                             .user(userPrompt)
                             .call()
                             .content();
+                }
+                log.info("日记 AI 模型调用返回，userId={}，model={}，attempt={}/{}, durationMs={}，responseLength={}，emptyResponse={}",
+                        userId, modelName, attempt, maxRetries, elapsedMillis(modelStartedAt),
+                        json == null ? 0 : json.length(), json == null || json.isBlank());
+                if (json == null || json.isBlank()) {
+                    log.warn("日记 AI 返回空内容，userId={}，model={}，attempt={}/{}, durationMs={}，errorType=EmptyModelResponse",
+                            userId, modelName, attempt, maxRetries, elapsedMillis(modelStartedAt));
                 }
                 DiaryAnalysisResult parsed = parseAiResponse(json);
                 List<MemorySignal> groundedSignals = validateMemorySignals(
@@ -208,24 +220,24 @@ public class AiAnalysisService {
             } catch (JsonProcessingException e) {
                 if (attempt < maxRetries) {
                     log.warn("日记 AI 响应解析失败，将重试，model={}，attempt={}/{}, modelDurationMs={}，error={}",
-                            useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", attempt, maxRetries,
-                            elapsedMillis(modelStartedAt), e.getMessage());
+                            modelName, attempt, maxRetries, elapsedMillis(modelStartedAt),
+                            e.getClass().getSimpleName() + ":" + safeErrorMessage(e));
                 } else {
                     log.error("日记 AI 响应解析最终失败，model={}，attempts={}，modelDurationMs={}，totalDurationMs={}，error={}",
-                            useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", maxRetries,
-                            elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt), e.getMessage());
+                            modelName, maxRetries, elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt),
+                            e.getClass().getSimpleName() + ":" + safeErrorMessage(e));
                     throw new IllegalStateException("AI 分析响应无法解析", e);
                 }
             } catch (Exception e) {
                 if (attempt < maxRetries) {
                     log.warn("日记 AI 模型调用失败，将重试，model={}，attempt={}/{}, modelDurationMs={}，totalDurationMs={}，error={}",
-                            useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", attempt, maxRetries,
-                            elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt), e.getMessage());
+                            modelName, attempt, maxRetries, elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt),
+                            e.getClass().getSimpleName() + ":" + safeErrorMessage(e));
                     continue;
                 }
                 log.error("日记 AI 模型调用最终失败，model={}，attempts={}，modelDurationMs={}，totalDurationMs={}，error={}",
-                        useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash", attempt,
-                        elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt), e.getMessage());
+                        modelName, attempt, elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt),
+                        e.getClass().getSimpleName() + ":" + safeErrorMessage(e));
                 throw new IllegalStateException("AI 分析调用失败", e);
             }
         }
@@ -234,6 +246,12 @@ public class AiAnalysisService {
 
     private long elapsedMillis(long startedAt) {
         return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+    }
+
+    private String safeErrorMessage(Throwable error) {
+        String message = error.getMessage();
+        if (message == null || message.isBlank()) return "(empty)";
+        return message.length() > 300 ? message.substring(0, 300) : message;
     }
 
     /** Model-call audit is best effort and intentionally contains no prompt content. */

@@ -69,6 +69,8 @@ import com.moodcopilot.ai.mq.AiTaskProducer;
 @Service
 public class DiaryService {
 
+    private static final int MAX_DIARY_IMAGES = 6;
+
     private static final String Q_POS_HIGH = "正向高能量";
     private static final String Q_POS_LOW = "正向低能量";
     private static final String Q_NEG_HIGH = "负向高能量";
@@ -184,6 +186,7 @@ public class DiaryService {
 
     @Transactional
     public DiaryView create(CreateDiaryRequest request) {
+        validateImageCount(request == null ? null : request.images());
         String content = normalizeContent(request.content());
         DiaryVisibility visibility = parseVisibility(request.visibility());
 
@@ -259,7 +262,8 @@ public class DiaryService {
             if (request.musicMeta() != null) {
                 diary.setMusicMeta(request.musicMeta());
             }
-            if (request.images() != null) {
+        if (request.images() != null) {
+                validateImageCount(request.images());
                 List<String> promotedImages = promoteImages(request.images());
                 diary.setImages(promotedImages);
 
@@ -2413,6 +2417,12 @@ public class DiaryService {
         if (trimmed.isEmpty())
             return null;
         return trimmed.length() > maxLen ? trimmed.substring(0, maxLen) : trimmed;
+    }
+
+    private void validateImageCount(List<String> imageUrls) {
+        if (imageUrls != null && imageUrls.size() > MAX_DIARY_IMAGES) {
+            throw new ResponseStatusException(BAD_REQUEST, "一篇日记最多上传 6 张图片");
+        }
     }
 
     private String truncateAnalysisError(String message, String fallback) {

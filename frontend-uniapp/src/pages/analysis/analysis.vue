@@ -738,10 +738,11 @@ const previewConsolidate = async () => {
   }
   if (isConsolidating.value) return;
   isConsolidating.value = true;
+  uni.showToast({ title: '已开始整理记忆，完成后会提示', icon: 'none', duration: 2200 });
   try {
     const res = await post('/api/memory/consolidate/preview');
     if (res.code === 200) {
-      previewMemories.value = res.data || [];
+      previewMemories.value = await waitForConsolidation('/api/memory/consolidate/tasks', res.data?.taskId, 'items');
       showConsolidateModal.value = true;
     }
   } catch (e: any) {
@@ -771,10 +772,11 @@ const previewGraphConsolidate = async () => {
   }
   if (isGraphConsolidating.value) return;
   isGraphConsolidating.value = true;
+  uni.showToast({ title: '已开始整理图谱，完成后会提示', icon: 'none', duration: 2200 });
   try {
     const res = await post('/api/graph/consolidate/preview');
     if (res.code === 200) {
-      previewGraphTriples.value = res.data || [];
+      previewGraphTriples.value = await waitForConsolidation('/api/graph/consolidate/tasks', res.data?.taskId, 'triples');
       showGraphConsolidateModal.value = true;
     }
   } catch (e: any) {
@@ -782,6 +784,23 @@ const previewGraphConsolidate = async () => {
   } finally {
     isGraphConsolidating.value = false;
   }
+};
+
+const waitForConsolidation = async (path: string, taskId: string, resultKey: 'items' | 'triples') => {
+  if (!taskId) throw new Error('整理任务创建失败');
+  for (let attempt = 0; attempt < 90; attempt += 1) {
+    const res = await get(`${path}/${taskId}`);
+    const data = res.data || {};
+    if (data.status === 'SUCCEEDED') {
+      uni.showToast({ title: '整理完成', icon: 'success', duration: 1600 });
+      return data[resultKey] || [];
+    }
+    if (data.status === 'DEAD_LETTER' || data.status === 'CANCELLED') {
+      throw new Error(data.error || '整理失败，请稍后重试');
+    }
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  throw new Error('整理时间较长，请稍后再查看');
 };
 
 const memoryPreview = (value: string) => {

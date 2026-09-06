@@ -20,4 +20,6 @@ public record AiTaskMessage(
     public static final String TYPE_NOTIFICATION = "NOTIFICATION";
     public static final String TYPE_LIFE_CHAPTER_REFRESH = "LIFE_CHAPTER_REFRESH";
     public static final String TYPE_TIMELINE_RECOMPUTE = "TIMELINE_RECOMPUTE";
+    public static final String TYPE_MEMORY_CONSOLIDATION = "MEMORY_CONSOLIDATION";
+    public static final String TYPE_GRAPH_CONSOLIDATION = "GRAPH_CONSOLIDATION";
 }

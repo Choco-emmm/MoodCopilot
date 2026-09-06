@@ -40,7 +40,7 @@
             <image :src="img" mode="aspectFill" class="uploaded-img" @click="previewImage(img)"/>
             <view class="delete-btn" @click.stop="removeImage(idx)">×</view>
           </view>
-          <view v-if="images.length < 9" class="upload-btn" @click="chooseImage">
+          <view v-if="images.length < 6" class="upload-btn" @click="chooseImage">
             <text class="upload-icon">+</text>
           </view>
         </view>
@@ -343,8 +343,12 @@ const submitDiary = async () => {
 };
 
 const chooseImage = () => {
+  if (images.value.length >= 6) {
+    uni.showToast({ title: '一篇日记最多上传 6 张图片', icon: 'none' });
+    return;
+  }
   uni.chooseImage({
-    count: 9 - images.value.length,
+    count: 6 - images.value.length,
     sizeType: ['compressed'],
     sourceType: ['album', 'camera'],
     success: (res) => {

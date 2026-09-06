@@ -81,6 +81,18 @@ public class AiTaskProducer {
                 Map.of("affectedDate", date), null);
     }
 
+    public String submitMemoryConsolidationTask(Long userId) {
+        String key = "memory:consolidation:" + userId + ":" + java.util.UUID.randomUUID();
+        return taskService.enqueue(userId, AiTaskMessage.TYPE_MEMORY_CONSOLIDATION, String.valueOf(userId),
+                null, "deepseek-v4-flash", key, Map.of(), null);
+    }
+
+    public String submitGraphConsolidationTask(Long userId) {
+        String key = "graph:consolidation:" + userId + ":" + java.util.UUID.randomUUID();
+        return taskService.enqueue(userId, AiTaskMessage.TYPE_GRAPH_CONSOLIDATION, String.valueOf(userId),
+                null, "deepseek-v4-flash", key, Map.of(), null);
+    }
+
     private void submit(long userId, String taskType, long diaryId, String analysisVersion,
                         String requestedModel, String suffix, String parentTaskId) {
         taskService.enqueue(userId, taskType, String.valueOf(diaryId), analysisVersion, requestedModel,
