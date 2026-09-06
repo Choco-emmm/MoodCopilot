@@ -65,8 +65,8 @@ fi
 # [5/7] 重建并启动容器
 echo "[5/7] 重建容器..."
 if $FRONTEND_CHANGED; then
-  echo "  前端有变更，重建 frontend..."
-  docker compose up -d --build --no-deps frontend
+  echo "  前端有变更，重建 web..."
+  docker compose up -d --build --no-deps web
 fi
 
 echo "  重建 backend..."
