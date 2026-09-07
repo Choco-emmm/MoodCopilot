@@ -1,0 +1,1 @@
+ALTER TABLE user_memory_evidence DROP INDEX uk_memory_evidence_source;

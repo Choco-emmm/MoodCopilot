@@ -164,7 +164,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
 import GlobalUI from '@/components/GlobalUI.vue'
 import { get, post } from '@/utils/request'
 import { parseMarkdown } from '@/utils/markdown'
@@ -212,6 +212,13 @@ const canCreateCustom = computed(() => Boolean(startDate.value && endDate.value 
 onLoad(() => {
   void loadRegularReport()
   void loadCustomSummaries()
+  uni.$on('refreshReport', () => {
+    void loadRegularReport()
+  })
+})
+
+onUnload(() => {
+  uni.$off('refreshReport')
 })
 
 function setMode(nextMode: ReportMode) {
@@ -246,6 +253,7 @@ async function loadRegularReport() {
     loadError.value = error?.message || '报告暂时加载失败'
   } finally {
     loading.value = false
+    generating.value = false
   }
 }
 
@@ -257,11 +265,10 @@ async function generateReport() {
     const key = mode.value === 'week' ? 'weekOffset' : 'monthOffset'
     const response = await post(`/api/diaries/${endpoint}/generate?${key}=${periodOffset.value}`, {})
     if (response.code !== 200) throw new Error(response.message || '生成失败')
-    report.value = unwrapData(response.data)
-    uni.showToast({ title: '总结已生成', icon: 'success' })
+    if (response.data) report.value = unwrapData(response.data)
+    uni.showToast({ title: '已提交后台生成', icon: 'none' })
   } catch (error: any) {
     uni.showToast({ title: error?.message || '生成失败，请稍后重试', icon: 'none' })
-  } finally {
     generating.value = false
   }
 }

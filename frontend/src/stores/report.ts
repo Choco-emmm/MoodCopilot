@@ -62,19 +62,19 @@ export const useReportStore = defineStore('report', () => {
   }
 
   async function generateWeeklyAiSummary(weekOffset = 0) {
-    const feedback = beginAiOperation('生成周报总结')
-    generatingWeekly.value = true
+    const feedback = beginAiOperation('已提交周报总结任务')
     reportError.value = null
     try {
       const res = await diaryApi.generateWeeklyReport(weekOffset)
-      weeklyReport.value = res.data.data
-      feedback.success('周报总结已生成')
+      if (res.data.data) {
+        weeklyReport.value = res.data.data
+      }
+      feedback.success('已提交周报总结任务，将在后台生成')
     } catch (e: any) {
       reportError.value = formatReportError(e)
       feedback.error(reportError.value)
     } finally {
       feedback.destroy()
-      generatingWeekly.value = false
     }
   }
 
@@ -93,19 +93,19 @@ export const useReportStore = defineStore('report', () => {
   }
 
   async function generateMonthlyAiSummary(monthOffset = 0) {
-    const feedback = beginAiOperation('生成月报总结')
-    generatingMonthly.value = true
+    const feedback = beginAiOperation('已提交月报总结任务')
     monthError.value = null
     try {
       const res = await diaryApi.generateMonthlyReport(monthOffset)
-      monthlyReport.value = res.data.data
-      feedback.success('月报总结已生成')
+      if (res.data.data) {
+        monthlyReport.value = res.data.data
+      }
+      feedback.success('已提交月报总结任务，将在后台生成')
     } catch (e: any) {
       monthError.value = formatReportError(e)
       feedback.error(monthError.value)
     } finally {
       feedback.destroy()
-      generatingMonthly.value = false
     }
   }
 

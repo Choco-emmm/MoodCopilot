@@ -257,7 +257,7 @@ public class DiaryService {
         boolean contentChanged = !oldContent.equals(normalizedContent);
         boolean visibilityChanged = !finalVisibility.equals(oldVisibility);
         
-        boolean[] dataChanged = { contentChanged };
+        boolean[] dataChanged = { contentChanged || request.isAnalyze() };
 
         // DB 写入放在编程式事务内，确保原子性且不扩散到 LLM 调用
         transactionTemplate.executeWithoutResult(status -> {

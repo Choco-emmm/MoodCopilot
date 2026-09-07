@@ -102,6 +102,11 @@ const handleWebSocketMessage = (payload: any) => {
     showModal('日记分析已完成', payload.data?.message || '你的日记有了新的 AI 解读，快来看看吧！', payload.data?.diaryId);
     uni.$emit('refreshFeed');
     uni.$emit('refreshAnalysis');
+  } else if (type === 'REPORT_GENERATED') {
+    const period = payload.data?.period;
+    const title = period === 'week' ? '周报总结已生成' : '月报总结已生成';
+    uni.showToast({ title, icon: 'success' });
+    uni.$emit('refreshReport');
   } else if (['COMMENT', 'RESONANCE', 'FOLLOW'].includes(type)) {
     // 小程序是私密日记工具，不向用户暴露网页端的社交事件。
     return;

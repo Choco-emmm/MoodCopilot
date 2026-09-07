@@ -892,6 +892,8 @@ public class MemoryOrchestrator {
         if (text == null || text.isBlank()) return;
         boolean exists = evidenceMapper.selectCount(new LambdaQueryWrapper<UserMemoryEvidenceEntity>()
                 .eq(UserMemoryEvidenceEntity::getUserId, userId).eq(UserMemoryEvidenceEntity::getSourceType, source)
+                .eq(candidateId != null, UserMemoryEvidenceEntity::getCandidateId, candidateId)
+                .eq(memoryId != null, UserMemoryEvidenceEntity::getMemoryId, memoryId)
                 .eq(diaryId != null, UserMemoryEvidenceEntity::getSourceDiaryId, diaryId)
                 .eq(conversationId != null, UserMemoryEvidenceEntity::getSourceConversationId, conversationId)
                 .eq(UserMemoryEvidenceEntity::getEvidenceText, text)) > 0;

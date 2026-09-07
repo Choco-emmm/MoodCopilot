@@ -3,6 +3,7 @@ import { ref, h } from 'vue'
 import { notificationApi } from '../api'
 import router from '../router'
 import { logWarn } from '../utils/logger'
+import { useReportStore } from './report'
 
 export interface Notification {
   id: number
@@ -198,6 +199,17 @@ export const useNotificationStore = defineStore('notification', () => {
             }
           } else if (isInsightUpdateType(payload?.type)) {
             createInsightUpdateToast(payload.type, payload.data?.message, payload.data?.diff)
+          } else if (payload?.type === 'REPORT_GENERATED') {
+            const period = payload.data?.period
+            const offset = payload.data?.offset
+            const reportStore = useReportStore()
+            if (period === 'week') {
+              window.$message?.success('周报总结已生成', { duration: 5000 })
+              reportStore.fetchWeeklyReport(offset)
+            } else if (period === 'month') {
+              window.$message?.success('月报总结已生成', { duration: 5000 })
+              reportStore.fetchMonthlyReport(offset)
+            }
           }
         } catch (e) {
           logWarn('ws', '收到无法解析的 WS 消息', event.data, e)

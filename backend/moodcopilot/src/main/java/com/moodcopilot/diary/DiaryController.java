@@ -112,7 +112,13 @@ public class DiaryController {
     @PostMapping("/weekly-report/generate")
     public ApiResponse<WeeklyReportView> generateWeeklyReport(
             @RequestParam(defaultValue = "0") int weekOffset) {
-        return ApiResponse.ok(diaryService.generateWeeklyAiSummary(weekOffset));
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity user = (auth != null && auth.getPrincipal() instanceof UserEntity u) ? u : null;
+        if (user != null) {
+            diaryService.generateWeeklyAiSummaryAsync(user.getId(), weekOffset);
+            return ApiResponse.ok(diaryService.loadWeeklyReportForUser(user.getId(), weekOffset));
+        }
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/monthly-report")
@@ -124,7 +130,13 @@ public class DiaryController {
     @PostMapping("/monthly-report/generate")
     public ApiResponse<WeeklyReportView> generateMonthlyReport(
             @RequestParam(defaultValue = "0") int monthOffset) {
-        return ApiResponse.ok(diaryService.generateMonthlyAiSummary(monthOffset));
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        UserEntity user = (auth != null && auth.getPrincipal() instanceof UserEntity u) ? u : null;
+        if (user != null) {
+            diaryService.generateMonthlyAiSummaryAsync(user.getId(), monthOffset);
+            return ApiResponse.ok(diaryService.loadMonthlyReportForUser(user.getId(), monthOffset));
+        }
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/public")
