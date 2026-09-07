@@ -89,7 +89,7 @@ public class ChatTitleService {
             }
             int updated = conversationMapper.update(null, update);
             if (updated > 0) {
-                log.info("聊天标题异步生成完成 conversationId={} title={}", conversationId, generated);
+                log.info("聊天标题异步生成完成 conversationId={}", conversationId);
             }
         } catch (Exception e) {
             log.warn("聊天标题异步生成失败，保留默认标题 conversationId={} reason={}", conversationId, e.getMessage());

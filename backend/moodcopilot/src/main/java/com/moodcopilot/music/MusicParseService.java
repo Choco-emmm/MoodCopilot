@@ -131,7 +131,7 @@ public class MusicParseService {
         if (m.find()) {
             String artist = m.group(1).trim();
             String title = m.group(2).trim();
-            log.info("从分享文本解析到: artist={}, title={}", artist, title);
+            log.info("从分享文本解析到音乐信息");
             return new MusicMeta(title, artist, null, null);
         }
         return null;

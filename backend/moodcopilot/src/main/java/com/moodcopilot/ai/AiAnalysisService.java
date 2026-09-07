@@ -69,7 +69,8 @@ public class AiAnalysisService {
 
     private String analysisSystemPrompt(Long userId, ContextEnvelope envelope) {
         TaskContext task = new TaskContext("EMOTIONAL_SUPPORT", "分析日记并按既定 JSON 契约返回结果",
-                List.of("只调整 summary 和 feedback 的表达方式"), null);
+                List.of("【核心要求】必须严格使用 <persona_preferences> 指定的语气(tone)来撰写 summary 和 feedback",
+                        "当用户的语气偏好（如分析型、直接、严厉等）与默认的温柔共情冲突时，强制以用户的偏好为准，放弃基础设定的温柔口吻"), null);
         return promptComposer.compose(aiPrompts.getAnalysisSystemPrompt(), userId, task,
                 ContextPurpose.DIARY_ANALYSIS, envelope)
                 + "\n不得改变 JSON 字段、事实证据、情绪判断规则、记忆资格或安全边界。";
@@ -87,7 +88,7 @@ public class AiAnalysisService {
                 redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(meta), Duration.ofDays(7));
             }
         } catch (Exception e) {
-            log.error("AI music analysis failed for {} - {}: {}", artist, title, e.getMessage());
+            log.error("AI music analysis failed: {}", e.getMessage());
         }
     }
 
@@ -122,7 +123,7 @@ public class AiAnalysisService {
                     result.getOrDefault("moodTags", ""),
                     result.getOrDefault("themeSummary", ""));
         } catch (Exception e) {
-            log.error("同步音乐分析失败 {} - {}: {}", artist, title, e.getMessage());
+            log.error("同步音乐分析失败: {}", e.getMessage());
             return org.apache.commons.lang3.tuple.Pair.of("", "");
         }
     }

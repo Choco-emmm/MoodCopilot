@@ -30,7 +30,7 @@ public class MusicController {
         if (!url.contains("music.163.com") && !url.contains("163cn.tv")) {
             return ApiResponse.error(400, "仅支持网易云音乐链接（music.163.com / 163cn.tv）");
         }
-        log.info("解析音乐链接 url={} hasText={}", url, text != null && !text.isBlank());
+        log.info("解析音乐链接 url={}, hasText={}", url != null, text != null && !text.isBlank());
         MusicMeta meta = musicParseService.parse(url, text);
 //        log.info("解析结果: {}", meta);
         if (meta == null) {

@@ -249,10 +249,15 @@ public class DiaryService {
         String oldContent = diary.getContent() == null ? "" : diary.getContent();
         String oldVisibility = diary.getVisibility();
         List<String> oldImages = diary.getImages() == null ? List.of() : new ArrayList<>(diary.getImages());
+        MusicMeta oldMusicMeta = diary.getMusicMeta();
+        
         boolean hasBannedWords = visibility == DiaryVisibility.PUBLIC && ContentFilter.hasBannedWords(normalizedContent);
         String finalVisibility = hasBannedWords ? "BANNED" : visibility.name();
+        
         boolean contentChanged = !oldContent.equals(normalizedContent);
         boolean visibilityChanged = !finalVisibility.equals(oldVisibility);
+        
+        boolean[] dataChanged = { contentChanged };
 
         // DB 写入放在编程式事务内，确保原子性且不扩散到 LLM 调用
         transactionTemplate.executeWithoutResult(status -> {
@@ -260,11 +265,23 @@ public class DiaryService {
             diary.setVisibility(finalVisibility);
             diary.setUpdatedAt(LocalDateTime.now());
             if (request.musicMeta() != null) {
+                if (oldMusicMeta == null || 
+                    !java.util.Objects.equals(oldMusicMeta.getSongUrl(), request.musicMeta().getSongUrl()) ||
+                    !java.util.Objects.equals(oldMusicMeta.getUserLyric(), request.musicMeta().getUserLyric())) {
+                    dataChanged[0] = true;
+                }
                 diary.setMusicMeta(request.musicMeta());
+            } else if (oldMusicMeta != null) {
+                dataChanged[0] = true;
+                diary.setMusicMeta(null);
             }
-        if (request.images() != null) {
+            
+            if (request.images() != null) {
                 validateImageCount(request.images());
                 List<String> promotedImages = promoteImages(request.images());
+                if (!areSameImageList(oldImages, promotedImages)) {
+                    dataChanged[0] = true;
+                }
                 diary.setImages(promotedImages);
 
                 if (request.imageMeta() != null) {
@@ -283,7 +300,7 @@ public class DiaryService {
 
         String analysisStatus = null;
         // AI 分析：在事务外执行，避免 HikariCP 连接泄漏
-        if (contentChanged) {
+        if (dataChanged[0]) {
             log.info("日记内容已更新，触发画像重建，diaryId={}，userId={}", diaryId, user.getId());
             ragMemoryService.indexDiary(user.getId(), diaryId,
                     normalizedContent, diary.getMusicMeta());
@@ -1058,6 +1075,27 @@ public class DiaryService {
     public WeeklyReportView weeklyReport(int weekOffset) {
         Long userId = currentUser().getId();
         return loadOrComputeWeeklyReport(weekOffset, userId, false);
+    }
+
+    
+    @org.springframework.scheduling.annotation.Async
+    public void generateWeeklyAiSummaryAsync(long userId, int weekOffset) {
+        try {
+            loadOrComputeWeeklyReport(weekOffset, userId, true);
+            notificationService.notifyGlobalEvent(userId, "REPORT_GENERATED", java.util.Map.of("period", "week", "offset", weekOffset));
+        } catch (Exception e) {
+            log.error("Async weekly report generation failed", e);
+        }
+    }
+
+    @org.springframework.scheduling.annotation.Async
+    public void generateMonthlyAiSummaryAsync(long userId, int monthOffset) {
+        try {
+            loadOrComputeMonthlyReport(monthOffset, userId, true);
+            notificationService.notifyGlobalEvent(userId, "REPORT_GENERATED", java.util.Map.of("period", "month", "offset", monthOffset));
+        } catch (Exception e) {
+            log.error("Async monthly report generation failed", e);
+        }
     }
 
     public WeeklyReportView generateWeeklyAiSummary(int weekOffset) {

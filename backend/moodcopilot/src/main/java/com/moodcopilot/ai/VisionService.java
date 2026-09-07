@@ -49,6 +49,7 @@ public class VisionService {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final OssService ossService;
+    private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
 
     public VisionService(
             @Value("${moodcopilot.vision.api-key:}") String apiKey,
@@ -59,7 +60,8 @@ public class VisionService {
             @Value("${moodcopilot.vision.enable-ocr-for-text-images:true}") boolean enableOcr,
             @Value("${moodcopilot.ai.http-timeout-seconds:90}") int httpTimeoutSeconds,
             ObjectMapper objectMapper,
-            @Lazy OssService ossService) {
+            @Lazy OssService ossService,
+            org.springframework.data.redis.core.StringRedisTemplate redisTemplate) {
         this.apiKey = apiKey != null ? apiKey.trim() : "";
         this.apiUrl = apiUrl;
         this.model = model;
@@ -74,6 +76,7 @@ public class VisionService {
         this.restClient = RestClient.builder().requestFactory(requestFactory).build();
         this.objectMapper = objectMapper;
         this.ossService = ossService;
+        this.redisTemplate = redisTemplate;
     }
 
     public boolean isConfigured() {
@@ -86,6 +89,17 @@ public class VisionService {
      */
     public String describeImages(List<String> imageUrls) {
         return describeImages(imageUrls, null);
+    }
+
+    private String getCacheKey(String imageUrl, String channel) {
+        String keyBase;
+        if (ossService != null) {
+            String objectKey = ossService.extractObjectKey(imageUrl);
+            keyBase = (objectKey != null) ? objectKey : imageUrl;
+        } else {
+            keyBase = imageUrl;
+        }
+        return "vlm:desc:" + org.springframework.util.DigestUtils.md5DigestAsHex((keyBase + "|" + channel).getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     public String describeImages(List<String> imageUrls, List<DiaryImageMeta> imageMeta) {
@@ -112,9 +126,23 @@ public class VisionService {
         try (ExecutorService executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
             List<CompletableFuture<Map.Entry<Integer, String>>> futures = tasks.stream()
                     .map(task -> CompletableFuture.supplyAsync(() -> {
+                        String cacheKey = getCacheKey(task.imageUrl(), task.channel());
+                        if (redisTemplate != null) {
+                            String cachedDesc = redisTemplate.opsForValue().get(cacheKey);
+                            if (cachedDesc != null) {
+                                log.info("VLM 命中缓存 index={} channel={}", task.index(), task.channel());
+                                return Map.entry(task.index(), cachedDesc);
+                            }
+                        }
+
                         String accessibleUrl = ossService != null ? ossService.getAccessibleUrl(task.imageUrl())
                                 : task.imageUrl();
                         String desc = describeWithOcrRouting(accessibleUrl, task.index(), task.channel());
+                        
+                        if (redisTemplate != null && desc != null && !desc.isBlank()) {
+                            redisTemplate.opsForValue().set(cacheKey, desc, Duration.ofDays(30));
+                        }
+                        
                         return Map.entry(task.index(), desc);
                     }, executor))
                     .toList();
