@@ -533,7 +533,15 @@ async function savePersona() {
   personaError.value = false
   personaMsg.value = ''
   try {
-    const response = await authApi.updateAiPersona({ ...persona.value, customTone: persona.value.customTone.trim(), customResponseStyle: persona.value.customResponseStyle.trim() })
+    const defaultBehaviors = ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS']
+    const disabledBehaviors = defaultBehaviors.filter(b => !persona.value.behaviorFlags.includes(b))
+    const payload = { 
+      ...persona.value, 
+      disabledBehaviorFlags: disabledBehaviors,
+      customTone: persona.value.customTone.trim(), 
+      customResponseStyle: persona.value.customResponseStyle.trim() 
+    }
+    const response = await authApi.updateAiPersona(payload)
     const data = response.data?.data
     if (data) {
       persona.value = { role: data.role, tone: data.tone || [], behaviorFlags: data.behaviorFlags || [], disabledBehaviorFlags: data.disabledBehaviorFlags || [], customTone: data.customTone || '', customResponseStyle: data.customResponseStyle || '' }
