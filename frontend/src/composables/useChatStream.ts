@@ -29,6 +29,7 @@ export function useChatStream(
   const draft = ref('')
   const streaming = ref(false)
   const streamingText = ref('')
+  const streamingReasoning = ref('')
   const isThinking = ref(false)
   const isCompressing = ref(false)
   const compressingMessage = ref('正在优化对话上下文...')
@@ -88,6 +89,7 @@ export function useChatStream(
     tryExpToast('chat', '聊天 +5 EXP')
     streaming.value = true
     streamingText.value = ''
+    streamingReasoning.value = ''
     isThinking.value = true
     scrollManager.scrollBottom()
 
@@ -120,6 +122,7 @@ export function useChatStream(
     }
     streaming.value = true
     streamingText.value = ''
+    streamingReasoning.value = ''
     isThinking.value = true
     await sendReply(convId, content, refContents, referenceItems, requestedUseReasoning, true, eventId)
   }
@@ -148,25 +151,31 @@ export function useChatStream(
     streamAbortCtrl = ctrl
     streaming.value = true
     streamingText.value = ''
+    streamingReasoning.value = ''
     isThinking.value = true
     streamingRefs.value = []
     showStreamingRefs.value = false
 
     resumePromise = (async () => {
-      let fullReply = ''
+      let fullReply = ''; let fullReasoning = ''
       let currentRefs: RagRef[] = []
       try {
         await chatApi.resumeReplyStream(
           convId,
           runId,
           (chunk: string) => {
-            fullReply += chunk
+            if (chunk.startsWith('[[REASONING]]')) {
+              fullReasoning += chunk.substring(13)
+            } else {
+              fullReply += chunk
+            }
             pendingStreamText = fullReply
-            if (isThinking.value) isThinking.value = false
+            if (isThinking.value && chunk && !chunk.startsWith('[[REASONING]]')) isThinking.value = false
             if (streamRafId === null) {
               streamRafId = requestAnimationFrame(() => {
                 const keepScroll = scrollManager.isNearBottom()
                 streamingText.value = pendingStreamText
+                streamingReasoning.value = fullReasoning
                 streamRafId = null
                 if (keepScroll) scrollManager.scrollBottom()
               })
@@ -197,7 +206,8 @@ export function useChatStream(
           messages.value.push({
             id: `${runId}:assistant`,
             role: 'ai',
-            content: fullReply || '我刚才没有组织好语言，你可以再说一遍吗？',
+            content: fullReply || (fullReasoning ? '' : '我刚才没有组织好语言，你可以再说一遍吗？'),
+            reasoningContent: fullReasoning || undefined,
             createdAt: new Date().toISOString(),
             ragReferences: currentRefs.length ? currentRefs : undefined,
           })
@@ -234,7 +244,7 @@ export function useChatStream(
 
     streamingRefs.value = []
     showStreamingRefs.value = false
-    let fullReply = ''
+    let fullReply = ''; let fullReasoning = ''
     let currentRefs: RagRef[] = []
 
     try {
@@ -245,14 +255,19 @@ export function useChatStream(
         requestedUseReasoning,
         eventId,
         (chunk: string) => {
-          fullReply += chunk
+          if (chunk.startsWith('[[REASONING]]')) {
+            fullReasoning += chunk.substring(13)
+          } else {
+            fullReply += chunk
+          }
           pendingStreamText = fullReply
           if (isCompressing.value) isCompressing.value = false
-          if (isThinking.value) isThinking.value = false
+          if (isThinking.value && chunk && !chunk.startsWith('[[REASONING]]')) isThinking.value = false
           if (streamRafId === null) {
             streamRafId = requestAnimationFrame(() => {
               const keepScroll = scrollManager.isNearBottom()
               streamingText.value = pendingStreamText
+              streamingReasoning.value = fullReasoning
               streamRafId = null
               if (keepScroll) scrollManager.scrollBottom()
             })
@@ -287,7 +302,8 @@ export function useChatStream(
       lastReplyRequest.value = null
       messages.value.push({
         id: nextMsgId(), role: 'ai',
-        content: fullReply || '我刚才没有组织好语言，你可以再说一遍吗？',
+        content: fullReply || (fullReasoning ? '' : '我刚才没有组织好语言，你可以再说一遍吗？'),
+        reasoningContent: fullReasoning || undefined,
         createdAt: new Date().toISOString(),
         ragReferences: currentRefs.length ? currentRefs : undefined,
       })
@@ -365,7 +381,7 @@ export function useChatStream(
   }
 
   return {
-    draft, streaming, streamingText, isThinking, isCompressing, compressingMessage, useReasoning, references,
+    draft, streaming, streamingText, streamingReasoning, isThinking, isCompressing, compressingMessage, useReasoning, references,
     lastReplyError, lastReplyRequest, streamingRefs, showStreamingRefs,
     syncCooldownUntil,
     send, retryLastReply, resumeActiveRun, abortStream, removeRef,

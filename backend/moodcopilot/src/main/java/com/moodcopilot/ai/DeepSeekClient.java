@@ -55,8 +55,6 @@ public class DeepSeekClient {
         return Flux.defer(() -> {
             long startedAt = AiCallTiming.start();
             AtomicInteger outputLength = new AtomicInteger();
-            boolean[] thinkingStarted = {false};
-            boolean[] thinkingEnded = {false};
             Map<Integer, ToolCallAccumulator> toolCallAccs = new LinkedHashMap<>();
 
             return webClient.post()
@@ -94,25 +92,13 @@ public class DeepSeekClient {
                             String reasoning = delta.path("reasoning_content").asText("");
                             String content = delta.path("content").asText("");
 
-                            StringBuilder out = new StringBuilder();
                             if (!reasoning.isEmpty()) {
-                                if (!thinkingStarted[0]) {
-                                    thinkingStarted[0] = true;
-                                    out.append("<think>\n");
-                                }
-                                out.append(reasoning);
+                                outputLength.addAndGet(reasoning.length());
+                                sink.next(new DeepSeekStreamEvent.TextChunk("[[REASONING]]" + reasoning));
                             }
                             if (!content.isEmpty()) {
-                                if (thinkingStarted[0] && !thinkingEnded[0]) {
-                                    thinkingEnded[0] = true;
-                                    out.append("\n</think>\n\n");
-                                }
-                                out.append(content);
-                            }
-                            if (out.length() > 0) {
-                                String emitted = out.toString();
-                                outputLength.addAndGet(emitted.length());
-                                sink.next(new DeepSeekStreamEvent.TextChunk(emitted));
+                                outputLength.addAndGet(content.length());
+                                sink.next(new DeepSeekStreamEvent.TextChunk(content));
                             }
                         } catch (Exception e) {
                             log.warn("Failed to parse SSE data: {}", data, e);

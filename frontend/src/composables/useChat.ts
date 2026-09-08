@@ -388,6 +388,7 @@ export function useChat() {
     // stream
     draft: stream.draft,
     streaming: stream.streaming,
+    streamingReasoning: stream.streamingReasoning,
     streamingText: stream.streamingText,
     isThinking: stream.isThinking,
     isCompressing: stream.isCompressing,

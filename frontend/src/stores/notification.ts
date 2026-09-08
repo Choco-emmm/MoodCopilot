@@ -183,6 +183,7 @@ export const useNotificationStore = defineStore('notification', () => {
 
       ws.onopen = () => {
         reconnectAttempts.value = 0
+        window.dispatchEvent(new Event('websocket-reconnected'))
         startHeartbeat()
         clearFallbackPollTimer()
         void fetchUnreadCount(true)

@@ -162,12 +162,21 @@ onMounted(() => {
   checkLoginStatus()
   uni.$on('refreshFeed', refreshAfterLogin)
   uni.$on('login-success', refreshAfterLogin)
+  uni.$on('websocket-reconnected', onWsReconnected)
 })
 
 onUnmounted(() => {
   uni.$off('refreshFeed', refreshAfterLogin)
   uni.$off('login-success', refreshAfterLogin)
+  uni.$off('websocket-reconnected', onWsReconnected)
 })
+
+function onWsReconnected() {
+  const hasAnalyzing = diaries.value.some((d: any) => d.analysisStatus === 'analyzing')
+  if (hasAnalyzing) {
+    void fetchDiaries()
+  }
+}
 
 onReachBottom(loadMore)
 onPullDownRefresh(() => {
@@ -196,6 +205,11 @@ async function fetchDiaries(isLoadMore = false) {
     hasMore.value = true
   }
 
+  const oldStatusMap = new Map()
+  if (!isLoadMore) {
+    diaries.value.forEach(d => oldStatusMap.set(d.id, d.analysisStatus))
+  }
+
   try {
     const response = hasActiveFilters.value
       ? await get('/api/diaries/search', {
@@ -208,6 +222,24 @@ async function fetchDiaries(isLoadMore = false) {
       : await get(`/api/diaries/mine?page=${page.value}&size=${size}`)
     if (response.code !== 200) return
     const records = response.data?.items || response.data?.content || response.data || []
+    
+    if (!isLoadMore) {
+      let newlyCompleted = 0
+      records.forEach((d: any) => {
+        const oldStatus = oldStatusMap.get(d.id)
+        if (oldStatus === 'analyzing' && (d.analysisStatus === 'complete' || d.analysisStatus === 'completed')) {
+          newlyCompleted++
+        }
+      })
+      if (newlyCompleted > 0) {
+        uni.showToast({
+          title: newlyCompleted === 1 ? '有1篇日记已完成分析' : `有${newlyCompleted}篇日记已完成分析`,
+          icon: 'none',
+          duration: 3000
+        })
+      }
+    }
+
     diaries.value = isLoadMore ? [...diaries.value, ...records] : records
     hasMore.value = records.length === size
     if (hasMore.value) page.value += 1

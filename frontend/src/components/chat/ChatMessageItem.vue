@@ -88,10 +88,18 @@
         @keydown.space.prevent="handleQuote"
       >
         <template v-if="msg.role === 'ai'">
-          <!-- think 块内容不对用户展示，只显示正文 -->
+          <!-- Reasoning Block -->
+          <div v-if="parsedContent.think" class="reasoning-panel">
+            <button class="reasoning-toggle" @click="toggleReasoning">
+              <span class="reasoning-icon">💭</span>
+              <span>{{ msg.status === 'streaming' ? '正在深度思考...' : '已深度思考' }}</span>
+              <span class="reasoning-arrow">{{ isReasoningExpanded ? '▾' : '▸' }}</span>
+            </button>
+            <div v-if="isReasoningExpanded" class="reasoning-content md-content" v-html="renderMd(parsedContent.think)"></div>
+          </div>
+          
           <div v-if="parsedContent.text" class="md-content" v-html="renderMd(parsedContent.text)" />
-          <!-- 如果只有 think 没有正文（消息异常时的兜底） -->
-          <span v-else class="ai-think-placeholder">...</span>
+          <span v-else-if="!parsedContent.think" class="ai-think-placeholder">...</span>
 
           <!-- Quote Action and Time -->
           <div v-if="parsedContent.text" class="msg-actions">
@@ -154,6 +162,7 @@ export interface Message {
   id: string
   role: 'user' | 'ai'
   content: string
+  reasoningContent?: string
   createdAt?: string
   references?: string[]
   ragReferences?: RagRef[]
@@ -189,6 +198,19 @@ const emit = defineEmits<{
 }>()
 
 const isRefsExpanded = ref(false)
+const isReasoningExpanded = ref(props.msg.status === 'streaming' || props.msg.status === 'pending')
+
+import { watch } from 'vue'
+watch(() => props.msg.status, (newStatus) => {
+  if (newStatus === 'success' || newStatus === 'error') {
+    isReasoningExpanded.value = false
+  }
+})
+
+function toggleReasoning() {
+  isReasoningExpanded.value = !isReasoningExpanded.value
+}
+
 const expandedSnippets = ref<Set<number>>(new Set())
 const isLongPressing = ref(false)
 let longPressTimer: number | null = null
@@ -279,19 +301,23 @@ function handleContextMenu() {
 onBeforeUnmount(clearLongPress)
 
 const parsedContent = computed(() => {
-  const content = props.msg.content
-  if (!content) return { think: '', text: '' }
+  const content = props.msg.content || ''
+  let think = props.msg.reasoningContent || ''
+  
+  if (!content && !think) return { think: '', text: '' }
 
-  let think = ''
-  let text = content.replace(/<think>([\s\S]*?)<\/think>/g, (match, innerThink) => {
-    think += (think ? '\n\n' : '') + innerThink.trim()
-    return ''
-  })
+  let text = content
+  if (!think) {
+    text = content.replace(/<think>([\s\S]*?)<\/think>/g, (match, innerThink) => {
+      think += (think ? '\n\n' : '') + innerThink.trim()
+      return ''
+    })
 
-  const unclosedMatch = text.match(/<think>([\s\S]*)$/)
-  if (unclosedMatch) {
-    think += (think ? '\n\n' : '') + unclosedMatch[1].trim()
-    text = text.substring(0, unclosedMatch.index)
+    const unclosedMatch = text.match(/<think>([\s\S]*)$/)
+    if (unclosedMatch) {
+      think += (think ? '\n\n' : '') + unclosedMatch[1].trim()
+      text = text.substring(0, unclosedMatch.index)
+    }
   }
 
   return {
@@ -393,6 +419,46 @@ function getTriplePolarityClass(relation: string, tail: string): string {
 </script>
 
 <style scoped>
+.reasoning-panel {
+  margin-bottom: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background-color: var(--color-surface);
+  overflow: hidden;
+}
+.reasoning-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  transition: background-color 0.2s;
+}
+.reasoning-toggle:hover {
+  background-color: var(--color-surface-hover);
+}
+.reasoning-icon {
+  margin-right: 6px;
+  font-size: 14px;
+}
+.reasoning-arrow {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.reasoning-content {
+  padding: 12px;
+  border-top: 1px solid var(--color-border);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg);
+  white-space: pre-wrap;
+}
+
 .msg-time {
   font-size: 11px;
   position: absolute;

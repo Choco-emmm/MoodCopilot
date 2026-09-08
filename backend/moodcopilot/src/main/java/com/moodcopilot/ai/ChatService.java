@@ -48,6 +48,20 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 @Service
 public class ChatService {
 
+    private List<org.springframework.ai.chat.messages.Message> convertToSpringMessages(List<com.moodcopilot.entity.dto.CustomChatMessage> customMsgs) {
+        if (customMsgs == null) return new java.util.ArrayList<>();
+        List<org.springframework.ai.chat.messages.Message> springMsgs = new java.util.ArrayList<>();
+        for (com.moodcopilot.entity.dto.CustomChatMessage cm : customMsgs) {
+            if ("user".equalsIgnoreCase(cm.role())) {
+                springMsgs.add(new org.springframework.ai.chat.messages.UserMessage(cm.content() != null ? cm.content() : ""));
+            } else if ("assistant".equalsIgnoreCase(cm.role()) || "ai".equalsIgnoreCase(cm.role())) {
+                springMsgs.add(new org.springframework.ai.chat.messages.AssistantMessage(cm.content() != null ? cm.content() : ""));
+            }
+        }
+        return springMsgs;
+    }
+
+
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
     private static final String MSG_PREFIX = "chat:msgs:";
     private static final String SUMMARY_PREFIX = "chat:summary:";
@@ -59,7 +73,7 @@ public class ChatService {
     private final ChatClient analysisChatClient;
     private final ChatConversationMapper conversationMapper;
     private final DeepSeekReasoningClient reasoningClient;
-    private final Cache<String, ChatMemory> userChatMemories;
+    private final Cache<String, List<com.moodcopilot.entity.dto.CustomChatMessage>> userChatMemories;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final RateLimitService rateLimitService;
@@ -88,7 +102,7 @@ public class ChatService {
             ChatClient analysisChatClient,
             ChatConversationMapper conversationMapper,
             DeepSeekReasoningClient reasoningClient,
-            Cache<String, ChatMemory> userChatMemories,
+            Cache<String, List<com.moodcopilot.entity.dto.CustomChatMessage>> userChatMemories,
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper,
             RateLimitService rateLimitService,
@@ -360,7 +374,7 @@ public class ChatService {
                      sys.append(ragCtx).append("\n").append(buildTimeMetadata());
                     s.text(sys.toString());
                 })
-                .advisors(new MessageChatMemoryAdvisor(request.memory()))
+                .messages(convertToSpringMessages(request.memory()))
                 .functions(
                         DiarySearchFunctionSupport.NAME,
                         UserStatsFunctionSupport.NAME,
@@ -435,7 +449,7 @@ public class ChatService {
                         sys.append(ragCtx).append("\n").append(buildTimeMetadata());
                         s.text(sys.toString());
                     })
-                    .advisors(new MessageChatMemoryAdvisor(request.memory()))
+                    .messages(convertToSpringMessages(request.memory()))
                     .functions(
                             DiarySearchFunctionSupport.NAME,
                             UserStatsFunctionSupport.NAME,
@@ -523,21 +537,16 @@ public class ChatService {
         
         msgs.add(Map.of("role", "system", "content", sys.toString()));
         
-        List<Message> history = request.memory().get("default", 20);
-        if (history != null) {
-            for (Message msg : history) {
-                String role = switch (msg.getMessageType()) {
-                    case USER -> "user";
-                    case ASSISTANT -> "assistant";
-                    case SYSTEM -> "system";
-                    default -> null;
-                };
-                if (role != null && msg.getText() != null && !msg.getText().isBlank()) {
-                    msgs.add(Map.of("role", role, "content", msg.getText()));
+        if (request.memory() != null) {
+            for (com.moodcopilot.entity.dto.CustomChatMessage msg : request.memory()) {
+                String role = msg.role() != null ? msg.role() : "user";
+                if (msg.content() != null && !msg.content().isBlank()) {
+                    msgs.add(Map.of("role", role, "content", msg.content()));
                 }
             }
         }
-        msgs.add(Map.of("role", "user", "content", message));
+        String reasoningLanguageInstruction = "\n\n(IMPORTANT RULE: You MUST use the exact same language as this user message above for your internal reasoning process and your final response. If this message is in Chinese, your <think> block must be entirely in Chinese.)";
+        msgs.add(Map.of("role", "user", "content", message + reasoningLanguageInstruction));
         return msgs;
     }
 
@@ -555,7 +564,7 @@ public class ChatService {
         log.info("调用思考模型分支（流式原生 WebClient + Agent Loop），messageLength={}", message == null ? 0 : message.length());
 
         // 手动将用户本轮消息存入 ChatMemory（推理模型绕过了 Spring AI Advisor）
-        request.memory().add("default", List.of(new org.springframework.ai.chat.messages.UserMessage(message)));
+        request.memory().add(new com.moodcopilot.entity.dto.CustomChatMessage(java.util.UUID.randomUUID().toString(), "user", message, null, null, null, null, null));
 
         List<Map<String, Object>> msgs = buildMessagesForReasoner(request, message, auth, ragCtx);
         List<Map<String, Object>> tools = buildDeepSeekTools();
@@ -563,17 +572,27 @@ public class ChatService {
 
         Flux<String> textFlux = processReasoningAgentLoop(msgs, tools, auth, 0, sseSink);
 
-        // 收集最终 AI 回复文本，流结束时存入 ChatMemory（不覆写 Redis，由前端负责保存富文本历史）
+        // 收集最终 AI 回复文本和思维链，流结束时存入 CustomChatMessage
         StringBuilder finalAiReply = new StringBuilder();
+        StringBuilder finalReasoning = new StringBuilder();
         Flux<String> tracedTextFlux = textFlux
-                .doOnNext(finalAiReply::append)
+                .doOnNext(chunk -> {
+                    if (chunk.startsWith("[[REASONING]]")) {
+                        finalReasoning.append(chunk.substring(13));
+                    } else {
+                        finalAiReply.append(chunk);
+                    }
+                })
                 .doOnComplete(() -> {
-                    if (finalAiReply.length() > 0) {
-                        request.memory().add("default",
-                                List.of(new org.springframework.ai.chat.messages.AssistantMessage(
-                                        finalAiReply.toString())));
-                        log.info("推理模型对话已存入 ChatMemory，conversationId={}，回复长度={}",
-                                conversationId, finalAiReply.length());
+                    if (finalAiReply.length() > 0 || finalReasoning.length() > 0) {
+                        request.memory().add(new com.moodcopilot.entity.dto.CustomChatMessage(
+                            java.util.UUID.randomUUID().toString(), "assistant",
+                            finalAiReply.toString(),
+                            finalReasoning.length() > 0 ? finalReasoning.toString() : null,
+                            null, null, null, null
+                        ));
+                        log.info("推理模型对话已存入 CustomChatMessage，conversationId={}，回复长度={}，思考长度={}",
+                                conversationId, finalAiReply.length(), finalReasoning.length());
                     }
                 })
                 .doFinally(signalType -> sseSink.tryEmitComplete());
@@ -666,11 +685,21 @@ public class ChatService {
 
         return Flux.defer(() -> {
             List<DeepSeekStreamEvent.ToolCallReady> toolCalls = new ArrayList<>();
+            StringBuilder turnReasoning = new StringBuilder();
+            StringBuilder turnContent = new StringBuilder();
+
             //返回的是最底层的flux对象，随时可以开始subscribe订阅，得到最顶层flux对应的工人，然后就可以按调用链执行onNext(T t)和onComplete()方法了
             return deepSeekClient.streamReasoner(messages, tools)
                     .doOnNext(event -> {
                         if (event instanceof DeepSeekStreamEvent.ToolCallReady tool) {
                             toolCalls.add(tool);
+                        } else if (event instanceof DeepSeekStreamEvent.TextChunk text) {
+                            String chunk = text.text();
+                            if (chunk.startsWith("[[REASONING]]")) {
+                                turnReasoning.append(chunk.substring(13));
+                            } else {
+                                turnContent.append(chunk);
+                            }
                         }
                     })
                     .flatMap(event -> {
@@ -684,26 +713,30 @@ public class ChatService {
                             return Flux.<String>empty();
                         }
 
+                        List<Map<String, Object>> toolCallsArray = new ArrayList<>();
+                        for (DeepSeekStreamEvent.ToolCallReady tool : toolCalls) {
+                            toolCallsArray.add(Map.of(
+                                    "id", tool.toolCallId(),
+                                    "type", "function",
+                                    "function", Map.of(
+                                            "name", tool.functionName(),
+                                            "arguments", tool.argumentsJson())));
+                        }
+
+                        Map<String, Object> assistantMsg = new LinkedHashMap<>();
+                        assistantMsg.put("role", "assistant");
+                        assistantMsg.put("content", turnContent.toString());
+                        assistantMsg.put("reasoning_content", turnReasoning.toString());
+                        assistantMsg.put("tool_calls", toolCallsArray);
+                        messages.add(assistantMsg);
+
                         for (DeepSeekStreamEvent.ToolCallReady tool : toolCalls) {
                             log.info("Agent Loop 执行工具调用: {} id={} argsLen={}", tool.functionName(),
                                     tool.toolCallId(), tool.argumentsJson().length());
-
                             try {
                                 Object result = executeToolFunction(tool.functionName(), tool.argumentsJson(), auth);
                                 String resultJson = objectMapper.writeValueAsString(result);
                                 emitToolReferences(tool.functionName(), result, sseSink);
-
-                                Map<String, Object> assistantMsg = new LinkedHashMap<>();
-                                assistantMsg.put("role", "assistant");
-                                assistantMsg.put("content", "");
-                                assistantMsg.put("reasoning_content", "");
-                                assistantMsg.put("tool_calls", List.of(Map.of(
-                                        "id", tool.toolCallId(),
-                                        "type", "function",
-                                        "function", Map.of(
-                                                "name", tool.functionName(),
-                                                "arguments", tool.argumentsJson()))));
-                                messages.add(assistantMsg);
 
                                 Map<String, Object> toolMsg = new LinkedHashMap<>();
                                 toolMsg.put("role", "tool");
@@ -951,25 +984,20 @@ public class ChatService {
      * 从 ChatMemory 中提取最近消息，按字符预算自动截断旧消息。
      * 保留最近消息完整，超出预算时从最早的消息开始丢弃。
      */
-    private String formatChatHistory(ChatMemory memory) {
-        List<Message> messages = memory.get("default", Integer.MAX_VALUE);
-        if (messages == null || messages.isEmpty()) {
+    private String formatChatHistory(List<com.moodcopilot.entity.dto.CustomChatMessage> memory) {
+        if (memory == null || memory.isEmpty()) {
             return "";
         }
         // 倒序收集，从最新消息开始累计，到达预算后停止
         List<String> parts = new ArrayList<>();
         int totalChars = 0;
-        for (int i = messages.size() - 1; i >= 0; i--) {
-            Message msg = messages.get(i);
-            String role = switch (msg.getMessageType()) {
-                case USER -> "用户";
-                case ASSISTANT -> "AI";
-                default -> null;
-            };
-            if (role == null) continue;
-            String text = msg.getText();
+        for (int i = memory.size() - 1; i >= 0; i--) {
+            com.moodcopilot.entity.dto.CustomChatMessage msg = memory.get(i);
+            String role = msg.role() != null ? msg.role().toUpperCase() : "";
+            if (!role.equals("USER") && !role.equals("ASSISTANT")) continue;
+            String text = msg.content();
             if (text == null || text.isBlank()) continue;
-            String line = role + "：" + text.trim();
+            String line = (role.equals("USER") ? "用户" : "AI") + "：" + text.trim();
             totalChars += line.length();
             if (totalChars > CHAT_HISTORY_CHAR_BUDGET && !parts.isEmpty()) {
                 break; // 超出预算，停止累积旧消息
@@ -992,16 +1020,15 @@ public class ChatService {
      * 将 ChatMemory 中的对话历史持久化到 Redis（7 天 TTL）。
      * 推理模型路径不经过 Spring AI 的 advisor，需手动调用。
      */
-    private void persistChatMemory(long conversationId, ChatMemory memory) {
+    private void persistChatMemory(long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory) {
         try {
-            List<Message> messages = memory.get("default", Integer.MAX_VALUE);
-            if (messages == null || messages.isEmpty()) {
+            if (memory == null || memory.isEmpty()) {
                 return;
             }
             List<Map<String, String>> payload = new java.util.ArrayList<>();
-            for (Message msg : messages) {
-                String role = msg.getMessageType() == MessageType.USER ? "user" : "assistant";
-                String text = msg.getText();
+            for (com.moodcopilot.entity.dto.CustomChatMessage msg : memory) {
+                String role = msg.role();
+                String text = msg.content();
                 if (text != null && !text.isBlank()) {
                     payload.add(Map.of("role", role, "content", text));
                 }
@@ -1017,13 +1044,12 @@ public class ChatService {
      * 压缩聊天历史：当 ChatMemory 中消息数超过阈值时，将旧消息压缩为摘要存入 Redis，
      * 并裁剪 ChatMemory 和 Redis chat:msgs: 只保留最近 KEEP_RECENT_MSG_COUNT 条消息。
      */
-    private String compressChatHistory(Long userId, Long conversationId, ChatMemory memory) {
-        List<Message> messages = memory.get("default", Integer.MAX_VALUE);
-        if (messages == null || messages.size() < COMPRESSION_TRIGGER_MSG_COUNT) {
+    private String compressChatHistory(Long userId, Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory) {
+        if (memory == null || memory.size() < COMPRESSION_TRIGGER_MSG_COUNT) {
             return null;
         }
 
-        int totalMsgs = messages.size();
+        int totalMsgs = memory.size();
         int middleEndIndex = totalMsgs - KEEP_RECENT_MSG_COUNT;
         if (middleEndIndex <= 0) {
             return null;
@@ -1031,9 +1057,9 @@ public class ChatService {
 
         StringBuilder toCompress = new StringBuilder();
         for (int i = 0; i < middleEndIndex; i++) {
-            Message msg = messages.get(i);
-            String role = msg.getMessageType() == MessageType.USER ? "用户" : "AI";
-            String text = msg.getText();
+            com.moodcopilot.entity.dto.CustomChatMessage msg = memory.get(i);
+            String role = "user".equalsIgnoreCase(msg.role()) ? "用户" : "AI";
+            String text = msg.content();
             if (text != null && !text.isBlank()) {
                 toCompress.append("[").append(role).append("]: ").append(text.trim()).append("\n");
             }
@@ -1076,12 +1102,12 @@ public class ChatService {
 
             saveSummary(conversationId, newSummary);
 
-            List<Message> recentMessages = new ArrayList<>();
+            List<com.moodcopilot.entity.dto.CustomChatMessage> recentMessages = new ArrayList<>();
             for (int i = middleEndIndex; i < totalMsgs; i++) {
-                recentMessages.add(messages.get(i));
+                recentMessages.add(memory.get(i));
             }
-            memory.clear("default");
-            memory.add("default", recentMessages);
+            memory.clear();
+            memory.addAll(recentMessages);
 
             // 安全裁剪 Redis JSON 历史（保留前端 ragReferences 等扩展字段，不覆写结构）
             try {
@@ -1176,7 +1202,7 @@ public class ChatService {
         EffectivePersona persona = personaService.compileForChat(user.getId(), conversationId);
         String context = buildContext(user.getId(), contextPlan.envelope(), refs, null, persona, taskContext);
         String memKey = user.getId() + ":" + conversationId;
-        ChatMemory memory = userChatMemories.get(memKey, k -> new InMemoryChatMemory());
+        List<com.moodcopilot.entity.dto.CustomChatMessage> memory = userChatMemories.get(memKey, k -> new java.util.concurrent.CopyOnWriteArrayList<>());
         // 如果 ChatMemory 为空（刚启动、Caffeine 过期、或新会话），尝试从 Redis 恢复历史上下文
         restoreChatMemoryFromRedis(conversationId, memory);
 
@@ -1225,18 +1251,13 @@ public class ChatService {
         return normalized.length() <= maxLength ? normalized : normalized.substring(0, maxLength) + "...";
     }
 
-    private record ChatRequest(String context, ChatMemory memory, String summary,
+    private record ChatRequest(String context, List<com.moodcopilot.entity.dto.CustomChatMessage> memory, String summary,
             EffectivePersona persona, TaskContext taskContext, ContextEnvelope envelope) {
     }
 
-    /**
-     * 当 ChatMemory 为空时（重启、缓存过期、新会话），从 Redis 持久化历史中回填消息，
-     * 确保 MessageChatMemoryAdvisor 能注入完整对话上下文。
-     */
     @SuppressWarnings("unchecked")
-    private void restoreChatMemoryFromRedis(Long conversationId, ChatMemory memory) {
-        List<Message> existing = memory.get("default", 1);
-        if (existing != null && !existing.isEmpty()) {
+    private void restoreChatMemoryFromRedis(Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory) {
+        if (memory != null && !memory.isEmpty()) {
             return; // 已有内存上下文，无需恢复
         }
         try {
@@ -1248,22 +1269,20 @@ public class ChatService {
             if (messages == null || messages.isEmpty()) {
                 return;
             }
-            List<Message> history = new java.util.ArrayList<>();
+            List<com.moodcopilot.entity.dto.CustomChatMessage> history = new java.util.ArrayList<>();
             for (Map<String, Object> msg : messages) {
                 String role = (String) msg.get("role");
                 String content = (String) msg.get("content");
                 if (role == null || content == null || content.isBlank()) {
                     continue;
                 }
-                if ("user".equalsIgnoreCase(role)) {
-                    history.add(new UserMessage(content));
-                } else if ("assistant".equalsIgnoreCase(role)) {
-                    history.add(new AssistantMessage(content));
-                }
+                history.add(new com.moodcopilot.entity.dto.CustomChatMessage(
+                    java.util.UUID.randomUUID().toString(), role, content, null, null, null, null, null
+                ));
             }
             if (!history.isEmpty()) {
-                memory.add("default", history);
-                log.info("已从 Redis 恢复聊天历史到 ChatMemory，conversationId={}，消息数={}", conversationId,
+                memory.addAll(history);
+                log.info("已从 Redis 恢复聊天历史到 CustomChatMessage，conversationId={}，消息数={}", conversationId,
                         history.size());
             }
         } catch (Exception e) {

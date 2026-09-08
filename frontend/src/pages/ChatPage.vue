@@ -194,6 +194,7 @@
           <ChatStreamingItem
             :streaming="streaming && !isCompressing"
             :streaming-text="streamingText"
+            :streaming-reasoning="streamingReasoning"
             :streaming-refs="streamingRefs"
             :is-compressing="isCompressing"
             :compressing-message="compressingMessage"
@@ -256,7 +257,7 @@ const {
   ensureConversation,
   handleMobileConversationChange, deleteActiveConversation,
   messages,
-  draft, streaming, streamingText, isThinking, isCompressing, compressingMessage, useReasoning, streamingRefs,
+  draft, streaming, streamingText, streamingReasoning, isThinking, isCompressing, compressingMessage, useReasoning, streamingRefs,
   lastReplyError, lastReplyRequest, references,
   send, retryLastReply, removeRef,
   recentDiaryOptions, recentDiariesLoading, recentDiariesError,

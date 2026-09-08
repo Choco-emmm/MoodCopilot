@@ -8,10 +8,12 @@ export interface Message {
   id: string
   role: 'user' | 'ai'
   content: string
+  reasoningContent?: string
   createdAt?: string
   references?: string[]
   ragReferences?: RagRef[]
-  quoteRef?: { content: string; author: string }
+  quoteRef?: { content: string
+  reasoningContent?: string; author: string }
   status?: 'pending' | 'streaming' | 'success' | 'error'
 }
 
@@ -182,6 +184,7 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
           id: item.id || nextMsgId(),
           role: normalizeMessageRole(item.role),
           content,
+          reasoningContent: item.reasoningContent || undefined,
           references: references.length ? references : undefined,
           ragReferences: Array.isArray(item.ragReferences) ? item.ragReferences : undefined,
           quoteRef,

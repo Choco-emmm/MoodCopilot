@@ -43,6 +43,7 @@ export const connectWebSocket = async () => {
       });
 
       socketTask.onOpen(() => {
+        uni.$emit('websocket-reconnected');
         isConnected = true;
         reconnectAttempts = 0; // Reset on successful connection
         if (reconnectTimer) {

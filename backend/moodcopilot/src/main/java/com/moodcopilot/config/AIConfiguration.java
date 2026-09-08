@@ -61,6 +61,9 @@ import java.time.Duration;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Configuration
 public class AIConfiguration {
@@ -68,7 +71,7 @@ public class AIConfiguration {
     private static final Logger log = LoggerFactory.getLogger(AIConfiguration.class);
 
     @Bean
-    public Cache<String, ChatMemory> userChatMemories() {
+    public Cache<String, List<com.moodcopilot.entity.dto.CustomChatMessage>> userChatMemories() {
         // 以 userId:conversationId 作为 key 的会话记忆容器。
         // 30 分钟无访问自动过期 + 最多 500 条，防止 2C4G 服务器 OOM。
         return Caffeine.newBuilder()

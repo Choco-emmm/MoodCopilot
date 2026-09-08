@@ -84,14 +84,14 @@
           <div class="compressing-tip">正在精炼长对话记忆，完成后继续回复</div>
         </div>
 
-        <div v-else-if="parsedStreaming.think && !parsedStreaming.text" class="thinking-status">
-          <span class="sparkle-icon">✨</span>
-          <span class="thinking-text">深度思考中</span>
-          <span class="thinking-dots-inline">
-            <span class="dot animate-bounce" style="animation-delay: 0ms"></span>
-            <span class="dot animate-bounce" style="animation-delay: 150ms"></span>
-            <span class="dot animate-bounce" style="animation-delay: 300ms"></span>
-          </span>
+        <!-- Reasoning Block in Streaming -->
+        <div v-if="parsedStreaming.think" class="reasoning-panel">
+          <button class="reasoning-toggle" @click="toggleReasoning">
+            <span class="reasoning-icon">💭</span>
+            <span>正在深度思考...</span>
+            <span class="reasoning-arrow">{{ isReasoningExpanded ? '▾' : '▸' }}</span>
+          </button>
+          <div v-if="isReasoningExpanded" class="reasoning-content md-content" v-html="renderStreamingMd(parsedStreaming.think, !parsedStreaming.text)"></div>
         </div>
 
         <div v-else-if="!parsedStreaming.text && !parsedStreaming.think" class="thinking-status">
@@ -123,6 +123,7 @@ interface RagRef {
 const props = defineProps<{
   streaming: boolean
   streamingText: string
+  streamingReasoning?: string
   streamingRefs: RagRef[]
   isCompressing?: boolean
   compressingMessage?: string
@@ -133,6 +134,11 @@ defineEmits<{
 }>()
 
 const showStreamingRefs = ref(false)
+const isReasoningExpanded = ref(true)
+
+function toggleReasoning() {
+  isReasoningExpanded.value = !isReasoningExpanded.value
+}
 const expandedSnippets = ref<Set<number>>(new Set())
 
 function toggleSnippet(idx: number) {
@@ -163,24 +169,9 @@ function renderStreamingMd(text: string, showCursor: boolean) {
 }
 
 const parsedStreaming = computed(() => {
-  const content = props.streamingText
-  if (!content) return { think: '', text: '' }
-
-  let think = ''
-  let text = content.replace(/<think>([\s\S]*?)<\/think>/g, (match, innerThink) => {
-    think += (think ? '\n\n' : '') + innerThink.trim()
-    return ''
-  })
-
-  const unclosedMatch = text.match(/<think>([\s\S]*)$/)
-  if (unclosedMatch) {
-    think += (think ? '\n\n' : '') + unclosedMatch[1].trim()
-    text = text.substring(0, unclosedMatch.index)
-  }
-
   return {
-    think: think.trim(),
-    text: text.trimStart()
+    think: props.streamingReasoning || '',
+    text: props.streamingText || ''
   }
 })
 
@@ -277,6 +268,46 @@ function getTriplePolarityClass(relation: string, tail: string): string {
 </script>
 
 <style scoped>
+.reasoning-panel {
+  margin-bottom: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background-color: var(--color-surface);
+  overflow: hidden;
+}
+.reasoning-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  transition: background-color 0.2s;
+}
+.reasoning-toggle:hover {
+  background-color: var(--color-surface-hover);
+}
+.reasoning-icon {
+  margin-right: 6px;
+  font-size: 14px;
+}
+.reasoning-arrow {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.reasoning-content {
+  padding: 12px;
+  border-top: 1px solid var(--color-border);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg);
+  white-space: pre-wrap;
+}
+
 .compressing-status {
   display: flex;
   flex-direction: column;

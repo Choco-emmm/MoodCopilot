@@ -86,7 +86,7 @@
             <image src="/static/ai_avatar.png" class="avatar-img" mode="aspectFill" />
           </view>
           <view class="bubble" :class="msg.role === 'user' ? 'user-bubble' : 'ai-bubble'" @longpress="handleLongPress(msg)">
-            <rich-text class="message-text" :nodes="parseMarkdown(formatMessage(msg.content))"></rich-text>
+            <rich-text class="message-text" :nodes="parseMarkdown(formatMessage(msg.content || ''))"></rich-text>
           </view>
           <view v-if="msg.role === 'user'" class="avatar user-avatar">
             <image v-if="userInfo?.avatar" :src="getFullUrl(userInfo.avatar)" class="avatar-img" mode="aspectFill" />
@@ -274,7 +274,9 @@ import { onShow } from '@dcloudio/uni-app';
 
 interface Message {
   role: 'user' | 'assistant';
-  content: string;
+  content: string
+  reasoningContent?: string
+  _reasoningExpanded?: boolean;
   createdAt?: string;
 }
 
@@ -488,7 +490,7 @@ const parseTopic = (topic: string | any) => {
 
 const formatMessage = (content: string) => {
   if (!content) return '';
-  return content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  return content;
 };
 
 const formatDate = (isoString: string) => {
@@ -1292,6 +1294,36 @@ const scrollToBottom = (target?: 'waiting') => {
 .quote-action-icon { font-size: 34rpx; line-height: 1; }
 .chat-input { height: 64rpx; padding: 0 20rpx; border-radius: 6rpx; background: var(--theme-bg); font-size: 26rpx; }
 .send-btn { height: 64rpx; padding: 0 24rpx; border-radius: 6rpx; font-size: 25rpx; line-height: 64rpx; }
+
+.reasoning-panel {
+  margin-bottom: 12rpx;
+  border: 1px solid var(--theme-border);
+  border-radius: 12rpx;
+  background-color: var(--theme-surface);
+  overflow: hidden;
+}
+.reasoning-toggle {
+  display: flex;
+  align-items: center;
+  padding: 12rpx 16rpx;
+}
+.reasoning-text {
+  font-size: 24rpx;
+  color: var(--theme-text-secondary);
+  margin-left: 8rpx;
+}
+.reasoning-arrow {
+  margin-left: auto;
+  font-size: 24rpx;
+  color: var(--theme-text-muted);
+}
+.reasoning-content {
+  padding: 16rpx;
+  border-top: 1px solid var(--theme-border);
+  font-size: 24rpx;
+  color: var(--theme-text-secondary);
+  background-color: var(--theme-bg);
+}
 </style>
 
 <style scoped>
@@ -1661,6 +1693,36 @@ const scrollToBottom = (target?: 'waiting') => {
   color: var(--theme-primary);
   font-size: 23rpx;
   text-align: center;
+}
+
+.reasoning-panel {
+  margin-bottom: 12rpx;
+  border: 1px solid var(--theme-border);
+  border-radius: 12rpx;
+  background-color: var(--theme-surface);
+  overflow: hidden;
+}
+.reasoning-toggle {
+  display: flex;
+  align-items: center;
+  padding: 12rpx 16rpx;
+}
+.reasoning-text {
+  font-size: 24rpx;
+  color: var(--theme-text-secondary);
+  margin-left: 8rpx;
+}
+.reasoning-arrow {
+  margin-left: auto;
+  font-size: 24rpx;
+  color: var(--theme-text-muted);
+}
+.reasoning-content {
+  padding: 16rpx;
+  border-top: 1px solid var(--theme-border);
+  font-size: 24rpx;
+  color: var(--theme-text-secondary);
+  background-color: var(--theme-bg);
 }
 </style>
 

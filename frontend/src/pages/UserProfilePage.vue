@@ -296,7 +296,19 @@ useInfiniteScroll(sentinel, loadMore, { enabled: hasMore, rootMargin: '300px' })
 
 onMounted(() => {
   void reload()
+  window.addEventListener('websocket-reconnected', onWsReconnected)
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('websocket-reconnected', onWsReconnected)
+})
+
+function onWsReconnected() {
+  const hasAnalyzing = diaries.value.some((d: Diary) => d.analysisStatus === 'analyzing')
+  if (hasAnalyzing) {
+    void reload()
+  }
+}
 
 onActivated(() => {
   // Return from collection detail page — switch to collections tab and refresh
@@ -390,6 +402,9 @@ async function reload() {
       void followStore.checkStatus(profileUserId.value)
     }
 
+    const oldStatusMap = new Map()
+    diaries.value.forEach(d => oldStatusMap.set(d.id, d.analysisStatus))
+
     if (isSearching.value) {
       const res = await diaryApi.search({
         keyword: keyword.value || undefined,
@@ -400,12 +415,36 @@ async function reload() {
         size: 20,
       })
       const items = (res.data.data.items ?? []).map(store.normalize)
+      
+      let newlyCompleted = 0
+      items.forEach((d: Diary) => {
+        const oldStatus = oldStatusMap.get(d.id)
+        if (oldStatus === 'analyzing' && (d.analysisStatus === 'complete' || d.analysisStatus === 'completed')) {
+          newlyCompleted++
+        }
+      })
+      if (newlyCompleted > 0) {
+        window.$message?.success(`有${newlyCompleted}篇日记已完成分析`)
+      }
+
       diaries.value = items
       total.value = res.data.data.total ?? 0
     } else {
       const diaryRes = isOwner.value ? await diaryApi.mine(1, 20) : await diaryApi.byUser(profileUserId.value, 1, 20)
       const data = diaryRes.data.data
       const items = (data.items ?? []).map(store.normalize)
+      
+      let newlyCompleted = 0
+      items.forEach((d: Diary) => {
+        const oldStatus = oldStatusMap.get(d.id)
+        if (oldStatus === 'analyzing' && (d.analysisStatus === 'complete' || d.analysisStatus === 'completed')) {
+          newlyCompleted++
+        }
+      })
+      if (newlyCompleted > 0) {
+        window.$message?.success(`有${newlyCompleted}篇日记已完成分析`)
+      }
+
       diaries.value = items
       total.value = data.total ?? items.length
     }
