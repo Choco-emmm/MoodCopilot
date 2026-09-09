@@ -554,7 +554,12 @@ public class ChatService {
         msgs.add(Map.of("role", "system", "content", sys.toString()));
         
         if (request.memory() != null) {
-            for (com.moodcopilot.entity.dto.CustomChatMessage msg : request.memory()) {
+            for (int i = 0; i < request.memory().size(); i++) {
+                com.moodcopilot.entity.dto.CustomChatMessage msg = request.memory().get(i);
+                // Skip the last message if it's the exact same user message, because we will append it with instructions below
+                if (i == request.memory().size() - 1 && "user".equalsIgnoreCase(msg.role()) && message != null && message.equals(msg.content())) {
+                    continue;
+                }
                 String role = msg.role() != null ? msg.role() : "user";
                 if (msg.content() != null && !msg.content().isBlank()) {
                     msgs.add(Map.of("role", role, "content", msg.content()));
@@ -580,7 +585,16 @@ public class ChatService {
         log.info("调用思考模型分支（流式原生 WebClient + Agent Loop），messageLength={}", message == null ? 0 : message.length());
 
         // 手动将用户本轮消息存入 ChatMemory（推理模型绕过了 Spring AI Advisor）
-        request.memory().add(new com.moodcopilot.entity.dto.CustomChatMessage(java.util.UUID.randomUUID().toString(), "user", message, null, null, null, null, null));
+        boolean alreadyHasMessage = false;
+        if (!request.memory().isEmpty()) {
+            com.moodcopilot.entity.dto.CustomChatMessage lastMem = request.memory().get(request.memory().size() - 1);
+            if ("user".equalsIgnoreCase(lastMem.role()) && message != null && message.equals(lastMem.content())) {
+                alreadyHasMessage = true;
+            }
+        }
+        if (!alreadyHasMessage) {
+            request.memory().add(new com.moodcopilot.entity.dto.CustomChatMessage(java.util.UUID.randomUUID().toString(), "user", message, null, null, null, null, null));
+        }
 
         List<Map<String, Object>> msgs = buildMessagesForReasoner(request, message, auth, ragCtx);
         List<Map<String, Object>> tools = buildDeepSeekTools();
