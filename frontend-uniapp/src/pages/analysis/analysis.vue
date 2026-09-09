@@ -1625,15 +1625,7 @@ const deleteTriple = (id: number) => {
 }
 
 .memory-group-header,
-.candidate-group-header {
-  display: flex;
-  min-height: 82rpx;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-  padding: 16rpx 0;
-  box-sizing: border-box;
-}
+
 
 .memory-group-heading,
 .candidate-group-heading {
@@ -1644,14 +1636,7 @@ const deleteTriple = (id: number) => {
 }
 
 .memory-group-title,
-.candidate-group-title {
-  overflow: hidden;
-  color: var(--theme-text-primary);
-  font-size: 25rpx;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
 
 .memory-group-count,
 .candidate-group-count {
@@ -1660,8 +1645,7 @@ const deleteTriple = (id: number) => {
   font-size: 19rpx;
 }
 
-.memory-group-toggle,
-.candidate-group-toggle {
+.memory-group-toggle {
   flex-shrink: 0;
   color: var(--theme-primary);
   font-size: 20rpx;
@@ -1676,14 +1660,9 @@ const deleteTriple = (id: number) => {
   border-top: 0;
 }
 
-.candidate-group-header {
-  min-height: 68rpx;
-  padding: 10rpx 0;
-}
 
-.candidate-group-title {
-  font-size: 23rpx;
-}
+
+
 
 .candidate-group-count {
   font-size: 18rpx;
@@ -2000,11 +1979,7 @@ const deleteTriple = (id: number) => {
   color: var(--theme-accent);
 }
 
-.candidate-section {
-  margin-top: 34rpx;
-  padding-top: 28rpx;
-  border-top: 2rpx solid var(--theme-primary);
-}
+
 
 .candidate-heading {
   display: flex;
@@ -2088,22 +2063,9 @@ const deleteTriple = (id: number) => {
   font-weight: 650;
 }
 
-.candidate-value {
-  display: block;
-  margin-top: 7rpx;
-  color: var(--theme-text-primary);
-  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
-  font-size: 25rpx;
-  line-height: 1.55;
-}
 
-.candidate-evidence {
-  display: block;
-  margin-top: 8rpx;
-  color: var(--theme-text-placeholder);
-  font-size: 19rpx;
-  line-height: 1.45;
-}
+
+
 
 .candidate-source-link {
   display: block;
@@ -2191,12 +2153,7 @@ const deleteTriple = (id: number) => {
   color: var(--theme-text-secondary);
 }
 
-@media (max-width: 360px) {
-  .analysis-page { padding-right: 28rpx; padding-left: 28rpx; }
-  .candidate-row { align-items: stretch; flex-direction: column; gap: 14rpx; }
-  .candidate-actions { flex-direction: row; }
-  .candidate-approve, .candidate-reject { flex: 1; }
-}
+
 </style>
 
 <style scoped>
@@ -2219,8 +2176,7 @@ const deleteTriple = (id: number) => {
   font-size: 20rpx;
 }
 
-.memory-group-toggle,
-.candidate-group-toggle {
+.memory-group-toggle {
   min-width: 76rpx;
   text-align: right;
 }
@@ -2261,28 +2217,15 @@ const deleteTriple = (id: number) => {
   padding: 6rpx 4rpx;
 }
 
-.candidate-section {
-  margin-top: 46rpx;
-  padding-top: 34rpx;
-}
 
-.candidate-group-header {
-  min-height: 76rpx;
-  padding: 14rpx 0;
-}
 
-.candidate-group-title {
-  font-size: 25rpx;
-}
 
-.candidate-value {
-  font-size: 27rpx;
-  line-height: 1.65;
-}
 
-.candidate-evidence {
-  margin-top: 10rpx;
-}
+
+
+
+
+
 </style>
 
 <style scoped>
@@ -2386,4 +2329,149 @@ const deleteTriple = (id: number) => {
   height: 42rpx;
   border-radius: var(--theme-radius-sm);
 }
+
+.candidate-section {
+  margin: 36rpx 20rpx 48rpx;
+  padding: 32rpx;
+  border: 1rpx solid var(--theme-border);
+  border-left: 6rpx solid var(--theme-primary);
+  background: color-mix(in oklab, var(--theme-primary) 5%, transparent);
+  border-radius: var(--theme-radius-lg);
+}
+.candidate-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16rpx;
+  margin-bottom: 24rpx;
+}
+.candidate-heading-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+.candidate-title {
+  font-size: 30rpx;
+  font-weight: bold;
+}
+.candidate-desc {
+  font-size: 24rpx;
+  color: var(--theme-text-secondary);
+}
+.candidate-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 4rpx 16rpx;
+  border-radius: 999rpx;
+  background: color-mix(in oklab, var(--theme-primary) 12%, var(--theme-surface));
+  color: var(--theme-primary);
+  font-size: 22rpx;
+  font-weight: bold;
+  height: 40rpx;
+}
+.candidate-summary {
+  display: block;
+  font-size: 24rpx;
+  color: var(--theme-text-muted);
+  text-align: right;
+  margin-bottom: 16rpx;
+}
+.candidate-group-header {
+  min-height: 76rpx;
+  padding: 14rpx 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.candidate-group-title {
+  font-size: 28rpx;
+  font-weight: bold;
+}
+.candidate-group-count {
+  font-size: 24rpx;
+  color: var(--theme-text-secondary);
+  margin-left: 12rpx;
+}
+.candidate-group-toggle {
+  min-width: 76rpx;
+  text-align: right;
+  color: var(--theme-primary);
+  font-size: 22rpx;
+}
+.candidate-row {
+  padding: 24rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-md);
+  background: var(--theme-surface);
+  box-shadow: var(--theme-shadow-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-bottom: 16rpx;
+}
+.candidate-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+.candidate-value {
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 1.65;
+  color: var(--theme-text-primary);
+}
+.candidate-evidence {
+  font-size: 24rpx;
+  color: var(--theme-text-secondary);
+}
+.candidate-actions {
+  display: flex;
+  gap: 16rpx;
+  justify-content: flex-end;
+  margin-top: 8rpx;
+}
+.candidate-approve, .candidate-reject {
+  padding: 10rpx 32rpx;
+  border-radius: var(--theme-radius-sm);
+  font-size: 24rpx;
+  text-align: center;
+}
+.candidate-approve {
+  background: var(--theme-primary);
+  color: #fff;
+}
+.candidate-reject {
+  background: var(--theme-surface-hover);
+  color: var(--theme-text-secondary);
+  border: 1rpx solid var(--theme-border);
+}
+.candidate-conflict-note {
+  margin: 0 0 10rpx;
+  color: var(--theme-accent);
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+.candidate-source-preview {
+  display: block;
+  font-size: 24rpx;
+  color: var(--theme-text-secondary);
+  margin-top: 8rpx;
+}
+.candidate-source-link {
+  display: block;
+  font-size: 24rpx;
+  color: var(--theme-primary);
+  margin-top: 8rpx;
+}
+.candidate-approve:active, .candidate-reject:active {
+  opacity: 0.7;
+}
+
+@media (max-width: 360px) {
+  .analysis-page { padding-right: 28rpx; padding-left: 28rpx; }
+  .candidate-row { align-items: stretch; flex-direction: column; gap: 14rpx; }
+  .candidate-actions { flex-direction: row; }
+  .candidate-approve, .candidate-reject { flex: 1; }
+}
+
 </style>
