@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="chat-input-area">
     <div v-if="lastReplyError" class="chat-reply-error-bar">
       <span>{{ lastReplyError }}</span>
@@ -61,24 +61,14 @@
         </div>
         
         <div class="ds-action-right">
-          <n-popover trigger="click" placement="top-end" :show-arrow="false" class="ds-plus-popover">
-            <template #trigger>
-              <button class="ds-icon-btn ds-plus-btn" :disabled="streaming || isCompressing || disabled">
-                <span class="ds-plus-icon">+</span>
-              </button>
-            </template>
-            <div class="ds-plus-menu">
-              <div class="ds-plus-item" @click="$emit('load-recent-diaries'); referenceBarRef?.openDiaryPopover()">
-                <span class="ds-item-icon">📔</span> 引用日记
-              </div>
-              <div class="ds-plus-item" @click="$emit('load-recent-events'); referenceBarRef?.openEventPopover()">
-                <span class="ds-item-icon">📅</span> 引用事件
-              </div>
-              <div class="ds-plus-item" @click="handleImageUpload">
-                <span class="ds-item-icon">🖼</span> 发送图片
-              </div>
-            </div>
-          </n-popover>
+          <button 
+            class="ds-icon-btn ds-plus-btn" 
+            :class="{ 'is-active': showPlusPanel }"
+            :disabled="streaming || isCompressing || disabled"
+            @click="showPlusPanel = !showPlusPanel"
+          >
+            <span class="ds-plus-icon" :style="{ transform: showPlusPanel ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s' }">+</span>
+          </button>
           
           <button 
             class="ds-icon-btn ds-send-btn" 
@@ -90,17 +80,36 @@
           </button>
         </div>
       </div>
+
+      <!-- 下方拉长的附加功能面板 -->
+      <div class="ds-plus-panel" :class="{ 'is-expanded': showPlusPanel }">
+        <div class="ds-plus-panel-inner">
+          <button class="ds-panel-item" @click="$emit('load-recent-diaries'); referenceBarRef?.openDiaryPopover(); showPlusPanel = false">
+            <div class="ds-panel-icon-wrap"><span class="ds-panel-icon">📔</span></div>
+            <span class="ds-panel-text">引用日记</span>
+          </button>
+          <button class="ds-panel-item" @click="$emit('load-recent-events'); referenceBarRef?.openEventPopover(); showPlusPanel = false">
+            <div class="ds-panel-icon-wrap"><span class="ds-panel-icon">📅</span></div>
+            <span class="ds-panel-text">引用事件</span>
+          </button>
+          <button class="ds-panel-item" @click="handleImageUpload(); showPlusPanel = false">
+            <div class="ds-panel-icon-wrap"><span class="ds-panel-icon">🖼</span></div>
+            <span class="ds-panel-text">发送图片</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { NButton, NInput, NPopover, useMessage } from 'naive-ui'
+import { NButton, NInput, useMessage } from 'naive-ui'
 import ReferenceBar from '../ReferenceBar.vue'
 
 const message = useMessage()
 const referenceBarRef = ref<InstanceType<typeof ReferenceBar> | null>(null)
+const showPlusPanel = ref(false)
 
 defineProps<{
   draft: string
@@ -251,6 +260,10 @@ function handleImageUpload() {
   background: color-mix(in oklab, var(--color-text) 15%, transparent);
 }
 
+.ds-plus-btn.is-active {
+  background: color-mix(in oklab, var(--color-text) 10%, transparent);
+}
+
 .ds-send-btn {
   background: var(--color-surface-hover);
   color: var(--color-text-muted);
@@ -267,31 +280,57 @@ function handleImageUpload() {
   background: var(--color-primary-hover);
 }
 
-.ds-plus-menu {
-  display: flex;
-  flex-direction: column;
-  min-width: 120px;
-  padding: 4px;
+.ds-plus-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
+  overflow: hidden;
 }
 
-.ds-plus-item {
+.ds-plus-panel.is-expanded {
+  grid-template-rows: 1fr;
+}
+
+.ds-plus-panel-inner {
+  min-height: 0;
   display: flex;
+  gap: 24px;
+  padding: 12px 8px 8px;
+}
+
+.ds-panel-item {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font-size: 14px;
-  color: var(--color-text);
+  background: transparent;
+  border: none;
   cursor: pointer;
+  padding: 0;
+  color: var(--color-text-secondary);
+}
+
+.ds-panel-item:hover .ds-panel-icon-wrap {
+  background: var(--color-surface-soft);
+}
+
+.ds-panel-icon-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--color-surface-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: background 0.2s;
 }
 
-.ds-plus-item:hover {
-  background: var(--color-surface-hover);
+.ds-panel-icon {
+  font-size: 24px;
 }
 
-.ds-item-icon {
-  font-size: 16px;
+.ds-panel-text {
+  font-size: 12px;
 }
 
 @media (max-width: 640px) {

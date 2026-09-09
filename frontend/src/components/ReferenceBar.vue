@@ -1,85 +1,60 @@
-<template>
-  <div class="ref-bar">
-    <div v-for="(item, i) in items" :key="i" class="ref-chip">
-      <span class="ref-chip-label">{{ item.displayContent || item.content }}</span>
-      <button class="ref-chip-remove" @click="$emit('remove', i)">×</button>
-    </div>
-    
-    <div class="ref-popover-wrapper">
-      <button class="ref-add-btn" style="display: none;" @click.stop="
-        showDiaryPopover = !showDiaryPopover;
-        showEventPopover = false;
-        if (showDiaryPopover) $emit('open-diaries');
-      ">+ 引用日记</button>
-
-      <button class="ref-add-btn" style="display: none;" @click.stop="
-        showEventPopover = !showEventPopover;
-        showDiaryPopover = false;
-        if (showEventPopover) $emit('open-events');
-      ">+ 引用事件</button>
-
-      <div v-if="showDiaryPopover || showEventPopover" class="ref-popover-overlay" @click="closePopovers"></div>
-
-      <div v-if="showDiaryPopover" class="ref-diary-popover custom-popover">
-        <div v-if="loading" class="ref-diary-empty">正在加载最近日记...</div>
-        <template v-else>
-          <button
-            v-for="d in recentDiaries"
-            :key="d.id"
-            class="ref-diary-option"
-            @click="
-              $emit('add', d.id + '');
-              showDiaryPopover = false;
-            "
-          >
-            <span class="ref-diary-date">{{ d.date }}</span>
-            <span class="ref-diary-snippet">{{ d.snippet }}</span>
-          </button>
-          <div v-if="errorMessage" class="ref-diary-empty">
-            {{ errorMessage }}
-            <button class="ref-diary-retry" @click="$emit('retry-diaries')">重试</button>
-          </div>
-          <div v-else-if="recentDiaries.length === 0" class="ref-diary-empty">暂无最近日记</div>
-        </template>
-      </div>
-
-      <div v-if="showEventPopover" class="ref-diary-popover custom-popover">
-        <div v-if="eventsLoading" class="ref-diary-empty">正在加载重要事件...</div>
-        <template v-else>
-          <button
-            v-for="event in recentEvents"
-            :key="event.id"
-            class="ref-diary-option"
-            @click="
-              $emit('add-event', event.id + '');
-              showEventPopover = false;
-            "
-          >
-            <span class="ref-diary-date">{{ event.targetDate || '时间未填写' }}</span>
-            <span class="ref-diary-snippet">{{ event.title }}</span>
-          </button>
-          <div v-if="eventsErrorMessage" class="ref-diary-empty">
-            {{ eventsErrorMessage }}
-            <button class="ref-diary-retry" @click="$emit('retry-events')">重试</button>
-          </div>
-          <div v-else-if="recentEvents.length === 0" class="ref-diary-empty">暂无重要事件</div>
-        </template>
+﻿<template>
+  <div class="ref-bar-container">
+    <!-- 只有当有引用项时才显示引用栏 -->
+    <div v-show="items.length > 0" class="ref-bar">
+      <div v-for="(item, i) in items" :key="i" class="ref-chip">
+        <span class="ref-chip-label">{{ item.displayContent || item.content }}</span>
+        <button class="ref-chip-remove" @click="$emit('remove', i)">×</button>
       </div>
     </div>
 
-    <button
-      type="button"
-      class="ref-persona-btn"
-      aria-label="调整本会话风格"
-      @click="$emit('open-persona')"
-    >
-      本会话风格
-    </button>
+    <!-- 选择日记弹窗 -->
+    <n-modal v-model:show="showDiaryPopover" preset="card" title="引用最近日记" style="width: 400px; max-width: 90vw;">
+      <div v-if="loading" class="ref-modal-empty">正在加载最近日记...</div>
+      <div v-else-if="errorMessage" class="ref-modal-empty">
+        {{ errorMessage }}
+        <n-button size="small" @click="$emit('retry-diaries')" style="margin-top: 8px;">重试</n-button>
+      </div>
+      <div v-else-if="recentDiaries.length === 0" class="ref-modal-empty">暂无最近日记</div>
+      <div v-else class="ref-modal-list">
+        <button
+          v-for="d in recentDiaries"
+          :key="d.id"
+          class="ref-modal-option"
+          @click="$emit('add', d.id + ''); showDiaryPopover = false;"
+        >
+          <span class="ref-modal-date">{{ d.date }}</span>
+          <span class="ref-modal-snippet">{{ d.snippet }}</span>
+        </button>
+      </div>
+    </n-modal>
+
+    <!-- 选择事件弹窗 -->
+    <n-modal v-model:show="showEventPopover" preset="card" title="引用重要事件" style="width: 400px; max-width: 90vw;">
+      <div v-if="eventsLoading" class="ref-modal-empty">正在加载重要事件...</div>
+      <div v-else-if="eventsErrorMessage" class="ref-modal-empty">
+        {{ eventsErrorMessage }}
+        <n-button size="small" @click="$emit('retry-events')" style="margin-top: 8px;">重试</n-button>
+      </div>
+      <div v-else-if="recentEvents.length === 0" class="ref-modal-empty">暂无重要事件</div>
+      <div v-else class="ref-modal-list">
+        <button
+          v-for="event in recentEvents"
+          :key="event.id"
+          class="ref-modal-option"
+          @click="$emit('add-event', event.id + ''); showEventPopover = false;"
+        >
+          <span class="ref-modal-date">{{ event.targetDate || '时间未填写' }}</span>
+          <span class="ref-modal-snippet">{{ event.title }}</span>
+        </button>
+      </div>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { NModal, NButton } from 'naive-ui'
 
 defineProps<{
   items: { label: string; content: string; displayContent?: string }[]
@@ -115,63 +90,59 @@ defineExpose({
     showDiaryPopover.value = false;
   }
 })
-
-function closePopovers() {
-  showDiaryPopover.value = false
-  showEventPopover.value = false
-}
 </script>
 
 <style scoped>
-.ref-popover-wrapper {
-  position: relative;
-  display: inline-block;
+.ref-bar-container {
+  display: flex;
+  flex-direction: column;
 }
 
-.ref-persona-btn {
-  margin-left: auto;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  padding: 5px 10px;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
+.ref-modal-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--color-text-muted);
 }
 
-.ref-persona-btn:hover,
-.ref-persona-btn:focus-visible {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+.ref-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
 }
 
-.ref-popover-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 99;
-}
-
-.custom-popover {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
-  z-index: 100;
-  background: var(--color-surface);
+.ref-modal-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 12px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  padding: 4px 0;
-  transform-origin: bottom left;
-  animation: pop-in 0.15s ease-out;
+  background: var(--color-surface);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s;
 }
 
-@keyframes pop-in {
-  from { opacity: 0; transform: scale(0.95) translateY(4px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+.ref-modal-option:hover {
+  background: var(--color-surface-hover);
+}
+
+.ref-modal-date {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+
+.ref-modal-snippet {
+  font-size: 14px;
+  color: var(--color-text);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 </style>

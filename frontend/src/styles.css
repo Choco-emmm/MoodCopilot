@@ -2721,8 +2721,6 @@ h3 {
   flex-wrap: wrap;
   gap: 6px;
   padding: 4px 6px;
-  min-height: 30px;
-  border: 1px dashed var(--color-border);
   border-radius: var(--radius-sm);
 }
 
