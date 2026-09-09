@@ -472,13 +472,6 @@ public class MemoryExtractionService {
 
         // 第一层：硬门槛，过滤无信息量噪声。
         // 但如果短消息中包含长期特征关键词（如"总是""习惯""关系"），放行进入后续评分。
-        boolean hasLongTermKeyword = containsLongTermKeyword(normalizedUserMessage);
-        if (normalizedUserMessage.length() < CHAT_MIN_USER_MESSAGE_LENGTH && normalizedRefs.isEmpty()
-                && !hasLongTermKeyword) {
-            log.info("memory-chat | skip | reason=short_user_message | userId={} | userLength={} | refCount={}",
-                    userId, normalizedUserMessage.length(), normalizedRefs.size());
-            return;
-        }
         if (isLikelySmallTalk(normalizedUserMessage) && normalizedRefs.isEmpty()) {
             log.info("memory-chat | skip | reason=small_talk | userId={} | userLength={}", userId,
                     normalizedUserMessage.length());
@@ -490,20 +483,9 @@ public class MemoryExtractionService {
             return;
         }
 
-        // 第二层：信息量打分，避免仅靠长度误触发。
-        int score = scoreChatEvidence(normalizedUserMessage, normalizedRefs);
-        int scoreThreshold = CHAT_TRIGGER_SCORE_THRESHOLD;
-        if (score < scoreThreshold) {
-            log.info("memory-chat | skip | reason=low_score | userId={} | score={} | threshold={}",
-                    userId, score, scoreThreshold);
-            return;
-        }
-
-        // 不按时间窗口限制聊天抽取；同一事实的候选和证据由数据库幂等规则合并。
-        // 这样用户连续补充信息时可以立即形成新的独立证据，不需要等待十分钟。
         log.info(
-                "memory-chat | pass | userId={} | score={} | userLength={} | replyLength={} | refCount={} | evidenceLength={}",
-                userId, score, normalizedUserMessage.length(), normalizedAiReply.length(), normalizedRefs.size(),
+                "memory-chat | pass | userId={} | userLength={} | replyLength={} | refCount={} | evidenceLength={}",
+                userId, normalizedUserMessage.length(), normalizedAiReply.length(), normalizedRefs.size(),
                 evidence.length());
         extractAndSyncMemory(UserIdSource.chat(userId, conversationId), evidence, null, null);
     }
