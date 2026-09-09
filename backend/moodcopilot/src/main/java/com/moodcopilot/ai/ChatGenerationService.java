@@ -142,7 +142,7 @@ public class ChatGenerationService {
             if (!transitionStatus(runId, "RUNNING", "FINALIZING")) {
                 return;
             }
-            appendAssistantMessage(request, runId, reply.toString());
+            appendMessages(request, runId, reply.toString());
             if (!writeEvent(runId, event("done", Map.of()))) {
                 throw new IllegalStateException("保存聊天完成事件失败");
             }
@@ -226,24 +226,47 @@ public class ChatGenerationService {
         return values.stream().filter(value -> sequenceOf(value, 0) > afterSequence).toList();
     }
 
-    private void appendAssistantMessage(StartRequest request, String runId, String content) {
-        if (content == null || content.isBlank()) return;
+    private void appendMessages(StartRequest request, String runId, String assistantContent) {
         String key = "chat:msgs:" + request.conversationId();
         try {
             Object raw = redis.opsForValue().get(key);
             List<Map<String, Object>> messages = raw == null || raw.toString().isBlank()
                     ? new ArrayList<>() : objectMapper.readValue(raw.toString(), new TypeReference<>() {});
-            boolean alreadySaved = messages.stream().anyMatch(message ->
-                    (runId + ":assistant").equals(String.valueOf(message.get("id"))));
-            if (!alreadySaved) {
-                Map<String, Object> assistant = new LinkedHashMap<>();
-                assistant.put("id", runId + ":assistant");
-                assistant.put("role", "ai");
-                assistant.put("content", content);
-                assistant.put("createdAt", LocalDateTime.now().toString());
-                messages.add(assistant);
-                redis.opsForValue().set(key, objectMapper.writeValueAsString(messages), CHAT_HISTORY_TTL);
+            
+            boolean userAlreadySaved = false;
+            if (!messages.isEmpty()) {
+                Map<String, Object> last = messages.get(messages.size() - 1);
+                if ("user".equalsIgnoreCase(String.valueOf(last.get("role"))) &&
+                    request.message().equals(last.get("content"))) {
+                    userAlreadySaved = true;
+                }
             }
+            if (!userAlreadySaved) {
+                boolean userSavedById = messages.stream().anyMatch(message ->
+                        (runId + ":user").equals(String.valueOf(message.get("id"))));
+                if (!userSavedById && request.message() != null && !request.message().isBlank()) {
+                    Map<String, Object> userMsg = new LinkedHashMap<>();
+                    userMsg.put("id", runId + ":user");
+                    userMsg.put("role", "user");
+                    userMsg.put("content", request.message());
+                    userMsg.put("createdAt", LocalDateTime.now().toString());
+                    messages.add(userMsg);
+                }
+            }
+
+            if (assistantContent != null && !assistantContent.isBlank()) {
+                boolean assistantAlreadySaved = messages.stream().anyMatch(message ->
+                        (runId + ":assistant").equals(String.valueOf(message.get("id"))));
+                if (!assistantAlreadySaved) {
+                    Map<String, Object> assistant = new LinkedHashMap<>();
+                    assistant.put("id", runId + ":assistant");
+                    assistant.put("role", "ai");
+                    assistant.put("content", assistantContent);
+                    assistant.put("createdAt", LocalDateTime.now().toString());
+                    messages.add(assistant);
+                }
+            }
+            redis.opsForValue().set(key, objectMapper.writeValueAsString(messages), CHAT_HISTORY_TTL);
         } catch (Exception e) {
             log.warn("保存生成结果失败 runId={} conversationId={} reason={}", runId,
                     request.conversationId(), e.getMessage());
