@@ -6,13 +6,13 @@
     </div>
     
     <div class="ref-popover-wrapper">
-      <button class="ref-add-btn" @click.stop="
+      <button class="ref-add-btn" style="display: none;" @click.stop="
         showDiaryPopover = !showDiaryPopover;
         showEventPopover = false;
         if (showDiaryPopover) $emit('open-diaries');
       ">+ 引用日记</button>
 
-      <button class="ref-add-btn" @click.stop="
+      <button class="ref-add-btn" style="display: none;" @click.stop="
         showEventPopover = !showEventPopover;
         showDiaryPopover = false;
         if (showEventPopover) $emit('open-events');
@@ -104,6 +104,17 @@ defineEmits<{
 
 const showDiaryPopover = ref(false)
 const showEventPopover = ref(false)
+
+defineExpose({
+  openDiaryPopover: () => {
+    showDiaryPopover.value = true;
+    showEventPopover.value = false;
+  },
+  openEventPopover: () => {
+    showEventPopover.value = true;
+    showDiaryPopover.value = false;
+  }
+})
 
 function closePopovers() {
   showDiaryPopover.value = false

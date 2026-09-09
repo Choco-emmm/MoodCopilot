@@ -36,25 +36,40 @@
         </div>
 
         <div class="chat-mobile-conv">
-          <n-dropdown 
-            trigger="click" 
-            :options="mobileConvOptions"
-            @select="selectConversation"
-            style="max-height: 400px; overflow-y: auto;"
-          >
-            <n-button text class="chat-mobile-conv-select" style="font-size: 16px; font-weight: 600;">
-              {{ activeConvTitle }} ▾
-            </n-button>
-          </n-dropdown>
-          <n-button
-            size="small"
-            tertiary
-            type="error"
-            :disabled="!activeConvId"
-            @click="deleteActiveConversation"
-          >删除</n-button>
-          <n-button size="small" type="primary" :disabled="creatingConversation" @click="createConversation">新建</n-button>
+          <button class="ds-mobile-icon-btn" @click="mobileDrawerOpen = true" aria-label="打开历史记录">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          </button>
+          <div class="chat-mobile-conv-title">{{ activeConvTitle }}</div>
+          <button class="ds-mobile-icon-btn" @click="createConversation" :disabled="creatingConversation" aria-label="新建对话">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
         </div>
+
+        <!-- 移动端历史对话抽屉 -->
+        <n-drawer v-model:show="mobileDrawerOpen" width="280" placement="left">
+          <n-drawer-content title="历史对话" class="ds-mobile-drawer-content">
+            <div class="ds-mobile-drawer-search">
+              <n-input v-model:value="searchConvText" placeholder="搜索对话标题" clearable>
+                <template #prefix>
+                  <span style="opacity: 0.5;">🔍</span>
+                </template>
+              </n-input>
+            </div>
+            <div class="ds-mobile-conv-list">
+              <div 
+                v-for="conv in filteredConversations" 
+                :key="conv.id" 
+                class="ds-mobile-conv-item"
+                :class="{ active: conv.id === activeConvId }"
+                @click="selectConversation(conv.id); mobileDrawerOpen = false;"
+              >
+                {{ conv.title || '新对话' }}
+              </div>
+              <div v-if="filteredConversations.length === 0" class="ds-mobile-conv-empty">
+                没有找到匹配的对?              </div>
+            </div>
+          </n-drawer-content>
+        </n-drawer>
 
         <Teleport to="body">
           <div v-if="personaOpen" class="chat-persona-modal" @click.self="personaOpen = false">
@@ -236,7 +251,7 @@
 </template>
 
 <script setup lang="ts">
-import { NButton, NDropdown } from 'naive-ui'
+import { NButton, NDropdown, NDrawer, NDrawerContent, NInput, NBadge } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import ChatSidebar from '../components/chat/ChatSidebar.vue'
 import ChatMessageItem from '../components/chat/ChatMessageItem.vue'
@@ -277,6 +292,16 @@ const mobileConvOptions = computed(() => {
     label: displayConversationTitle(c.title, c.id),
     key: c.id
   }))
+})
+
+const mobileDrawerOpen = ref(false)
+const searchConvText = ref('')
+const filteredConversations = computed(() => {
+  if (!searchConvText.value) return conversations.value
+  const lowSearch = searchConvText.value.toLowerCase()
+  return conversations.value.filter((c: any) => 
+    displayConversationTitle(c.title, c.id).toLowerCase().includes(lowSearch)
+  )
 })
 
 const personaRoleOptions = [

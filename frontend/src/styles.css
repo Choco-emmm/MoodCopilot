@@ -3424,10 +3424,40 @@ h3 {
   }
 
   .chat-mobile-conv {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: space-between;
+    padding: 4px 6px;
+    height: 48px;
+  }
+
+  .ds-mobile-icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--color-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .ds-mobile-icon-btn:active {
+    background: var(--color-surface-hover);
+  }
+
+  .chat-mobile-conv-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text);
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
   }
 
   .chat-window {
@@ -5126,3 +5156,12 @@ h3 {
 .page-back-link:hover {
   color: var(--color-primary);
 }
+
+.ds-mobile-drawer-content { display: flex; flex-direction: column; height: 100%; padding: 16px; }
+.ds-mobile-drawer-search { margin-bottom: 16px; }
+.ds-mobile-conv-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin: 0 -16px; padding: 0 16px; }
+.ds-mobile-conv-item { padding: 12px 16px; border-radius: 12px; font-size: 14px; color: var(--color-text); cursor: pointer; transition: background 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ds-mobile-conv-item:hover { background: var(--color-surface-hover); }
+.ds-mobile-conv-item.active { background: color-mix(in oklab, var(--color-primary) 15%, transparent); color: var(--color-primary); font-weight: 600; }
+.ds-mobile-conv-empty { padding: 24px; text-align: center; color: var(--color-text-muted); font-size: 13px; }
+
