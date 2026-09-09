@@ -123,6 +123,36 @@
         <button class="section-action" @click="previewConsolidate" :loading="isConsolidating">整理记忆</button>
       </view>
       <text class="section-desc">这里保存你的个人记忆；近期状态只用于当前关怀参考，不会作为核心长期画像。</text>
+      <view class="candidate-section" v-if="candidates.length > 0 || loadingCandidates || candidateError">
+        <view class="candidate-heading">
+          <view class="candidate-heading-main">
+            <text class="candidate-title">待确认的记忆</text>
+            <text class="candidate-desc">AI 的推断需要你确认后才会进入正式画像。</text>
+          </view>
+          <text class="candidate-count">{{ candidates.length }} 条</text>
+        </view>
+        <text v-if="candidates.length" class="candidate-summary">{{ candidateGroups.length }} 个属性需要你的确认</text>
+        <view v-if="loadingCandidates" class="loading-state candidate-loading-state"><text>正在加载待确认记忆...</text></view>
+        <view v-else-if="candidateError" class="inline-error-card candidate-error-card">
+          <text class="empty-text">待确认记忆暂时无法加载</text>
+          <text class="inline-error-detail">请稍后重试，正式记忆不受影响</text>
+          <button class="inline-retry-btn" @click="fetchCandidates">重新加载</button>
+        </view>
+        <view v-else-if="candidates.length === 0" class="candidate-empty">暂无待确认记忆</view>
+        <view v-else v-for="(group, groupIndex) in candidateGroups" :key="group.key" class="candidate-group">
+          <view class="candidate-group-header" @click="toggleCandidateGroup(group.key, groupIndex)">
+            <view class="candidate-group-heading"><text class="candidate-group-title">{{ group.label }}</text><text class="candidate-group-count">{{ group.items.length }} 条候选</text></view>
+            <text class="candidate-group-toggle">{{ isCandidateGroupExpanded(group, groupIndex) ? '收起' : '展开' }} {{ isCandidateGroupExpanded(group, groupIndex) ? '⌃' : '⌄' }}</text>
+          </view>
+          <view v-if="isCandidateGroupExpanded(group, groupIndex)">
+            <text v-if="group.hasConflict" class="candidate-conflict-note">同一属性存在不同候选，请分别确认。</text>
+            <view v-for="candidate in group.items" :key="candidate.id" class="candidate-row">
+              <view class="candidate-copy"><text class="candidate-value">{{ candidate.attributeValue }}</text><text class="candidate-evidence">{{ isSafetyState(candidate) ? '这是需要关注的近期状态，不属于核心长期画像。' : (candidate.evidenceSummary || '暂无证据摘要') }}</text><text class="candidate-evidence">已有 {{ candidate.evidenceCount || 0 }} 条依据 · {{ sourceTypeLabel(candidate) }}</text><text v-if="diarySourcesFor(candidate).length" class="candidate-source-preview">{{ diarySourceLabel(diarySourcesFor(candidate)[0]) }}</text><text v-if="diarySourcesFor(candidate).length" class="candidate-source-link" @click.stop="openMemoryDiarySources(candidate)">查看关联日记{{ diarySourcesFor(candidate).length > 1 ? `（${diarySourcesFor(candidate).length}）` : '' }} →</text><text v-else-if="conversationIdsFor(candidate).length" class="candidate-source-link" @click.stop="openMemorySource(null, conversationIdsFor(candidate)[0])">查看关联会话 →</text><text v-else class="candidate-evidence">暂无原始来源</text></view>
+              <view class="candidate-actions"><text :class="['candidate-approve', { 'candidate-action-disabled': candidateActionId === candidate.id }]" @click="approveCandidate(candidate.id)">确认</text><text :class="['candidate-reject', { 'candidate-action-disabled': candidateActionId === candidate.id }]" @click="rejectCandidate(candidate.id)">拒绝</text></view>
+            </view>
+          </view>
+        </view>
+      </view>
       
       <view v-if="loadingMemory" class="loading-state">
         <text>正在提取记忆...</text>
@@ -171,36 +201,7 @@
       <view v-else class="card empty-card">
         <text class="empty-text">AI 正在努力了解你，多写点日记给它线索吧。</text>
       </view>
-      <view class="candidate-section">
-        <view class="candidate-heading">
-          <view class="candidate-heading-main">
-            <text class="candidate-title">待确认的记忆</text>
-            <text class="candidate-desc">AI 的推断需要你确认后才会进入正式画像。</text>
-          </view>
-          <text class="candidate-count">{{ candidates.length }} 条</text>
-        </view>
-        <text v-if="candidates.length" class="candidate-summary">{{ candidateGroups.length }} 个属性需要你的确认</text>
-        <view v-if="loadingCandidates" class="loading-state candidate-loading-state"><text>正在加载待确认记忆...</text></view>
-        <view v-else-if="candidateError" class="inline-error-card candidate-error-card">
-          <text class="empty-text">待确认记忆暂时无法加载</text>
-          <text class="inline-error-detail">请稍后重试，正式记忆不受影响</text>
-          <button class="inline-retry-btn" @click="fetchCandidates">重新加载</button>
-        </view>
-        <view v-else-if="candidates.length === 0" class="candidate-empty">暂无待确认记忆</view>
-        <view v-else v-for="(group, groupIndex) in candidateGroups" :key="group.key" class="candidate-group">
-          <view class="candidate-group-header" @click="toggleCandidateGroup(group.key, groupIndex)">
-            <view class="candidate-group-heading"><text class="candidate-group-title">{{ group.label }}</text><text class="candidate-group-count">{{ group.items.length }} 条候选</text></view>
-            <text class="candidate-group-toggle">{{ isCandidateGroupExpanded(group, groupIndex) ? '收起' : '展开' }} {{ isCandidateGroupExpanded(group, groupIndex) ? '⌃' : '⌄' }}</text>
-          </view>
-          <view v-if="isCandidateGroupExpanded(group, groupIndex)">
-            <text v-if="group.hasConflict" class="candidate-conflict-note">同一属性存在不同候选，请分别确认。</text>
-            <view v-for="candidate in group.items" :key="candidate.id" class="candidate-row">
-              <view class="candidate-copy"><text class="candidate-value">{{ candidate.attributeValue }}</text><text class="candidate-evidence">{{ isSafetyState(candidate) ? '这是需要关注的近期状态，不属于核心长期画像。' : (candidate.evidenceSummary || '暂无证据摘要') }}</text><text class="candidate-evidence">已有 {{ candidate.evidenceCount || 0 }} 条依据 · {{ sourceTypeLabel(candidate) }}</text><text v-if="diarySourcesFor(candidate).length" class="candidate-source-preview">{{ diarySourceLabel(diarySourcesFor(candidate)[0]) }}</text><text v-if="diarySourcesFor(candidate).length" class="candidate-source-link" @click.stop="openMemoryDiarySources(candidate)">查看关联日记{{ diarySourcesFor(candidate).length > 1 ? `（${diarySourcesFor(candidate).length}）` : '' }} →</text><text v-else-if="conversationIdsFor(candidate).length" class="candidate-source-link" @click.stop="openMemorySource(null, conversationIdsFor(candidate)[0])">查看关联会话 →</text><text v-else class="candidate-evidence">暂无原始来源</text></view>
-              <view class="candidate-actions"><text :class="['candidate-approve', { 'candidate-action-disabled': candidateActionId === candidate.id }]" @click="approveCandidate(candidate.id)">确认</text><text :class="['candidate-reject', { 'candidate-action-disabled': candidateActionId === candidate.id }]" @click="rejectCandidate(candidate.id)">拒绝</text></view>
-            </view>
-          </view>
-        </view>
-      </view>
+
     </view>
 
     <view class="modal-overlay" v-if="showMemoryDetailsModal" @click="showMemoryDetailsModal = false">
