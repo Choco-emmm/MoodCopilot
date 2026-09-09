@@ -2,6 +2,7 @@
   <main class="app-shell life-page">
     <AppHeader />
     <section class="life-intro">
+      <button class="page-back-link" @click="$router.push('/chat')">← 返回对话</button>
       <div>
         <p class="eyebrow">PENDING THREADS</p>
         <div class="title-with-info"><h2>重要事件</h2><button class="info-button" type="button" aria-label="了解重要事件回访规则" title="了解重要事件回访规则" @click="eventInfoOpen = true">i</button></div>

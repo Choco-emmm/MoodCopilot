@@ -4,6 +4,7 @@ import { notificationApi } from '../api'
 import router from '../router'
 import { logWarn } from '../utils/logger'
 import { useReportStore } from './report'
+import { renderSafeMarkdown } from '../utils/markdown'
 
 export interface Notification {
   id: number

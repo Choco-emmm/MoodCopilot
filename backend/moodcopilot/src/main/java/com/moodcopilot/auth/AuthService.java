@@ -420,7 +420,7 @@ public class AuthService {
             throw new ResponseStatusException(BAD_REQUEST, "账号ID不能为空");
         }
         String newName = request.displayName().trim();
-        if (!newName.matches("^[a-zA-Z0-9\\u4e00-\\u9fa5_-]{2,20}$")) {
+        if (!newName.matches("^[a-zA-Z0-9\u4e00-\u9fa5_-]{2,20}$")) {
             throw new ResponseStatusException(BAD_REQUEST, "账号ID需为 2-20 位中英文字母、数字、下划线或横线");
         }
         if (request.email() == null || !request.email().contains("@")) {
@@ -630,7 +630,7 @@ public class AuthService {
         boolean signatureChanged = false;
         if (displayName != null && !displayName.isBlank()) {
             String newName = displayName.trim();
-            if (!newName.matches("^[a-zA-Z0-9\\u4e00-\\u9fa5_-]{2,20}$")) {
+            if (!newName.matches("^[a-zA-Z0-9\u4e00-\u9fa5_-]{2,20}$")) {
                 throw new ResponseStatusException(BAD_REQUEST, "账号ID需为 2-20 位中英文字母、数字、下划线或横线");
             }
             if (!newName.equals(user.getDisplayName())) {

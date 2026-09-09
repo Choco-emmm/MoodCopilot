@@ -5106,3 +5106,23 @@ h3 {
 
 
 
+
+
+/* Page back link */
+.page-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  transition: color 0.2s;
+}
+.page-back-link:hover {
+  color: var(--color-primary);
+}

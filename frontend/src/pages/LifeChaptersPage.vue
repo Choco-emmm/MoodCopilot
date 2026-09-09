@@ -2,6 +2,7 @@
   <main class="app-shell life-page">
     <AppHeader />
     <section class="life-intro">
+      <button class="page-back-link" @click="$router.push('/chat')">← 返回对话</button>
       <p class="eyebrow">LIFE CHAPTERS</p>
       <h2>时光画卷</h2>
       <p>把一段段日子放远一点看，成长往往藏在那些当时没有察觉的转弯里。</p>
