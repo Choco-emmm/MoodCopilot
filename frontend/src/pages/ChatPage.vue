@@ -236,7 +236,7 @@
 </template>
 
 <script setup lang="ts">
-import { NButton } from 'naive-ui'
+import { NButton, NDropdown } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import ChatSidebar from '../components/chat/ChatSidebar.vue'
 import ChatMessageItem from '../components/chat/ChatMessageItem.vue'
@@ -266,6 +266,18 @@ const {
   msgBox, chatInputArea,
   handleDraftFocus, handleDraftEnter, goToDiary,
 } = useChat()
+
+const activeConvTitle = computed(() => {
+  const conv = conversations.value.find((c: any) => c.id === activeConvId.value)
+  return conv ? displayConversationTitle(conv.title, conv.id) : '选择对话'
+})
+
+const mobileConvOptions = computed(() => {
+  return conversations.value.map((c: any) => ({
+    label: displayConversationTitle(c.title, c.id),
+    key: c.id
+  }))
+})
 
 const personaRoleOptions = [
   { value: 'personal_assistant', label: '通用个人助手' },

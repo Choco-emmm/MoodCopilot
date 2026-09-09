@@ -46,6 +46,7 @@ defineEmits<{
   (e: 'create'): void
   (e: 'select', id: number): void
   (e: 'delete', id: number): void
+  (e: 'rename', id: number, oldTitle: string): void
 }>()
 </script>
 

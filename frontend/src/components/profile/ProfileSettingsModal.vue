@@ -290,7 +290,7 @@
       <SettingSection title="请开发者喝杯奶茶" tag="🧋" extraClass="support-donate-section">
         <div class="flex-between-center">
           <span class="text-sm-light">觉得 MoodCopilot 不错？支持一下独立开发者吧！</span>
-          <n-button size="small" type="primary" secondary @click="router.push('/support')">
+          <n-button size="small" type="primary" secondary @click="router.push('/support'); emit('update:show', false)">
             去看看 →
           </n-button>
         </div>
