@@ -168,8 +168,8 @@ function removeEvent(event: LifeEvent) {
 
 /* Event Items */
 .event-list { display: flex; flex-direction: column; }
-.event-item { display: flex; flex-direction: column; gap: 24rpx; padding: 40rpx 0; border-bottom: 1rpx solid var(--theme-border); }
-.event-item:last-child { border-bottom: none; }
+.event-item { display: flex; flex-direction: column; gap: 24rpx; padding: 32rpx; margin-bottom: 24rpx; border: 1rpx solid var(--theme-border); border-radius: var(--theme-radius-lg); background: var(--theme-surface); box-shadow: var(--theme-shadow-panel); }
+
 
 .event-date { display: flex; flex-direction: column; gap: 8rpx; }
 .date-main { font-family: "Noto Serif SC", "Songti SC", "STSong", serif; font-size: 34rpx; font-weight: 700; color: var(--theme-text-primary); }
