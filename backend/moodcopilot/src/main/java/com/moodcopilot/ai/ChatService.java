@@ -48,10 +48,16 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 @Service
 public class ChatService {
 
-    private List<org.springframework.ai.chat.messages.Message> convertToSpringMessages(List<com.moodcopilot.entity.dto.CustomChatMessage> customMsgs) {
+    private List<org.springframework.ai.chat.messages.Message> convertToSpringMessages(List<com.moodcopilot.entity.dto.CustomChatMessage> customMsgs, String currentMessage) {
         if (customMsgs == null) return new java.util.ArrayList<>();
         List<org.springframework.ai.chat.messages.Message> springMsgs = new java.util.ArrayList<>();
-        for (com.moodcopilot.entity.dto.CustomChatMessage cm : customMsgs) {
+        for (int i = 0; i < customMsgs.size(); i++) {
+            com.moodcopilot.entity.dto.CustomChatMessage cm = customMsgs.get(i);
+            // Skip the last message if it's a user message that exactly matches the current message,
+            // to avoid sending duplicate user messages to the model when the frontend already saved it to history.
+            if (i == customMsgs.size() - 1 && "user".equalsIgnoreCase(cm.role()) && currentMessage != null && currentMessage.equals(cm.content())) {
+                continue;
+            }
             if ("user".equalsIgnoreCase(cm.role())) {
                 springMsgs.add(new org.springframework.ai.chat.messages.UserMessage(cm.content() != null ? cm.content() : ""));
             } else if ("assistant".equalsIgnoreCase(cm.role()) || "ai".equalsIgnoreCase(cm.role())) {
@@ -384,7 +390,7 @@ public class ChatService {
                      sys.append(ragCtx).append("\n").append(buildTimeMetadata());
                     s.text(sys.toString());
                 })
-                .messages(convertToSpringMessages(request.memory()))
+                .messages(convertToSpringMessages(request.memory(), message))
                 .functions(
                         DiarySearchFunctionSupport.NAME,
                         UserStatsFunctionSupport.NAME,
@@ -459,7 +465,7 @@ public class ChatService {
                         sys.append(ragCtx).append("\n").append(buildTimeMetadata());
                         s.text(sys.toString());
                     })
-                    .messages(convertToSpringMessages(request.memory()))
+                    .messages(convertToSpringMessages(request.memory(), message))
                     .functions(
                             DiarySearchFunctionSupport.NAME,
                             UserStatsFunctionSupport.NAME,
