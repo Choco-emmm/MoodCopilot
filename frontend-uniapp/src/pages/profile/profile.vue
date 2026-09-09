@@ -178,6 +178,37 @@
       </view>
     </view>
 
+    <!-- Edit Profile Modal -->
+    <view v-if="showEditProfileModal" class="quota-modal-overlay" @click="showEditProfileModal = false">
+      <view class="quota-modal-content edit-profile-content" @click.stop>
+        <view class="quota-modal-header">
+          <text class="quota-modal-title">编辑个人资料</text>
+          <text class="quota-modal-close" @click="showEditProfileModal = false">×</text>
+        </view>
+        
+        <view class="edit-form" style="padding: 24rpx;">
+          <view class="edit-avatar-container" style="display: flex; flex-direction: column; align-items: center; margin-bottom: 32rpx;">
+             <button class="avatar-wrapper" open-type="chooseAvatar" @chooseavatar="onChooseAvatar" style="background: none; border: none; padding: 0; line-height: 1; overflow: visible;">
+               <image :src="editAvatarUrl" class="edit-avatar" mode="aspectFill" style="width: 140rpx; height: 140rpx; border-radius: 50%; border: 4rpx solid var(--theme-primary);" />
+               <view class="avatar-edit-hint" style="font-size: 24rpx; color: var(--color-text-secondary); margin-top: 16rpx; text-align: center;">点击更换头像</view>
+             </button>
+          </view>
+          
+          <view class="form-group" style="margin-bottom: 24rpx;">
+            <text class="form-label" style="display: block; font-size: 26rpx; color: var(--color-text-secondary); margin-bottom: 8rpx;">昵称</text>
+            <input type="nickname" class="form-input" v-model="editForm.nickname" placeholder="输入昵称" style="width: 100%; box-sizing: border-box; background: var(--theme-surface); border: 2rpx solid var(--color-border); border-radius: 12rpx; padding: 16rpx 24rpx; font-size: 28rpx; color: var(--color-text);" />
+          </view>
+          
+          <view class="form-group" style="margin-bottom: 40rpx;">
+            <text class="form-label" style="display: block; font-size: 26rpx; color: var(--color-text-secondary); margin-bottom: 8rpx;">账号ID</text>
+            <input class="form-input" v-model="editForm.displayName" placeholder="输入账号ID (2-20位中英文)" style="width: 100%; box-sizing: border-box; background: var(--theme-surface); border: 2rpx solid var(--color-border); border-radius: 12rpx; padding: 16rpx 24rpx; font-size: 28rpx; color: var(--color-text);" />
+          </view>
+          
+          <button class="primary-btn submit-btn" @click="saveProfile" style="width: 100%; background: var(--theme-primary); color: var(--color-on-primary); border-radius: 16rpx; font-size: 30rpx; font-weight: 500; border: none; padding: 20rpx 0;">保存</button>
+        </view>
+      </view>
+    </view>
+
     <!-- Quota Modal -->
     <view v-if="showQuotaModal" class="quota-modal-overlay" @click="showQuotaModal = false">
       <view class="quota-modal-content" @click.stop>
@@ -308,6 +339,10 @@ const userInfo = ref<any>(null);
 
 const userAvatarUrl = computed(() => {
   return getFullUrl(userInfo.value?.avatar) || `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzk5OTk5OSI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==`;
+});
+
+const editAvatarUrl = computed(() => {
+  return getFullUrl(editForm.value.avatar) || `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzk5OTk5OSI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==`;
 });
 
 const showEditProfileModal = ref(false);

@@ -541,7 +541,8 @@ async function savePersona() {
     if (data) {
       persona.value = { role: data.role, tone: data.tone || [], behaviorFlags: data.behaviorFlags || [], disabledBehaviorFlags: data.disabledBehaviorFlags || [], customTone: data.customTone || '', customResponseStyle: data.customResponseStyle || '' }
     }
-    personaMsg.value = 'AI 个性已更新'
+    window.$message?.success('AI 个性已更新')
+    emit('update:show', false)
   } catch (error: any) {
     personaError.value = true
     personaMsg.value = error?.response?.data?.message || '保存 AI 个性失败'
@@ -814,7 +815,8 @@ async function saveName() {
   nameMsg.value = ''
   try {
     await auth.updateProfile(name, undefined)
-    nameMsg.value = '用户名已更新'
+    window.$message?.success('用户名已更新')
+    emit('update:show', false)
     editingName.value = auth.displayName ?? ''
     emit('profile-updated')
   } catch (e: any) {
@@ -832,7 +834,8 @@ async function saveSignature() {
   try {
     await auth.updateProfile(undefined, undefined, editingSignature.value.trim())
     editingSignature.value = auth.signature ?? ''
-    signatureMsg.value = '个性签名已更新'
+    window.$message?.success('个性签名已更新')
+    emit('update:show', false)
     emit('profile-updated')
   } catch (e) {
     logWarn('profile', '保存签名失败', e)
