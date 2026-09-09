@@ -40,9 +40,9 @@
             <text class="diary-time">{{ formatDate(diary.createdAt) }}</text>
             <view v-if="diary.musicMeta" class="music-tag">🎵 {{ diary.musicMeta.title }}</view>
           </view>
-          <text class="diary-content" :class="{ 'has-images': diary.images && diary.images.length > 0 }">
+          <view class="diary-content" :class="{ 'has-images': diary.images && diary.images.length > 0 }">
             {{ extractPlainText(diary.content) }}
-          </text>
+          </view>
           <view class="diary-images" v-if="diary.images && diary.images.length > 0">
             <image 
               v-for="(img, idx) in diary.images.slice(0, 3)" 

@@ -127,6 +127,19 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
     return ensureConversationPromise
   }
 
+  async function renameConversation(id: number, oldTitle: string) {
+    const newTitle = window.prompt("请输入新会话名称:", oldTitle);
+    if (newTitle !== null && newTitle.trim() !== "") {
+      try {
+        await chatApi.updateConversationTitle(id, newTitle.trim());
+        const conv = conversations.value.find(c => c.id === id);
+        if (conv) conv.title = newTitle.trim();
+      } catch (err: any) {
+        window.alert(err.message || "修改失败");
+      }
+    }
+  }
+
   async function deleteConversation(id: number) {
     try {
       await chatApi.deleteConversation(id)
@@ -203,6 +216,7 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
     conversations, activeConvId, messages, creatingConversation,
     loadConversations, selectConversation, createConversation,
     doCreateConversationOnServer, ensureConversation, deleteConversation,
+    renameConversation,
     saveToBackend, loadFromBackend, waitForConversationTitle,
   }
 }

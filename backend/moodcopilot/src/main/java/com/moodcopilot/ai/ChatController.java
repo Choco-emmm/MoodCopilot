@@ -127,6 +127,12 @@ public class ChatController {
         return ApiResponse.ok(null);
     }
 
+    @PutMapping("/conversations/{id}/title")
+    public ApiResponse<Void> updateConversationTitle(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        chatService.updateConversationTitle(id, body.get("title"));
+        return ApiResponse.ok(null);
+    }
+
     // ---- 聊天消息 ----
 
     /**

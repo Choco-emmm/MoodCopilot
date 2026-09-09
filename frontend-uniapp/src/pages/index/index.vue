@@ -46,7 +46,7 @@
               <text class="diary-time">{{ timeOf(diary.createdAt) }}</text>
             </view>
 
-            <text class="diary-content">{{ extractPlainText(diary.content) || '一段没有文字的记录' }}</text>
+            <view class="diary-content">{{ extractPlainText(diary.content) || '一段没有文字的记录' }}</view>
 
             <view v-if="diary.images?.length" class="diary-images">
               <image
@@ -376,7 +376,7 @@ function timeOf(value: string) {
 .guest-copy, .empty-copy { display: block; max-width: 480rpx; margin: 16rpx auto 0; color: var(--theme-text-secondary); font-size: 26rpx; line-height: 1.7; }
 .guest-button, .empty-button { display: inline-flex; height: 74rpx; align-items: center; justify-content: center; margin-top: 38rpx; padding: 0 30rpx; border-radius: 8rpx; background: var(--theme-primary); color: var(--theme-text-on-primary); font-size: 26rpx; font-weight: 600; }
 .loading-state { padding-top: 150rpx; color: var(--theme-text-placeholder); font-size: 25rpx; text-align: center; }
-.filter-overlay { position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: flex-end; background: var(--theme-overlay); z-index: 50; }
+.filter-overlay { position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: flex-end; background: var(--theme-overlay); z-index: 100; }
 .filter-sheet { width: 100%; padding: 16rpx 32rpx calc(32rpx + env(safe-area-inset-bottom)); border-radius: 12rpx 12rpx 0 0; background: var(--theme-surface); box-sizing: border-box; }
 .filter-handle { width: 54rpx; height: 6rpx; margin: 0 auto 26rpx; border-radius: 99rpx; background: var(--theme-border); }
 .filter-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 23rpx; }

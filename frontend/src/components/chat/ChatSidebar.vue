@@ -14,6 +14,11 @@
           <span class="conv-title">{{ displayConversationTitle(conv.title, conv.id) }}</span>
         </button>
         <button
+          class="conv-edit"
+          title="重命名"
+          @click.stop="$emit('rename', conv.id, conv.title)"
+        >✎</button>
+        <button
           class="conv-delete"
           @click.stop="$emit('delete', conv.id)"
         >&times;</button>
@@ -141,6 +146,18 @@ defineEmits<{
   white-space: nowrap;
 }
 
+.conv-edit {
+  opacity: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: opacity 0.15s;
+  font-family: inherit;
+}
+.conv-item:hover .conv-edit {
+  opacity: 1;
+}
 .conv-delete {
   opacity: 0;
   background: none;
@@ -153,7 +170,19 @@ defineEmits<{
   font-family: inherit;
 }
 
-.conv-item:hover .conv-delete {
+.conv-item:hover .conv-edit {
+  opacity: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: opacity 0.15s;
+  font-family: inherit;
+}
+.conv-item:hover .conv-edit {
+  opacity: 1;
+}
+.conv-delete {
   opacity: 1;
 }
 

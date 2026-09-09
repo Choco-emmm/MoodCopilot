@@ -381,6 +381,7 @@ export function useChat() {
     ensureConversation: conv.ensureConversation,
     selectConversation: conv.selectConversation,
     deleteConversation: conv.deleteConversation,
+    renameConversation: conv.renameConversation,
     handleMobileConversationChange,
     deleteActiveConversation,
     // messages

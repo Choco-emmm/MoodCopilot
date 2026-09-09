@@ -31,20 +31,36 @@
           <text class="quota-value">{{ quotaInfo.exp }}</text>
         </view>
         <view class="quota-item" v-if="quotaInfo.quotas">
-          <text class="quota-label">AI 聊天剩余次数</text>
-          <text class="quota-value">{{ quotaInfo.quotas.CHAT || 0 }} {{ quotaInfo.maxQuotas ? '/ ' + quotaInfo.maxQuotas.CHAT : '' }}</text>
+          <text class="quota-label">聊天 Flash 剩余</text>
+          <text class="quota-value">{{ quotaInfo.quotas.CHAT_FLASH ?? 0 }} {{ quotaInfo.maxQuotas ? '/ ' + quotaInfo.maxQuotas.CHAT_FLASH : '' }}</text>
         </view>
         <view class="quota-item" v-if="quotaInfo.quotas">
-          <text class="quota-label">AI 报告剩余次数</text>
-          <text class="quota-value">{{ quotaInfo.quotas.REPORT || 0 }} {{ quotaInfo.maxQuotas ? '/ ' + quotaInfo.maxQuotas.REPORT : '' }}</text>
+          <text class="quota-label">聊天 Pro 剩余</text>
+          <text class="quota-value">{{ quotaInfo.quotas.CHAT_PRO ?? 0 }} {{ quotaInfo.maxQuotas ? '/ ' + quotaInfo.maxQuotas.CHAT_PRO : '' }}</text>
         </view>
         <view class="quota-item" v-if="quotaInfo.quotas">
-          <text class="quota-label">AI 分析剩余次数</text>
-          <text class="quota-value">{{ quotaInfo.quotas.ANALYSIS || quotaInfo.quotas.AI_DIARY_ANALYSIS || 0 }} {{ quotaInfo.maxQuotas ? '/ ' + quotaInfo.maxQuotas.ANALYSIS : '' }}</text>
+          <text class="quota-label">分析 Flash 剩余</text>
+          <text class="quota-value">{{ quotaInfo.quotas.DIARY_FLASH ?? 0 }} {{ quotaInfo.maxQuotas ? '/ ' + quotaInfo.maxQuotas.DIARY_FLASH : '' }}</text>
         </view>
         <view class="quota-item" v-if="quotaInfo.quotas">
-          <text class="quota-label">图片上传剩余次数</text>
-          <text class="quota-value">{{ quotaInfo.quotas.IMAGE_UPLOAD || 0 }} {{ quotaInfo.maxQuotas ? '/ ' + quotaInfo.maxQuotas.IMAGE_UPLOAD : '' }}</text>
+          <text class="quota-label">分析 Pro 剩余</text>
+          <text class="quota-value">{{ quotaInfo.quotas.DIARY_PRO ?? 0 }} {{ quotaInfo.maxQuotas ? '/ ' + quotaInfo.maxQuotas.DIARY_PRO : '' }}</text>
+        </view>
+        <view class="quota-item" v-if="quotaInfo.quotas">
+          <text class="quota-label">图片上传剩余</text>
+          <text class="quota-value">{{ quotaInfo.quotas.IMAGE_UPLOAD ?? 0 }} {{ quotaInfo.maxQuotas ? '/ ' + quotaInfo.maxQuotas.IMAGE_UPLOAD : '' }}</text>
+        </view>
+        <view class="quota-item" v-if="quotaInfo.quotas">
+          <text class="quota-label">图片分析剩余</text>
+          <text class="quota-value">{{ quotaInfo.quotas.IMAGE_ANALYSIS ?? 0 }} {{ quotaInfo.maxQuotas ? '/ ' + quotaInfo.maxQuotas.IMAGE_ANALYSIS : '' }}</text>
+        </view>
+        <view class="quota-item" v-if="quotaInfo.quotas">
+          <text class="quota-label">章节整理剩余</text>
+          <text class="quota-value">{{ quotaInfo.quotas.CHAPTER_CONSOLIDATION ?? 0 }} {{ quotaInfo.maxQuotas ? '/ ' + quotaInfo.maxQuotas.CHAPTER_CONSOLIDATION : '' }}</text>
+        </view>
+        <view class="quota-item" v-if="quotaInfo.quotas">
+          <text class="quota-label">报告剩余</text>
+          <text class="quota-value">{{ quotaInfo.quotas.REPORT ?? 0 }} {{ quotaInfo.maxQuotas ? '/ ' + quotaInfo.maxQuotas.REPORT : '' }}</text>
         </view>
       </view>
       <view class="card quota-card" v-else>
@@ -174,56 +190,78 @@
         <scroll-view scroll-x class="quota-table-container">
           <view class="quota-table">
             <view class="quota-tr quota-th">
-              <view class="quota-td">身份 / 等级</view>
-              <view class="quota-td">AI 聊天<text class="quota-unit">/天</text></view>
-              <view class="quota-td">AI 分析<text class="quota-unit">/天</text></view>
-              <view class="quota-td">深度思考<text class="quota-unit">/天</text></view>
+              <view class="quota-td">身份/等级</view>
+              <view class="quota-td">分析 Flash<text class="quota-unit">/天</text></view>
+              <view class="quota-td">分析 Pro<text class="quota-unit">/天</text></view>
+              <view class="quota-td">聊天 Flash<text class="quota-unit">/天</text></view>
+              <view class="quota-td">聊天 Pro<text class="quota-unit">/天</text></view>
+              <view class="quota-td">章节整理<text class="quota-unit">/天</text></view>
               <view class="quota-td">共鸣检索<text class="quota-unit">/天</text></view>
               <view class="quota-td">图片上传<text class="quota-unit">/天</text></view>
               <view class="quota-td">图片分析<text class="quota-unit">/天</text></view>
+              <view class="quota-td">报告<text class="quota-unit">/月</text></view>
             </view>
             <view class="quota-tr" :class="{ 'active-row': quotaInfo?.level === 1 }">
               <view class="quota-td">Lv.1</view>
-              <view class="quota-td">15次</view><view class="quota-td">5次</view><view class="quota-td">2次</view>
-              <view class="quota-td">—</view><view class="quota-td">3次</view><view class="quota-td">2次</view>
+              <view class="quota-td">5次</view><view class="quota-td">1次</view>
+              <view class="quota-td">15次</view><view class="quota-td">1次</view>
+              <view class="quota-td">2次</view><view class="quota-td">—</view>
+              <view class="quota-td">3次</view><view class="quota-td">2次</view>
+              <view class="quota-td">—</view>
             </view>
             <view class="quota-tr" :class="{ 'active-row': quotaInfo?.level === 2 }">
               <view class="quota-td">Lv.2</view>
-              <view class="quota-td">25次</view><view class="quota-td">8次</view><view class="quota-td">4次</view>
-              <view class="quota-td">3次</view><view class="quota-td">5次</view><view class="quota-td">3次</view>
+              <view class="quota-td">8次</view><view class="quota-td">2次</view>
+              <view class="quota-td">25次</view><view class="quota-td">2次</view>
+              <view class="quota-td">2次</view><view class="quota-td">3次</view>
+              <view class="quota-td">5次</view><view class="quota-td">3次</view>
+              <view class="quota-td">2次</view>
             </view>
             <view class="quota-tr" :class="{ 'active-row': quotaInfo?.level === 3 }">
               <view class="quota-td">Lv.3</view>
-              <view class="quota-td">35次</view><view class="quota-td">12次</view><view class="quota-td">6次</view>
-              <view class="quota-td">5次</view><view class="quota-td">8次</view><view class="quota-td">5次</view>
+              <view class="quota-td">12次</view><view class="quota-td">3次</view>
+              <view class="quota-td">35次</view><view class="quota-td">3次</view>
+              <view class="quota-td">2次</view><view class="quota-td">5次</view>
+              <view class="quota-td">8次</view><view class="quota-td">5次</view>
+              <view class="quota-td">4次</view>
             </view>
             <view class="quota-tr" :class="{ 'active-row': quotaInfo?.level === 4 }">
               <view class="quota-td">Lv.4</view>
-              <view class="quota-td">45次</view><view class="quota-td">16次</view><view class="quota-td">8次</view>
-              <view class="quota-td">8次</view><view class="quota-td">12次</view><view class="quota-td">8次</view>
+              <view class="quota-td">16次</view><view class="quota-td">4次</view>
+              <view class="quota-td">45次</view><view class="quota-td">4次</view>
+              <view class="quota-td">2次</view><view class="quota-td">8次</view>
+              <view class="quota-td">12次</view><view class="quota-td">8次</view>
+              <view class="quota-td">7次</view>
             </view>
             <view class="quota-tr" :class="{ 'active-row': quotaInfo?.level === 5 }">
               <view class="quota-td">Lv.5</view>
-              <view class="quota-td">55次</view><view class="quota-td">20次</view><view class="quota-td">10次</view>
-              <view class="quota-td">10次</view><view class="quota-td">16次</view><view class="quota-td">12次</view>
+              <view class="quota-td">20次</view><view class="quota-td">5次</view>
+              <view class="quota-td">55次</view><view class="quota-td">5次</view>
+              <view class="quota-td">2次</view><view class="quota-td">10次</view>
+              <view class="quota-td">16次</view><view class="quota-td">12次</view>
+              <view class="quota-td">11次</view>
             </view>
             <view class="quota-tr" :class="{ 'active-row': quotaInfo?.level === 6 }">
               <view class="quota-td">Lv.6</view>
-              <view class="quota-td">65次</view><view class="quota-td">25次</view><view class="quota-td">12次</view>
-              <view class="quota-td">12次</view><view class="quota-td">20次</view><view class="quota-td">15次</view>
+              <view class="quota-td">25次</view><view class="quota-td">6次</view>
+              <view class="quota-td">65次</view><view class="quota-td">6次</view>
+              <view class="quota-td">2次</view><view class="quota-td">12次</view>
+              <view class="quota-td">20次</view><view class="quota-td">15次</view>
+              <view class="quota-td">16次</view>
             </view>
           </view>
         </scroll-view>
 
         <view class="quota-modal-desc">
-          <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">AI 分析：</text>发布或修改日记时自动触发（含基础配图提炼）。</text></view>
+          <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">日记分析：</text>发布或修改日记时按你选择的 Flash 或 Pro 模型触发。</text></view>
           <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">图片分析：</text>聊天时向 AI 追问图片内的具体文字、细节（基础提炼未涵盖的内容）时才触发。</text></view>
-          <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">深度思考：</text>发送聊天或分析日记前可手动选择，适合复杂心理分析、建议或情绪梳理。</text></view>
-          <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">共鸣检索：</text>功能加紧开发中，敬请期待...</text></view>
+          <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">聊天：</text>普通聊天和 Pro 聊天分别计算，每日额度互不占用。</text></view>
+          <view class="desc-item"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">章节整理：</text>重新整理时光画卷中的章节，每天最多 2 次。</text></view>
+          <view class="desc-item" style="opacity: 0.7"><text class="desc-icon">💡</text><text class="desc-text"><text class="desc-bold">共鸣检索：</text>功能加紧开发中，敬请期待...</text></view>
         </view>
         
         <view class="quota-modal-footer">
-          AI 聊天 / 分析 / 思考 / 检索 / 传图 每日 0 点重置 · 报告每月 1 日重置
+          聊天、日记分析、章节整理、检索和传图每日 0 点重置 · 报告每月 1 日重置
         </view>
       </view>
     </view>

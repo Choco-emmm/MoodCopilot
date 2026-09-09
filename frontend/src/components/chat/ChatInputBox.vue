@@ -25,6 +25,8 @@
     />
     <div class="chat-input-row">
       <n-input
+        type="textarea"
+        :autosize="{ minRows: 1, maxRows: 5 }"
         :value="draft"
         @update:value="$emit('update:draft', $event)"
         size="large"

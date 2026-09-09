@@ -10,6 +10,7 @@
         @create="createConversation"
         @select="selectConversation"
         @delete="deleteConversation"
+        @rename="renameConversation"
       />
 
       <!-- 聊天区域 -->
@@ -35,19 +36,16 @@
         </div>
 
         <div class="chat-mobile-conv">
-          <select
-            class="chat-mobile-conv-select"
-            :value="activeConvId ?? ''"
-            @change="handleMobileConversationChange"
+          <n-dropdown 
+            trigger="click" 
+            :options="mobileConvOptions"
+            @select="selectConversation"
+            style="max-height: 400px; overflow-y: auto;"
           >
-            <option
-              v-for="conv in conversations"
-              :key="conv.id"
-              :value="conv.id"
-            >
-              {{ displayConversationTitle(conv.title, conv.id) }}
-            </option>
-          </select>
+            <n-button text class="chat-mobile-conv-select" style="font-size: 16px; font-weight: 600;">
+              {{ activeConvTitle }} ▾
+            </n-button>
+          </n-dropdown>
           <n-button
             size="small"
             tertiary
@@ -253,7 +251,7 @@ import { computed, ref, watch } from 'vue'
 const {
   authStore, userInitial,
   conversations, activeConvId, creatingConversation,
-  createConversation, selectConversation, deleteConversation,
+  createConversation, selectConversation, deleteConversation, renameConversation,
   ensureConversation,
   handleMobileConversationChange, deleteActiveConversation,
   messages,

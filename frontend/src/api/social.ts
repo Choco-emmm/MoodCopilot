@@ -46,6 +46,7 @@ export const summaryApi = {
 export const chatApi = {
   listConversations: () => api.get('/chat/conversations'),
   createConversation: (title?: string) => api.post('/chat/conversations', { title: title || '' }),
+    updateConversationTitle: (id: number, title: string) => api.put(`/chat/conversations/${id}/title`, { title }),
   deleteConversation: (id: number) => api.delete(`/chat/conversations/${id}`),
   getWelcomeTopics: () => api.get('/chat/welcome-topics'),
   getHistory: (id: number) => api.get(`/chat/conversations/${id}/history`),

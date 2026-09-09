@@ -8,9 +8,9 @@
       :scroll-with-animation="true"
     >
       <view class="sub-header" v-if="conversationId">
-        <view class="session-context">
+        <view class="session-context" @click="editConversationTitle" style="cursor: pointer;">
           <text class="session-label">本次对话</text>
-          <text class="current-session-title">{{ currentConversationTitle }}</text>
+          <text class="current-session-title">{{ currentConversationTitle }} <text style="font-size: 20rpx; opacity: 0.6; margin-left: 8rpx;">✎</text></text>
         </view>
         <view class="header-actions">
           <view class="history-btn persona-action" @click="openPersonaPanel">
@@ -271,6 +271,28 @@ import { currentTheme } from '@/stores/theme';
 import { displayConversationTitle, isPlaceholderConversationTitle } from '@/utils/chatTitle';
 
 import { onShow } from '@dcloudio/uni-app';
+
+async function editConversationTitle() {
+  if (!conversationId.value) return;
+  uni.showModal({
+    title: '修改对话名称',
+    editable: true,
+    placeholderText: '请输入新名称',
+    success: async (res) => {
+      if (res.confirm && res.content) {
+        try {
+          await put(`/api/chat/conversations/${conversationId.value}/title`, { title: res.content });
+          const idx = conversations.value.findIndex(c => c.id === conversationId.value);
+          if (idx !== -1) {
+            conversations.value[idx].title = res.content;
+          }
+        } catch (e: any) {
+          uni.showToast({ title: '修改失败', icon: 'none' });
+        }
+      }
+    }
+  });
+}
 
 interface Message {
   role: 'user' | 'assistant';

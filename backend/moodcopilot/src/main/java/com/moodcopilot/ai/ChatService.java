@@ -189,6 +189,16 @@ public class ChatService {
         requireOwnedConversation(conversationId, user);
     }
 
+    public void updateConversationTitle(Long conversationId, String title) {
+        UserEntity user = currentUser();
+        ChatConversationEntity conv = conversationMapper.selectById(conversationId);
+        if (conv == null || !conv.getUserId().equals(user.getId())) {
+            throw new RuntimeException("无权操作或会话不存在");
+        }
+        conv.setTitle(title);
+        conversationMapper.updateById(conv);
+    }
+
     public void deleteConversation(Long conversationId) {
         UserEntity user = currentUser();
         ChatConversationEntity conv = conversationMapper.selectById(conversationId);
