@@ -331,7 +331,6 @@ const personaToneOptions = [
 ];
 const personaBehaviorOptions = [
   { value: 'CONCLUSION_FIRST', label: '先说结论' },
-  { value: 'ASK_WHEN_AMBIGUOUS', label: '不明确时先追问' },
   { value: 'CODE_FIRST', label: '代码优先' },
   { value: 'LESS_REASSURANCE', label: '少一些安慰' },
   { value: 'DIRECT_FEEDBACK', label: '直接反馈' },
@@ -341,14 +340,14 @@ const personaBehaviorOptions = [
 const conversationPersona = ref({
   role: 'personal_assistant',
   tone: ['natural', 'clear'],
-  behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'],
+  behaviorFlags: [] as string[],
   disabledBehaviorFlags: [] as string[],
   customTone: '',
   customResponseStyle: '',
 });
 const conversationPersonaUsesGlobal = ref(true);
 const personaRoleIndex = ref(0);
-const globalPersonaSnapshot = ref({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' });
+const globalPersonaSnapshot = ref({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: [] as string[], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' });
 
 const onChatModelChange = (event: any) => {
   useReasoning.value = Number(event.detail.value) === 1;
@@ -357,7 +356,7 @@ const onChatModelChange = (event: any) => {
 const defaultPersona = () => ({
   role: 'personal_assistant',
   tone: ['natural', 'clear'],
-  behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'],
+  behaviorFlags: [] as string[],
   disabledBehaviorFlags: [] as string[],
   customTone: '',
   customResponseStyle: '',
@@ -395,7 +394,7 @@ const loadConversationPersona = async () => {
     globalPersonaSnapshot.value = {
       role: global.role || 'personal_assistant',
       tone: Array.isArray(global.tone) && global.tone.length ? global.tone : ['natural', 'clear'],
-      behaviorFlags: Array.isArray(global.behaviorFlags) ? global.behaviorFlags : ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'],
+      behaviorFlags: Array.isArray(global.behaviorFlags) ? global.behaviorFlags : [],
       disabledBehaviorFlags: Array.isArray(global.disabledBehaviorFlags) ? global.disabledBehaviorFlags : [],
       customTone: global.customTone || '',
       customResponseStyle: global.customResponseStyle || '',
@@ -438,10 +437,7 @@ const saveConversationPersona = async () => {
       ...conversationPersona.value,
       customTone: conversationPersona.value.customTone.trim(),
       customResponseStyle: conversationPersona.value.customResponseStyle.trim(),
-      disabledBehaviorFlags: [...new Set([
-        ...conversationPersona.value.disabledBehaviorFlags,
-        ...globalPersonaSnapshot.value.behaviorFlags.filter(flag => !conversationPersona.value.behaviorFlags.includes(flag)),
-      ])],
+      disabledBehaviorFlags: [],
     });
     if (res.code === 200) {
       conversationPersonaUsesGlobal.value = false;

@@ -305,7 +305,7 @@ public class PersonaService {
 
     private PersonaResponse toResponse(UserPersonaEntity entity) {
         if (entity == null) return new PersonaResponse(null, 0, PersonaPolicy.DEFAULT_ROLE,
-                PersonaPolicy.DEFAULT_TONE, PersonaPolicy.DEFAULT_BEHAVIORS, null, null, null);
+                PersonaPolicy.DEFAULT_TONE, List.of(), null, null, null);
         return new PersonaResponse(entity.getId(), entity.getVersion(), entity.getRole(), readValues(entity.getToneJson()),
                 readValues(entity.getBehaviorFlagsJson()), readValues(entity.getDisabledBehaviorFlagsJson()),
                 entity.getCustomDescription(), entity.getCustomTone(), entity.getCustomResponseStyle(), entity.getUpdatedAt());

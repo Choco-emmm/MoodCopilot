@@ -286,7 +286,7 @@ const personaToneOptions = [
   { value: 'humorous', label: '幽默' }, { value: 'critical', label: '批判思考' },
 ]
 const personaBehaviorOptions = [
-  { value: 'CONCLUSION_FIRST', label: '先说结论' }, { value: 'ASK_WHEN_AMBIGUOUS', label: '不明确时先追问' },
+  { value: 'CONCLUSION_FIRST', label: '先说结论' },
   { value: 'CODE_FIRST', label: '代码优先' }, { value: 'LESS_REASSURANCE', label: '少一些安慰' },
   { value: 'DIRECT_FEEDBACK', label: '直接反馈' }, { value: 'STEP_BY_STEP', label: '分步骤说明' },
   { value: 'CONCISE', label: '控制篇幅' },
@@ -296,7 +296,7 @@ const personaSaving = ref(false)
 const personaMessage = ref('')
 const personaLoading = ref(false)
 const conversationPersonaUsesGlobal = ref(true)
-const defaultPersona = () => ({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' })
+const defaultPersona = () => ({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: [] as string[], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' })
 const conversationPersona = ref(defaultPersona())
 const globalPersonaSnapshot = ref(defaultPersona())
 
@@ -422,10 +422,7 @@ async function saveConversationPersona() {
       ...conversationPersona.value,
       customTone: conversationPersona.value.customTone.trim(),
       customResponseStyle: conversationPersona.value.customResponseStyle.trim(),
-      disabledBehaviorFlags: [...new Set([
-        ...conversationPersona.value.disabledBehaviorFlags,
-        ...globalPersonaSnapshot.value.behaviorFlags.filter(flag => !conversationPersona.value.behaviorFlags.includes(flag)),
-      ])],
+      disabledBehaviorFlags: [],
     })
     await loadConversationPersona(conversationId)
     conversationPersonaUsesGlobal.value = false

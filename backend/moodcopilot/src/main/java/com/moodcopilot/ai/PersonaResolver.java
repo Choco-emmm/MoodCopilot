@@ -26,7 +26,7 @@ public class PersonaResolver {
         String role = firstRole(conversation, global, trace);
         List<String> tone = firstConfiguredTone(conversation, global, trace);
 
-        LinkedHashSet<String> behaviors = new LinkedHashSet<>(PersonaPolicy.DEFAULT_BEHAVIORS);
+        LinkedHashSet<String> behaviors = new LinkedHashSet<>();
         applyBehaviorScope(behaviors, global == null ? null : values(global.getBehaviorFlagsJson()),
                 global == null ? null : values(global.getDisabledBehaviorFlagsJson()));
         applyBehaviorScope(behaviors, conversation == null ? null : values(conversation.getBehaviorFlagsJson()),

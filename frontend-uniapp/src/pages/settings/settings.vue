@@ -123,12 +123,12 @@ const personaToneOptions = [
   { value: 'humorous', label: '幽默' }, { value: 'critical', label: '批判思考' },
 ];
 const personaBehaviorOptions = [
-  { value: 'CONCLUSION_FIRST', label: '先说结论' }, { value: 'ASK_WHEN_AMBIGUOUS', label: '不明确时先追问' },
+  { value: 'CONCLUSION_FIRST', label: '先说结论' },
   { value: 'CODE_FIRST', label: '代码优先' }, { value: 'LESS_REASSURANCE', label: '少一些安慰' },
   { value: 'DIRECT_FEEDBACK', label: '直接反馈' }, { value: 'STEP_BY_STEP', label: '分步骤说明' },
   { value: 'CONCISE', label: '控制篇幅' },
 ];
-const persona = ref({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' });
+const persona = ref({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: [] as string[], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' });
 const personaRoleIndex = ref(0);
 const personaReady = ref(false);
 const savingPersona = ref(false);
@@ -142,7 +142,7 @@ const personaPreviewError = ref('');
 const defaultPersona = () => ({
   role: 'personal_assistant',
   tone: ['natural', 'clear'],
-  behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'],
+  behaviorFlags: [] as string[],
   disabledBehaviorFlags: [] as string[],
   customTone: '',
   customResponseStyle: '',
@@ -185,7 +185,7 @@ const fetchProfile = async () => {
       persona.value = {
         role: data.role || 'personal_assistant',
         tone: Array.isArray(data.tone) && data.tone.length ? data.tone : ['natural', 'clear'],
-        behaviorFlags: Array.isArray(data.behaviorFlags) ? data.behaviorFlags : ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'],
+        behaviorFlags: Array.isArray(data.behaviorFlags) ? data.behaviorFlags : [],
         disabledBehaviorFlags: Array.isArray(data.disabledBehaviorFlags) ? data.disabledBehaviorFlags : [],
         customTone: data.customTone || '',
         customResponseStyle: data.customResponseStyle || '',

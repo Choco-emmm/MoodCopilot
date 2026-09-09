@@ -126,7 +126,7 @@ public class PersonaPromptSupport {
 
     private EffectivePersona defaultPersona() {
         return new EffectivePersona(PersonaPolicy.DEFAULT_ROLE, PersonaPolicy.DEFAULT_TONE,
-                PersonaPolicy.DEFAULT_BEHAVIORS, java.util.List.of(), null, null, false, "default");
+                java.util.List.of(), java.util.List.of(), null, null, false, "default");
     }
 
     private Long currentUserId() {

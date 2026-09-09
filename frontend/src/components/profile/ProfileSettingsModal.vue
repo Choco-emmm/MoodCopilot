@@ -459,14 +459,11 @@ const personaToneOptions = [
 ]
 const personaBehaviorOptions = [
   { value: 'CONCLUSION_FIRST', label: '先说结论' },
-  { value: 'ASK_WHEN_AMBIGUOUS', label: '不明确时先追问' },
-  { value: 'CODE_FIRST', label: '代码优先' },
-  { value: 'LESS_REASSURANCE', label: '少一些安慰' },
-  { value: 'DIRECT_FEEDBACK', label: '直接反馈' },
-  { value: 'STEP_BY_STEP', label: '分步骤说明' },
+  { value: 'CODE_FIRST', label: '代码优先' }, { value: 'LESS_REASSURANCE', label: '少一些安慰' },
+  { value: 'DIRECT_FEEDBACK', label: '直接反馈' }, { value: 'STEP_BY_STEP', label: '分步骤说明' },
   { value: 'CONCISE', label: '控制篇幅' },
 ]
-const persona = ref({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' })
+const persona = ref({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: [] as string[], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' })
 const savingPersona = ref(false)
 const previewingPersona = ref(false)
 const personaExpanded = ref(false)
@@ -517,7 +514,7 @@ async function hydrateSettingsData() {
       persona.value = {
         role: data.role || 'personal_assistant',
         tone: Array.isArray(data.tone) && data.tone.length ? data.tone : ['natural', 'clear'],
-        behaviorFlags: Array.isArray(data.behaviorFlags) ? data.behaviorFlags : ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'],
+        behaviorFlags: Array.isArray(data.behaviorFlags) ? data.behaviorFlags : [],
         disabledBehaviorFlags: Array.isArray(data.disabledBehaviorFlags) ? data.disabledBehaviorFlags : [],
         customTone: data.customTone || '',
         customResponseStyle: data.customResponseStyle || '',
@@ -533,11 +530,9 @@ async function savePersona() {
   personaError.value = false
   personaMsg.value = ''
   try {
-    const defaultBehaviors = ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS']
-    const disabledBehaviors = defaultBehaviors.filter(b => !persona.value.behaviorFlags.includes(b))
     const payload = { 
       ...persona.value, 
-      disabledBehaviorFlags: disabledBehaviors,
+      disabledBehaviorFlags: [],
       customTone: persona.value.customTone.trim(), 
       customResponseStyle: persona.value.customResponseStyle.trim() 
     }
@@ -556,7 +551,7 @@ async function savePersona() {
 }
 
 function resetPersona() {
-  persona.value = { role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: ['CONCLUSION_FIRST', 'ASK_WHEN_AMBIGUOUS'], disabledBehaviorFlags: [], customTone: '', customResponseStyle: '' }
+  persona.value = { role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: [], disabledBehaviorFlags: [], customTone: '', customResponseStyle: '' }
   personaMsg.value = '已恢复默认，点击保存后生效'
   personaError.value = false
 }

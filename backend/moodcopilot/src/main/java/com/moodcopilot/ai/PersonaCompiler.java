@@ -54,7 +54,7 @@ public class PersonaCompiler {
         String role = mergePolicy.mergeRole(turn == null ? null : turn.role(),
                 conversation == null ? null : conversation.getRole(), global == null ? null : global.getRole());
         List<String> tone = mergePolicy.mergeTone(PersonaPolicy.DEFAULT_TONE, globalTone, conversationTone, turnTone);
-        List<String> behavior = mergePolicy.mergeBehaviors(PersonaPolicy.DEFAULT_BEHAVIORS,
+        List<String> behavior = mergePolicy.mergeBehaviors(List.of(),
                 behaviors(global == null ? null : global.getBehaviorFlagsJson()),
                 behaviors(conversation == null ? null : conversation.getBehaviorFlagsJson()),
                 turn == null ? List.of() : turn.behaviorFlags());

@@ -8,14 +8,18 @@ public final class PersonaPolicy {
 
     public static final String DEFAULT_ROLE = "personal_assistant";
     public static final List<String> DEFAULT_TONE = List.of("natural", "clear");
-    public static final List<String> DEFAULT_BEHAVIORS = List.of("CONCLUSION_FIRST", "ASK_WHEN_AMBIGUOUS");
     public static final Set<String> ROLES = Set.of(
             "personal_assistant", "study_partner", "coding_partner", "writing_partner", "life_companion");
     public static final Set<String> TONES = Set.of(
             "natural", "warm", "direct", "clear", "concise", "precise", "formal", "playful",
             "empathetic", "calm", "analytical", "encouraging", "humorous", "critical");
+    /**
+     * Whitelist of user-configurable answer-style flags.
+     * ASK_WHEN_AMBIGUOUS is intentionally absent: deciding when to ask for
+     * clarification is a system/task-policy concern, not a user Persona preference.
+     */
     public static final Set<String> BEHAVIORS = Set.of(
-            "CONCISE", "CONCLUSION_FIRST", "ASK_WHEN_AMBIGUOUS", "CODE_FIRST",
+            "CONCISE", "CONCLUSION_FIRST", "CODE_FIRST",
             "LESS_REASSURANCE", "DIRECT_FEEDBACK", "STEP_BY_STEP");
 
     public static String normalize(String value) {
