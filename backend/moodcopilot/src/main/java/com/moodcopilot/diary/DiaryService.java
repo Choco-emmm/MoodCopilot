@@ -491,7 +491,7 @@ public class DiaryService {
                 content == null ? 0 : content.length(), musicMeta != null, images != null && !images.isEmpty());
         try {
             log.info("日记分析阶段：开始视觉描述，diaryId={}", diaryId);
-            String imageDescriptions = visionService.describeImages(images, imageMeta);
+            String imageDescriptions = visionService.describeImages(images, imageMeta, content);
             log.info("日记分析阶段：视觉描述完成，diaryId={}，descriptionLength={}", diaryId,
                     imageDescriptions == null ? 0 : imageDescriptions.length());
             log.info("日记分析阶段：开始情绪分析，diaryId={}，model={}", diaryId,

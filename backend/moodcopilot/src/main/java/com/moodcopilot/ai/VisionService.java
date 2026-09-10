@@ -88,7 +88,7 @@ public class VisionService {
      * 当 enableOcr=true 时，先尝试 OCR 提取文字，再将文字注入常规模型 prompt。
      */
     public String describeImages(List<String> imageUrls) {
-        return describeImages(imageUrls, null);
+        return describeImages(imageUrls, null, null);
     }
 
     private String getCacheKey(String imageUrl, String channel) {
@@ -102,7 +102,7 @@ public class VisionService {
         return "vlm:desc:" + org.springframework.util.DigestUtils.md5DigestAsHex((keyBase + "|" + channel).getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
-    public String describeImages(List<String> imageUrls, List<DiaryImageMeta> imageMeta) {
+    public String describeImages(List<String> imageUrls, List<DiaryImageMeta> imageMeta, String diaryContent) {
         if (imageUrls == null || imageUrls.isEmpty())
             return "";
         if (imageUrls.size() > MAX_DIARY_IMAGES) {
@@ -137,7 +137,7 @@ public class VisionService {
 
                         String accessibleUrl = ossService != null ? ossService.getAccessibleUrl(task.imageUrl())
                                 : task.imageUrl();
-                        String desc = describeWithOcrRouting(accessibleUrl, task.index(), task.channel());
+                        String desc = describeWithOcrRouting(accessibleUrl, task.index(), task.channel(), diaryContent);
                         
                         if (redisTemplate != null && desc != null && !desc.isBlank()) {
                             redisTemplate.opsForValue().set(cacheKey, desc, Duration.ofDays(30));
@@ -171,7 +171,7 @@ public class VisionService {
      * OCR 阶段专注提取文字，常规模型阶段只描述画面视觉。
      * 返回时 OCR 文字和视觉描述用标签分隔，方便下游分析模型区分处理。
      */
-    private String describeWithOcrRouting(String imageUrl, int index, String channel) {
+    private String describeWithOcrRouting(String imageUrl, int index, String channel, String diaryContent) {
         // 尝试 OCR 提取文字
         String extractedText = "";
         boolean shouldUseOcr = enableOcr && "text".equals(channel);
@@ -182,6 +182,10 @@ public class VisionService {
         // 常规模型只描述画面视觉，不混入 OCR 文字
         String visualPrompt = "请用一句话描述这张图片的画面内容、拍摄类型（如自拍/风景/美食/截图/手写等）与情感氛围（40字以内）。不要评价图片质量。" +
                 "注意：只需要描述你看到的画面本身，不要提及画面中的文字内容。";
+        if (diaryContent != null && !diaryContent.isBlank()) {
+            visualPrompt += "\n这可能与用户的日记内容有关，请推测图片和日记的联系，重点关注与日记相关的画面细节。日记内容参考：\n" +
+                    (diaryContent.length() > 500 ? diaryContent.substring(0, 500) + "..." : diaryContent);
+        }
         String visualDesc = callVisionModel(model, imageUrl, visualPrompt, 80, 0.3, "图片描述");
 
         // OCR 文字和视觉描述用标签分隔

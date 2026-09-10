@@ -170,7 +170,7 @@ public class AiPostProcessService {
 
     private String describeImages(DiaryEntity diary) {
         if (diary.getImages() == null || diary.getImages().isEmpty()) return "";
-        return visionService.describeImages(diary.getImages(), diary.getImageMeta());
+        return visionService.describeImages(diary.getImages(), diary.getImageMeta(), diary.getContent());
     }
 
     private void invalidateReports(long userId) {

@@ -117,7 +117,7 @@
           </div>
         </Teleport>
 
-        <div class="chat-messages" ref="msgBox">
+        <div class="chat-messages" ref="msgBox" @scroll="handleScroll">
           <div v-if="messages.length === 0" class="chat-empty">
             <h2 class="chat-header-title">MoodCopilot</h2>
             <p class="chat-subtitle">可以聊聊最近的心情，分享你的故事和想法</p>
@@ -215,7 +215,17 @@
           />
         </div>
 
-        <div ref="chatInputArea">
+        <div ref="chatInputArea" class="chat-input-wrapper">
+          <Transition name="fade-bounce">
+            <button
+              v-if="showScrollToBottom"
+              class="scroll-to-bottom-btn"
+              @click="scrollToBottomAction"
+              title="回到底部"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"></polyline><polyline points="7 6 12 11 17 6"></polyline></svg>
+            </button>
+          </Transition>
           <ChatInputBox
             v-model:draft="draft"
             :streaming="streaming"
@@ -281,6 +291,18 @@ const {
   msgBox, chatInputArea,
   handleDraftFocus, handleDraftEnter, goToDiary,
 } = useChat()
+
+const showScrollToBottom = ref(false)
+const handleScroll = (e: Event) => {
+  const target = e.target as HTMLElement
+  const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight
+  showScrollToBottom.value = distanceToBottom > 150
+}
+const scrollToBottomAction = () => {
+  if (msgBox.value) {
+    msgBox.value.scrollTo({ top: msgBox.value.scrollHeight, behavior: 'smooth' })
+  }
+}
 
 const activeConvTitle = computed(() => {
   const conv = conversations.value.find((c: any) => c.id === activeConvId.value)
@@ -1317,37 +1339,44 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 
 /* --- Premium Custom Styles --- */
 
-.chat-messages {
-  padding: 28px 28px 20px !important;
-  background: var(--color-surface) !important;
-  background-image: linear-gradient(135deg, var(--color-surface) 0%, color-mix(in oklab, var(--color-primary) 1%, var(--color-surface)) 100%) !important;
-  border: none !important;
-  border-radius: 16px !important;
-  box-shadow: var(--shadow-md) !important;
+/* --- DeepSeek Float Style --- */
+
+.chat-input-wrapper {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding: 0 10px 10px;
+  background: linear-gradient(to bottom, transparent, var(--color-bg) 20%);
+  pointer-events: none; /* Let clicks pass through gradient */
 }
 
-.chat-messages::after {
-  content: '';
-  display: block;
-  min-height: 24px;
-  flex-shrink: 0;
+.chat-input-wrapper > * {
+  pointer-events: auto; /* Enable clicks on the actual input box */
 }
 
-.chat-input-area {
-  background: color-mix(in oklab, var(--color-surface) 80%, transparent) !important;
-  backdrop-filter: blur(24px) !important;
-  -webkit-backdrop-filter: blur(24px) !important;
-  border: 1.5px solid color-mix(in oklab, var(--color-primary) 12%, transparent) !important;
-  border-radius: 8px !important;
-  padding: 8px 8px 8px 20px !important;
-  box-shadow: 0 8px 32px color-mix(in oklab, var(--color-primary) 6%, transparent) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.scroll-to-bottom-btn {
+  position: absolute;
+  top: -40px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  cursor: pointer;
+  z-index: 11;
+  pointer-events: auto;
 }
 
-.chat-input-area:focus-within {
-  border-color: var(--color-primary) !important;
-  box-shadow: 0 12px 40px color-mix(in oklab, var(--color-primary) 10%, transparent) !important;
-  transform: translateY(-1px);
+.scroll-to-bottom-btn:hover {
+  background: var(--color-surface-hover);
 }
 
 :deep(.chat-input-row) {
