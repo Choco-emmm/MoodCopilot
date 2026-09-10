@@ -19,7 +19,7 @@
             <span class="candidate-title">待确认的记忆</span>
             <span class="candidate-count">{{ candidates.length }} 条</span>
           </div>
-          <small>这些内容还没有进入正式画像，请确认哪些值得长期保留。</small>
+          <small>这些内容还没有进入正式画像，请确认哪些值得长期保留。 如果 AI 再次观察到相同的记忆规律，也会自动转正。</small>
         </div>
         <span class="candidate-summary">
           {{ candidateGroups.length }} 个属性<template v-if="candidateConflictGroupCount"> · {{ candidateConflictGroupCount }} 个属性有不同候选</template>
