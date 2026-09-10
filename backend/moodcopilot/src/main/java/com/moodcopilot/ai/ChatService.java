@@ -561,6 +561,9 @@ public class ChatService {
                     continue;
                 }
                 String role = msg.role() != null ? msg.role() : "user";
+                if ("ai".equalsIgnoreCase(role)) {
+                    role = "assistant";
+                }
                 if (msg.content() != null && !msg.content().isBlank()) {
                     msgs.add(Map.of("role", role, "content", msg.content()));
                 }
@@ -1302,6 +1305,9 @@ public class ChatService {
             List<com.moodcopilot.entity.dto.CustomChatMessage> history = new java.util.ArrayList<>();
             for (Map<String, Object> msg : messages) {
                 String role = (String) msg.get("role");
+                if ("ai".equalsIgnoreCase(role)) {
+                    role = "assistant";
+                }
                 String content = (String) msg.get("content");
                 if (role == null || content == null || content.isBlank()) {
                     continue;
