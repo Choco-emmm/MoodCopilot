@@ -177,7 +177,6 @@ function handleImageUpload() {
   transition: border-color 0.2s, box-shadow 0.2s;
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
 .ds-input-container:focus-within {
@@ -195,6 +194,7 @@ function handleImageUpload() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-top: 8px;
 }
 
 .ds-action-left {
@@ -295,7 +295,7 @@ function handleImageUpload() {
   min-height: 0;
   display: flex;
   gap: 24px;
-  padding: 12px 8px 8px;
+  padding: 12px 8px 0;
 }
 
 .ds-panel-item {
