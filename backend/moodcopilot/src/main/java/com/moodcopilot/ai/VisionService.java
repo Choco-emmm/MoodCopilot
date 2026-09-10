@@ -184,7 +184,7 @@ public class VisionService {
                 "注意：只需要描述你看到的画面本身，不要提及画面中的文字内容。";
         if (diaryContent != null && !diaryContent.isBlank()) {
             visualPrompt += "\n这可能与用户的日记内容有关，请推测图片和日记的联系，重点关注与日记相关的画面细节。日记内容参考：\n" +
-                    (diaryContent.length() > 500 ? diaryContent.substring(0, 500) + "..." : diaryContent);
+                    diaryContent;
         }
         String visualDesc = callVisionModel(model, imageUrl, visualPrompt, 80, 0.3, "图片描述");
 
