@@ -114,6 +114,7 @@ const auth = useAuthStore()
 const notif = useNotificationStore()
 
 const profilePath = computed(() => (auth.userId != null ? `/profile/${auth.userId}` : '/login'))
+const recordPopoverShow = ref(false)
 
 // Quota popover data
 const QUOTA_DATA = [

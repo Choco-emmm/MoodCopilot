@@ -47,6 +47,10 @@ export const adminApi = {
     api.get('/admin/users', { params: { keyword, sortBy, page, size } }),
   updateUserStatus: (id: number, status: number) =>
     api.post(`/admin/users/${id}/status`, { status }),
+  aiQuota: () =>
+    api.get('/admin/ai-quota'),
+  updateAiQuota: (data: { quotaMatrix: number[][]; labels: Record<string, string> }) =>
+    api.post('/admin/ai-quota', data),
 }
 
 export const reportApi = {

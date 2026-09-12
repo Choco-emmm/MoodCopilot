@@ -55,7 +55,7 @@
 import { ref, onMounted } from 'vue'
 import { useMessage } from 'naive-ui'
 import { adminApi } from '../api'
-import { useAuthStore } from '../store/auth'
+import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 const message = useMessage()
