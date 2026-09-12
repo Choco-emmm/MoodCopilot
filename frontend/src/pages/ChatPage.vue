@@ -15,8 +15,8 @@
 
       <!-- 聊天区域 -->
       <div class="chat-window">
-        <!-- Magazine Style Features Index -->
-        <div class="chat-features-index">
+        <!-- Magazine Style Features Index — admin only -->
+        <div v-if="authStore.isAdmin" class="chat-features-index">
           <span class="index-label">INDEX //</span>
           <router-link to="/report" class="index-link">
             情绪报告 <span class="en-sub">Report</span> <span class="link-arrow">↗</span>
@@ -56,7 +56,7 @@
               </n-input>
             </div>
             <div class="ds-mobile-conv-list">
-              <div 
+            <div 
                 v-for="conv in filteredConversations" 
                 :key="conv.id" 
                 class="ds-mobile-conv-item"
@@ -64,17 +64,20 @@
                 @click="selectConversation(conv.id); mobileDrawerOpen = false;"
               >
                 <span class="ds-mobile-conv-title-text">{{ conv.title || '新对话' }}</span>
-                <div class="ds-mobile-conv-actions">
-                  <button class="ds-mobile-conv-action-btn" @click.stop="renameConversation(conv.id, conv.title || '')" title="重命名">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                <n-dropdown
+                  trigger="click"
+                  :options="[{ label: '重命名', key: 'rename' }, { label: '删除', key: 'delete', props: { style: 'color: var(--color-error)' } }]"
+                  @select="(key: string) => { if (key === 'rename') renameConversation(conv.id, conv.title || ''); else deleteConversation(conv.id) }"
+                  @click.stop
+                >
+                  <button class="ds-mobile-conv-more-btn" @click.stop title="更多操作">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
                   </button>
-                  <button class="ds-mobile-conv-action-btn delete-btn" @click.stop="deleteConversation(conv.id)" title="删除">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                  </button>
-                </div>
+                </n-dropdown>
               </div>
               <div v-if="filteredConversations.length === 0" class="ds-mobile-conv-empty">
-                没有找到匹配的对?              </div>
+                没有找到匹配的对话
+              </div>
             </div>
           </n-drawer-content>
         </n-drawer>
@@ -1635,6 +1638,58 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   opacity: 0.6;
   font-weight: 600;
   font-family: var(--font-sans);
+}
+
+/* ── Mobile drawer conversation more button ── */
+.ds-mobile-conv-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  color: var(--color-text);
+}
+
+.ds-mobile-conv-item:hover,
+.ds-mobile-conv-item.active {
+  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
+}
+
+.ds-mobile-conv-title-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.ds-mobile-conv-more-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.ds-mobile-conv-item:hover .ds-mobile-conv-more-btn,
+.ds-mobile-conv-item.active .ds-mobile-conv-more-btn {
+  opacity: 1;
+}
+
+.ds-mobile-conv-more-btn:hover {
+  background: color-mix(in oklab, var(--color-primary) 15%, transparent);
+  color: var(--color-primary);
 }
 
 @media (max-width: 600px) {

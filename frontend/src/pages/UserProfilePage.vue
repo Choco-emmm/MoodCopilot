@@ -45,7 +45,45 @@
 
 
 
-    <section class="fusion-panel">
+    
+        <!-- ── 长期整理 (owner only) ── -->
+        <section v-if="isOwner" class="longterm-section">
+          <div class="longterm-header">
+            <h3 class="longterm-title">长期整理</h3>
+            <p class="longterm-desc">AI 从你的日常记录里，慢慢整理出值得回看的东西。</p>
+          </div>
+          <div class="longterm-list">
+            <router-link to="/report" class="longterm-item">
+              <div class="longterm-item-main">
+                <span class="longterm-item-label">情绪报告</span>
+                <span class="longterm-item-sub">最近的变化</span>
+              </div>
+              <span class="longterm-item-arrow">›</span>
+            </router-link>
+            <router-link to="/ai-memory" class="longterm-item">
+              <div class="longterm-item-main">
+                <span class="longterm-item-label">记忆中心</span>
+                <span class="longterm-item-sub">长期画像</span>
+              </div>
+              <span class="longterm-item-arrow">›</span>
+            </router-link>
+            <router-link to="/life-events" class="longterm-item">
+              <div class="longterm-item-main">
+                <span class="longterm-item-label">重要事件</span>
+                <span class="longterm-item-sub">尚未结束的事</span>
+              </div>
+              <span class="longterm-item-arrow">›</span>
+            </router-link>
+            <router-link to="/life-chapters" class="longterm-item">
+              <div class="longterm-item-main">
+                <span class="longterm-item-label">时光画卷</span>
+                <span class="longterm-item-sub">人生章节</span>
+              </div>
+              <span class="longterm-item-arrow">›</span>
+            </router-link>
+          </div>
+        </section>
+<section class="fusion-panel">
       <div class="fusion-content profile-list-panel">
         <n-tabs v-model:value="activeTab" type="line" animated @update:value="handleTabChange">
           <n-tab-pane name="diaries" tab="日记">
@@ -1288,5 +1326,79 @@ function handleProfileUpdated() {
   opacity: 0;
   transform: translateY(-8px);
 }
+
+/* ── 长期整理 section ── */
+.longterm-section {
+  max-width: var(--profile-content-width, 860px);
+  margin: 0 auto 24px;
+  padding: 0 16px;
+}
+
+.longterm-header {
+  margin-bottom: 12px;
+}
+
+.longterm-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--color-text);
+  font-family: var(--font-display, serif);
+}
+
+.longterm-desc {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.longterm-list {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.longterm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  text-decoration: none;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  transition: background 0.15s;
+}
+
+.longterm-item:last-child {
+  border-bottom: none;
+}
+
+.longterm-item:hover {
+  background: color-mix(in oklab, var(--color-primary) 5%, transparent);
+}
+
+.longterm-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.longterm-item-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.longterm-item-sub {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.longterm-item-arrow {
+  font-size: 20px;
+  color: var(--color-text-muted);
+  font-weight: 300;
+}
+
 </style>
 

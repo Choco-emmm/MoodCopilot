@@ -12,18 +12,59 @@
       <nav class="masthead-nav">
         <template v-if="auth.isAuthenticated">
           <div class="nav-links">
-            <router-link
-              v-for="item in navItems"
-              :key="item.path"
-              :to="item.path"
-              :class="['nav-link', item.cls, { active: route.path === item.path }]"
-            >
-              <n-badge v-if="item.id === 'notif'" :value="notif.unreadCount" :max="99" :show="notif.unreadCount > 0" class="nav-bell-badge" dot>
-                <span class="nav-link-icon" aria-hidden="true" v-html="item.icon"></span>
-              </n-badge>
-              <span v-else class="nav-link-icon" aria-hidden="true" v-html="item.icon"></span>
-              <span class="nav-link-label">{{ item.shortLabel }}</span>
-            </router-link>
+            <template v-for="item in navItems" :key="item.path || item.label">
+              <!-- 记录 special entry with popover -->
+              <n-popover
+                v-if="item.isRecord"
+                v-model:show="recordPopoverShow"
+                trigger="click"
+                placement="top"
+                :show-arrow="false"
+                style="padding: 0; border-radius: 12px; overflow: hidden;"
+              >
+                <template #trigger>
+                  <button :class="['nav-link', item.cls]" @click="recordPopoverShow = !recordPopoverShow" type="button">
+                    <span class="nav-link-icon" aria-hidden="true" v-html="item.icon"></span>
+                    <span class="nav-link-label">{{ item.shortLabel }}</span>
+                  </button>
+                </template>
+                <div class="record-sheet">
+                  <router-link to="/write" class="record-option" @click="recordPopoverShow = false">
+                    <span class="record-option-icon">📓</span>
+                    <span class="record-option-text">
+                      <strong>写一篇日记</strong>
+                      <small>记录今天的心情与想法</small>
+                    </span>
+                  </router-link>
+                  <router-link to="/chat" class="record-option" @click="recordPopoverShow = false">
+                    <span class="record-option-icon">💬</span>
+                    <span class="record-option-text">
+                      <strong>说一说今天</strong>
+                      <small>和 AI 聊聊，整理成日记</small>
+                    </span>
+                  </router-link>
+                  <router-link to="/chat" class="record-option" @click="recordPopoverShow = false">
+                    <span class="record-option-icon">✦</span>
+                    <span class="record-option-text">
+                      <strong>让 AI 帮我整理</strong>
+                      <small>回顾近期，梳理思路</small>
+                    </span>
+                  </router-link>
+                </div>
+              </n-popover>
+              <!-- normal nav items -->
+              <router-link
+                v-else
+                :to="item.path"
+                :class="['nav-link', item.cls, { active: route.path === item.path }]"
+              >
+                <n-badge v-if="item.id === 'notif'" :value="notif.unreadCount" :max="99" :show="notif.unreadCount > 0" class="nav-bell-badge" dot>
+                  <span class="nav-link-icon" aria-hidden="true" v-html="item.icon"></span>
+                </n-badge>
+                <span v-else class="nav-link-icon" aria-hidden="true" v-html="item.icon"></span>
+                <span class="nav-link-label">{{ item.shortLabel }}</span>
+              </router-link>
+            </template>
           </div>
           <router-link to="/notifications" class="nav-notification-link" aria-label="通知">
             <span class="nav-notification-link-inner">
@@ -63,7 +104,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 <script setup lang="ts">
 import { useRouter, useRoute } from 'vue-router'
-import { NButton, NBadge } from 'naive-ui'
+import { NButton, NBadge, NPopover } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore } from '../stores/notification'
 
@@ -101,7 +142,7 @@ const navItems = computed(() => {
   const items = [
     { label: '广场', shortLabel: '广场', icon: homeIcon, path: '/', cls: 'nav-link-home' },
     { label: 'MoodCopilot', shortLabel: 'AI', icon: aiIcon, path: '/chat', cls: 'nav-link-ai' },
-    { label: '写日记', shortLabel: '写日记', icon: writeIcon, path: '/write', cls: 'nav-link-write' },
+    { label: '记录', shortLabel: '记录', icon: writeIcon, path: '', cls: 'nav-link-write', isRecord: true },
     { id: 'notif', label: '通知', shortLabel: '消息', icon: bellIcon, path: '/notifications', cls: 'nav-link-notif mobile-only' },
     { id: 'mine', label: '我的', shortLabel: '我的', icon: profileIcon, path: profilePath.value, cls: 'nav-link-mine mobile-only' },
   ]
@@ -110,6 +151,7 @@ const navItems = computed(() => {
       { label: '审核', shortLabel: '审核', icon: adminIcon, path: '/admin/reports', cls: 'nav-link-admin' },
       { label: '用户', shortLabel: '用户', icon: usersIcon, path: '/admin/users', cls: 'nav-link-admin' },
       { label: '公告', shortLabel: '公告', icon: announcementIcon, path: '/admin/announcements', cls: 'nav-link-admin' },
+      { label: '限额', shortLabel: '限额', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>', path: '/admin/quota', cls: 'nav-link-admin' },
     )
     // 管理员7项时把"写"挪到正中间（index 3）
     const write = items.splice(2, 1)[0]
@@ -171,5 +213,54 @@ function handleLogout() {
     max-width: 100%;
     font-size: 13px;
   }
+}
+
+/* ── Record entry popover sheet ── */
+.record-sheet {
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+}
+
+.record-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  text-decoration: none;
+  color: var(--color-text);
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.record-option:last-child {
+  border-bottom: none;
+}
+
+.record-option:hover {
+  background: color-mix(in oklab, var(--color-primary) 6%, transparent);
+}
+
+.record-option-icon {
+  font-size: 20px;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.record-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.record-option-text strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.record-option-text small {
+  font-size: 12px;
+  color: var(--color-text-secondary);
 }
 </style>

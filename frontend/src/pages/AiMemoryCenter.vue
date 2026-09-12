@@ -3,7 +3,7 @@
     <AppHeader />
 
     <section class="panel memory-center-panel">
-      <button class="page-back-link" @click="router.push('/chat')">← 返回对话</button>
+      <button class="page-back-link" @click="router.back()">←</button>
       <div class="panel-header">
         <h2>我的记忆中心</h2>
         <p class="panel-desc">这是 MoodCopilot 从你的日常记录中提取的长期画像。不再是冰冷的表格，而是由点滴细节拼凑出的、一个更懂你的数字记忆库。</p>

@@ -34,7 +34,7 @@ public class UserQuotaController {
         Map<String, Integer> maxQuotas = new java.util.HashMap<>();
         boolean isPro = user.getProExpireTime() != null && user.getProExpireTime().isAfter(LocalDateTime.now());
         for (RateLimitService.AiApiType type : RateLimitService.AiApiType.values()) {
-            maxQuotas.put(type.name(), RateLimitService.getDynamicLimit(type, user.getLevel(), isPro));
+            maxQuotas.put(type.name(), rateLimitService.getDynamicLimit(type, user.getLevel(), isPro));
         }
         return ApiResponse.ok(new QuotaResponse(
                 user.getExp() != null ? user.getExp() : 0,

@@ -129,6 +129,12 @@ const router = createRouter({
       component: () => import('../pages/AdminAnnouncementsPage.vue'),
       meta: { requiresAuth: true, requiresAdmin: true },
     },
+    {
+      path: '/admin/quota',
+      name: 'admin-quota',
+      component: () => import('../pages/AdminQuotaPage.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+    },
   ],
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {

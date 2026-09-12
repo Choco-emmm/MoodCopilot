@@ -30,9 +30,11 @@ public class UserGrowthService {
     private final StringRedisTemplate redis;
     private final UserMapper userMapper;
     private final NotificationService notificationService;
+    private final RateLimitService rateLimitService;
 
     public UserGrowthService(StringRedisTemplate redis, UserMapper userMapper,
-            NotificationService notificationService) {
+            NotificationService notificationService, RateLimitService rateLimitService) {
+        this.rateLimitService = rateLimitService;
         this.redis = redis;
         this.userMapper = userMapper;
         this.notificationService = notificationService;
@@ -232,14 +234,14 @@ public class UserGrowthService {
     }
 
     private String buildLevelUpMessage(int level, UserEntity user) {
-        int chatFlashLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.CHAT_FLASH, level, false);
-        int chatProLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.CHAT_PRO, level, false);
-        int diaryFlashLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.DIARY_FLASH, level, false);
-        int diaryProLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.DIARY_PRO, level, false);
-        int resonanceLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.RESONANCE, level, false);
-        int reportLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.REPORT, level, false);
-        int imageUploadLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.IMAGE_UPLOAD, level, false);
-        int imageAnalysisLimit = RateLimitService.getDynamicLimit(RateLimitService.AiApiType.IMAGE_ANALYSIS, level, false);
+        int chatFlashLimit = rateLimitService.getDynamicLimit(RateLimitService.AiApiType.CHAT_FLASH, level, false);
+        int chatProLimit = rateLimitService.getDynamicLimit(RateLimitService.AiApiType.CHAT_PRO, level, false);
+        int diaryFlashLimit = rateLimitService.getDynamicLimit(RateLimitService.AiApiType.DIARY_FLASH, level, false);
+        int diaryProLimit = rateLimitService.getDynamicLimit(RateLimitService.AiApiType.DIARY_PRO, level, false);
+        int resonanceLimit = rateLimitService.getDynamicLimit(RateLimitService.AiApiType.RESONANCE, level, false);
+        int reportLimit = rateLimitService.getDynamicLimit(RateLimitService.AiApiType.REPORT, level, false);
+        int imageUploadLimit = rateLimitService.getDynamicLimit(RateLimitService.AiApiType.IMAGE_UPLOAD, level, false);
+        int imageAnalysisLimit = rateLimitService.getDynamicLimit(RateLimitService.AiApiType.IMAGE_ANALYSIS, level, false);
 
         StringBuilder sb = new StringBuilder();
         sb.append("🎉 恭喜升级！你已达到 **Lv.").append(level).append("**\n\n");

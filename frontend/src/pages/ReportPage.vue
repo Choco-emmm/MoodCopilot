@@ -3,7 +3,7 @@
     <AppHeader />
 
     <div class="report-page">
-      <button class="page-back-link" @click="$router.push('/chat')">← 返回对话</button>
+      <button class="page-back-link" @click="$router.back()">←</button>
       <div class="page-title-container">
         <h1 class="page-title">情绪报告</h1>
         <n-dropdown trigger="click" :options="exportOptions" @select="handleExport">

@@ -4,6 +4,8 @@ import com.moodcopilot.common.RateLimitException;
 import com.moodcopilot.entity.UserEntity;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import com.moodcopilot.service.SystemConfigService;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -17,9 +19,11 @@ import java.util.Map;
 public class RateLimitService {
 
     private final StringRedisTemplate redis;
+    private final SystemConfigService systemConfigService;
 
-    public RateLimitService(StringRedisTemplate redis) {
+    public RateLimitService(StringRedisTemplate redis, SystemConfigService systemConfigService) {
         this.redis = redis;
+        this.systemConfigService = systemConfigService;
     }
 
     public enum AiApiType {
@@ -48,7 +52,7 @@ public class RateLimitService {
 
     // Row 0 = Pro, Row 1..6 = Lv.1..Lv.6
     // Col order must match AiApiType enum: CHAT_FLASH, CHAT_PRO, DIARY_FLASH, DIARY_PRO, CHAPTER_CONSOLIDATION, RESONANCE, REPORT, IMAGE_UPLOAD, IMAGE_ANALYSIS
-    private static final int[][] QUOTA = {
+    private static final int[][] DEFAULT_QUOTA = {
             {150, 15, 50, 15, 2, 30, 50, 50, 50},   // Pro
             {15,  1,  5,  1, 2,  0,  0,  3,  2},    // Lv.1
             {25,  2,  8,  2, 2,  3,  2,  5,  3},    // Lv.2
@@ -58,10 +62,14 @@ public class RateLimitService {
             {65,  6,  25, 6, 2, 12, 16, 20, 15},   // Lv.6
     };
 
-    public static int getDynamicLimit(AiApiType type, Integer level, boolean isPro) {
+    public int getDynamicLimit(AiApiType type, Integer level, boolean isPro) {
         int safeLevel = (level != null) ? level : 1;
         int row = isPro ? 0 : Math.clamp(safeLevel, 1, 6);
-        return QUOTA[row][type.ordinal()];
+        int[][] quota = systemConfigService.getConfig("AI_QUOTA_CONFIG", new TypeReference<int[][]>() {}, DEFAULT_QUOTA);
+        if (row >= quota.length || type.ordinal() >= quota[row].length) {
+            return DEFAULT_QUOTA[row][type.ordinal()];
+        }
+        return quota[row][type.ordinal()];
     }
 
     private static boolean isPro(UserEntity user) {
@@ -195,16 +203,18 @@ public class RateLimitService {
     }
 
     private String typeLabel(AiApiType type) {
-        return switch (type) {
-            case CHAT_FLASH -> "聊天 Flash";
-            case CHAT_PRO -> "聊天 Pro";
-            case DIARY_FLASH -> "日记分析 Flash";
-            case DIARY_PRO -> "日记分析 Pro";
-            case CHAPTER_CONSOLIDATION -> "章节重新整理";
-            case RESONANCE -> "共鸣检索";
-            case REPORT -> "报告生成";
-            case IMAGE_UPLOAD -> "图片上传";
-            case IMAGE_ANALYSIS -> "图片深度分析";
-        };
+        Map<String, String> defaultLabels = Map.of(
+            "CHAT_FLASH", "聊天 Flash",
+            "CHAT_PRO", "聊天 Pro",
+            "DIARY_FLASH", "日记分析 Flash",
+            "DIARY_PRO", "日记分析 Pro",
+            "CHAPTER_CONSOLIDATION", "章节重新整理",
+            "RESONANCE", "共鸣检索",
+            "REPORT", "报告生成",
+            "IMAGE_UPLOAD", "图片上传",
+            "IMAGE_ANALYSIS", "图片深度分析"
+        );
+        Map<String, String> labels = systemConfigService.getConfig("AI_API_LABELS", new TypeReference<Map<String, String>>() {}, defaultLabels);
+        return labels.getOrDefault(type.name(), defaultLabels.get(type.name()));
     }
 }
