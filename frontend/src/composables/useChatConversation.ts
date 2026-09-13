@@ -12,8 +12,10 @@ export interface Message {
   createdAt?: string
   references?: string[]
   ragReferences?: RagRef[]
-  quoteRef?: { content: string
-  reasoningContent?: string; author: string }
+  quoteRef?: {
+    content: string
+    reasoningContent?: string; author: string
+  }
   status?: 'pending' | 'streaming' | 'success' | 'error'
 }
 
@@ -30,6 +32,8 @@ export interface RagRef {
 export interface Conversation {
   id: number
   title: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 let msgIdCounter = 0
@@ -75,7 +79,7 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
   async function selectConversation(id: number) {
     if (id === activeConvId.value) return
     if (activeConvId.value && messages.value.length > 0) {
-      await saveToBackend(activeConvId.value).catch(() => {})
+      await saveToBackend(activeConvId.value).catch(() => { })
     }
     activeConvId.value = id
     sessionStorage.setItem('currentChatId', String(id))
@@ -90,7 +94,7 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
     if (creatingConversation.value) return
     try {
       if (activeConvId.value && messages.value.length > 0) {
-        await saveToBackend(activeConvId.value).catch(() => {})
+        await saveToBackend(activeConvId.value).catch(() => { })
       }
       activeConvId.value = null
       sessionStorage.removeItem('currentChatId')

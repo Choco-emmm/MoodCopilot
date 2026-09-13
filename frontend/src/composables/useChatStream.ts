@@ -18,6 +18,20 @@ export interface ChatReference {
   displayContent?: string
 }
 
+const REASONING_MARKER = '[[REASONING]]'
+
+function normalizeReasoningChunk(chunk: string, carry: { value: string }): string {
+  const combined = carry.value + chunk
+  carry.value = ''
+  for (let length = Math.min(REASONING_MARKER.length - 1, combined.length); length > 0; length -= 1) {
+    if (combined.endsWith(REASONING_MARKER.slice(0, length))) {
+      carry.value = combined.slice(-length)
+      return combined.slice(0, -length)
+    }
+  }
+  return combined
+}
+
 export function useChatStream(
   messages: Ref<Message[]>,
   activeConvId: Ref<number | null>,
@@ -28,6 +42,7 @@ export function useChatStream(
 ) {
   const draft = ref('')
   const streaming = ref(false)
+  const sendGuard = ref(false)
   const streamingText = ref('')
   const streamingReasoning = ref('')
   const isThinking = ref(false)
@@ -50,7 +65,7 @@ export function useChatStream(
 
   async function send(creatingConversation: boolean, doCreate: () => Promise<void>, eventId?: number) {
     const content = draft.value.trim()
-    if (!content || streaming.value || creatingConversation) return
+    if (!content || streaming.value || sendGuard.value || creatingConversation) return
 
     if (!activeConvId.value) {
       await doCreate()
@@ -83,10 +98,11 @@ export function useChatStream(
       references: refContents.length ? refContents : undefined,
       quoteRef,
     })
-    await saveToBackend(convId).catch(() => {})
+    await saveToBackend(convId).catch(() => { })
     references.value = []
     draft.value = ''
     tryExpToast('chat', '聊天 +5 EXP')
+    sendGuard.value = true
     streaming.value = true
     streamingText.value = ''
     streamingReasoning.value = ''
@@ -158,19 +174,23 @@ export function useChatStream(
 
     resumePromise = (async () => {
       let fullReply = ''; let fullReasoning = ''
+      const reasoningCarry = { value: '' }
       let currentRefs: RagRef[] = []
       try {
         await chatApi.resumeReplyStream(
           convId,
           runId,
           (chunk: string) => {
-            if (chunk.startsWith('[[REASONING]]')) {
-              fullReasoning += chunk.substring(13)
+            const normalizedChunk = normalizeReasoningChunk(chunk, reasoningCarry)
+            if (normalizedChunk.startsWith(REASONING_MARKER)) {
+              fullReasoning += normalizedChunk.substring(REASONING_MARKER.length)
+            } else if (normalizedChunk.includes(REASONING_MARKER)) {
+              fullReasoning += normalizedChunk.replace(/\[\[REASONING\]\]/g, '')
             } else {
-              fullReply += chunk
+              fullReply += normalizedChunk
             }
             pendingStreamText = fullReply
-            if (isThinking.value && chunk && !chunk.startsWith('[[REASONING]]')) isThinking.value = false
+            if (isThinking.value && normalizedChunk && !normalizedChunk.startsWith(REASONING_MARKER)) isThinking.value = false
             if (streamRafId === null) {
               streamRafId = requestAnimationFrame(() => {
                 const keepScroll = scrollManager.isNearBottom()
@@ -215,7 +235,8 @@ export function useChatStream(
         lastReplyError.value = null
         lastReplyRequest.value = null
       } catch (e: any) {
-        if (e?.name !== 'AbortError' && activeConvId.value === convId) {
+        const isAbort = e?.name === 'AbortError' || /AbortError|聊天流已取消/.test(String(e?.message || ''))
+        if (!isAbort && activeConvId.value === convId) {
           lastReplyError.value = e?.message || '恢复聊天生成失败，请稍后重试。'
         }
       } finally {
@@ -245,6 +266,7 @@ export function useChatStream(
     streamingRefs.value = []
     showStreamingRefs.value = false
     let fullReply = ''; let fullReasoning = ''
+    const reasoningCarry = { value: '' }
     let currentRefs: RagRef[] = []
 
     try {
@@ -255,14 +277,17 @@ export function useChatStream(
         requestedUseReasoning,
         eventId,
         (chunk: string) => {
-          if (chunk.startsWith('[[REASONING]]')) {
-            fullReasoning += chunk.substring(13)
+          const normalizedChunk = normalizeReasoningChunk(chunk, reasoningCarry)
+          if (normalizedChunk.startsWith(REASONING_MARKER)) {
+            fullReasoning += normalizedChunk.substring(REASONING_MARKER.length)
+          } else if (normalizedChunk.includes(REASONING_MARKER)) {
+            fullReasoning += normalizedChunk.replace(/\[\[REASONING\]\]/g, '')
           } else {
-            fullReply += chunk
+            fullReply += normalizedChunk
           }
           pendingStreamText = fullReply
           if (isCompressing.value) isCompressing.value = false
-          if (isThinking.value && chunk && !chunk.startsWith('[[REASONING]]')) isThinking.value = false
+          if (isThinking.value && normalizedChunk && !normalizedChunk.startsWith(REASONING_MARKER)) isThinking.value = false
           if (streamRafId === null) {
             streamRafId = requestAnimationFrame(() => {
               const keepScroll = scrollManager.isNearBottom()
@@ -308,8 +333,14 @@ export function useChatStream(
         ragReferences: currentRefs.length ? currentRefs : undefined,
       })
     } catch (e: any) {
+      const isAbort = e?.name === 'AbortError' || /AbortError|聊天流已取消/.test(String(e?.message || ''))
       isCompressing.value = false
       isThinking.value = false
+      if (isAbort) {
+        lastReplyError.value = null
+        lastReplyRequest.value = null
+        return
+      }
       const bizMessage = e?.response?.data?.message || e?.message
       const errorText = chatErrorMessage(e?.status, bizMessage, requestedUseReasoning)
       if (activeConvId.value === convId) {
@@ -334,6 +365,7 @@ export function useChatStream(
       streamRafId = null
     }
     streaming.value = false
+    sendGuard.value = false
     streamingText.value = ''
     streamingRefs.value = []
     isThinking.value = false
@@ -353,6 +385,9 @@ export function useChatStream(
 
   function abortStream() {
     isCompressing.value = false
+    lastReplyError.value = null
+    lastReplyRequest.value = null
+    sendGuard.value = false
     if (streamRafId !== null) {
       cancelAnimationFrame(streamRafId)
       streamRafId = null

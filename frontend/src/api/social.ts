@@ -46,7 +46,7 @@ export const summaryApi = {
 export const chatApi = {
   listConversations: () => api.get('/chat/conversations'),
   createConversation: (title?: string) => api.post('/chat/conversations', { title: title || '' }),
-    updateConversationTitle: (id: number, title: string) => api.put(`/chat/conversations/${id}/title`, { title }),
+  updateConversationTitle: (id: number, title: string) => api.put(`/chat/conversations/${id}/title`, { title }),
   deleteConversation: (id: number) => api.delete(`/chat/conversations/${id}`),
   getWelcomeTopics: () => api.get('/chat/welcome-topics'),
   getHistory: (id: number) => api.get(`/chat/conversations/${id}/history`),
@@ -57,9 +57,11 @@ export const chatApi = {
   saveHistory: (id: number, messages: any[]) => api.put(`/chat/conversations/${id}/history`, { messages }),
   reply: (id: number, message: string, references: string[] = [], useReasoning = false, eventId?: number, referencePurpose?: string,
     referenceItems?: Array<{ sourceType: string; sourceId: number; referencePurpose?: string }>) =>
-    api.post(`/chat/conversations/${id}/reply`, { message, references, useReasoning,
+    api.post(`/chat/conversations/${id}/reply`, {
+      message, references, useReasoning,
       ...(eventId ? { eventId } : {}), ...(referencePurpose ? { referencePurpose } : {}),
-      ...(referenceItems?.length ? { referenceItems } : {}) }),
+      ...(referenceItems?.length ? { referenceItems } : {})
+    }),
   compressConversation: (id: number) =>
     api.post<{ compressed: boolean; message: string; summary?: string }>(`/chat/conversations/${id}/compress`),
   getRunStatus: (conversationId: number, runId: string) =>
@@ -145,76 +147,76 @@ async function consumeChatRunStream(
   initialSequence: number,
   callbacks: ChatRunCallbacks,
 ): Promise<void> {
-    const { onChunk, onReferences, onToolReferences, onStatus, ctrl } = callbacks
-    const token = localStorage.getItem('token')
-    let sequence = Math.max(0, initialSequence)
-    let doneReceived = false
-    let terminalError: Error | null = null
-    let retryCount = 0
-    const wait = (ms: number) => new Promise<void>(resolve => window.setTimeout(resolve, ms))
+  const { onChunk, onReferences, onToolReferences, onStatus, ctrl } = callbacks
+  const token = localStorage.getItem('token')
+  let sequence = Math.max(0, initialSequence)
+  let doneReceived = false
+  let terminalError: Error | null = null
+  let retryCount = 0
+  const wait = (ms: number) => new Promise<void>(resolve => window.setTimeout(resolve, ms))
 
-    while (!doneReceived && !ctrl.signal.aborted) {
-      try {
-        await fetchEventSource(`/api/chat/conversations/${id}/runs/${runId}/stream?after=${sequence}`, {
-          method: 'GET',
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          openWhenHidden: true,
-          signal: ctrl.signal,
-          async onopen(response) {
-            if (!response.ok) throw new Error(`SSE 连接失败（${response.status}）`)
-            retryCount = 0
-          },
-          onmessage(event) {
-            const raw = event.data
-            try {
-              const msg = JSON.parse(raw)
-              const nextSequence = Number(msg.seq)
-              if (Number.isFinite(nextSequence) && nextSequence > sequence) sequence = nextSequence
-              if (msg.type === 'status') {
-                onStatus?.({ stage: msg.stage, message: msg.message })
-              } else if (msg.type === 'references') {
-                onReferences?.(msg.items ?? [])
-              } else if (msg.type === 'tool_references') {
-                onToolReferences?.(msg.items ?? [])
-              } else if (msg.type === 'chunk') {
-                onChunk(msg.content ?? '')
-              } else if (msg.type === 'done') {
-                doneReceived = true
-              } else if (msg.type === 'error') {
-                terminalError = new Error(msg.message || 'AI 服务暂时无法完成本次回答')
-                doneReceived = true
-              }
-            } catch {
-              if (raw !== '[DONE]') onChunk(raw)
+  while (!doneReceived && !ctrl.signal.aborted) {
+    try {
+      await fetchEventSource(`/api/chat/conversations/${id}/runs/${runId}/stream?after=${sequence}`, {
+        method: 'GET',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        openWhenHidden: true,
+        signal: ctrl.signal,
+        async onopen(response) {
+          if (!response.ok) throw new Error(`SSE 连接失败（${response.status}）`)
+          retryCount = 0
+        },
+        onmessage(event) {
+          const raw = event.data
+          try {
+            const msg = JSON.parse(raw)
+            const nextSequence = Number(msg.seq)
+            if (Number.isFinite(nextSequence) && nextSequence > sequence) sequence = nextSequence
+            if (msg.type === 'status') {
+              onStatus?.({ stage: msg.stage, message: msg.message })
+            } else if (msg.type === 'references') {
+              onReferences?.(msg.items ?? [])
+            } else if (msg.type === 'tool_references') {
+              onToolReferences?.(msg.items ?? [])
+            } else if (msg.type === 'chunk') {
+              onChunk(msg.content ?? '')
+            } else if (msg.type === 'done') {
+              doneReceived = true
+            } else if (msg.type === 'error') {
+              terminalError = new Error(msg.message || 'AI 服务暂时无法完成本次回答')
+              doneReceived = true
             }
-          },
-          onerror(error) {
-            throw error
-          },
-        })
-      } catch (error: any) {
-        if (ctrl.signal.aborted) throw error
-        if (terminalError) break
-        retryCount += 1
-        if (retryCount > 8) throw error
-        await wait(Math.min(1000 * 2 ** (retryCount - 1), 15000))
-      }
-
-      if (!doneReceived && !ctrl.signal.aborted) {
-        retryCount += 1
-        if (retryCount > 8) throw new Error('SSE 连接多次中断，请稍后重试')
-        await wait(Math.min(1000 * 2 ** (retryCount - 1), 15000))
-      }
+          } catch {
+            if (raw !== '[DONE]') onChunk(raw)
+          }
+        },
+        onerror(error) {
+          throw error
+        },
+      })
+    } catch (error: any) {
+      if (ctrl.signal.aborted) throw error
+      if (terminalError) break
+      retryCount += 1
+      if (retryCount > 8) throw error
+      await wait(Math.min(1000 * 2 ** (retryCount - 1), 15000))
     }
 
-    if (terminalError) {
-      clearStoredRun(id, runId)
-      throw terminalError
+    if (!doneReceived && !ctrl.signal.aborted) {
+      retryCount += 1
+      if (retryCount > 8) throw new Error('SSE 连接多次中断，请稍后重试')
+      await wait(Math.min(1000 * 2 ** (retryCount - 1), 15000))
     }
-    if (ctrl.signal.aborted) throw new DOMException('聊天流已取消', 'AbortError')
-    if (doneReceived) clearStoredRun(id, runId)
+  }
+
+  if (terminalError) {
+    clearStoredRun(id, runId)
+    throw terminalError
+  }
+  if (ctrl.signal.aborted) return
+  if (doneReceived) clearStoredRun(id, runId)
 }
 
 function clearStoredRun(conversationId: number, runId: string) {

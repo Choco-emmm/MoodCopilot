@@ -50,6 +50,8 @@
 
         <div v-else-if="report && report.diaryCount === 0" class="empty-state">
           <p>本周暂无记录</p>
+          <p class="empty-state-hint">写下一条记录后，这里会帮你看见这一周的情绪变化。</p>
+          <n-button size="small" type="primary" @click="router.push('/write')">去记录一条</n-button>
         </div>
 
         <div v-else-if="store.reportError" class="empty-state compact">
@@ -146,6 +148,8 @@
 
         <div v-else-if="monthReport && monthReport.diaryCount === 0" class="empty-state">
           <p>本月暂无记录</p>
+          <p class="empty-state-hint">写下一条记录后，这里会帮你看见这一月的情绪变化。</p>
+          <n-button size="small" type="primary" @click="router.push('/write')">去记录一条</n-button>
         </div>
 
         <div v-else-if="store.monthError" class="empty-state compact">
@@ -525,6 +529,7 @@ function formatGeneratedAt(value?: string | Date | null) {
 </script>
 
 <style scoped>
+.empty-state-hint { margin: 0 0 12px; color: var(--color-text-muted); font-size: 13px; }
 .report-page {
   max-width: 800px;
   margin: 0 auto;

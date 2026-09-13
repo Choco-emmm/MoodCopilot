@@ -307,6 +307,7 @@ const userInfo = ref<any>(uni.getStorageSync('userInfo') || null);
 const messages = ref<Message[]>([]);
 const inputContent = ref('');
 const isWaiting = ref(false);
+const sendRequestGuard = ref(false);
 const conversationId = ref<number | null>(null);
 const scrollToMessage = ref('');
 
@@ -733,7 +734,10 @@ const loadHistory = async () => {
         msgs = res.data.messages;
       }
       
-      messages.value = msgs;
+      messages.value = msgs.map((message: any) => ({
+        ...message,
+        role: message?.role === 'user' ? 'user' : 'assistant',
+      }));
       if (messages.value.length === 0) {
         fetchWelcomeTopics();
       }
@@ -752,7 +756,7 @@ const sendTopic = (topic: string | any) => {
 };
 
 const sendMessage = async () => {
-  if (!inputContent.value.trim() || isWaiting.value) return;
+  if (!inputContent.value.trim() || isWaiting.value || sendRequestGuard.value) return;
   if (!isLoggedIn.value) {
     requireLogin(() => {
       isLoggedIn.value = true;
@@ -772,6 +776,7 @@ const sendMessage = async () => {
     eventId ? { sourceType: 'event', sourceId: eventId } : null,
   ].filter(Boolean);
   
+  sendRequestGuard.value = true;
   messages.value.push({ role: 'user', content, createdAt: new Date().toISOString() });
   inputContent.value = '';
   clearQuote();
@@ -800,6 +805,7 @@ const sendMessage = async () => {
     messages.value.push({ role: 'assistant', content: errorMessage, createdAt: new Date().toISOString() });
   } finally {
     isWaiting.value = false;
+    sendRequestGuard.value = false;
     activeEventId.value = null;
     activeDiaryReferenceId.value = null;
     eventReference.value = null;

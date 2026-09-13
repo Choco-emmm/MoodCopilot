@@ -13,48 +13,7 @@
         <template v-if="auth.isAuthenticated">
           <div class="nav-links">
             <template v-for="item in navItems" :key="item.path || item.label">
-              <!-- 记录 special entry with popover -->
-              <n-popover
-                v-if="item.isRecord"
-                v-model:show="recordPopoverShow"
-                trigger="click"
-                placement="top"
-                :show-arrow="false"
-                style="padding: 0; border-radius: 12px; overflow: hidden;"
-              >
-                <template #trigger>
-                  <button :class="['nav-link', item.cls]" @click="recordPopoverShow = !recordPopoverShow" type="button">
-                    <span class="nav-link-icon" aria-hidden="true" v-html="item.icon"></span>
-                    <span class="nav-link-label">{{ item.shortLabel }}</span>
-                  </button>
-                </template>
-                <div class="record-sheet">
-                  <router-link to="/write" class="record-option" @click="recordPopoverShow = false">
-                    <span class="record-option-icon">📓</span>
-                    <span class="record-option-text">
-                      <strong>写一篇日记</strong>
-                      <small>记录今天的心情与想法</small>
-                    </span>
-                  </router-link>
-                  <router-link to="/chat" class="record-option" @click="recordPopoverShow = false">
-                    <span class="record-option-icon">💬</span>
-                    <span class="record-option-text">
-                      <strong>说一说今天</strong>
-                      <small>和 AI 聊聊，整理成日记</small>
-                    </span>
-                  </router-link>
-                  <router-link to="/chat" class="record-option" @click="recordPopoverShow = false">
-                    <span class="record-option-icon">✦</span>
-                    <span class="record-option-text">
-                      <strong>让 AI 帮我整理</strong>
-                      <small>回顾近期，梳理思路</small>
-                    </span>
-                  </router-link>
-                </div>
-              </n-popover>
-              <!-- normal nav items -->
               <router-link
-                v-else
                 :to="item.path"
                 :class="['nav-link', item.cls, { active: route.path === item.path }]"
               >
@@ -104,7 +63,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 <script setup lang="ts">
 import { useRouter, useRoute } from 'vue-router'
-import { NButton, NBadge, NPopover } from 'naive-ui'
+import { NButton, NBadge } from 'naive-ui'
 import { useAuthStore } from '../stores/auth'
 import { useNotificationStore } from '../stores/notification'
 
@@ -114,8 +73,6 @@ const auth = useAuthStore()
 const notif = useNotificationStore()
 
 const profilePath = computed(() => (auth.userId != null ? `/profile/${auth.userId}` : '/login'))
-const recordPopoverShow = ref(false)
-
 // Quota popover data
 const QUOTA_DATA = [
   { chat: 15,  analysis: 5,  reasoning: 2,  resonance: 0,  report: 0,  imageUpload: 3,  imageAnalysis: 2 },
@@ -143,7 +100,7 @@ const navItems = computed(() => {
   const items = [
     { label: '广场', shortLabel: '广场', icon: homeIcon, path: '/', cls: 'nav-link-home' },
     { label: 'MoodCopilot', shortLabel: 'AI', icon: aiIcon, path: '/chat', cls: 'nav-link-ai' },
-    { label: '记录', shortLabel: '记录', icon: writeIcon, path: '', cls: 'nav-link-write', isRecord: true },
+    { label: '记录', shortLabel: '记录', icon: writeIcon, path: '/write', cls: 'nav-link-write' },
     { id: 'notif', label: '通知', shortLabel: '消息', icon: bellIcon, path: '/notifications', cls: 'nav-link-notif mobile-only' },
     { id: 'mine', label: '我的', shortLabel: '我的', icon: profileIcon, path: profilePath.value, cls: 'nav-link-mine mobile-only' },
   ]

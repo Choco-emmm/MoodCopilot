@@ -332,18 +332,20 @@ public class VisionService {
             log.warn("VLM 未配置（VISION_API_KEY 为空），跳过 {} 张图片的深度分析", imageUrls.size());
             return "系统后台视觉服务未配置，无法分析图片";
         }
-        log.info("VLM 开始深度分析 {} 张图片 model={} promptLength={}", imageUrls.size(), model,
-                targetedPrompt != null ? targetedPrompt.length() : 0);
+        String prompt = targetedPrompt == null || targetedPrompt.isBlank()
+            ? "请详细描述图片中的关键内容、文字、人物、物品、环境和与用户问题相关的细节。"
+            : targetedPrompt.trim();
+        log.info("VLM 开始深度分析 {} 张图片 model={} promptLength={}", imageUrls.size(), model, prompt.length());
         List<String> parts = new ArrayList<>();
         for (int i = 0; i < imageUrls.size(); i++) {
             String accessibleUrl = ossService != null ? ossService.getAccessibleUrl(imageUrls.get(i))
                     : imageUrls.get(i);
-            String desc = callVisionModel(model, accessibleUrl, targetedPrompt, 300, 0.5, "深度分析");
+            String desc = callVisionModel(model, accessibleUrl, prompt, 300, 0.5, "深度分析");
             if (!desc.isBlank()) {
                 parts.add("图片" + (i + 1) + ": " + desc);
             }
         }
-        String result = parts.isEmpty() ? "未提取到有效信息" : String.join("; ", parts);
+        String result = parts.isEmpty() ? "视觉模型未能读取这些图片，请确认图片仍然存在且可访问。" : String.join("; ", parts);
         if (!result.isBlank()) {
             log.info("VLM 图片深度分析完成 {} 张 → {} chars", parts.size(), result.length());
         }
@@ -351,7 +353,7 @@ public class VisionService {
     }
 
     private String fetchImageAsBase64Uri(String imageUrl) {
-        if (imageUrl == null || imageUrl.startsWith("data:"))
+        if (imageUrl == null || imageUrl.isBlank() || imageUrl.startsWith("data:"))
             return imageUrl;
         try {
             byte[] bytes = restClient.get()

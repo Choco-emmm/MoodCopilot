@@ -678,7 +678,21 @@ public class ChatService {
                             put("diaryIds", Map.of("type", "array", "items", Map.of("type", "integer"), "description", "要深度分析图片的日记 ID 列表"));
                             put("prompt", Map.of("type", "string", "description", "希望视觉模型重点关注的提问要求"));
                         }},
-                        List.of("diaryIds", "prompt")));
+                        List.of("diaryIds", "prompt")),
+                buildTool("updateEventStatusFunction",
+                        "将当前登录用户的某个重要事件标记为已跟进（FOLLOWED_UP）或重新激活为待跟进（PENDING）。" +
+                        "【调用前提】必须满足以下全部条件才能调用：" +
+                        "1. 用户在本轮对话中明确表达了某个事件已经结束、解决、完成或不再需要跟进的意图（如'这件事解决了'、'不用再管了'、'已经完成了'）；" +
+                        "2. 你已经向用户确认了要操作的具体事件名称，并得到了用户的明确同意；" +
+                        "3. 你已经从上下文中获取到了事件的 eventId。" +
+                        "【禁止调用】用户仅在讨论事件进展、倾诉情绪、寻求建议时，不得调用此工具。" +
+                        "note 参数可选，用于记录用户对该事件的最终总结或跟进说明。",
+                        new LinkedHashMap<>() {{
+                            put("eventId", Map.of("type", "integer", "description", "要更新状态的事件 ID（从事件上下文中获取）"));
+                            put("status", Map.of("type", "string", "enum", List.of("FOLLOWED_UP", "PENDING"), "description", "新状态：FOLLOWED_UP=已跟进/已解决，PENDING=重新标为待跟进"));
+                            put("note", Map.of("type", "string", "description", "可选的跟进备注，记录用户对该事件的总结说明，最多 500 字"));
+                        }},
+                        List.of("eventId", "status", "note")));
     }
 
     @SuppressWarnings("unchecked")
@@ -974,7 +988,10 @@ public class ChatService {
                 case "diaryImageAnalysisFunction" -> {
                     var req = objectMapper.readValue(argumentsJson, DiaryImageAnalysisRequest.class);
                     UserEntity user = (UserEntity) auth.getPrincipal();
-                    log.info("触发图片深度分析(VLM)工具 userId={}, diaryIds={}, promptLength={}", user.getId(), req.diaryIds(), req.prompt() != null ? req.prompt().length() : 0);
+                    String prompt = req.prompt() == null || req.prompt().isBlank()
+                            ? "请详细描述图片中的关键内容、文字、人物、物品、环境和与用户问题相关的细节。"
+                            : req.prompt().trim();
+                    log.info("触发图片深度分析(VLM)工具 userId={}, diaryIds={}, promptLength={}", user.getId(), req.diaryIds(), prompt.length());
                     try {
                         rateLimitService.tryAcquire(user, RateLimitService.AiApiType.IMAGE_ANALYSIS);
                     } catch (RateLimitException e) {
@@ -1000,9 +1017,36 @@ public class ChatService {
                         yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult("选定的日记中没有包含任何图片");
                     }
                     log.info("图片深度分析(VLM)准备请求视觉大模型 userId={}, 图片数量={}", user.getId(), images.size());
-                    String res = visionService.analyzeImageDetails(images, req.prompt());
+                    String res = visionService.analyzeImageDetails(images, prompt);
                     log.info("图片深度分析(VLM)完成 userId={}", user.getId());
                     yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult(res);
+                }
+                case "updateEventStatusFunction" -> {
+                    var req = objectMapper.readValue(argumentsJson, UpdateEventStatusRequest.class);
+                    UserEntity user = (UserEntity) auth.getPrincipal();
+                    long userId = user.getId();
+                    if (req.eventId() == null) {
+                        yield new UpdateEventStatusResult(false, null, "缺少 eventId，无法更新事件状态");
+                    }
+                    String status = req.status() != null ? req.status().toUpperCase(java.util.Locale.ROOT).trim() : "FOLLOWED_UP";
+                    if (!java.util.Set.of("PENDING", "FOLLOWED_UP").contains(status)) {
+                        yield new UpdateEventStatusResult(false, null, "状态值不合法，只允许 PENDING 或 FOLLOWED_UP");
+                    }
+                    String note = req.note() != null && !req.note().isBlank()
+                            ? req.note().trim().substring(0, Math.min(req.note().trim().length(), 500))
+                            : null;
+                    try {
+                        com.moodcopilot.event.LifeEventService.LifeEventView updated =
+                                lifeEventService.updateEventStatus(userId, req.eventId(), status, note);
+                        String msg = "FOLLOWED_UP".equals(status)
+                                ? "已将「" + updated.title() + "」标记为已跟进"
+                                : "已将「" + updated.title() + "」重新标记为待跟进";
+                        log.info("AI工具更新事件状态 userId={} eventId={} newStatus={}", userId, req.eventId(), status);
+                        yield new UpdateEventStatusResult(true, updated.status(), msg);
+                    } catch (org.springframework.web.server.ResponseStatusException e) {
+                        log.warn("AI工具更新事件状态失败 userId={} eventId={} reason={}", userId, req.eventId(), e.getReason());
+                        yield new UpdateEventStatusResult(false, null, "更新失败：" + (e.getReason() != null ? e.getReason() : "事件不存在或无权操作"));
+                    }
                 }
                 default -> throw new IllegalArgumentException("未知的工具函数: " + functionName);
             };
@@ -1010,6 +1054,10 @@ public class ChatService {
             SecurityContextHolder.clearContext();
         }
     }
+
+    // ---- Tool request/result records ----
+    record UpdateEventStatusRequest(Long eventId, String status, String note) {}
+    record UpdateEventStatusResult(boolean success, String newStatus, String message) {}
 
     private static final int CHAT_HISTORY_CHAR_BUDGET = 3000;
 

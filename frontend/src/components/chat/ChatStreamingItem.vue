@@ -168,10 +168,14 @@ function renderStreamingMd(text: string, showCursor: boolean) {
   return html + '<span class="streaming-cursor">▋</span>'
 }
 
+function stripReasoningMarkers(text?: string): string {
+  return (text || '').replace(/\[\[REASONING\]\]/gi, '').replace(/\[REASONING\]/gi, '').trim()
+}
+
 const parsedStreaming = computed(() => {
   return {
-    think: props.streamingReasoning || '',
-    text: props.streamingText || ''
+    think: stripReasoningMarkers(props.streamingReasoning || ''),
+    text: stripReasoningMarkers(props.streamingText || '')
   }
 })
 

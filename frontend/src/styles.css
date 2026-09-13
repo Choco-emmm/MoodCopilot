@@ -3767,7 +3767,7 @@ h3 {
 }
 
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .desktop-only {
     display: none !important;
   }

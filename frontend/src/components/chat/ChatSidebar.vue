@@ -13,15 +13,16 @@
         <button class="conv-select" type="button" @click="$emit('select', conv.id)">
           <span class="conv-title">{{ displayConversationTitle(conv.title, conv.id) }}</span>
         </button>
-        <button
-          class="conv-edit"
-          title="重命名"
-          @click.stop="$emit('rename', conv.id, conv.title)"
-        >✎</button>
-        <button
-          class="conv-delete"
-          @click.stop="$emit('delete', conv.id)"
-        >&times;</button>
+        <n-dropdown
+          trigger="click"
+          :options="conversationOptions"
+          @select="(key: string) => key === 'rename' ? $emit('rename', conv.id, conv.title) : $emit('delete', conv.id)"
+          @click.stop
+        >
+          <button class="conv-more" type="button" title="更多操作" @click.stop>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+          </button>
+        </n-dropdown>
       </div>
       <div v-if="conversations.length === 0" class="conv-empty">暂无对话</div>
     </div>
@@ -29,12 +30,20 @@
 </template>
 
 <script setup lang="ts">
+import { NDropdown } from 'naive-ui'
 import { displayConversationTitle } from '../../utils/chatTitle'
 
 export interface Conversation {
   id: number
   title: string
+  createdAt?: string
+  updatedAt?: string
 }
+
+const conversationOptions = [
+  { label: '重命名', key: 'rename' },
+  { label: '删除', key: 'delete', props: { style: 'color: var(--color-error)' } },
+]
 
 defineProps<{
   conversations: Conversation[]
@@ -147,43 +156,19 @@ defineEmits<{
   white-space: nowrap;
 }
 
-.conv-edit {
+.conv-more {
   opacity: 0;
+  display: inline-grid;
+  place-items: center;
   background: none;
   border: none;
   cursor: pointer;
   color: var(--color-text-secondary);
+  padding: 8px 10px;
   transition: opacity 0.15s;
   font-family: inherit;
 }
-.conv-item:hover .conv-edit {
-  opacity: 1;
-}
-.conv-delete {
-  opacity: 0;
-  background: none;
-  border: none;
-  color: var(--color-accent);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 0 4px;
-  transition: opacity 0.15s;
-  font-family: inherit;
-}
-
-.conv-item:hover .conv-edit {
-  opacity: 0;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text-secondary);
-  transition: opacity 0.15s;
-  font-family: inherit;
-}
-.conv-item:hover .conv-edit {
-  opacity: 1;
-}
-.conv-delete {
+.conv-item:hover .conv-more, .conv-more:focus-visible {
   opacity: 1;
 }
 

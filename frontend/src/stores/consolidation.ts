@@ -80,7 +80,13 @@ export const useConsolidationStore = defineStore('consolidation', () => {
   async function applyMemoryConsolidation(items = previewMemories.value, onSuccess?: () => void): Promise<boolean> {
     applyingMemory.value = true
     try {
-      await memoryApi.applyConsolidate(items)
+      const res = await memoryApi.applyConsolidate(items)
+      const changed = Number(res.data ?? 0)
+      if (changed === 0) {
+        window.$message?.warning('没有发现可执行的重复记忆，内容未变更。请刷新后重试。')
+        await loadMemories()
+        return false
+      }
       window.$message?.success('长久记忆画像已重构成功！')
       await loadMemories()
       if (onSuccess) onSuccess()

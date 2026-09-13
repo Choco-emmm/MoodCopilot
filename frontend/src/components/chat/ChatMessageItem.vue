@@ -300,10 +300,14 @@ function handleContextMenu() {
 
 onBeforeUnmount(clearLongPress)
 
+function stripReasoningMarkers(text?: string): string {
+  return (text || '').replace(/\[\[REASONING\]\]/gi, '').replace(/\[REASONING\]/gi, '').trim()
+}
+
 const parsedContent = computed(() => {
-  const content = props.msg.content || ''
-  let think = props.msg.reasoningContent || ''
-  
+  const content = stripReasoningMarkers(props.msg.content || '')
+  let think = stripReasoningMarkers(props.msg.reasoningContent || '')
+
   if (!content && !think) return { think: '', text: '' }
 
   let text = content

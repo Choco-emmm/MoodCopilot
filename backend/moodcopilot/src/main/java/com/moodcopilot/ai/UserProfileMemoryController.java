@@ -24,10 +24,10 @@ public class UserProfileMemoryController {
     private final AiTaskService aiTaskService;
 
     public UserProfileMemoryController(MemoryExtractionService memoryExtractionService,
-                                       MemoryConsolidationService memoryConsolidationService,
-                                       MemoryOrchestrator memoryOrchestrator,
-                                       AiTaskProducer aiTaskProducer,
-                                       AiTaskService aiTaskService) {
+            MemoryConsolidationService memoryConsolidationService,
+            MemoryOrchestrator memoryOrchestrator,
+            AiTaskProducer aiTaskProducer,
+            AiTaskService aiTaskService) {
         this.memoryExtractionService = memoryExtractionService;
         this.memoryConsolidationService = memoryConsolidationService;
         this.memoryOrchestrator = memoryOrchestrator;
@@ -37,7 +37,8 @@ public class UserProfileMemoryController {
 
     @PostMapping("/consolidate/preview")
     public ApiResponse<Map<String, Object>> previewConsolidate() {
-        var user = (com.moodcopilot.entity.UserEntity) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        var user = (com.moodcopilot.entity.UserEntity) org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication().getPrincipal();
         memoryConsolidationService.reserveConsolidation(user.getId());
         String taskId = aiTaskProducer.submitMemoryConsolidationTask(user.getId());
         return ApiResponse.ok(Map.of("taskId", taskId, "status", "PENDING"));
@@ -45,7 +46,7 @@ public class UserProfileMemoryController {
 
     @GetMapping("/consolidate/tasks/{taskId}")
     public ApiResponse<Map<String, Object>> consolidationTask(@PathVariable String taskId,
-                                                               @AuthenticationPrincipal com.moodcopilot.entity.UserEntity user) {
+            @AuthenticationPrincipal com.moodcopilot.entity.UserEntity user) {
         AiTaskEntity task = aiTaskService.getTask(taskId);
         if (task == null || !user.getId().equals(task.getUserId())
                 || !AiTaskMessage.TYPE_MEMORY_CONSOLIDATION.equals(task.getTaskType())) {
@@ -55,25 +56,31 @@ public class UserProfileMemoryController {
         Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("taskId", taskId);
         result.put("status", task.getStatus());
-        if ("SUCCEEDED".equals(task.getStatus())) result.put("items", memoryConsolidationService.readTaskResult(taskId));
-        if (task.getLastError() != null) result.put("error", task.getLastError());
+        if ("SUCCEEDED".equals(task.getStatus()))
+            result.put("items", memoryConsolidationService.readTaskResult(taskId));
+        if (task.getLastError() != null)
+            result.put("error", task.getLastError());
         return ApiResponse.ok(result);
     }
 
     @PostMapping("/consolidate/apply")
-    public ApiResponse<Void> applyConsolidate(@RequestBody List<MemoryConsolidationService.ConsolidationItem> attributes) {
-        var user = (com.moodcopilot.entity.UserEntity) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        memoryConsolidationService.applyConsolidation(user.getId(), attributes);
-        return ApiResponse.ok(null);
+    public ApiResponse<Integer> applyConsolidate(
+            @RequestBody List<MemoryConsolidationService.ConsolidationItem> attributes) {
+        var user = (com.moodcopilot.entity.UserEntity) org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication().getPrincipal();
+        int changed = memoryConsolidationService.applyConsolidation(user.getId(), attributes);
+        return ApiResponse.ok(changed);
     }
 
     @GetMapping
     public ApiResponse<List<Map<String, Object>>> list() {
         List<UserProfileMemoryEntity> memories = memoryExtractionService.listCurrentUserMemories();
-        var user = (com.moodcopilot.entity.UserEntity) org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        var user = (com.moodcopilot.entity.UserEntity) org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication().getPrincipal();
         Map<Long, MemoryOrchestrator.SourceSummary> sources = memoryOrchestrator.sourceSummariesForMemories(
                 user.getId(), memories.stream().map(UserProfileMemoryEntity::getId).toList());
-        Map<Long, MemoryOrchestrator.DiarySourcePreview> diaryPreviews = memoryOrchestrator.diarySourcePreviews(user.getId(),
+        Map<Long, MemoryOrchestrator.DiarySourcePreview> diaryPreviews = memoryOrchestrator.diarySourcePreviews(
+                user.getId(),
                 sources.values().stream().flatMap(source -> source.diaryIds().stream()).distinct().toList());
         List<Map<String, Object>> result = memories.stream()
                 .map(m -> {
@@ -144,8 +151,10 @@ public class UserProfileMemoryController {
     public ApiResponse<List<Map<String, Object>>> evidence(
             @AuthenticationPrincipal com.moodcopilot.entity.UserEntity user, @PathVariable long id) {
         List<com.moodcopilot.entity.UserMemoryEvidenceEntity> evidence = memoryOrchestrator.evidence(user.getId(), id);
-        Map<Long, MemoryOrchestrator.DiarySourcePreview> diaryPreviews = memoryOrchestrator.diarySourcePreviews(user.getId(),
-                evidence.stream().map(com.moodcopilot.entity.UserMemoryEvidenceEntity::getSourceDiaryId).filter(java.util.Objects::nonNull).distinct().toList());
+        Map<Long, MemoryOrchestrator.DiarySourcePreview> diaryPreviews = memoryOrchestrator.diarySourcePreviews(
+                user.getId(),
+                evidence.stream().map(com.moodcopilot.entity.UserMemoryEvidenceEntity::getSourceDiaryId)
+                        .filter(java.util.Objects::nonNull).distinct().toList());
         return ApiResponse.ok(evidence.stream().map(e -> {
             Map<String, Object> item = new java.util.LinkedHashMap<>();
             item.put("id", e.getId());
@@ -157,7 +166,8 @@ public class UserProfileMemoryController {
             item.put("modelConfidence", e.getModelConfidence());
             item.put("evidenceQuality", e.getEvidenceQuality());
             item.put("createdAt", e.getCreatedAt());
-            item.put("sourceDiaryPreview", e.getSourceDiaryId() == null ? null : diaryPreviews.get(e.getSourceDiaryId()));
+            item.put("sourceDiaryPreview",
+                    e.getSourceDiaryId() == null ? null : diaryPreviews.get(e.getSourceDiaryId()));
             return item;
         }).toList());
     }
@@ -169,13 +179,16 @@ public class UserProfileMemoryController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "updatedAt") String sort) {
-        List<UserMemoryCandidateEntity> candidates = memoryOrchestrator.listCandidates(user.getId(), status, page, size, sort);
+        List<UserMemoryCandidateEntity> candidates = memoryOrchestrator.listCandidates(user.getId(), status, page, size,
+                sort);
         Map<Long, MemoryOrchestrator.SourceSummary> sources = memoryOrchestrator.sourceSummariesForCandidates(
                 user.getId(), candidates.stream().map(UserMemoryCandidateEntity::getId).toList());
-        Map<Long, MemoryOrchestrator.DiarySourcePreview> diaryPreviews = memoryOrchestrator.diarySourcePreviews(user.getId(),
+        Map<Long, MemoryOrchestrator.DiarySourcePreview> diaryPreviews = memoryOrchestrator.diarySourcePreviews(
+                user.getId(),
                 sources.values().stream().flatMap(source -> source.diaryIds().stream()).distinct().toList());
         Map<String, Long> groupCounts = candidates.stream().collect(java.util.stream.Collectors.groupingBy(
-                candidate -> candidate.getMemoryType() + ":" + candidate.getAttributeKey(), java.util.stream.Collectors.counting()));
+                candidate -> candidate.getMemoryType() + ":" + candidate.getAttributeKey(),
+                java.util.stream.Collectors.counting()));
         return ApiResponse.ok(candidates.stream().map(candidate -> {
             Map<String, Object> item = new java.util.LinkedHashMap<>();
             item.put("id", candidate.getId());
@@ -193,7 +206,8 @@ public class UserProfileMemoryController {
             item.put("validUntil", candidate.getValidUntil());
             item.put("updatedAt", candidate.getUpdatedAt());
             item.put("candidateGroupKey", candidate.getMemoryType() + ":" + candidate.getAttributeKey());
-            item.put("hasConflict", groupCounts.getOrDefault(candidate.getMemoryType() + ":" + candidate.getAttributeKey(), 0L) > 1);
+            item.put("hasConflict",
+                    groupCounts.getOrDefault(candidate.getMemoryType() + ":" + candidate.getAttributeKey(), 0L) > 1);
             MemoryOrchestrator.SourceSummary source = sources.get(candidate.getId());
             item.put("evidenceCount", source == null ? 0 : source.evidenceCount());
             item.put("sourceDiaryIds", source == null ? List.of() : source.diaryIds());
@@ -208,9 +222,12 @@ public class UserProfileMemoryController {
     @GetMapping("/candidates/{id}/evidence")
     public ApiResponse<List<Map<String, Object>>> candidateEvidence(
             @AuthenticationPrincipal com.moodcopilot.entity.UserEntity user, @PathVariable long id) {
-        List<com.moodcopilot.entity.UserMemoryEvidenceEntity> evidence = memoryOrchestrator.candidateEvidence(user.getId(), id);
-        Map<Long, MemoryOrchestrator.DiarySourcePreview> diaryPreviews = memoryOrchestrator.diarySourcePreviews(user.getId(),
-                evidence.stream().map(com.moodcopilot.entity.UserMemoryEvidenceEntity::getSourceDiaryId).filter(java.util.Objects::nonNull).distinct().toList());
+        List<com.moodcopilot.entity.UserMemoryEvidenceEntity> evidence = memoryOrchestrator
+                .candidateEvidence(user.getId(), id);
+        Map<Long, MemoryOrchestrator.DiarySourcePreview> diaryPreviews = memoryOrchestrator.diarySourcePreviews(
+                user.getId(),
+                evidence.stream().map(com.moodcopilot.entity.UserMemoryEvidenceEntity::getSourceDiaryId)
+                        .filter(java.util.Objects::nonNull).distinct().toList());
         return ApiResponse.ok(evidence.stream().map(e -> {
             Map<String, Object> item = new java.util.LinkedHashMap<>();
             item.put("id", e.getId());
@@ -222,21 +239,22 @@ public class UserProfileMemoryController {
             item.put("modelConfidence", e.getModelConfidence());
             item.put("evidenceQuality", e.getEvidenceQuality());
             item.put("createdAt", e.getCreatedAt());
-            item.put("sourceDiaryPreview", e.getSourceDiaryId() == null ? null : diaryPreviews.get(e.getSourceDiaryId()));
+            item.put("sourceDiaryPreview",
+                    e.getSourceDiaryId() == null ? null : diaryPreviews.get(e.getSourceDiaryId()));
             return item;
         }).toList());
     }
 
     @PostMapping("/candidates/{id}/approve")
     public ApiResponse<Void> approve(@AuthenticationPrincipal com.moodcopilot.entity.UserEntity user,
-                                     @PathVariable long id) {
+            @PathVariable long id) {
         memoryOrchestrator.approveCandidate(user.getId(), id);
         return ApiResponse.ok();
     }
 
     @PostMapping("/candidates/{id}/reject")
     public ApiResponse<Void> reject(@AuthenticationPrincipal com.moodcopilot.entity.UserEntity user,
-                                    @PathVariable long id) {
+            @PathVariable long id) {
         memoryOrchestrator.rejectCandidate(user.getId(), id);
         return ApiResponse.ok();
     }
@@ -266,7 +284,8 @@ public class UserProfileMemoryController {
     private List<MemoryOrchestrator.DiarySourcePreview> sourceDiaryPreviews(
             MemoryOrchestrator.SourceSummary source,
             Map<Long, MemoryOrchestrator.DiarySourcePreview> previews) {
-        if (source == null || source.diaryIds().isEmpty()) return List.of();
+        if (source == null || source.diaryIds().isEmpty())
+            return List.of();
         return source.diaryIds().stream()
                 .map(id -> memoryOrchestrator.withEvidenceDate(previews.get(id), source.diaryEvidenceDates().get(id)))
                 .filter(java.util.Objects::nonNull)

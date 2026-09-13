@@ -121,11 +121,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { post, upload, get, request } from '@/utils/request';
 import { currentTheme } from '@/stores/theme';
 
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onHide, onUnload } from '@dcloudio/uni-app';
 
 const content = ref('');
 
@@ -151,10 +151,71 @@ const lyricsLoading = ref(false);
 const lyricsError = ref(false);
 const showLyricsPanel = ref(false);
 const selectedLyricIndices = ref<number[]>([]);
+const suppressDraftSave = ref(false);
 let lyricsRequestId = 0;
+
+const draftUserKey = () => String(uni.getStorageSync('loginUserId') || 'guest');
+const writeDraftKey = (draftMode = mode.value, draftId = editId.value) =>
+  draftMode === 'edit' && draftId
+    ? `diaryDraft:${draftUserKey()}:edit:${draftId}`
+    : `diaryDraft:${draftUserKey()}:create`;
+
+const saveDraft = () => {
+  if (suppressDraftSave.value) return;
+  if (mode.value === 'edit' && !editId.value) return;
+  uni.setStorageSync(writeDraftKey(), {
+    content: content.value,
+    analyze: analyze.value,
+    useReasoning: useReasoning.value,
+    isPublic: isPublic.value,
+    images: images.value,
+    musicUrl: musicUrl.value,
+    musicMeta: musicMeta.value,
+    showMusicComposer: showMusicComposer.value,
+    lyricsList: lyricsList.value,
+    lyricsError: lyricsError.value,
+    showLyricsPanel: showLyricsPanel.value,
+    selectedLyricIndices: selectedLyricIndices.value,
+    updatedAt: Date.now()
+  });
+};
+
+const restoreDraft = () => {
+  if (mode.value === 'edit' && !editId.value) return false;
+  const draft = uni.getStorageSync(writeDraftKey());
+  if (!draft || typeof draft !== 'object') return false;
+  suppressDraftSave.value = true;
+  try {
+    content.value = typeof draft.content === 'string' ? draft.content : '';
+    analyze.value = draft.analyze !== false;
+    useReasoning.value = draft.useReasoning === true;
+    isPublic.value = draft.isPublic === true;
+    images.value = Array.isArray(draft.images) ? draft.images.filter((item: unknown): item is string => typeof item === 'string') : [];
+    musicUrl.value = typeof draft.musicUrl === 'string' ? draft.musicUrl : '';
+    musicMeta.value = draft.musicMeta || null;
+    showMusicComposer.value = draft.showMusicComposer === true;
+    lyricsList.value = Array.isArray(draft.lyricsList) ? draft.lyricsList.filter((item: unknown): item is string => typeof item === 'string') : [];
+    lyricsError.value = draft.lyricsError === true;
+    showLyricsPanel.value = draft.showLyricsPanel === true;
+    selectedLyricIndices.value = Array.isArray(draft.selectedLyricIndices)
+      ? draft.selectedLyricIndices.filter((item: unknown): item is number => typeof item === 'number' && Number.isInteger(item) && item >= 0)
+      : [];
+    if (musicMeta.value && lyricsList.value.length) {
+      musicMeta.value.userLyric = selectedLyricIndices.value.map(index => lyricsList.value[index]).filter(Boolean).join('\n');
+    }
+  } finally {
+    suppressDraftSave.value = false;
+  }
+  return true;
+};
+
+const clearDraft = () => {
+  uni.removeStorageSync(writeDraftKey());
+};
 
 const onAnalysisModelChange = (event: any) => {
   useReasoning.value = Number(event.detail.value) === 1;
+  saveDraft();
 };
 
 const removeMusic = () => {
@@ -165,6 +226,7 @@ const removeMusic = () => {
   showLyricsPanel.value = false;
   lyricsError.value = false;
   showMusicComposer.value = false;
+  saveDraft();
 };
 
 const fetchLyrics = async (meta: any) => {
@@ -186,6 +248,7 @@ const fetchLyrics = async (meta: any) => {
       lyricsList.value = lines.filter((line: string) => line.trim().length > 0);
       showLyricsPanel.value = lyricsList.value.length > 0;
       lyricsError.value = lyricsList.value.length === 0;
+      saveDraft();
     } else if (requestId === lyricsRequestId) {
       lyricsError.value = true;
     }
@@ -206,6 +269,7 @@ const toggleLyric = (index: number) => {
   else next.add(index);
   selectedLyricIndices.value = [...next].sort((a, b) => a - b);
   musicMeta.value.userLyric = selectedLyricIndices.value.map(item => lyricsList.value[item]).join('\n');
+  saveDraft();
 };
 
 onLoad((options: any) => {
@@ -214,8 +278,19 @@ onLoad((options: any) => {
     editId.value = parseInt(options.id);
     uni.setNavigationBarTitle({ title: '编辑日记' });
     fetchDiaryForEdit(editId.value);
+  } else {
+    restoreDraft();
   }
 });
+
+watch(
+  [content, analyze, useReasoning, isPublic, images, musicUrl, musicMeta, showMusicComposer, lyricsList, lyricsError, showLyricsPanel, selectedLyricIndices],
+  saveDraft,
+  { deep: true }
+);
+
+onHide(saveDraft);
+onUnload(saveDraft);
 
 /** 将网页端保存的富文本 HTML 转成小程序 textarea 可编辑的纯文本。 */
 const htmlToPlainText = (value: unknown): string => {
@@ -243,10 +318,13 @@ const fetchDiaryForEdit = async (id: number) => {
   try {
     const res = await get(`/api/diaries/${id}`);
     if (res.code === 200 && res.data) {
+      suppressDraftSave.value = true;
       content.value = htmlToPlainText(res.data.content);
       images.value = res.data.images || [];
       isPublic.value = res.data.visibility === 'PUBLIC';
       musicMeta.value = res.data.musicMeta;
+      suppressDraftSave.value = false;
+      restoreDraft();
     }
   } catch (e) {
     console.error('Failed to fetch diary for edit', e);
@@ -270,6 +348,7 @@ const parseMusic = async () => {
       musicMeta.value = res.data;
       showMusicComposer.value = true;
       musicUrl.value = '';
+      saveDraft();
       uni.showToast({ title: '解析成功', icon: 'success' });
     } else {
       uni.showToast({ title: res.message || '解析失败', icon: 'none' });
@@ -310,6 +389,7 @@ const submitDiary = async () => {
     }
 
     if (res.code === 200) {
+      clearDraft();
       uni.$emit('refreshFeed');
       
       if (analyze.value && mode.value === 'create') {
@@ -366,6 +446,7 @@ const uploadImages = async (tempFilePaths: string[]) => {
       const res: any = await upload('/api/images/upload', path);
       if (res.code === 200 && res.data && res.data.url) {
         images.value.push(res.data.url);
+        saveDraft();
       } else {
         failedCount++;
       }
@@ -385,6 +466,7 @@ const uploadImages = async (tempFilePaths: string[]) => {
 
 const removeImage = (index: number) => {
   images.value.splice(index, 1);
+  saveDraft();
 };
 
 const previewImage = (current: string) => {

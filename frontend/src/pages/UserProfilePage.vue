@@ -17,11 +17,11 @@
       </n-button>
       <div class="profile-hero">
         <div class="avatar-wrap">
-          <div v-if="profileLoading" class="avatar-img" style="background: var(--color-primary); color: white; display: flex; align-items: center; justify-content: center;">
+          <div v-if="profileLoading" class="avatar-img avatar-placeholder">
             <n-spin size="small" />
           </div>
           <img v-else-if="profileAvatar" :src="profileAvatar" class="avatar-img" decoding="async" />
-          <span v-else class="avatar-img" style="background: var(--color-primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 28px; font-family: var(--font-display);">{{ profileInitial }}</span>
+          <span v-else class="avatar-img avatar-placeholder">{{ profileInitial }}</span>
         </div>
         <div class="profile-main">
           <div class="profile-title-row">
@@ -619,6 +619,15 @@ function handleProfileUpdated() {
   object-fit: cover;
   border-radius: 2px;
   background: var(--color-primary-light);
+}
+
+.avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-on-primary);
+  font-size: 28px;
+  font-family: var(--font-display);
 }
 
 .profile-main {
@@ -1329,32 +1338,35 @@ function handleProfileUpdated() {
 
 /* ── 长期整理 section ── */
 .longterm-section {
-  max-width: var(--profile-content-width, 860px);
-  margin: 0 auto 24px;
-  padding: 0 16px;
+  width: 100%;
+  max-width: none;
+  margin: 0 0 24px;
+  padding: 0;
 }
 
 .longterm-header {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .longterm-title {
-  font-size: 16px;
+  font-size: 1.4rem;
   font-weight: 600;
-  margin: 0 0 4px;
+  line-height: 1.2;
+  margin: 0 0 8px;
   color: var(--color-text);
-  font-family: var(--font-display, serif);
+  font-family: var(--font-display);
 }
 
 .longterm-desc {
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--color-text-secondary);
   margin: 0;
 }
 
 .longterm-list {
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
   background: var(--color-surface);
 }
@@ -1363,7 +1375,7 @@ function handleProfileUpdated() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 15px 16px;
   text-decoration: none;
   border-bottom: 1px solid var(--color-border);
   color: var(--color-text);
@@ -1375,7 +1387,7 @@ function handleProfileUpdated() {
 }
 
 .longterm-item:hover {
-  background: color-mix(in oklab, var(--color-primary) 5%, transparent);
+  background: var(--color-surface-hover);
 }
 
 .longterm-item-main {
@@ -1385,13 +1397,13 @@ function handleProfileUpdated() {
 }
 
 .longterm-item-label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .longterm-item-sub {
-  font-size: 12px;
-  color: var(--color-text-secondary);
+  font-size: 13px;
+  color: var(--color-text-muted);
 }
 
 .longterm-item-arrow {

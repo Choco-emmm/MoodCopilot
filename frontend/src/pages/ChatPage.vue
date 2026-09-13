@@ -56,25 +56,28 @@
               </n-input>
             </div>
             <div class="ds-mobile-conv-list">
-            <div 
-                v-for="conv in filteredConversations" 
-                :key="conv.id" 
-                class="ds-mobile-conv-item"
-                :class="{ active: conv.id === activeConvId }"
-                @click="selectConversation(conv.id); mobileDrawerOpen = false;"
-              >
-                <span class="ds-mobile-conv-title-text">{{ conv.title || '新对话' }}</span>
-                <n-dropdown
-                  trigger="click"
-                  :options="[{ label: '重命名', key: 'rename' }, { label: '删除', key: 'delete', props: { style: 'color: var(--color-error)' } }]"
-                  @select="(key: string) => { if (key === 'rename') renameConversation(conv.id, conv.title || ''); else deleteConversation(conv.id) }"
-                  @click.stop
+              <template v-for="group in filteredConversationGroups" :key="group.label">
+                <div class="ds-mobile-conv-group-label">{{ group.label }}</div>
+                <div
+                  v-for="conv in group.items"
+                  :key="conv.id"
+                  class="ds-mobile-conv-item"
+                  :class="{ active: conv.id === activeConvId }"
+                  @click="selectConversation(conv.id); mobileDrawerOpen = false;"
                 >
-                  <button class="ds-mobile-conv-more-btn" @click.stop title="更多操作">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
-                  </button>
-                </n-dropdown>
-              </div>
+                  <span class="ds-mobile-conv-title-text">{{ conv.title || '新对话' }}</span>
+                  <n-dropdown
+                    trigger="click"
+                    :options="conversationOptions"
+                    @select="(key: string) => { if (key === 'rename') renameConversation(conv.id, conv.title || ''); else deleteConversation(conv.id) }"
+                    @click.stop
+                  >
+                    <button class="ds-mobile-conv-more-btn" @click.stop title="更多操作">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+                    </button>
+                  </n-dropdown>
+                </div>
+              </template>
               <div v-if="filteredConversations.length === 0" class="ds-mobile-conv-empty">
                 没有找到匹配的对话
               </div>
@@ -335,6 +338,30 @@ const filteredConversations = computed(() => {
   return conversations.value.filter((c: any) => 
     displayConversationTitle(c.title, c.id).toLowerCase().includes(lowSearch)
   )
+})
+
+const conversationOptions = [
+  { label: '重命名', key: 'rename' },
+  { label: '删除', key: 'delete', props: { style: 'color: var(--color-error)' } },
+]
+
+const filteredConversationGroups = computed(() => {
+  const groups = new Map<string, any[]>()
+  for (const conversation of filteredConversations.value) {
+    const timestamp = conversation.updatedAt || conversation.createdAt
+    const date = timestamp ? new Date(timestamp) : null
+    const now = new Date()
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const conversationTime = date && !Number.isNaN(date.getTime()) ? date.getTime() : 0
+    const label = conversationTime >= dayStart
+      ? '今天'
+      : conversationTime >= dayStart - 24 * 60 * 60 * 1000
+        ? '昨天'
+        : '更早'
+    if (!groups.has(label)) groups.set(label, [])
+    groups.get(label)!.push(conversation)
+  }
+  return ['今天', '昨天', '更早'].filter(label => groups.has(label)).map(label => ({ label, items: groups.get(label)! }))
 })
 
 const personaRoleOptions = [
@@ -1320,7 +1347,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   100% { background-position: -200% 0; }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .chat-messages {
     padding: 18px 14px !important;
     border-radius: 12px !important;
@@ -1345,6 +1372,15 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   .chat-input-area {
     border-radius: 6px !important;
     padding: 6px 6px 6px 14px !important;
+  }
+
+  .chat-input-wrapper {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    padding-bottom: 12px;
+  }
+
+  .chat-messages {
+    padding-bottom: calc(180px + env(safe-area-inset-bottom)) !important;
   }
 }
 
@@ -1655,6 +1691,14 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 .ds-mobile-conv-item:hover,
 .ds-mobile-conv-item.active {
   background: color-mix(in oklab, var(--color-primary) 8%, transparent);
+}
+
+.ds-mobile-conv-group-label {
+  padding: 14px 14px 5px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 
 .ds-mobile-conv-title-text {

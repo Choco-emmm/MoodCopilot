@@ -42,6 +42,7 @@ export const logout = async () => {
   uni.removeStorageSync('token');
   uni.removeStorageSync('loginUserId');
   uni.removeStorageSync('userInfo');
+  uni.removeStorageSync('diaryDraft:create');
 
   // 4. Reset reactive state
   isLoggedIn.value = false;

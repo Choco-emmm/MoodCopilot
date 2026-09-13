@@ -83,7 +83,7 @@ public class MemoryExtractionService {
             1.2 涉及自杀、自残、轻生、不想活、伤害自己或心理危机的内容必须使用 memoryType=short_term_state、isCore=false；这不是诊断。
             2. 【重要】默认必须输出所有旧属性，保持 attributeKey 和 attributeValue 不变。只有当新日记提供了明确的新证据，才能修改该属性的 attributeValue。旧属性已有的 isCore 值应保留，除非新证据明确表明该特征的性质发生了变化。
             3. 【重要】要删除某个属性，必须将 attributeValue 设为精确字符串 "DELETE_MARKER"（不含引号）。仅在新证据明确推翻旧特征时才使用。
-            4. 【重要】attributeKey 必须是简洁、用户可读的中文属性名称，必须包含中文字符。严禁新建英文、snake_case、数据库字段名或拼音内部键，例如 interest、baking_class_start、user_interest；如果无法形成准确的中文名称就不要提取。每条只描述一个具体维度，不要使用宽泛词如"性格""习惯"，应拆分为"社交偏好""情绪模式""运动习惯""工作风格"等。旧属性若由输入明确提供，必须原样保留其原始键。
+            4. 【重要】attributeKey 必须是简洁、抽象、可复用的中文属性名称，表示稳定维度而不是某个具体对象。具体商品、菜名、歌曲、品牌、地点、单次事件或对它们的评价必须放在 attributeValue，不能写进 attributeKey。例如“南瓜吐司喜好”“斑斓绿豆椰奶评价”都是错误的 key，应改为“饮食偏好：喜欢南瓜吐司”或“饮食偏好：不喜欢斑斓绿豆椰奶”；“某首歌评价”应改为“音乐偏好”。严禁新建英文、snake_case、数据库字段名或拼音内部键，例如 interest、baking_class_start、user_interest；如果无法形成准确的抽象维度就不要提取。每条只描述一个具体维度，不要使用宽泛词如"性格""习惯"，应拆分为"社交偏好""情绪模式""运动习惯""工作风格"等。旧属性若由输入明确提供，必须原样保留其原始键。
             5. attributeValue 使用一句简洁中文，避免重复和空话。
 
             示例一 — 提取稳定特征：
@@ -185,7 +185,8 @@ public class MemoryExtractionService {
             Set<Long> userIds = userProfileMemoryMapper.selectList(
                     new LambdaQueryWrapper<UserProfileMemoryEntity>()
                             .select(UserProfileMemoryEntity::getUserId)
-                            .eq(UserProfileMemoryEntity::getStatus, "active")).stream()
+                            .eq(UserProfileMemoryEntity::getStatus, "active"))
+                    .stream()
                     .map(UserProfileMemoryEntity::getUserId)
                     .filter(java.util.Objects::nonNull)
                     .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
@@ -236,7 +237,8 @@ public class MemoryExtractionService {
                             signal.validFrom(), signal.validUntil()))
                     .toList();
             List<MemoryAttribute> sanitized = retainUserGroundedAttributes(
-                    sanitizeAttributes(attributes), buildUserEvidence(safeDiaryContent, safeMusicMeta), "diary_inferred");
+                    sanitizeAttributes(attributes), buildUserEvidence(safeDiaryContent, safeMusicMeta),
+                    "diary_inferred");
             memoryOrchestrator.processExtractedMemories(userId, sanitized, "diary_inferred", diaryId, null,
                     buildUserEvidence(safeDiaryContent, safeMusicMeta), evidenceDate);
             log.info("已复用日记主分析中的记忆信号，userId={}，diaryId={}，signalCount={}", userId, diaryId,
@@ -307,9 +309,12 @@ public class MemoryExtractionService {
                     sanitizeAttributes(response.attributes(), legacyAttributeKeys),
                     buildUserEvidence(safeDiaryContent, safeMusicMeta), source.sourceType());
             memoryOrchestrator.processExtractedMemories(userId, sanitizedAttributes, source.sourceType(),
-                    source.diaryId(), source.conversationId(), buildUserEvidence(safeDiaryContent, safeMusicMeta), source.evidenceDate());
-            log.info("长期画像提取完成，userId={}，diaryId={}，新属性数={}，旧属性数={}，ragDurationMs={}，modelDurationMs={}，totalDurationMs={}，promptLength={}，responseLength={}",
-                    userId, source.diaryId(), sanitizedAttributes.size(), existing.size(), ragDurationMs, modelDurationMs,
+                    source.diaryId(), source.conversationId(), buildUserEvidence(safeDiaryContent, safeMusicMeta),
+                    source.evidenceDate());
+            log.info(
+                    "长期画像提取完成，userId={}，diaryId={}，新属性数={}，旧属性数={}，ragDurationMs={}，modelDurationMs={}，totalDurationMs={}，promptLength={}，responseLength={}",
+                    userId, source.diaryId(), sanitizedAttributes.size(), existing.size(), ragDurationMs,
+                    modelDurationMs,
                     elapsedMillis(totalStartedAt), prompt.length(), json == null ? 0 : json.length());
         } catch (Exception e) {
             log.warn("长记忆提取失败，userId={}，diaryId={}，totalDurationMs={}，error={}", userId, source.diaryId(),
@@ -333,7 +338,8 @@ public class MemoryExtractionService {
     private String buildUserEvidence(String diaryContent, MusicMeta musicMeta) {
         StringBuilder evidence = new StringBuilder(diaryContent == null ? "" : diaryContent);
         if (musicMeta != null && musicMeta.getUserLyric() != null && !musicMeta.getUserLyric().isBlank()) {
-            if (evidence.length() > 0) evidence.append("\n");
+            if (evidence.length() > 0)
+                evidence.append("\n");
             evidence.append(musicMeta.getUserLyric());
         }
         return evidence.toString();
@@ -360,14 +366,16 @@ public class MemoryExtractionService {
                         log.info("跳过无法回溯到用户内容的记忆信号，attributeKey={}，sourceEvidenceLength={}",
                                 attribute.attributeKey(), evidence.length());
                     }
-                    if (!grounded) return false;
+                    if (!grounded)
+                        return false;
                     if (MemorySafetyPolicy.isTransientScheduleFact(attribute.memoryType(),
                             attribute.attributeKey(), attribute.attributeValue())) {
                         log.info("跳过短期日程记忆信号，交由重要事件流程处理，attributeKey={}，sourceType={}",
                                 attribute.attributeKey(), sourceType);
                         return false;
                     }
-                    if (MemorySafetyPolicy.isTechnicalKnowledgeClaim(attribute.attributeKey(), attribute.attributeValue())
+                    if (MemorySafetyPolicy.isTechnicalKnowledgeClaim(attribute.attributeKey(),
+                            attribute.attributeValue())
                             && !MemorySafetyPolicy.hasExplicitTechnicalBackground(attribute.evidence())) {
                         log.info("跳过未经用户明确声明的技术背景记忆，attributeKey={}，sourceType={}",
                                 attribute.attributeKey(), sourceType);
@@ -386,13 +394,14 @@ public class MemoryExtractionService {
     }
 
     private static String normalizeForEvidence(String value) {
-        return value == null ? "" : value.replace('\r', ' ')
-                .replace('\n', ' ')
-                .replace('\t', ' ')
-                .replaceAll("\\p{Cntrl}", " ")
-                .replaceAll("\\s+", " ")
-                .trim()
-                .toLowerCase(java.util.Locale.ROOT);
+        return value == null ? ""
+                : value.replace('\r', ' ')
+                        .replace('\n', ' ')
+                        .replace('\t', ' ')
+                        .replaceAll("\\p{Cntrl}", " ")
+                        .replaceAll("\\s+", " ")
+                        .trim()
+                        .toLowerCase(java.util.Locale.ROOT);
     }
 
     /**
@@ -455,7 +464,8 @@ public class MemoryExtractionService {
 
     public void extractAndSyncMemoryFromChat(Long userId, Long conversationId, String userMessage, List<String> refs,
             String aiReply, boolean ignoredRelaxThreshold) {
-        // Kept for binary/source compatibility; event context must never loosen memory gates.
+        // Kept for binary/source compatibility; event context must never loosen memory
+        // gates.
         extractAndSyncMemoryFromChat(userId, conversationId, userMessage, refs, aiReply);
     }
 
@@ -643,7 +653,8 @@ public class MemoryExtractionService {
 
     private int scoreChatEvidence(String userMessage, List<String> refs) {
         int score = 0;
-        if (userMessage.length() >= CHAT_MIN_USER_MESSAGE_LENGTH) score++;
+        if (userMessage.length() >= CHAT_MIN_USER_MESSAGE_LENGTH)
+            score++;
         if (containsLongTermKeyword(userMessage)) {
             score += 2;
         }
@@ -701,12 +712,17 @@ public class MemoryExtractionService {
                 log.warn("忽略新生成的非中文属性键，attributeKey={}", key);
                 continue;
             }
+            if (!allowedLegacyKeys.contains(key) && isLikelyConcreteObjectKey(key)) {
+                log.warn("忽略过于具体的对象型属性键，attributeKey={}", key);
+                continue;
+            }
             if (!SensitiveDataDetector.allowedForMemory(key, value, attribute.evidence())) {
                 log.warn("忽略包含敏感数据的记忆信号，attributeKey={}", key);
                 continue;
             }
             String requestedType = attribute.memoryType() == null
-                    ? "" : attribute.memoryType().trim().toLowerCase(java.util.Locale.ROOT);
+                    ? ""
+                    : attribute.memoryType().trim().toLowerCase(java.util.Locale.ROOT);
             if (!MemorySafetyPolicy.isSupportedType(requestedType)) {
                 log.warn("忽略非法记忆类型，attributeKey={}，memoryType={}", key, attribute.memoryType());
                 continue;
@@ -733,6 +749,22 @@ public class MemoryExtractionService {
         return truncate(normalized, ATTRIBUTE_KEY_MAX_LENGTH);
     }
 
+    /**
+     * Concrete item names and one-off reviews belong in the value, not the
+     * dimension key.
+     */
+    private boolean isLikelyConcreteObjectKey(String key) {
+        if (key == null || key.isBlank())
+            return false;
+        if (key.endsWith("评价") || key.endsWith("口味"))
+            return true;
+        if (key.endsWith("喜好") || key.endsWith("偏好")) {
+            String prefix = key.substring(0, key.length() - 2);
+            return !Set.of("饮食", "食物", "音乐", "阅读", "社交", "消费", "审美", "沟通").contains(prefix);
+        }
+        return false;
+    }
+
     private String sanitizeAttributeValue(String raw) {
         return truncate(normalizeWhitespace(raw), ATTRIBUTE_VALUE_MAX_LENGTH);
     }
@@ -748,7 +780,8 @@ public class MemoryExtractionService {
     }
 
     private MusicMeta redactMusicMeta(MusicMeta source) {
-        if (source == null) return null;
+        if (source == null)
+            return null;
         return new MusicMeta(
                 SensitiveDataDetector.redact(source.getTitle()),
                 SensitiveDataDetector.redact(source.getArtist()),
@@ -766,11 +799,12 @@ public class MemoryExtractionService {
         return raw.substring(0, maxLength);
     }
 
-    private static final String[] DIFF_SEPS = {"。", "；", "，", "、", "!", "！", "?", "？", "\n"};
+    private static final String[] DIFF_SEPS = { "。", "；", "，", "、", "!", "！", "?", "？", "\n" };
 
     /** 按标点分句，只保留新旧值不同的片段，省略相同的前后文。返回 [旧片段, 新片段]，无差异时返回 null。 */
     private String[] compactDiff(String oldVal, String newVal) {
-        if (oldVal == null || newVal == null || oldVal.equals(newVal)) return null;
+        if (oldVal == null || newVal == null || oldVal.equals(newVal))
+            return null;
 
         String[] segs = splitBySeps(oldVal);
         String[] newSegs = splitBySeps(newVal);
@@ -791,27 +825,30 @@ public class MemoryExtractionService {
         int newStart = prefixLen;
         int newEnd = newSegs.length - suffixLen;
 
-        if (oldStart >= oldEnd && newStart >= newEnd) return null;
+        if (oldStart >= oldEnd && newStart >= newEnd)
+            return null;
 
         StringBuilder oldPart = new StringBuilder();
         for (int i = oldStart; i < oldEnd; i++) {
-            if (oldPart.length() > 0) oldPart.append(",");
+            if (oldPart.length() > 0)
+                oldPart.append(",");
             oldPart.append(segs[i].trim());
         }
         StringBuilder newPart = new StringBuilder();
         for (int i = newStart; i < newEnd; i++) {
-            if (newPart.length() > 0) newPart.append(",");
+            if (newPart.length() > 0)
+                newPart.append(",");
             newPart.append(newSegs[i].trim());
         }
 
         String before = prefixLen > 0 ? "…" + oldPart : oldPart.toString();
         String after = suffixLen > 0 ? newPart + "…" : newPart.toString();
-        return new String[]{before, after};
+        return new String[] { before, after };
     }
 
     private String[] splitBySeps(String text) {
         String[] parts = text.split("(?<=[。；，、！？!?\\n])");
-        return parts.length > 0 ? parts : new String[]{text};
+        return parts.length > 0 ? parts : new String[] { text };
     }
 
     private String serializeMemoryFact(UserProfileMemoryEntity memory) {
@@ -837,16 +874,20 @@ public class MemoryExtractionService {
     }
 
     public record MemoryAttribute(String attributeKey, String attributeValue, Boolean isCore,
-                           String memoryType, String assertionType, Double confidence, String evidence,
-                           java.time.LocalDate validFrom, java.time.LocalDate validUntil) {
+            String memoryType, String assertionType, Double confidence, String evidence,
+            java.time.LocalDate validFrom, java.time.LocalDate validUntil) {
     }
 
     private record UserIdSource(Long userId, Long diaryId, Long conversationId,
-                                String sourceType, LocalDate evidenceDate) {
-        static UserIdSource diary(Long userId) { return diary(userId, null, LocalDate.now()); }
+            String sourceType, LocalDate evidenceDate) {
+        static UserIdSource diary(Long userId) {
+            return diary(userId, null, LocalDate.now());
+        }
+
         static UserIdSource diary(Long userId, Long diaryId, LocalDate date) {
             return new UserIdSource(userId, diaryId, null, "diary_inferred", date);
         }
+
         static UserIdSource chat(Long userId, Long conversationId) {
             return new UserIdSource(userId, null, conversationId, "chat_candidate", LocalDate.now());
         }

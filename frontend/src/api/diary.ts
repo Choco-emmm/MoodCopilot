@@ -55,7 +55,7 @@ export const memoryApi = {
   update: (id: number, data: { attributeValue: string; isCore?: boolean }) => api.put(`/memory/${id}`, data),
   previewConsolidate: () => api.post('/memory/consolidate/preview'),
   consolidationTask: (taskId: string) => api.get(`/memory/consolidate/tasks/${taskId}`),
-  applyConsolidate: (data: any) => api.post('/memory/consolidate/apply', data),
+  applyConsolidate: (data: any) => api.post<number>('/memory/consolidate/apply', data),
 }
 
 export const graphApi = {

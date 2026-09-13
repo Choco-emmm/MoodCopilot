@@ -46,8 +46,8 @@ public class MemoryConsolidationService {
             """;
 
     public record ConsolidationItem(String attributeKey, String attributeValue, String memoryType,
-                                    Boolean isCore, List<Long> sourceMemoryIds, String operation,
-                                    List<Long> evidenceIds) {
+            Boolean isCore, List<Long> sourceMemoryIds, String operation,
+            List<Long> evidenceIds) {
     }
 
     private final ChatClient chatClient;
@@ -142,9 +142,11 @@ public class MemoryConsolidationService {
                 throw new IllegalStateException("AI 模型返回空内容");
             }
             log.info("长期画像整理模型调用结束，userId={}，responseLength={}，modelDurationMs={}，totalDurationMs={}",
-                    userId, json == null ? 0 : json.length(), elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt));
+                    userId, json == null ? 0 : json.length(), elapsedMillis(modelStartedAt),
+                    elapsedMillis(totalStartedAt));
         } catch (Exception e) {
-            log.error("长期画像整理模型调用异常，userId={}，modelDurationMs={}，totalDurationMs={}，exceptionType={}，rootCauseType={}，message={}",
+            log.error(
+                    "长期画像整理模型调用异常，userId={}，modelDurationMs={}，totalDurationMs={}，exceptionType={}，rootCauseType={}，message={}",
                     userId, elapsedMillis(modelStartedAt), elapsedMillis(totalStartedAt),
                     e.getClass().getSimpleName(), rootCauseType(e), safeMessage(e), e);
             throw new RuntimeException("AI 模型调用失败", e);
@@ -189,7 +191,8 @@ public class MemoryConsolidationService {
             return result;
         } catch (Exception e) {
             log.error("长期画像整理结果解析异常，userId={}，totalDurationMs={}，exceptionType={}，rootCauseType={}，message={}",
-                    userId, elapsedMillis(totalStartedAt), e.getClass().getSimpleName(), rootCauseType(e), safeMessage(e), e);
+                    userId, elapsedMillis(totalStartedAt), e.getClass().getSimpleName(), rootCauseType(e),
+                    safeMessage(e), e);
             throw new RuntimeException("AI 返回格式解析失败", e);
         }
     }
@@ -209,7 +212,8 @@ public class MemoryConsolidationService {
 
     public List<ConsolidationItem> readTaskResult(String taskId) {
         String value = redisTemplate.opsForValue().get(RESULT_KEY_PREFIX + taskId);
-        if (value == null || value.isBlank()) return null;
+        if (value == null || value.isBlank())
+            return null;
         try {
             return objectMapper.readValue(value, objectMapper.getTypeFactory()
                     .constructCollectionType(List.class, ConsolidationItem.class));
@@ -233,7 +237,8 @@ public class MemoryConsolidationService {
 
     private String safeMessage(Throwable error) {
         String message = error.getMessage();
-        if (message == null || message.isBlank()) return "(empty)";
+        if (message == null || message.isBlank())
+            return "(empty)";
         return message.length() > 300 ? message.substring(0, 300) : message;
     }
 
@@ -242,7 +247,7 @@ public class MemoryConsolidationService {
      * Spring AI 的 content() 为空时，必须通过这些字段区分空候选、截断和模型异常。
      */
     private void logModelResponseDiagnostics(Long userId, ChatResponse response, String content,
-                                              long modelStartedAt) {
+            long modelStartedAt) {
         if (response == null) {
             log.warn("长期画像整理模型响应为空，userId={}，responseObject=null，contentLength=0，modelDurationMs={}",
                     userId, elapsedMillis(modelStartedAt));
@@ -274,24 +279,29 @@ public class MemoryConsolidationService {
         String generationMetadataKeys = "";
         if (!generations.isEmpty() && generations.get(0) != null) {
             for (Generation generation : generations) {
-                if (generation == null) continue;
+                if (generation == null)
+                    continue;
                 if (generation.getOutput() != null) {
                     String text = generation.getOutput().getText();
                     generationTextLength += text == null ? 0 : text.length();
                     messageMetadataKeyCount += generation.getOutput().getMetadata() == null
-                            ? 0 : generation.getOutput().getMetadata().size();
+                            ? 0
+                            : generation.getOutput().getMetadata().size();
                     toolCallCount += generation.getOutput().getToolCalls() == null
-                            ? 0 : generation.getOutput().getToolCalls().size();
+                            ? 0
+                            : generation.getOutput().getToolCalls().size();
                 }
                 ChatGenerationMetadata generationMetadata = generation.getMetadata();
                 if (generationMetadata != null) {
-                    if (finishReason == null) finishReason = generationMetadata.getFinishReason();
+                    if (finishReason == null)
+                        finishReason = generationMetadata.getFinishReason();
                     generationMetadataKeys = generationMetadata.keySet().toString();
                 }
             }
         }
 
-        log.info("长期画像整理模型响应诊断，userId={}，model={}，responseId={}，generationCount={}，contentLength={}，generationTextLength={}，messageMetadataKeyCount={}，toolCallCount={}，finishReason={}，promptTokens={}，completionTokens={}，totalTokens={}，generationMetadataKeys={}，modelDurationMs={}",
+        log.info(
+                "长期画像整理模型响应诊断，userId={}，model={}，responseId={}，generationCount={}，contentLength={}，generationTextLength={}，messageMetadataKeyCount={}，toolCallCount={}，finishReason={}，promptTokens={}，completionTokens={}，totalTokens={}，generationMetadataKeys={}，modelDurationMs={}",
                 userId, safeLogValue(model), safeLogValue(responseId), generations.size(),
                 content == null ? 0 : content.length(), generationTextLength, messageMetadataKeyCount, toolCallCount,
                 safeLogValue(finishReason),
@@ -300,12 +310,13 @@ public class MemoryConsolidationService {
     }
 
     private String safeLogValue(String value) {
-        if (value == null || value.isBlank()) return "(empty)";
+        if (value == null || value.isBlank())
+            return "(empty)";
         return value.length() > 120 ? value.substring(0, 120) : value;
     }
 
-    public void applyConsolidation(Long userId, List<ConsolidationItem> items) {
-        memoryOrchestrator.applyConsolidation(userId, items);
+    public int applyConsolidation(Long userId, List<ConsolidationItem> items) {
+        return memoryOrchestrator.applyConsolidation(userId, items);
     }
 
     private String buildConsolidationPrompt(List<UserProfileMemoryEntity> existing) {
@@ -323,16 +334,21 @@ public class MemoryConsolidationService {
     }
 
     private List<ConsolidationItem> sanitizeItems(Long userId, List<UserProfileMemoryEntity> existing,
-                                                   List<ConsolidationItem> items) {
-        Set<Long> owned = existing.stream().map(UserProfileMemoryEntity::getId).collect(java.util.stream.Collectors.toSet());
+            List<ConsolidationItem> items) {
+        Set<Long> owned = existing.stream().map(UserProfileMemoryEntity::getId)
+                .collect(java.util.stream.Collectors.toSet());
         List<ConsolidationItem> result = new ArrayList<>();
         for (ConsolidationItem item : items) {
-            if (item == null || item.attributeKey() == null || item.attributeValue() == null) continue;
-            List<Long> sourceIds = item.sourceMemoryIds() == null ? List.of() : item.sourceMemoryIds().stream()
-                    .filter(owned::contains).distinct().toList();
-            if (sourceIds.isEmpty()) continue;
+            if (item == null || item.attributeKey() == null || item.attributeValue() == null)
+                continue;
+            List<Long> sourceIds = item.sourceMemoryIds() == null ? List.of()
+                    : item.sourceMemoryIds().stream()
+                            .filter(owned::contains).distinct().toList();
             String operation = item.operation() == null ? "DEDUP" : item.operation().toUpperCase(java.util.Locale.ROOT);
-            if (!Set.of("MERGE", "DEDUP", "NORMALIZE", "EXPIRE").contains(operation)) continue;
+            if (!Set.of("MERGE", "DEDUP", "NORMALIZE", "EXPIRE").contains(operation))
+                continue;
+            if (sourceIds.isEmpty() || (!"EXPIRE".equals(operation) && sourceIds.size() < 2))
+                continue;
             List<Long> evidenceIds = existing.stream().filter(m -> sourceIds.contains(m.getId()))
                     .flatMap(m -> memoryOrchestrator.evidence(userId, m.getId()).stream())
                     .map(e -> e.getId()).distinct().toList();
