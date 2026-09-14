@@ -3097,42 +3097,6 @@ h3 {
     flex: 1 1 0;
   }
 
-  .nav-link.nav-link-write {
-    flex: 0 0 54px !important;
-    min-width: 54px !important;
-    width: 54px !important;
-    height: 54px !important;
-    max-width: 54px !important;
-    transform: translateY(-16px);
-    background: var(--color-primary) !important;
-    color: var(--color-on-primary) !important;
-    border-radius: 50%;
-    box-shadow: 0 4px 12px color-mix(in oklab, var(--color-primary) 40%, transparent);
-    justify-content: center;
-    padding: 0;
-    align-self: center;
-    box-sizing: border-box;
-  }
-
-  .nav-link-write .nav-link-icon {
-    margin: 0;
-  }
-
-  .nav-link-write .nav-link-icon svg {
-    width: 24px;
-    height: 24px;
-  }
-
-  .nav-link-write .nav-link-label {
-    display: none;
-  }
-
-  .nav-link.nav-link-write.active {
-    background: var(--color-primary) !important;
-    color: var(--color-on-primary) !important;
-    transform: translateY(-16px) scale(1.05);
-  }
-
   .masthead-nav {
     order: unset;
     width: auto;
