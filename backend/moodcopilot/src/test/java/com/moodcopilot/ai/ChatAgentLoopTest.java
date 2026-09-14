@@ -54,7 +54,7 @@ class ChatAgentLoopTest {
         when(deepSeekClient.stream(any(), any(), any()))
                 .thenReturn(reactor.core.publisher.Flux.just(text("Hello"), text(" world")));
 
-        AgentLoopOutcome outcome = loop.run(newMessages(), null, null, FLASH);
+        AgentLoopOutcome outcome = loop.run(newMessages(), null, null, FLASH, List.of());
         List<String> chunks = drain(outcome);
 
         assertEquals(List.of("Hello", " world"), chunks);
@@ -68,7 +68,7 @@ class ChatAgentLoopTest {
         when(deepSeekClient.stream(any(), any(), any()))
                 .thenReturn(reactor.core.publisher.Flux.just(reasoning("thinking"), text("answer")));
 
-        AgentLoopOutcome outcome = loop.run(newMessages(), null, null, PRO);
+        AgentLoopOutcome outcome = loop.run(newMessages(), null, null, PRO, List.of());
         List<String> chunks = drain(outcome);
 
         assertEquals(2, chunks.size());
@@ -82,7 +82,7 @@ class ChatAgentLoopTest {
         when(deepSeekClient.stream(any(), any(), any()))
                 .thenReturn(reactor.core.publisher.Flux.just(reasoning("thinking"), text("answer")));
 
-        AgentLoopOutcome outcome = loop.run(newMessages(), null, null, FLASH);
+        AgentLoopOutcome outcome = loop.run(newMessages(), null, null, FLASH, List.of());
         List<String> chunks = drain(outcome);
 
         // flash 此前不暴露思考过程，保持行为不变：客户端只拿到正文
@@ -103,7 +103,7 @@ class ChatAgentLoopTest {
         when(toolRegistry.emit(eq("diarySearchFunction"), any(), any())).thenReturn(List.of());
 
         List<Map<String, Object>> messages = newMessages();
-        AgentLoopOutcome outcome = loop.run(messages, null, null, FLASH);
+        AgentLoopOutcome outcome = loop.run(messages, null, null, FLASH, List.of());
         List<String> chunks = drain(outcome);
 
         assertEquals(List.of("let me check ", "done"), chunks);
@@ -133,7 +133,7 @@ class ChatAgentLoopTest {
                 .thenThrow(new IllegalStateException("事件不存在"));
 
         List<Map<String, Object>> messages = newMessages();
-        AgentLoopOutcome outcome = loop.run(messages, null, null, FLASH);
+        AgentLoopOutcome outcome = loop.run(messages, null, null, FLASH, List.of());
         List<String> chunks = drain(outcome);
 
         // 每个 tool_call_id 都必须有对应的 tool 消息，否则协议不成立、模型会卡住
@@ -158,7 +158,7 @@ class ChatAgentLoopTest {
         AgentLoopOptions noDepth = new AgentLoopOptions(
                 "test-flash", 4096, null, null, 0, false, "CHAT_STREAM", "FLASH");
 
-        AgentLoopOutcome outcome = loop.run(newMessages(), null, null, noDepth);
+        AgentLoopOutcome outcome = loop.run(newMessages(), null, null, noDepth, List.of());
 
         assertEquals(List.of(), drain(outcome));
         assertEquals(1, outcome.toolCallCount());

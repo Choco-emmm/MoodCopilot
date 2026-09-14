@@ -32,7 +32,7 @@ class ListEventsToolTest {
         UserEntity user = new UserEntity();
         user.setId(userId);
         Authentication auth = new UsernamePasswordAuthenticationToken(user, null, List.of());
-        return new ToolExecutionContext(auth, null);
+        return new ToolExecutionContext(auth, null, List.of());
     }
 
     private static LifeEventService.LifeEventView event(long id, String title, String status, String targetDate) {

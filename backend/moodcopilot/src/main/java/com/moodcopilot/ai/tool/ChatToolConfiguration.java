@@ -9,6 +9,7 @@ import com.moodcopilot.ai.tool.impl.DiarySearchTool;
 import com.moodcopilot.ai.tool.impl.GraphSearchTool;
 import com.moodcopilot.ai.tool.impl.ListEventsTool;
 import com.moodcopilot.ai.tool.impl.MemoryQueryTool;
+import com.moodcopilot.ai.tool.impl.ReadImageTextTool;
 import com.moodcopilot.ai.tool.impl.ReportSnapshotTool;
 import com.moodcopilot.ai.tool.impl.UpdateEventStatusTool;
 import com.moodcopilot.ai.tool.impl.UserStatsTool;
@@ -53,6 +54,7 @@ public class ChatToolConfiguration {
                 new MemoryQueryTool(memoryExtractionService, ragMemoryService),
                 new GraphSearchTool(diaryKnowledgeGraphMapper, ragMemoryService),
                 new DiaryImageAnalysisTool(diaryMapper, visionService, rateLimitService),
+                new ReadImageTextTool(visionService),
                 new ListEventsTool(lifeEventService),
                 new UpdateEventStatusTool(lifeEventService));
         return new ChatToolRegistry(objectMapper, tools);

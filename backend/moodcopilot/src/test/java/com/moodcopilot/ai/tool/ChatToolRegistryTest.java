@@ -10,6 +10,7 @@ import com.moodcopilot.ai.tool.impl.DiarySearchTool;
 import com.moodcopilot.ai.tool.impl.GraphSearchTool;
 import com.moodcopilot.ai.tool.impl.ListEventsTool;
 import com.moodcopilot.ai.tool.impl.MemoryQueryTool;
+import com.moodcopilot.ai.tool.impl.ReadImageTextTool;
 import com.moodcopilot.ai.tool.impl.ReportSnapshotTool;
 import com.moodcopilot.ai.tool.impl.UpdateEventStatusTool;
 import com.moodcopilot.ai.tool.impl.UserStatsTool;
@@ -43,6 +44,7 @@ class ChatToolRegistryTest {
             "memoryQueryFunction",
             "graphSearchFunction",
             "diaryImageAnalysisFunction",
+            "readImageTextFunction",
             "listEventsFunction",
             "updateEventStatusFunction");
 
@@ -58,6 +60,7 @@ class ChatToolRegistryTest {
                 new GraphSearchTool(mock(DiaryKnowledgeGraphMapper.class), mock(RagMemoryService.class)),
                 new DiaryImageAnalysisTool(mock(DiaryMapper.class), mock(VisionService.class),
                         mock(RateLimitService.class)),
+                new ReadImageTextTool(mock(VisionService.class)),
                 new ListEventsTool(mock(LifeEventService.class)),
                 new UpdateEventStatusTool(mock(LifeEventService.class))));
     }
@@ -71,7 +74,8 @@ class ChatToolRegistryTest {
     void displayNameDropsTheFunctionSuffix() {
         List<String> displayNames = registry().tools().stream().map(ChatTool::displayName).toList();
         assertEquals(List.of("diarySearch", "userStats", "reportSnapshot", "memoryQuery",
-                "graphSearch", "diaryImageAnalysis", "listEvents", "updateEventStatus"), displayNames);
+                "graphSearch", "diaryImageAnalysis", "readImageText", "listEvents", "updateEventStatus"),
+                displayNames);
     }
 
     @Test
@@ -116,6 +120,7 @@ class ChatToolRegistryTest {
         assertEquals(List.of("keyword", "limit"), requiredByName.get("memoryQueryFunction"));
         assertEquals(List.of("keyword", "limit"), requiredByName.get("graphSearchFunction"));
         assertEquals(List.of("diaryIds", "prompt"), requiredByName.get("diaryImageAnalysisFunction"));
+        assertEquals(List.of("focus"), requiredByName.get("readImageTextFunction"));
         assertEquals(List.of("keyword"), requiredByName.get("listEventsFunction"));
         assertEquals(List.of("eventId", "status", "note"), requiredByName.get("updateEventStatusFunction"));
     }

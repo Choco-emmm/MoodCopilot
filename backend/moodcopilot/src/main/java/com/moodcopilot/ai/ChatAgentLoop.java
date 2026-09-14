@@ -48,16 +48,20 @@ public class ChatAgentLoop {
      * sseSink 为 null 时（非流式路径）不产生引用帧。
      */
     public AgentLoopOutcome run(List<Map<String, Object>> messages, Authentication auth,
-                                Sinks.Many<String> sseSink, AgentLoopOptions options) {
+                                Sinks.Many<String> sseSink, AgentLoopOptions options,
+                                List<String> imageUrls) {
         AgentLoopOutcome outcome = new AgentLoopOutcome();
         AtomicBoolean firstTokenLogged = new AtomicBoolean();
         long startedAt = AiCallTiming.start();
-        outcome.attachChunks(process(messages, auth, sseSink, options, 0, outcome, firstTokenLogged, startedAt));
+        // 工具上下文整轮构造一次：认证、SSE 出口、本轮附件都随它下发
+        ToolExecutionContext context = new ToolExecutionContext(auth, sseSink,
+                imageUrls == null ? List.of() : imageUrls);
+        outcome.attachChunks(process(messages, context, options, 0, outcome, firstTokenLogged, startedAt));
         return outcome;
     }
 
-    private Flux<String> process(List<Map<String, Object>> messages, Authentication auth,
-            Sinks.Many<String> sseSink, AgentLoopOptions options, int depth,
+    private Flux<String> process(List<Map<String, Object>> messages, ToolExecutionContext context,
+            AgentLoopOptions options, int depth,
             AgentLoopOutcome outcome, AtomicBoolean firstTokenLogged, long startedAt) {
 
         if (depth > options.maxDepth()) {
@@ -103,8 +107,8 @@ public class ChatAgentLoop {
                         if (toolCalls.isEmpty()) {
                             return Flux.<String>empty();
                         }
-                        appendToolCallMessages(messages, toolCalls, turnContent, turnReasoning, auth, sseSink, options, outcome);
-                        return process(messages, auth, sseSink, options, depth + 1, outcome, firstTokenLogged, startedAt);
+                        appendToolCallMessages(messages, toolCalls, turnContent, turnReasoning, context, options, outcome);
+                        return process(messages, context, options, depth + 1, outcome, firstTokenLogged, startedAt);
                     }));
         });
     }
@@ -112,7 +116,7 @@ public class ChatAgentLoop {
     private void appendToolCallMessages(List<Map<String, Object>> messages,
             List<DeepSeekStreamEvent.ToolCallReady> toolCalls,
             StringBuilder turnContent, StringBuilder turnReasoning,
-            Authentication auth, Sinks.Many<String> sseSink, AgentLoopOptions options,
+            ToolExecutionContext context, AgentLoopOptions options,
             AgentLoopOutcome outcome) {
 
         List<Map<String, Object>> toolCallsArray = new ArrayList<>();
@@ -141,10 +145,9 @@ public class ChatAgentLoop {
             toolMsg.put("tool_call_id", tool.toolCallId());
 
             try {
-                ToolExecutionContext context = new ToolExecutionContext(auth, sseSink);
                 Object result = toolRegistry.execute(tool.functionName(), tool.argumentsJson(), context);
                 toolMsg.put("content", objectMapper.writeValueAsString(result));
-                outcome.recordToolCalls(1, toolRegistry.emit(tool.functionName(), result, sseSink));
+                outcome.recordToolCalls(1, toolRegistry.emit(tool.functionName(), result, context.sseSink()));
             } catch (Exception e) {
                 // DeepSeek 期望每个 tool_call_id 都有对应的 tool 消息；缺失会导致模型卡住或重复调用。
                 log.error("工具调用执行失败: {} model={}", e.getMessage(), options.modelLabel());

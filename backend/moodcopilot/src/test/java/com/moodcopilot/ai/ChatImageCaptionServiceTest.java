@@ -46,13 +46,13 @@ class ChatImageCaptionServiceTest {
     }
 
     @Test
-    void buildsOneTextChannelMetaPerUrlSoOcrActuallyRuns() {
+    void buildsOneMetaPerUrlAndLeavesOcrToTheTool() {
         acceptBucketUrlsOnly();
-        when(visionService.describeImages(anyList(), anyList(), any())).thenReturn("[视觉] 一张截图 [OCR文字] 你好");
+        when(visionService.describeImages(anyList(), anyList(), any())).thenReturn("[视觉] 一张截图");
 
         String caption = service.describeForChat(user(), List.of(GOOD_A, GOOD_B));
 
-        assertEquals("[视觉] 一张截图 [OCR文字] 你好", caption);
+        assertEquals("[视觉] 一张截图", caption);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<String>> urlCaptor = ArgumentCaptor.forClass(List.class);
@@ -67,7 +67,8 @@ class ChatImageCaptionServiceTest {
         assertEquals(urls.size(), metas.size());
         for (int i = 0; i < metas.size(); i++) {
             assertEquals(urls.get(i), metas.get(i).getUrl());
-            assertEquals("text", metas.get(i).getChannel(), "channel=text 才会启用 OCR 双通道");
+            // channel=normal 让默认路径只跑视觉（快）；OCR 由 readImageTextFunction 按需触发
+            assertEquals("normal", metas.get(i).getChannel());
         }
     }
 

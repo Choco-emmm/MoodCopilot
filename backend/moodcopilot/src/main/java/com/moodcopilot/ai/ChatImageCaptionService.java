@@ -18,8 +18,9 @@ import java.util.List;
  * 刻意不走工具调用：描述在请求装配阶段生成一次并注入上下文，三条 Agent 路径
  * （流式 / 非流式 / 推理）因此都自动拿到，模型也无须自己填写图片 URL。
  * <p>
- * 复用 {@link VisionService#describeImages}（带 OCR 路由、30 天 Redis 缓存、
- * 张数上限、长度截断与并发），而不是 {@code analyzeImageDetails}。
+ * 复用 {@link VisionService#describeImages}（带 30 天 Redis 缓存、张数上限、长度截断与并发），
+ * 并且刻意**关掉 OCR**：OCR 一张文字密集的图可能要几十秒，而大多数图片不需要。
+ * 需要图上文字时，模型自己调用 OCR 工具（{@code readImageTextFunction}）按需触发。
  */
 @Service
 public class ChatImageCaptionService {
@@ -50,13 +51,14 @@ public class ChatImageCaptionService {
             return "";
         }
 
-        // 与 URL 一一对应：VisionService.buildImageTasks 按位置取 meta，
-        // 错位会让 channel 静默降级成 legacy（即不跑 OCR）。
+        // 与 URL 一一对应：VisionService.buildImageTasks 按位置取 meta。
+        // channel 用 "normal"（不是 "text"）—— 默认只跑视觉模型，快得多；
+        // 需要图上的文字时由模型自己调用 readImageTextFunction 触发 OCR。
         List<DiaryImageMeta> metas = new ArrayList<>(accepted.size());
         for (String url : accepted) {
             DiaryImageMeta meta = new DiaryImageMeta();
             meta.setUrl(url);
-            meta.setChannel("text");
+            meta.setChannel("normal");
             metas.add(meta);
         }
 

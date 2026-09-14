@@ -363,7 +363,7 @@ public class ChatService {
         Sinks.Many<String> sseSink = Sinks.many().unicast().onBackpressureBuffer();
         long aiStartedAt = AiCallTiming.start();
         int aiInputLength = augmentedMessage == null ? 0 : augmentedMessage.length();
-        AgentLoopOutcome outcome = agentLoop.run(msgs, auth, sseSink, options);
+        AgentLoopOutcome outcome = agentLoop.run(msgs, auth, sseSink, options, imageUrls);
 
         Flux<String> stream = outcome.chunks()
                 .doOnComplete(sseSink::tryEmitComplete)
@@ -423,7 +423,7 @@ public class ChatService {
         long aiStartedAt = AiCallTiming.start();
         int aiInputLength = augmentedMessage == null ? 0 : augmentedMessage.length();
         try {
-            AgentLoopOutcome outcome = agentLoop.run(msgs, auth, null, options);
+            AgentLoopOutcome outcome = agentLoop.run(msgs, auth, null, options, imageUrls);
             // 非流式：先驱动 flux 走完，再读 outcome —— 累加在流结束后才完整
             outcome.chunks().reduce(String::concat).block();
             addAssistantTurn(conversationId, request, outcome);

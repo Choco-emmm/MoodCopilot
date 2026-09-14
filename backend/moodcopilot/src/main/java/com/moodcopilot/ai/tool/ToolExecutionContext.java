@@ -4,15 +4,18 @@ import com.moodcopilot.entity.UserEntity;
 import org.springframework.security.core.Authentication;
 import reactor.core.publisher.Sinks;
 
+import java.util.List;
+
 /**
  * 工具执行上下文。
  * <p>
  * sseSink 仅在流式路径存在；非流式与推理的同步路径传 null，引用帧会被静默跳过。
+ * imageUrls 是本轮用户附带的图片，供 OCR 一类的工具按需读取，模型无须自己填写 URL。
  */
-public record ToolExecutionContext(Authentication auth, Sinks.Many<String> sseSink) {
+public record ToolExecutionContext(Authentication auth, Sinks.Many<String> sseSink, List<String> imageUrls) {
 
     public static ToolExecutionContext of(Authentication auth) {
-        return new ToolExecutionContext(auth, null);
+        return new ToolExecutionContext(auth, null, List.of());
     }
 
     public UserEntity user() {

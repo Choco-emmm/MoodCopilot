@@ -176,7 +176,7 @@ public class VisionService {
         String extractedText = "";
         boolean shouldUseOcr = enableOcr && "text".equals(channel);
         if (shouldUseOcr) {
-            extractedText = analyzeWithOcr(imageUrl, index);
+            extractedText = analyzeWithOcr(imageUrl, index, null);
         }
 
         // 常规模型只描述画面视觉，不混入 OCR 文字
@@ -220,12 +220,52 @@ public class VisionService {
      * OCR 专用分析：使用 qwen-vl-ocr 模型，极低温度，专注文字提取。
      * 失败时静默返回空字符串，由上层回退到常规模型。
      */
-    private String analyzeWithOcr(String imageUrl, int index) {
+    /**
+     * 纯 OCR：只提取文字，不混画面描述。供「让模型自己决定要不要读图上的字」的工具调用。
+     * <p>
+     * 结果按图片缓存 30 天 —— OCR 一张文字密集的图可能要几十秒，重复读同一张图不该重复付这个代价。
+     *
+     * @param focus 想重点提取的内容；空则只给通用提示
+     * @return 拼接后的文字；没有文字或失败时返回 ""
+     */
+    public String extractText(List<String> imageUrls, String focus) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            return "";
+        }
+        if (!isConfigured()) {
+            log.warn("VLM 未配置，跳过 {} 张图片的 OCR", imageUrls.size());
+            return "";
+        }
+        List<String> parts = new ArrayList<>();
+        for (int i = 0; i < imageUrls.size(); i++) {
+            String rawUrl = imageUrls.get(i);
+            String cacheKey = getCacheKey(rawUrl, OCR_CACHE_CHANNEL);
+            String cached = redisTemplate == null ? null : redisTemplate.opsForValue().get(cacheKey);
+            String text = cached != null
+                    ? cached
+                    : analyzeWithOcr(ossService != null ? ossService.getAccessibleUrl(rawUrl) : rawUrl, i + 1, focus);
+            if (cached == null && redisTemplate != null && text != null && !text.isBlank()) {
+                redisTemplate.opsForValue().set(cacheKey, text, Duration.ofDays(30));
+            }
+            if (text != null && !text.isBlank()) {
+                parts.add(imageUrls.size() == 1 ? text : "图片" + (i + 1) + "：\n" + text);
+            }
+        }
+        return String.join("\n\n", parts);
+    }
+
+    /** OCR 走独立缓存键，避免和 describeImages 里「视觉+OCR 合并」的缓存互相污染。 */
+    private static final String OCR_CACHE_CHANNEL = "ocr";
+
+    private String analyzeWithOcr(String imageUrl, int index, String focus) {
         try {
             String finalUrl = fetchImageAsBase64Uri(imageUrl);
             String prompt = "请逐字提取并输出这张图片中所有可见的文字内容（包括手写文字、印刷文字、屏幕文字、海报标题、正文、按钮、日期、地点和联系方式）。" +
                     "请按照从上到下、从左到右的阅读顺序完整输出，保留原有换行和段落；禁止概括、改写、补全、合并或省略任何文字，尤其不要漏掉海报下方和角落里的小字。" +
                     "只输出识别到的原文，不要添加解释、评价或描述。如果图片中没有文字，请输出‘无文字’。";
+            if (focus != null && !focus.isBlank()) {
+                prompt += "\n另外请特别确保以下内容被完整提取：" + focus.trim();
+            }
 
             Map<String, Object> userMsg = Map.of("role", "user", "content", List.of(
                     Map.of("type", "text", "text", prompt),
