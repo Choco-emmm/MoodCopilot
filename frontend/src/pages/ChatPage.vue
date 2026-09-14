@@ -1349,7 +1349,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 
 @media (max-width: 768px) {
   .chat-messages {
-    padding: 18px 14px 240px !important;
+    padding: 18px 14px 160px !important;
     border-radius: 12px !important;
     min-height: 340px;
   }
@@ -1780,7 +1780,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 
   .chat-messages {
     overflow-x: hidden;
-    padding: 14px 10px 240px !important;
+    padding: 14px 10px 160px !important;
   }
 
   :deep(.msg-item) {
@@ -1812,5 +1812,14 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 <style>
 body.chat-keyboard-open .chat-input-wrapper {
   bottom: 0 !important;
+}
+</style>
+
+<style scoped>
+@media (max-width: 768px) {
+  .chat-empty {
+    justify-content: flex-start !important;
+    padding-top: 100px !important;
+  }
 }
 </style>
