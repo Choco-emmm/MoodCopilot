@@ -49,6 +49,7 @@ export function useChatStream(
   const isThinking = ref(false)
   const isCompressing = ref(false)
   const compressingMessage = ref('正在优化对话上下文...')
+  const compressingSubtip = ref('')
   const useReasoning = ref(false)
   const references = ref<ChatReference[]>([])
   const lastReplyError = ref<string | null>(null)
@@ -213,16 +214,7 @@ export function useChatStream(
             currentRefs = [...currentRefs, ...toolItems]
             streamingRefs.value = currentRefs
           },
-          (status: { stage: string; message: string }) => {
-            if (status.stage === 'compressing') {
-              isCompressing.value = true
-              compressingMessage.value = status.message || '正在优化对话上下文...'
-            } else if (status.stage === 'thinking') {
-              isCompressing.value = false
-              isThinking.value = true
-            }
-            scrollManager.scrollBottom()
-          },
+          applyStatus,
         )
 
         if (activeConvId.value === convId && !messages.value.some(message => message.id === `${runId}:assistant`)) {
@@ -257,6 +249,27 @@ export function useChatStream(
   }
 
   // ── Stream Reply ──
+
+  /**
+   * 后台在干什么。stage 由后端 status 帧给出：
+   * compressing 是上下文压缩，reading_images 是图片识别（OCR 一张带文字的图可能要几十秒）。
+   * 副标题只在压缩阶段有意义，别的阶段留空，免得显示成「正在精炼长对话记忆」。
+   */
+  function applyStatus(status: { stage: string; message: string }) {
+    if (status.stage === 'compressing') {
+      isCompressing.value = true
+      compressingMessage.value = status.message || '正在优化对话上下文...'
+      compressingSubtip.value = '正在精炼长对话记忆，优化后将继续回复'
+    } else if (status.stage === 'reading_images') {
+      isCompressing.value = true
+      compressingMessage.value = status.message || '正在识别图片内容…'
+      compressingSubtip.value = ''
+    } else if (status.stage === 'thinking') {
+      isCompressing.value = false
+      isThinking.value = true
+    }
+    scrollManager.scrollBottom()
+  }
 
   async function sendReply(convId: number, content: string, refContents: string[], referenceItems: Array<{ sourceType: string; sourceId: number }>, requestedUseReasoning: boolean, isRetry: boolean, eventId?: number, refreshTitle = false, imageUrls: string[] = []) {
     if (streamAbortCtrl) {
@@ -312,16 +325,7 @@ export function useChatStream(
           currentRefs = [...currentRefs, ...toolItems]
           streamingRefs.value = currentRefs
         },
-        (status: { stage: string; message: string }) => {
-          if (status.stage === 'compressing') {
-            isCompressing.value = true
-            compressingMessage.value = status.message || '正在优化对话上下文...'
-          } else if (status.stage === 'thinking') {
-            isCompressing.value = false
-            isThinking.value = true
-          }
-          scrollManager.scrollBottom()
-        },
+        applyStatus,
         undefined,
         referenceItems,
       )
@@ -433,7 +437,7 @@ export function useChatStream(
   }
 
   return {
-    draft, streaming, streamingText, streamingReasoning, isThinking, isCompressing, compressingMessage, useReasoning, references,
+    draft, streaming, streamingText, streamingReasoning, isThinking, isCompressing, compressingMessage, compressingSubtip, useReasoning, references,
     lastReplyError, lastReplyRequest, streamingRefs, showStreamingRefs,
     syncCooldownUntil,
     send, retryLastReply, resumeActiveRun, abortStream, removeRef, addImageRef,

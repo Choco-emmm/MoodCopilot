@@ -394,6 +394,7 @@ export function useChat() {
     isThinking: stream.isThinking,
     isCompressing: stream.isCompressing,
     compressingMessage: stream.compressingMessage,
+    compressingSubtip: stream.compressingSubtip,
     useReasoning: stream.useReasoning,
     streamingRefs: stream.streamingRefs,
     lastReplyError: stream.lastReplyError,

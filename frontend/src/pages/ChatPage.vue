@@ -190,7 +190,7 @@
                   <span class="dot animate-bounce" style="animation-delay: 150ms"></span>
                   <span class="dot animate-bounce" style="animation-delay: 300ms"></span>
                 </div>
-                <div class="compressing-subtip">正在精炼长对话记忆，优化后将继续回复</div>
+                <div v-if="compressingSubtip" class="compressing-subtip">{{ compressingSubtip }}</div>
               </div>
             </div>
           </div>
@@ -295,7 +295,7 @@ const {
   ensureConversation,
   handleMobileConversationChange, deleteActiveConversation,
   messages,
-  draft, streaming, streamingText, streamingReasoning, isThinking, isCompressing, compressingMessage, useReasoning, streamingRefs,
+  draft, streaming, streamingText, streamingReasoning, isThinking, isCompressing, compressingMessage, compressingSubtip, useReasoning, streamingRefs,
   lastReplyError, lastReplyRequest, references,
   send, retryLastReply, removeRef, addImageRef,
   recentDiaryOptions, recentDiariesLoading, recentDiariesError,

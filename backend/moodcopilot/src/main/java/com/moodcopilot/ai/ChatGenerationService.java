@@ -118,6 +118,12 @@ public class ChatGenerationService {
         StringBuilder reply = new StringBuilder();
         try {
             chatService.scheduleConversationTitle(request.conversationId(), request.message());
+            // 图片描述是在模型调用之前同步生成的，OCR 一张带文字的图可能要几十秒。
+            // 先把状态帧写进事件表，客户端重放时就能看到「在干什么」而不是干等。
+            if (request.imageUrls() != null && !request.imageUrls().isEmpty()) {
+                writeEvent(runId, event("status",
+                        Map.of("stage", "reading_images", "message", "正在识别图片内容…")));
+            }
             ChatService.ChatStreamContext result = chatService.chat(
                     request.conversationId(), request.message(), request.references(), "",
                     request.useReasoning(), request.referencePurpose(), request.resolvedReferences(),
