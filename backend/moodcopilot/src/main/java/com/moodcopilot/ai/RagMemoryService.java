@@ -1326,8 +1326,8 @@ public class RagMemoryService {
                         }
 
                         String snippet = d.getContent();
-                        if (snippet != null && snippet.length() > 500) {
-                            snippet = snippet.substring(0, 500) + "...";
+                        if (snippet != null && snippet.length() > 3000) {
+                            snippet = snippet.substring(0, 3000) + "...";
                         }
                         
                         String finalSnippet;

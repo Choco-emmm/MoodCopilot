@@ -67,7 +67,7 @@ public class XmlPromptRenderer implements PromptRenderer {
         StringBuilder body = new StringBuilder();
         for (UserReference reference : references) {
             if (reference == null || reference.source() == null || normalize(reference.content()).isBlank()) continue;
-            String rendered = renderUserReference(reference, truncate(normalize(reference.content()), 2400));
+            String rendered = renderUserReference(reference, truncate(normalize(reference.content()), 3000));
             if (body.length() + rendered.length() > budget) break;
             body.append(rendered);
         }
@@ -80,7 +80,7 @@ public class XmlPromptRenderer implements PromptRenderer {
             if (item == null || item.source() == null) continue;
             String content = normalize(item.content());
             if (content.isBlank()) continue;
-            String rendered = renderItem(item, truncate(content, 2400));
+            String rendered = renderItem(item, truncate(content, 3000));
             if (body.length() + rendered.length() > budget) break;
             body.append(rendered);
         }
