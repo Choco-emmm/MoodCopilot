@@ -1355,7 +1355,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   }
 
   .chat-window {
-    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+    padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important;
   }
 
   .chat-quick-starters {
@@ -1375,7 +1375,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   }
 
   .chat-input-wrapper {
-    bottom: calc(76px + env(safe-area-inset-bottom));
+    bottom: calc(76px + env(safe-area-inset-bottom)) !important;
     padding-bottom: 12px;
   }
 
@@ -1806,5 +1806,11 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
     overflow-wrap: anywhere;
   }
 
+}
+</style>
+
+<style>
+body.chat-keyboard-open .chat-input-wrapper {
+  bottom: 0 !important;
 }
 </style>

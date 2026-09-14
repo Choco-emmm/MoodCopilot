@@ -3416,6 +3416,8 @@ h3 {
     overflow: hidden;
   }
 
+  body.chat-keyboard-open .nav-links { display: none !important; }
+
   body.chat-keyboard-open .app-shell.chat-shell {
     padding-bottom: 12px;
   }
