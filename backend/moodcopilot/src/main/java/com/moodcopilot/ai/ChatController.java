@@ -105,7 +105,12 @@ public class ChatController {
 
     @GetMapping(value = "/conversations/{id}/runs/{runId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> streamRun(@PathVariable Long id, @PathVariable String runId,
-            @RequestParam(defaultValue = "0") long after) {
+            @RequestParam(defaultValue = "0") long after, HttpServletResponse response) {
+        // 与旧的 /conversations/{id} 接口保持一致：不设 X-Accel-Buffering 的话，
+        // nginx 会按默认 proxy_buffering 把整个响应攒到结束才下发，客户端只能一次性拿到全文。
+        response.setHeader("Cache-Control", "no-cache");
+        response.setHeader("Connection", "keep-alive");
+        response.setHeader("X-Accel-Buffering", "no");
         UserEntity user = currentUser();
         return chatGenerationService.stream(runId, user.getId(), id, Math.max(0, after));
     }

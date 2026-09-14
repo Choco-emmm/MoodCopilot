@@ -368,10 +368,15 @@ const isStreaming = ref(false);
 const streamingContent = ref('');
 // 流式期间用独立 ref 渲染纯文本：不往 messages 里塞半成品（避免 :key="index" 抖动），
 // 也不对半截 markdown 反复跑 parseMarkdown（未闭合的 ** 和半张表格会渲染成乱码）
-const STREAM_FLUSH_INTERVAL_MS = 80;
+const STREAM_TICK_MS = 40;
+const STREAM_SCROLL_THROTTLE_MS = 200;
 let activeStream: ChatStreamHandle | null = null;
+// 已收到的全文（pendingStreamText）与已显示的进度（revealedLength）解耦，
+// 服务端每 250ms 推一批，直接整批渲染会成块蹦字
 let pendingStreamText = '';
-let streamFlushTimer: ReturnType<typeof setTimeout> | null = null;
+let revealedLength = 0;
+let streamTickTimer: ReturnType<typeof setTimeout> | null = null;
+let lastStreamScrollAt = 0;
 
 const showDrawer = ref(false);
 const conversations = ref<any[]>([]);
@@ -829,10 +834,24 @@ const scrollToWaiting = () => {
   });
 };
 
-const flushStreamText = () => {
-  streamFlushTimer = null;
-  streamingContent.value = pendingStreamText;
-  scrollToWaiting();
+/** 固定节奏吐字：积压越多一次吐得越多（追得上生成速度），追平后自然变慢变顺 */
+const pumpStreamText = () => {
+  streamTickTimer = null;
+  const backlog = pendingStreamText.length - revealedLength;
+  if (backlog <= 0) return;
+
+  revealedLength += Math.max(1, Math.ceil(backlog / 8));
+  streamingContent.value = pendingStreamText.slice(0, revealedLength);
+
+  const now = Date.now();
+  if (now - lastStreamScrollAt > STREAM_SCROLL_THROTTLE_MS) {
+    lastStreamScrollAt = now;
+    scrollToWaiting();
+  }
+
+  if (revealedLength < pendingStreamText.length) {
+    streamTickTimer = setTimeout(pumpStreamText, STREAM_TICK_MS);
+  }
 };
 
 const appendStreamText = (text: string) => {
@@ -841,8 +860,8 @@ const appendStreamText = (text: string) => {
     isStreaming.value = true;
     isWaiting.value = false;
   }
-  if (streamFlushTimer === null) {
-    streamFlushTimer = setTimeout(flushStreamText, STREAM_FLUSH_INTERVAL_MS);
+  if (streamTickTimer === null) {
+    streamTickTimer = setTimeout(pumpStreamText, STREAM_TICK_MS);
   }
 };
 
@@ -855,12 +874,14 @@ const toReplyErrorMessage = (error: any) => {
 
 /** 收尾一轮对话：把流式期间累积的文本落到 messages，恢复输入状态 */
 const finishTurn = (errorMessage: string | null, isFirstUserMessage: boolean) => {
-  if (streamFlushTimer !== null) {
-    clearTimeout(streamFlushTimer);
-    streamFlushTimer = null;
+  if (streamTickTimer !== null) {
+    clearTimeout(streamTickTimer);
+    streamTickTimer = null;
   }
+  // 收尾时不再平滑，直接用全文，避免最后一截字还要等打字机吐完
   const text = pendingStreamText;
   pendingStreamText = '';
+  revealedLength = 0;
   activeStream = null;
   isWaiting.value = false;
   isStreaming.value = false;
@@ -882,13 +903,14 @@ const finishTurn = (errorMessage: string | null, isFirstUserMessage: boolean) =>
 
 /** 切换/新建会话时中断进行中的流，避免增量文本落到别的会话里 */
 const abortActiveStream = () => {
-  if (streamFlushTimer !== null) {
-    clearTimeout(streamFlushTimer);
-    streamFlushTimer = null;
+  if (streamTickTimer !== null) {
+    clearTimeout(streamTickTimer);
+    streamTickTimer = null;
   }
   activeStream?.cancel();
   activeStream = null;
   pendingStreamText = '';
+  revealedLength = 0;
   streamingContent.value = '';
   isStreaming.value = false;
   isWaiting.value = false;
@@ -922,6 +944,7 @@ const sendMessage = async () => {
   clearQuote();
   isWaiting.value = true;
   pendingStreamText = '';
+  revealedLength = 0;
   streamingContent.value = '';
   scrollToBottom('waiting');
 
