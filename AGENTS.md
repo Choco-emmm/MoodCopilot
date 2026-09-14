@@ -175,7 +175,33 @@
 - 聊天失败重试必须保留用户原始引用（包括日记和事件），不得把重试消息变成无引用的新请求。进入事件聊天只注入事件上下文，不自动修改事件状态。
 - 网页和小程序新增界面必须沿用全局主题变量；禁止硬编码颜色。小程序不增加广场、关注、评论、点赞、举报等公开社交入口。
 
+### 聊天工具、Agent 循环与历史归属
+
+- Flash 与 Pro 共用同一条 Agent 循环（`ChatAgentLoop`），差异只体现在 `AgentLoopOptions`（模型、预算、`temperature`、`reasoning_effort`、是否暴露思考过程）。不要按模型再写第二条循环或第二套工具集。
+- 聊天工具只有一份声明：实现 `ai.tool.ChatTool`，在 `ChatToolConfiguration` 按显式顺序注册。禁止恢复 `FunctionCallback` Bean、`AIConfiguration` 里的工具副本，或某个模型独有的工具集。
+- 工具执行、`SecurityContextHolder` 注入与 `[[TOOL_EVENT]]` 引用帧都收敛在 `ChatToolRegistry`；工具实现不得自行读写认证上下文。
+- 「什么算回复正文」只在 `AgentLoopOutcome` 一处判定，字面量 `[[REASONING]]` 不得进入持久化历史或喂给记忆抽取的缓冲区。
+- 模型不接触图片 URL。需要本轮附件的工具从 `ToolExecutionContext.imageUrls()` 取；URL 的本桶校验在 `ChatImageCaptionService`，那是唯一的入防线。
+- 聊天历史的唯一权威写入方是 `ChatService.appendToChatMemory`。不要在 `ChatGenerationService` 等处再写第二遍 —— 历史上正是这样产生了重复的 user+assistant 对。
+- 前端 `PUT /history` 只是补标注：存量行保留、只覆盖客户端字段（`reasoningContent`/`ragReferences`/`quoteRef`/`imageUrls`）、从不截断；未命中时 user 行追加、**assistant 行丢弃**（服务端已写过权威版本，未命中只意味着客户端累积文本与服务端持久化文本有出入）。
+- 助手回复的正文、`reasoningContent` 与工具引用条目都由服务端落库，前端不需要也不应提供。
+
+### 聊天图片
+
+- 用户发送的图片默认**只走视觉模型**（`channel="normal"`），描述以 `SYSTEM_IMAGE_CAPTION` 注入上下文，信任等级必须是 `UNTRUSTED` —— 描述来自用户提供的像素，图片里渲染的文字不能变成高置信指令。
+- OCR 按需触发：由模型调用 `readImageTextFunction`。不要恢复「每张图都跑 OCR」，一张文字密集的图会让整轮对话多等几十秒。
+- 图片描述不得阻断对话，任何失败都降级为空描述；也不要为它单独计配额（上传已计入 `IMAGE_UPLOAD`，且描述生成不是用户主动发起的操作）。
+- 「模型在做什么」通过 run 的 `status` 帧下发（如 `reading_images`），前端已有 `onStatus` 渲染。静默期超过几秒就要有反馈。
+- 聊天附件应在发送前压缩（日记路径已有 `compressImage`），不要把原图直传视觉模型。
+
+### 用户可见文案
+
+- 不得向用户暴露工具名称或内部机制。用户不知道也不关心「深度视觉分析」「工具调用」「检索」「模型」指什么；要说「我再仔细看看这张图」「我翻一下你的记录」。除非用户自己先用了这类词。
+- 「深度分析」与普通图片分析**用的是同一个模型**（`qwen3-vl-flash`），区别只在提问的针对性和输出预算（80 → 300 tokens）。不要在文案里暗示它用了更强的模型。
+
 ### DeepSeek 深度思考与推理流规范
-- DeepSeek（Pro）推理模型输出的 `reasoning_content` 必须作为 SSE 流的独立部分，携带 `[[REASONING]]` 前缀下发。前端 `ChatStreamingItem.vue` 和 `ChatMessageItem.vue` 必须使用 `<reasoning-panel>` 实时动态渲染思考过程，禁止阻断流式体验或等到最后才显示。
-- DeepSeek 在推演时极易本能使用英文（基于强化学习数据的肌肉记忆）。为确保思考语言与用户输入保持一致，必须将语言约束指令拼接到**最后一条用户消息的绝对末尾**。禁止将该指令仅放在系统提示词（System Prompt）中，否则容易被忽略。
-- 当推理模型（如 DeepSeek-v4-Pro）输出工具调用（Tool Call）时，后端状态机必须保留并回传本轮工具调用前产生的 `reasoning_content`。如果截断或遗漏该推理记录，会直接导致 DeepSeek API 返回 400 错误。
+- 推理模型输出的 `reasoning_content` 必须作为 SSE 流的独立部分，携带 `[[REASONING]]` 前缀下发。前端 `ChatStreamingItem.vue` 和 `ChatMessageItem.vue` 必须使用 `<reasoning-panel>` 实时动态渲染思考过程，禁止阻断流式体验或等到最后才显示。
+- 是否下发思考过程由 `AgentLoopOptions.exposeReasoning` 决定：Pro 为 `true`，Flash 为 `false`（Flash 历史上没有思考面板，不要顺手打开）。Flash 不暴露时仍然完整累加 `reasoning()`，只是不向客户端转发。
+- 语言约束指令必须拼接到**最后一条用户消息的绝对末尾**（`REASONING_LANGUAGE_INSTRUCTION`，仅推理模式），禁止只放在系统提示词中，否则容易被忽略。
+- 推理模型输出工具调用（Tool Call）时，必须保留并回传本轮工具调用前产生的 `reasoning_content`（见 `ChatAgentLoop` 构造的 assistant 消息）。截断或遗漏该字段会直接导致 DeepSeek API 返回 400。
+- 出站消息体清洗只允许**补空**，不得无条件覆写：`assistant` + `tool_calls` 的 `content`/`reasoning_content` 只有在缺失时才补空串。无条件置空会抹掉模型发起工具调用之前已经说出口的正文。

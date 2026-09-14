@@ -73,6 +73,7 @@
 *   **可自定义的 MoodCopilot 个性**：支持全局 Persona 和会话 Persona 覆盖，可分别设置互动身份、预设语气、自定义语气和回答方式；普通消息中的临时表达要求不会被错误保存为长期设置。
 *   **清晰的模型与配额**：聊天和日记分析都支持用户手动选择 Flash 或 Pro，四类额度分别计算：日记分析 Flash、日记分析 Pro、聊天 Flash、聊天 Pro。时光画卷章节重新整理每天最多 2 次。
 *   **可恢复的流式聊天**：网页聊天支持断线、切页和刷新后的生成任务恢复，生成事件按序号续接，失败重试会保留用户主动引用的日记和事件。
+*   **聊天里直接发图**：可以直接把图片发给 TA。默认只做画面理解（快），需要读图上的文字时 TA 会自己决定再看一遍并逐字提取，而不是让每张图都白白等一遍 OCR。图片描述始终标注为「系统生成的图片描述」，不会被说成亲眼所见；识别期间界面会显示 TA 正在做什么。
 
 <p align="center">
   &nbsp;&nbsp;
@@ -111,7 +112,8 @@
 | **安全体系** | Spring Security + JWT 无状态认证 + TIANAI-CAPTCHA |
 | **前端交互** | Vue 3 + TypeScript + Vite + Naive UI + Tailwind CSS |
 | **实时通信引擎** | Server-Sent Events (SSE) 配合可恢复生成任务，支持跨页面路由、断线和刷新后的事件续接 |
-| **AI 模型栈** | **deepseek-v4-flash / pro** (纯手写 WebClient 实现流式思考过程解析) + **DashScope VLM** (qwen-vl-ocr 文字提取 + qwen3-vl-flash 视觉描述双路由) |
+| **AI 模型栈** | **deepseek-v4-flash / pro**（两者共用同一条自研 Agent 循环，差异只在参数与是否暴露思考过程）+ **DashScope VLM**（qwen-vl-ocr 文字提取 + qwen3-vl-flash 视觉描述） |
+| **工具层** | 单一 `ChatToolRegistry` 声明全部聊天工具，供所有模型共享；工具执行、认证上下文注入与引用帧下发都收敛在同一处 |
 | **RAG 引擎** | BAAI/bge-m3 (SiliconFlow API 1024 维密集向量嵌入)，采用用户隔离的向量检索、资格过滤、上下文规划和结构化 Prompt 渲染。 |
 | **部署架构** | 阿里云 OSS 浏览器直传（极低服务器带宽压力）、Docker Compose 容器化编排部署、Nginx 反代。 |
 
