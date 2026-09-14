@@ -155,6 +155,19 @@ public class ChatGenerationService {
             log.info("聊天生成任务已取消 runId={} userId={} conversationId={}", runId,
                     request.userId(), request.conversationId());
             setStatus(runId, "CANCELLED");
+        } catch (com.moodcopilot.common.RateLimitException e) {
+            // 限流原因（“今日聊天 Pro 次数已用完…”）必须原样送到用户眼前。
+            // 之前被下面的通用 catch 吞成一句无用的“AI 服务暂时无法完成本次回答”，
+            // 用户完全看不出是自己额度用完了。
+            log.info("聊天生成任务被限流 runId={} userId={} conversationId={} reason={}", runId,
+                    request.userId(), request.conversationId(), e.getMessage());
+            boolean rateLimited = transitionStatus(runId, "FINALIZING", "FAILED")
+                    || transitionStatus(runId, "RUNNING", "FAILED");
+            String message = e.getMessage() == null || e.getMessage().isBlank()
+                    ? "AI 服务暂时无法完成本次回答" : e.getMessage();
+            if (rateLimited) {
+                writeEvent(runId, event("error", Map.of("message", message)));
+            }
         } catch (Exception e) {
             log.warn("聊天生成任务失败 runId={} userId={} conversationId={} reason={}",
                     runId, request.userId(), request.conversationId(), e.getMessage());
