@@ -359,33 +359,33 @@ public class ChatService {
             boolean useReasoning, ReferencePurpose referencePurpose, List<UserReference> resolvedReferences,
             CurrentTurnPreference turnPreference) {
         // 流式接口：先统一装配上下文，再按用户显式选择的模型执行。
-        message = augmentWithRefReminder(message, refs);
-        ChatExecutionResult exec = prepareChatExecution(conversationId, message, refs, memoryBackground,
+        String augmentedMessage = augmentWithRefReminder(message, refs);
+        ChatExecutionResult exec = prepareChatExecution(conversationId, augmentedMessage, refs, memoryBackground,
                 useReasoning, referencePurpose, resolvedReferences, turnPreference);
         ChatRequest request = exec.request();
         Authentication auth = exec.auth();
         String ragCtx = exec.ragCtx();
-        final String chapterQuery = message;
+        final String chapterQuery = augmentedMessage;
 
         if (exec.useReasoning()) {
             log.info("聊天路由结果：reasoning（流式），conversationId={}，messageLength={}", conversationId,
-                    message == null ? 0 : message.length());
-            return new ChatStreamContext(ragCtx, callReasoningModelStream(request, message, auth, conversationId, ragCtx));
+                    augmentedMessage == null ? 0 : augmentedMessage.length());
+            return new ChatStreamContext(ragCtx, callReasoningModelStream(request, augmentedMessage, message, auth, conversationId, ragCtx));
         }
 
         log.info("聊天路由结果：normal，conversationId={}，messageLength={}", conversationId,
-                message == null ? 0 : message.length());
+                augmentedMessage == null ? 0 : augmentedMessage.length());
 
         Sinks.Many<String> sseSink = Sinks.many().unicast().onBackpressureBuffer();
         long aiStartedAt = AiCallTiming.start();
         AtomicBoolean firstTokenLogged = new AtomicBoolean();
         java.util.concurrent.atomic.AtomicInteger aiOutputLength = new java.util.concurrent.atomic.AtomicInteger();
-        final int aiInputLength = message == null ? 0 : message.length();
+        final int aiInputLength = augmentedMessage == null ? 0 : augmentedMessage.length();
 
         appendToChatMemory(conversationId, request.memory(), "user", message, null);
         StringBuilder flashReplyBuffer = new StringBuilder();
         Flux<String> stream = chatChatClient.prompt()
-                .user(message)
+                .user(augmentedMessage)
                 .system(s -> {
                     StringBuilder sys = new StringBuilder();
                     sys.append(request.context()).append("\n\n");
@@ -442,27 +442,27 @@ public class ChatService {
             boolean useReasoning, ReferencePurpose referencePurpose, List<UserReference> resolvedReferences,
             CurrentTurnPreference turnPreference) {
         // 非流式接口：移动端/公网优先走这里，减少 SSE 连接不稳定的影响。
-        message = augmentWithRefReminder(message, refs);
-        ChatExecutionResult exec = prepareChatExecution(conversationId, message, refs, memoryBackground,
+        String augmentedMessage = augmentWithRefReminder(message, refs);
+        ChatExecutionResult exec = prepareChatExecution(conversationId, augmentedMessage, refs, memoryBackground,
                 useReasoning, referencePurpose, resolvedReferences, turnPreference);
         ChatRequest request = exec.request();
         Authentication auth = exec.auth();
         String ragCtx = exec.ragCtx();
-        final String chapterQuery = message;
+        final String chapterQuery = augmentedMessage;
 
         if (exec.useReasoning()) {
             log.info("非流式聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
-                    message == null ? 0 : message.length());
-            return callReasoningModel(request, message, auth, conversationId, ragCtx);
+                    augmentedMessage == null ? 0 : augmentedMessage.length());
+            return callReasoningModel(request, augmentedMessage, message, auth, conversationId, ragCtx);
         }
 
         log.info("非流式聊天路由结果：normal，conversationId={}，messageLength={}", conversationId,
-                message == null ? 0 : message.length());
+                augmentedMessage == null ? 0 : augmentedMessage.length());
 
         long aiStartedAt = AiCallTiming.start();
         try {
             String result = chatChatClient.prompt()
-                    .user(message)
+                    .user(augmentedMessage)
                     .system(s -> {
                         StringBuilder sys = new StringBuilder();
                         sys.append(request.context()).append("\n\n");
@@ -487,7 +487,7 @@ public class ChatService {
             return result;
         } catch (RuntimeException error) {
             AiCallTiming.failed(log, "CHAT", "FLASH", aiStartedAt, error,
-                    message == null ? 0 : message.length());
+                    augmentedMessage == null ? 0 : augmentedMessage.length());
             throw error;
         }
     }
@@ -540,7 +540,7 @@ public class ChatService {
         return new ChatExecutionResult(request, auth, user, ragCtx, useReasoning);
     }
 
-    private List<Map<String, Object>> buildMessagesForReasoner(ChatRequest request, String message, Authentication auth, String ragCtx) {
+    private List<Map<String, Object>> buildMessagesForReasoner(ChatRequest request, String augmentedMessage, String originalMessage, Authentication auth, String ragCtx) {
         List<Map<String, Object>> msgs = new ArrayList<>();
         StringBuilder sys = new StringBuilder();
         sys.append(request.context()).append("\n\n");
@@ -563,7 +563,7 @@ public class ChatService {
             for (int i = 0; i < request.memory().size(); i++) {
                 com.moodcopilot.entity.dto.CustomChatMessage msg = request.memory().get(i);
                 // Skip the last message if it's the exact same user message, because we will append it with instructions below
-                if (i == request.memory().size() - 1 && "user".equalsIgnoreCase(msg.role()) && message != null && message.equals(msg.content())) {
+                if (i == request.memory().size() - 1 && "user".equalsIgnoreCase(msg.role()) && originalMessage != null && originalMessage.equals(msg.content())) {
                     continue;
                 }
                 String role = msg.role() != null ? msg.role() : "user";
@@ -576,36 +576,35 @@ public class ChatService {
             }
         }
         String reasoningLanguageInstruction = "\n\n(IMPORTANT RULE: You MUST use the exact same language as this user message above for your internal reasoning process and your final response. If this message is in Chinese, your <think> block must be entirely in Chinese.)";
-        msgs.add(Map.of("role", "user", "content", message + reasoningLanguageInstruction));
+        msgs.add(Map.of("role", "user", "content", augmentedMessage + reasoningLanguageInstruction));
         return msgs;
     }
 
-    private String callReasoningModel(ChatRequest request, String message, Authentication auth, long conversationId, String ragCtx) {
-        log.info("调用思考模型分支（原生 WebClient），messageLength={}", message == null ? 0 : message.length());
-        List<Map<String, Object>> msgs = buildMessagesForReasoner(request, message, auth, ragCtx);
+    private String callReasoningModel(ChatRequest request, String augmentedMessage, String originalMessage, Authentication auth, long conversationId, String ragCtx) {
+        log.info("调用思考模型分支（原生 WebClient），messageLength={}", augmentedMessage == null ? 0 : augmentedMessage.length());
+        List<Map<String, Object>> msgs = buildMessagesForReasoner(request, augmentedMessage, originalMessage, auth, ragCtx);
         return deepSeekClient.streamReasoner(msgs)
                 .filter(e -> e instanceof DeepSeekStreamEvent.TextChunk)
                 .map(e -> ((DeepSeekStreamEvent.TextChunk) e).text())
                 .reduce(String::concat).block();
     }
 
-    private Flux<String> callReasoningModelStream(ChatRequest request, String message, Authentication auth,
-            long conversationId, String ragCtx) {
-        log.info("调用思考模型分支（流式原生 WebClient + Agent Loop），messageLength={}", message == null ? 0 : message.length());
+    private Flux<String> callReasoningModelStream(ChatRequest request, String augmentedMessage, String originalMessage, Authentication auth, long conversationId, String ragCtx) {
+        log.info("调用思考模型分支（流式原生 WebClient + Agent Loop），messageLength={}", augmentedMessage == null ? 0 : augmentedMessage.length());
 
         // 手动将用户本轮消息存入 ChatMemory（推理模型绕过了 Spring AI Advisor）
         boolean alreadyHasMessage = false;
         if (!request.memory().isEmpty()) {
             com.moodcopilot.entity.dto.CustomChatMessage lastMem = request.memory().get(request.memory().size() - 1);
-            if ("user".equalsIgnoreCase(lastMem.role()) && message != null && message.equals(lastMem.content())) {
+            if ("user".equalsIgnoreCase(lastMem.role()) && originalMessage != null && originalMessage.equals(lastMem.content())) {
                 alreadyHasMessage = true;
             }
         }
         if (!alreadyHasMessage) {
-            request.memory().add(new com.moodcopilot.entity.dto.CustomChatMessage(java.util.UUID.randomUUID().toString(), "user", message, null, null, null, null, null));
+            request.memory().add(new com.moodcopilot.entity.dto.CustomChatMessage(java.util.UUID.randomUUID().toString(), "user", originalMessage, null, null, null, null, null));
         }
 
-        List<Map<String, Object>> msgs = buildMessagesForReasoner(request, message, auth, ragCtx);
+        List<Map<String, Object>> msgs = buildMessagesForReasoner(request, augmentedMessage, originalMessage, auth, ragCtx);
         List<Map<String, Object>> tools = buildDeepSeekTools();
         Sinks.Many<String> sseSink = Sinks.many().unicast().onBackpressureBuffer();
 
