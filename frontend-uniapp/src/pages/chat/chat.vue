@@ -86,6 +86,9 @@
             <image src="/static/ai_avatar.png" class="avatar-img" mode="aspectFill" />
           </view>
           <view class="bubble" :class="msg.role === 'user' ? 'user-bubble' : 'ai-bubble'" @longpress="handleLongPress(msg)">
+            <view v-if="msg.imageUrls && msg.imageUrls.length" class="message-images">
+              <image v-for="(url, imgIndex) in msg.imageUrls" :key="imgIndex" :src="getFullUrl(url)" class="message-image" mode="widthFix" @click.stop="previewImage(getFullUrl(url), msg.imageUrls.map(u => getFullUrl(u)))" />
+            </view>
             <rich-text class="message-text" :nodes="parseMarkdown(formatMessage(msg.content || ''))"></rich-text>
           </view>
           <view v-if="msg.role === 'user'" class="avatar user-avatar">
@@ -94,12 +97,15 @@
           </view>
         </view>
 
-        <!-- 等待回复指示?-->
-        <view v-if="isWaiting" id="msg-waiting" class="message-row message-left">
+        <!-- 等待回复 / 流式输出：首个分片到达前显示打字点，之后显示增量文本 -->
+        <view v-if="isWaiting || isStreaming" id="msg-waiting" class="message-row message-left">
           <view class="avatar ai-avatar">
             <image src="/static/ai_avatar.png" class="avatar-img" mode="aspectFill" />
           </view>
-          <view class="bubble ai-bubble typing-indicator">
+          <view v-if="streamingContent" class="bubble ai-bubble">
+            <text class="message-text streaming-text">{{ streamingContent }}</text>
+          </view>
+          <view v-else class="bubble ai-bubble typing-indicator">
             <text class="dot">.</text><text class="dot">.</text><text class="dot">.</text>
           </view>
         </view>
@@ -148,7 +154,7 @@
         />
         <button 
           class="send-btn" 
-          :class="{ disabled: !inputContent.trim() || isWaiting }"
+          :class="{ disabled: !inputContent.trim() || isWaiting || isStreaming }"
           @click="sendMessage"
         >
           发送
@@ -261,9 +267,55 @@
 </template>
 
 <script setup lang="ts">
+
+  import { upload } from '@/utils/request';
+  
+  const pendingImages = ref<string[]>([]);
+  
+  const chooseAndUploadImage = () => {
+    if (isWaiting.value) return;
+    uni.chooseImage({
+      count: 3 - pendingImages.value.length,
+      sizeType: ['compressed'],
+      sourceType: ['album', 'camera'],
+      success: async (res) => {
+        const tempFilePaths = res.tempFilePaths as string[];
+        uni.showLoading({ title: '上传中...' });
+        let failedCount = 0;
+        for (const path of tempFilePaths) {
+          try {
+            const uploadRes: any = await upload('/api/images/upload', path);
+            if (uploadRes.code === 200 && uploadRes.data && uploadRes.data.url) {
+              pendingImages.value.push(uploadRes.data.url);
+            } else {
+              failedCount++;
+            }
+          } catch (e) {
+            console.error('上传图片失败', e);
+            failedCount++;
+          }
+        }
+        uni.hideLoading();
+        if (failedCount > 0) {
+          uni.showToast({ title: '部分图片上传失败', icon: 'none' });
+        }
+      }
+    });
+  };
+  
+  const removePendingImage = (index: number) => {
+    pendingImages.value.splice(index, 1);
+  };
+  
+  const previewImage = (current: string, urls: string[]) => {
+    uni.previewImage({ current, urls });
+  };
+
 import { ref, onMounted, nextTick, computed } from 'vue';
 import { get, post, put, del, getFullUrl } from '@/utils/request';
 import { parseMarkdown, extractPlainText } from '@/utils/markdown';
+import { startChatStream } from '@/utils/chatStream';
+import type { ChatStreamHandle } from '@/utils/chatStream';
 import GlobalUI from '@/components/GlobalUI.vue';
 import { hasLoginToken, requireLogin } from '@/stores/login';
 import { activeQuote, setQuote, clearQuote } from '@/stores/quote';
@@ -300,6 +352,7 @@ interface Message {
   reasoningContent?: string
   _reasoningExpanded?: boolean;
   createdAt?: string;
+  imageUrls?: string[];
 }
 
 const loadingInit = ref(true);
@@ -310,6 +363,15 @@ const isWaiting = ref(false);
 const sendRequestGuard = ref(false);
 const conversationId = ref<number | null>(null);
 const scrollToMessage = ref('');
+
+const isStreaming = ref(false);
+const streamingContent = ref('');
+// 流式期间用独立 ref 渲染纯文本：不往 messages 里塞半成品（避免 :key="index" 抖动），
+// 也不对半截 markdown 反复跑 parseMarkdown（未闭合的 ** 和半张表格会渲染成乱码）
+const STREAM_FLUSH_INTERVAL_MS = 80;
+let activeStream: ChatStreamHandle | null = null;
+let pendingStreamText = '';
+let streamFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
 const showDrawer = ref(false);
 const conversations = ref<any[]>([]);
@@ -688,6 +750,7 @@ const fetchWelcomeTopics = async () => {
 
 const createNewChat = async () => {
   if (isCreatingConversation.value) return;
+  abortActiveStream();
   isCreatingConversation.value = true;
   try {
     const res = await post('/api/chat/conversations', { title: '新聊天' });
@@ -715,6 +778,7 @@ const switchConversation = (id: number) => {
     showDrawer.value = false;
     return;
   }
+  abortActiveStream();
   conversationId.value = id;
   messages.value = [];
   showDrawer.value = false;
@@ -755,8 +819,84 @@ const sendTopic = (topic: string | any) => {
   sendMessage();
 };
 
+const scrollToWaiting = () => {
+  nextTick(() => {
+    // scroll-into-view 绑的是同一个 ref，赋相同的值不会重新触发滚动，先清空再设
+    scrollToMessage.value = '';
+    nextTick(() => {
+      scrollToMessage.value = 'msg-waiting';
+    });
+  });
+};
+
+const flushStreamText = () => {
+  streamFlushTimer = null;
+  streamingContent.value = pendingStreamText;
+  scrollToWaiting();
+};
+
+const appendStreamText = (text: string) => {
+  pendingStreamText += text;
+  if (!isStreaming.value) {
+    isStreaming.value = true;
+    isWaiting.value = false;
+  }
+  if (streamFlushTimer === null) {
+    streamFlushTimer = setTimeout(flushStreamText, STREAM_FLUSH_INTERVAL_MS);
+  }
+};
+
+const toReplyErrorMessage = (error: any) => {
+  if (error?.statusCode === 429 && useReasoning.value) {
+    return '深度思考额度已用完，请改用普通对话或明日再试。';
+  }
+  return error?.message || '网络似乎出了点问题';
+};
+
+/** 收尾一轮对话：把流式期间累积的文本落到 messages，恢复输入状态 */
+const finishTurn = (errorMessage: string | null, isFirstUserMessage: boolean) => {
+  if (streamFlushTimer !== null) {
+    clearTimeout(streamFlushTimer);
+    streamFlushTimer = null;
+  }
+  const text = pendingStreamText;
+  pendingStreamText = '';
+  activeStream = null;
+  isWaiting.value = false;
+  isStreaming.value = false;
+  streamingContent.value = '';
+  sendRequestGuard.value = false;
+  activeEventId.value = null;
+  activeDiaryReferenceId.value = null;
+  eventReference.value = null;
+
+  // 已经流出一部分却在中途失败时，保留已生成的内容比整段丢掉更合理
+  const reply = text || errorMessage || '抱歉，我现在有点走神，请稍后再试';
+  messages.value.push({ role: 'assistant', content: reply, createdAt: new Date().toISOString() });
+
+  scrollToBottom();
+  if (isFirstUserMessage && conversationId.value) {
+    void waitForConversationTitle(conversationId.value);
+  }
+};
+
+/** 切换/新建会话时中断进行中的流，避免增量文本落到别的会话里 */
+const abortActiveStream = () => {
+  if (streamFlushTimer !== null) {
+    clearTimeout(streamFlushTimer);
+    streamFlushTimer = null;
+  }
+  activeStream?.cancel();
+  activeStream = null;
+  pendingStreamText = '';
+  streamingContent.value = '';
+  isStreaming.value = false;
+  isWaiting.value = false;
+  sendRequestGuard.value = false;
+};
+
 const sendMessage = async () => {
-  if (!inputContent.value.trim() || isWaiting.value || sendRequestGuard.value) return;
+  if (!inputContent.value.trim() || isWaiting.value || isStreaming.value || sendRequestGuard.value) return;
   if (!isLoggedIn.value) {
     requireLogin(() => {
       isLoggedIn.value = true;
@@ -774,46 +914,33 @@ const sendMessage = async () => {
   const referenceItems = [
     activeDiaryReferenceId.value ? { sourceType: 'diary', sourceId: activeDiaryReferenceId.value } : null,
     eventId ? { sourceType: 'event', sourceId: eventId } : null,
-  ].filter(Boolean);
-  
+  ].filter(Boolean) as Array<{ sourceType: string; sourceId: number }>;
+
   sendRequestGuard.value = true;
   messages.value.push({ role: 'user', content, createdAt: new Date().toISOString() });
   inputContent.value = '';
   clearQuote();
   isWaiting.value = true;
+  pendingStreamText = '';
+  streamingContent.value = '';
   scrollToBottom('waiting');
 
-  try {
-    const references = currentQuote ? [currentQuote] : [];
-    const res = await post(`/api/chat/conversations/${conversationId.value}/reply`, {
+  // 失败一律走 onError，这里不需要 try/catch
+  activeStream = await startChatStream(
+    {
+      conversationId: conversationId.value,
       message: content,
-      references: references,
+      references: currentQuote ? [currentQuote] : [],
       useReasoning: useReasoning.value,
       ...(referenceItems.length ? { referenceItems } : {}),
       ...(eventId ? { eventId } : {}),
-    });
-    
-    if (res.code === 200) {
-      messages.value.push({ role: 'assistant', content: res.data, createdAt: new Date().toISOString() });
-    } else {
-      messages.value.push({ role: 'assistant', content: '抱歉，我现在有点走神，请稍后再试', createdAt: new Date().toISOString() });
-    }
-  } catch (e: any) {
-    const errorMessage = e?.statusCode === 429 && useReasoning.value
-      ? '深度思考额度已用完，请改用普通对话或明日再试。'
-      : (e?.message || '网络似乎出了点问题');
-    messages.value.push({ role: 'assistant', content: errorMessage, createdAt: new Date().toISOString() });
-  } finally {
-    isWaiting.value = false;
-    sendRequestGuard.value = false;
-    activeEventId.value = null;
-    activeDiaryReferenceId.value = null;
-    eventReference.value = null;
-    scrollToBottom();
-    if (isFirstUserMessage && conversationId.value) {
-      void waitForConversationTitle(conversationId.value);
-    }
-  }
+    },
+    {
+      onChunk: appendStreamText,
+      onDone: () => finishTurn(null, isFirstUserMessage),
+      onError: error => finishTurn(toReplyErrorMessage(error), isFirstUserMessage),
+    },
+  );
 };
 
 const waitForConversationTitle = async (id: number) => {
@@ -982,6 +1109,11 @@ const scrollToBottom = (target?: 'waiting') => {
   align-items: center;
   gap: 8rpx;
   padding: 24rpx 40rpx;
+}
+
+/* 流式输出期间是纯文本，换行得自己保留 */
+.streaming-text {
+  white-space: pre-wrap;
 }
 .dot {
   font-size: 36rpx;
@@ -1348,6 +1480,51 @@ const scrollToBottom = (target?: 'waiting') => {
   color: var(--theme-text-secondary);
   background-color: var(--theme-bg);
 }
+
+  .pending-images-preview {
+    display: flex;
+    padding: 16rpx 32rpx 0;
+    gap: 16rpx;
+  }
+  .pending-image-item {
+    position: relative;
+    width: 120rpx;
+    height: 120rpx;
+    border-radius: 12rpx;
+    overflow: hidden;
+  }
+  .pending-image {
+    width: 100%;
+    height: 100%;
+  }
+  .remove-image-btn {
+    position: absolute;
+    top: 4rpx;
+    right: 4rpx;
+    width: 32rpx;
+    height: 32rpx;
+    background: rgba(0,0,0,0.5);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24rpx;
+    line-height: 1;
+    z-index: 2;
+  }
+  .message-images {
+    display: flex;
+    flex-direction: column;
+    gap: 8rpx;
+    margin-bottom: 12rpx;
+  }
+  .message-image {
+    width: 100%;
+    max-width: 400rpx;
+    border-radius: 8rpx;
+  }
+
 </style>
 
 <style scoped>
@@ -1748,5 +1925,50 @@ const scrollToBottom = (target?: 'waiting') => {
   color: var(--theme-text-secondary);
   background-color: var(--theme-bg);
 }
+
+  .pending-images-preview {
+    display: flex;
+    padding: 16rpx 32rpx 0;
+    gap: 16rpx;
+  }
+  .pending-image-item {
+    position: relative;
+    width: 120rpx;
+    height: 120rpx;
+    border-radius: 12rpx;
+    overflow: hidden;
+  }
+  .pending-image {
+    width: 100%;
+    height: 100%;
+  }
+  .remove-image-btn {
+    position: absolute;
+    top: 4rpx;
+    right: 4rpx;
+    width: 32rpx;
+    height: 32rpx;
+    background: rgba(0,0,0,0.5);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24rpx;
+    line-height: 1;
+    z-index: 2;
+  }
+  .message-images {
+    display: flex;
+    flex-direction: column;
+    gap: 8rpx;
+    margin-bottom: 12rpx;
+  }
+  .message-image {
+    width: 100%;
+    max-width: 400rpx;
+    border-radius: 8rpx;
+  }
+
 </style>
 

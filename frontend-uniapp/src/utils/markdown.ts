@@ -13,12 +13,25 @@ const escapeHtml = (text: string): string => {
     .replace(/'/g, '&#39;');
 };
 
+const HEADING_RE = /^\s*#{1,6}\s+/;
+const UNORDERED_ITEM_RE = /^\s*[-*+]\s+(.*)$/;
+const ORDERED_ITEM_RE = /^\s*\d{1,9}[.)]\s+(.*)$/;
+
+// 与 marked 保持一致：分隔行允许 1 个及以上的 `-`，两端 `|` 可有可无（如 |--|--|、| :--- | ---: |）
+const TABLE_DIVIDER_RE = /^ {0,3}(?:\| *)?:?-+:? *(?:\| *:?-+:? *)*\|? *$/;
+
 export const parseMarkdown = (text: string) => {
   if (!text) return '';
 
-  let normalized = text
-    .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .replace(/\r\n/g, '\n');
+  const normalized = mergeLineLeadingStrong(
+    text
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      // 只处理 \r\n 不够：模型偶尔只输出 \r（或 U+2028），此时 split('\n') 会把整段当成一行，
+      // 表格/列表/标题全部失效并原样吐出 | 和 #。这里统一归一化所有换行符。
+      .replace(/\r\n?|[\u2028\u2029]/g, '\n')
+      // -X → - X（排除 `---` 分隔线与 `-- | ---` 这类分隔行）
+      .replace(/^ {0,3}-(?=[^\s-])/gm, '$& '),
+  );
 
   if (!normalized.trim()) return '';
 
@@ -29,25 +42,21 @@ export const parseMarkdown = (text: string) => {
   while (i < lines.length) {
     const line = lines[i];
 
-    const tableHeaderMatch = line.match(/^\s*\|?(.*\|.*)\|?\s*$/);
-    const nextLine = lines[i + 1] || '';
-    const isDividerRow = /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(nextLine.trim());
-
-    if (tableHeaderMatch && isDividerRow) {
-      const headerCells = tableHeaderMatch[1].split('|').map(cell => cell.trim());
+    if (isTableStart(lines, i)) {
+      const headerCells = splitTableRow(line);
       const rows: string[] = [];
       let j = i + 2;
 
       while (j < lines.length) {
         const row = lines[j].trim();
-        if (!row || !row.includes('|')) break;
-        const cells = row.replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim());
-        rows.push(cells.map(cell => `<td>${escapeHtml(cell)}</td>`).join(''));
+        if (!row.includes('|')) break;
+        const cells = splitTableRow(row);
+        rows.push(cells.map(cell => `<td>${formatInlineMarkdown(cell)}</td>`).join(''));
         j += 1;
       }
 
       const head = headerCells
-        .map(cell => `<th>${escapeHtml(cell)}</th>`)
+        .map(cell => `<th>${formatInlineMarkdown(cell)}</th>`)
         .join('');
       const body = rows.length ? `<tbody>${rows.map(row => `<tr>${row}</tr>`).join('')}</tbody>` : '';
       blocks.push(`<table><thead><tr>${head}</tr></thead>${body}</table>`);
@@ -55,11 +64,40 @@ export const parseMarkdown = (text: string) => {
       continue;
     }
 
-    if (/^\s*#{1,6}\s+/.test(line)) {
+    if (HEADING_RE.test(line)) {
       const level = Math.min(6, Math.max(1, (line.match(/^\s*#+/) || [''])[0].trim().length));
-      const text = line.replace(/^\s*#{1,6}\s+/, '').trim();
-      blocks.push(`<h${level}>${formatInlineMarkdown(text)}</h${level}>`);
+      const headingText = line.replace(/^\s*#{1,6}\s+/, '').trim();
+      blocks.push(`<h${level}>${formatInlineMarkdown(headingText)}</h${level}>`);
       i += 1;
+      continue;
+    }
+
+    const listType = listTypeOf(line);
+    if (listType) {
+      const itemRe = listType === 'ol' ? ORDERED_ITEM_RE : UNORDERED_ITEM_RE;
+      const items: string[] = [];
+
+      while (i < lines.length) {
+        const itemMatch = lines[i].match(itemRe);
+        if (itemMatch) {
+          items.push(itemMatch[1].trim());
+          i += 1;
+          continue;
+        }
+        // 列表项续行：非空且不是新的块级语法
+        if (lines[i].trim() && !listTypeOf(lines[i]) && !HEADING_RE.test(lines[i]) && !isTableStart(lines, i)) {
+          items[items.length - 1] += '\n' + lines[i].trim();
+          i += 1;
+          continue;
+        }
+        break;
+      }
+
+      const rendered = items
+        .map(item => item.split('\n').map(seg => formatInlineMarkdown(seg)).join('<br/>'))
+        .map(item => `<li>${item}</li>`)
+        .join('');
+      blocks.push(`<${listType}>${rendered}</${listType}>`);
       continue;
     }
 
@@ -69,7 +107,13 @@ export const parseMarkdown = (text: string) => {
     }
 
     const paragraphLines: string[] = [];
-    while (i < lines.length && lines[i].trim() && !/^\s*#{1,6}\s+/.test(lines[i]) && !isTableStart(lines, i)) {
+    while (
+      i < lines.length
+      && lines[i].trim()
+      && !HEADING_RE.test(lines[i])
+      && !listTypeOf(lines[i])
+      && !isTableStart(lines, i)
+    ) {
       paragraphLines.push(lines[i].trim());
       i += 1;
     }
@@ -85,11 +129,37 @@ export const parseMarkdown = (text: string) => {
   return blocks.join('');
 };
 
+function listTypeOf(line: string): 'ol' | 'ul' | null {
+  if (UNORDERED_ITEM_RE.test(line)) return 'ul';
+  if (ORDERED_ITEM_RE.test(line)) return 'ol';
+  return null;
+}
+
+function splitTableRow(row: string): string[] {
+  return row.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim());
+}
+
 function isTableStart(lines: string[], index: number): boolean {
-  const header = lines[index] || '';
-  const next = lines[index + 1] || '';
-  return /^\s*\|?(.*\|.*)\|?\s*$/.test(header)
-    && /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(next.trim());
+  const header = (lines[index] || '').trim();
+  const next = (lines[index + 1] || '').trim();
+  return header.includes('|') && next.includes('|') && TABLE_DIVIDER_RE.test(next);
+}
+
+/**
+ * AI 常把闭合的 `**` 写到下一行行首（`**前一句。\n**后一句`），
+ * 而 CommonMark 要求闭合定界符前不能是空白，跨行 `**` 会被原样输出成字面量。
+ * 当上一行存在未闭合的 `**` 时，把行首的 `**` 移回上一行末尾补上闭合。
+ */
+function mergeLineLeadingStrong(text: string): string {
+  const lines = text.split('\n');
+  for (let i = 1; i < lines.length; i++) {
+    if (!/^\s*\*\*(?=\S)/.test(lines[i])) continue;
+    const unclosed = (lines[i - 1].match(/\*\*/g) || []).length % 2 === 1;
+    if (!unclosed) continue;
+    lines[i] = lines[i].replace(/^(\s*)\*\*/, '$1');
+    lines[i - 1] = `${lines[i - 1].replace(/\s+$/, '')}**`;
+  }
+  return lines.join('\n');
 }
 
 function formatInlineMarkdown(text: string): string {

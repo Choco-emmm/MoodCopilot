@@ -9,5 +9,8 @@
     "lib": ["esnext", "dom"],
     "types": ["@dcloudio/types"]
   },
-  "include": ["*.d.ts", "src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"]
+  "include": ["*.d.ts", "src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"],
+  // 单测引用 vitest，会顺带把 @types/node 拉进程序，而本项目刻意只用 @dcloudio/types。
+  // vitest 用 esbuild 转译，不依赖这里的类型检查。
+  "exclude": ["src/**/__tests__/**"]
 }
