@@ -141,6 +141,50 @@ class ChatHistoryMergeTest {
     }
 
     @Test
+    void anUnmatchedAssistantRowIsDroppedRatherThanDuplicated() {
+        // 真实事故：服务端正文是「9月2日 20:54」，客户端累积的却是「9月2日20:54」。
+        // 差一个空格，文本比对就失效。助手回复由服务端权威写入，这时追加会凭空多出一条。
+        List<Map<String, Object>> stored = new ArrayList<>(List.of(
+                row("user", "这个图片写了什么"),
+                row("assistant", "**9月2日 20:54**（日记 2008）")));
+
+        List<Map<String, Object>> incoming = List.of(
+                row("user", "这个图片写了什么"),
+                row("ai", "**9月2日20:54**（日记2008）"));
+
+        List<Map<String, Object>> merged = ChatService.mergeHistory(stored, incoming);
+
+        assertEquals(2, merged.size(), "漂移的助手行不该被追加");
+        assertEquals("**9月2日 20:54**（日记 2008）", merged.get(1).get("content"), "服务端正文应保留");
+    }
+
+    @Test
+    void anUnmatchedUserRowIsStillAppended() {
+        // 用户行不同：它可能是前端乐观推入、服务端还没写下来的
+        List<Map<String, Object>> stored = new ArrayList<>(List.of(row("assistant", "你好")));
+
+        List<Map<String, Object>> merged = ChatService.mergeHistory(stored,
+                List.of(row("assistant", "你好"), row("user", "还没被服务端写下来的那条")));
+
+        assertEquals(2, merged.size());
+        assertEquals("还没被服务端写下来的那条", merged.get(1).get("content"));
+    }
+
+    @Test
+    void aMatchingAssistantRowStillGetsAnnotated() {
+        List<Map<String, Object>> stored = new ArrayList<>(List.of(row("assistant", "晚安")));
+        stored.get(0).put("id", "server-uuid");
+
+        List<Map<String, Object>> incoming = new ArrayList<>(List.of(row("ai", "晚安")));
+        incoming.get(0).put("reasoningContent", "客户端带来的思考");
+
+        List<Map<String, Object>> merged = ChatService.mergeHistory(stored, incoming);
+
+        assertEquals(1, merged.size());
+        assertEquals("客户端带来的思考", merged.get(0).get("reasoningContent"));
+    }
+
+    @Test
     void emptyInputsAreSafe() {
         assertEquals(List.of(), ChatService.mergeHistory(List.of(), List.of()));
         assertEquals(1, ChatService.mergeHistory(List.of(), List.of(row("user", "hi"))).size());

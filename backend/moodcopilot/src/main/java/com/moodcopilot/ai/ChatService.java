@@ -921,9 +921,16 @@ public class ChatService {
      * 前端的 PUT /history 是「补标注」，不是「换一份」。
      * <p>
      * 历史由服务端权威写入，客户端只是把自己的字段（引用、思考内容等）带上来。
-     * 所以：存量行一律保留；命中时只覆盖客户端字段，绝不覆盖 content；
-     * 未命中（前端乐观推入的那条 user 行）则追加；从不截断。
+     * 存量行一律保留；命中时只覆盖客户端字段，绝不覆盖 content；从不截断。
+     * <p>
+     * 未命中的行按角色区别对待：user 行追加（可能是前端乐观推入、服务端尚未写入的），
+     * assistant 行丢弃（服务端已经写过权威版本，未命中只可能是文本漂移）。
      */
+    /** 客户端写 "ai"、服务端写 "assistant"，两个都算。 */
+    private static boolean isAssistantRow(Map<String, Object> row) {
+        return "assistant".equals(normalizedRole(row.get("role")));
+    }
+
     static List<Map<String, Object>> mergeHistory(List<Map<String, Object>> stored, List<Map<String, Object>> incoming) {
         int storedCount = stored.size();
         List<Map<String, Object>> merged = new ArrayList<>(storedCount + incoming.size());
@@ -935,7 +942,13 @@ public class ChatService {
         for (Map<String, Object> row : incoming) {
             int at = indexOfHistoryMatch(merged, matched, row);
             if (at < 0) {
-                merged.add(new LinkedHashMap<>(row));
+                // 助手回复由服务端权威写入，所以匹配不上只可能是文本漂移 ——
+                // 客户端累积的分片与服务端持久化的正文只要差一个空格、一次换行归一，
+                // 文本比对就会失效，这时追加会凭空多出一条一模一样的回复。
+                // 宁可不标注也不追加。用户行不同：它可能是前端乐观推入、服务端还没写的。
+                if (!isAssistantRow(row)) {
+                    merged.add(new LinkedHashMap<>(row));
+                }
                 continue;
             }
             matched[at] = true;
