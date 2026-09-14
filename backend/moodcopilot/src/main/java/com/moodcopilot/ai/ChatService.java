@@ -805,19 +805,126 @@ public class ChatService {
 
     // ---- 消息历史（Redis） ----
 
-    /** 客户端独有的字段：合并时允许覆盖服务端，服务端的 content 永不接受客户端覆写。 */
+    /** 客户端独有的字段：合并时允许覆盖服务端；服务端的 content 永不接受客户端覆写。 */
+    private static final List<String> CLIENT_OWNED_HISTORY_FIELDS =
+            List.of("reasoningContent", "ragReferences", "quoteRef", "imageUrls");
+
     public void saveHistory(Long conversationId, Map<String, Object> body) {
         UserEntity user = currentUser();
         requireOwnedConversation(conversationId, user);
         try {
-            Object messagesObj = body.get("messages");
-            String json = objectMapper.writeValueAsString(messagesObj);
+            List<Map<String, Object>> merged = mergeHistory(loadRawHistory(conversationId),
+                    toHistoryRows(body.get("messages")));
+            String json = objectMapper.writeValueAsString(merged);
             redisTemplate.opsForValue().set(MSG_PREFIX + conversationId, json, Duration.ofDays(7));
-            log.info("保存聊天历史成功，userId={}，conversationId={}，payloadLength={}", user.getId(), conversationId,
-                    json.length());
+            log.info("合并保存聊天历史成功，userId={}，conversationId={}，storedMessages={}", user.getId(),
+                    conversationId, merged.size());
         } catch (Exception e) {
             log.warn("保存聊天历史失败，userId={}，conversationId={}，reason={}", user.getId(), conversationId, e.getMessage());
             throw new RuntimeException("保存聊天历史失败", e);
+        }
+    }
+
+    /**
+     * 前端的 PUT /history 是「补标注」，不是「换一份」。
+     * <p>
+     * 历史由服务端权威写入，客户端只是把自己的字段（引用、思考内容等）带上来。
+     * 所以：存量行一律保留；命中时只覆盖客户端字段，绝不覆盖 content；
+     * 未命中（前端乐观推入的那条 user 行）则追加；从不截断。
+     */
+    static List<Map<String, Object>> mergeHistory(List<Map<String, Object>> stored, List<Map<String, Object>> incoming) {
+        int storedCount = stored.size();
+        List<Map<String, Object>> merged = new ArrayList<>(storedCount + incoming.size());
+        for (Map<String, Object> row : stored) {
+            merged.add(new LinkedHashMap<>(row));
+        }
+        boolean[] matched = new boolean[storedCount];
+
+        for (Map<String, Object> row : incoming) {
+            int at = indexOfHistoryMatch(merged, matched, row);
+            if (at < 0) {
+                merged.add(new LinkedHashMap<>(row));
+                continue;
+            }
+            matched[at] = true;
+            Map<String, Object> target = merged.get(at);
+            for (String field : CLIENT_OWNED_HISTORY_FIELDS) {
+                if (row.containsKey(field) && row.get(field) != null) {
+                    target.put(field, row.get(field));
+                }
+            }
+        }
+        return merged;
+    }
+
+    /**
+     * 先按 id 精确匹配；服务端用 UUID 做 id 而客户端不带，所以再退回 (role, content)。
+     * 已匹配过的存量行不再参与，内容相同的多条消息才不会挤到同一行上。
+     */
+    private static int indexOfHistoryMatch(List<Map<String, Object>> merged, boolean[] matched,
+            Map<String, Object> row) {
+        String id = rowId(row);
+        if (id != null) {
+            for (int i = 0; i < matched.length; i++) {
+                if (!matched[i] && id.equals(rowId(merged.get(i)))) {
+                    return i;
+                }
+            }
+        }
+        String content = rowContentKey(row);
+        for (int i = 0; i < matched.length; i++) {
+            if (!matched[i] && content.equals(rowContentKey(merged.get(i)))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static String rowId(Map<String, Object> row) {
+        Object id = row.get("id");
+        return id == null || String.valueOf(id).isBlank() ? null : String.valueOf(id);
+    }
+
+    private static String rowContentKey(Map<String, Object> row) {
+        return normalizedRole(row.get("role")) + ":" + row.get("content");
+    }
+
+    /**
+     * 客户端把 AI 消息写成 "ai"，服务端写的是 "assistant"。
+     * 不归一的话 (role, content) 兜底键永远匹配不上，每次 PUT 都会把 AI 行再追加一遍。
+     */
+    private static String normalizedRole(Object role) {
+        String value = role == null ? "" : String.valueOf(role);
+        return "ai".equalsIgnoreCase(value) ? "assistant" : value;
+    }
+
+    private List<Map<String, Object>> toHistoryRows(Object messagesObj) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        if (!(messagesObj instanceof List<?> list)) {
+            return rows;
+        }
+        for (Object item : list) {
+            if (item instanceof Map<?, ?> map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> typed = (Map<String, Object>) map;
+                rows.add(typed);
+            }
+        }
+        return rows;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> loadRawHistory(Long conversationId) {
+        try {
+            String json = redisTemplate.opsForValue().get(MSG_PREFIX + conversationId);
+            if (json == null || json.isBlank()) {
+                return List.of();
+            }
+            List<Map<String, Object>> stored = objectMapper.readValue(json, List.class);
+            return stored == null ? List.of() : stored;
+        } catch (Exception e) {
+            log.warn("读取聊天历史失败，conversationId={}，reason={}", conversationId, e.getMessage());
+            return List.of();
         }
     }
 
