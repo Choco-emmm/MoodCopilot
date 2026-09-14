@@ -382,6 +382,8 @@ public class ChatService {
         java.util.concurrent.atomic.AtomicInteger aiOutputLength = new java.util.concurrent.atomic.AtomicInteger();
         final int aiInputLength = message == null ? 0 : message.length();
 
+        appendToChatMemory(conversationId, request.memory(), "user", message, null);
+        StringBuilder flashReplyBuffer = new StringBuilder();
         Flux<String> stream = chatChatClient.prompt()
                 .user(message)
                 .system(s -> {
@@ -410,8 +412,10 @@ public class ChatService {
                 })
                 .doOnComplete(sseSink::tryEmitComplete)
                 .doOnError(sseSink::tryEmitError)
-                .doOnComplete(() -> AiCallTiming.completed(log, "CHAT_STREAM", "FLASH", aiStartedAt,
-                        "SUCCESS", aiInputLength, aiOutputLength.get()))
+                .doOnComplete(() -> {
+                    AiCallTiming.completed(log, "CHAT_STREAM", "FLASH", aiStartedAt, "SUCCESS", aiInputLength, aiOutputLength.get());
+                    appendToChatMemory(conversationId, request.memory(), "assistant", flashReplyBuffer.toString(), null);
+                })
                 .doOnError(error -> AiCallTiming.failed(log, "CHAT_STREAM", "FLASH", aiStartedAt, error,
                         aiInputLength));
 
@@ -478,6 +482,8 @@ public class ChatService {
                     .content();
             AiCallTiming.completed(log, "CHAT", "FLASH", aiStartedAt, "SUCCESS",
                     message == null ? 0 : message.length(), result == null ? 0 : result.length());
+            appendToChatMemory(conversationId, request.memory(), "user", message, null);
+            appendToChatMemory(conversationId, request.memory(), "assistant", result, null);
             return result;
         } catch (RuntimeException error) {
             AiCallTiming.failed(log, "CHAT", "FLASH", aiStartedAt, error,
@@ -1388,6 +1394,30 @@ public class ChatService {
         } catch (Exception e) {
             log.warn("保存聊天历史失败，userId={}，conversationId={}，reason={}", user.getId(), conversationId, e.getMessage());
             throw new RuntimeException("保存聊天历史失败", e);
+        }
+    }
+
+    
+    private void appendToChatMemory(Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory, String role, String content, String reasoningContent) {
+        if (memory == null) return;
+        boolean alreadyHas = false;
+        if (!memory.isEmpty()) {
+            com.moodcopilot.entity.dto.CustomChatMessage lastMem = memory.get(memory.size() - 1);
+            if (role.equalsIgnoreCase(lastMem.role()) && content != null && content.equals(lastMem.content())) {
+                alreadyHas = true;
+            }
+        }
+        if (!alreadyHas) {
+            memory.add(new com.moodcopilot.entity.dto.CustomChatMessage(
+                java.util.UUID.randomUUID().toString(), role, content, reasoningContent, null, null, null, null
+            ));
+        }
+        
+        try {
+            String json = objectMapper.writeValueAsString(memory);
+            redisTemplate.opsForValue().set(MSG_PREFIX + conversationId, json, java.time.Duration.ofDays(7));
+        } catch (Exception e) {
+            log.warn("Failed to auto-save chat history to Redis for conversationId=" + conversationId, e);
         }
     }
 
