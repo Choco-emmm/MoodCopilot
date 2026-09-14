@@ -49,7 +49,6 @@ public class ChatService {
 
     private final ChatClient analysisChatClient;
     private final ChatConversationMapper conversationMapper;
-    private final DeepSeekReasoningClient reasoningClient;
     private final Cache<String, List<com.moodcopilot.entity.dto.CustomChatMessage>> userChatMemories;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -81,7 +80,6 @@ public class ChatService {
     public ChatService(
             ChatClient analysisChatClient,
             ChatConversationMapper conversationMapper,
-            DeepSeekReasoningClient reasoningClient,
             Cache<String, List<com.moodcopilot.entity.dto.CustomChatMessage>> userChatMemories,
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper,
@@ -111,7 +109,6 @@ public class ChatService {
             @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId) {
         this.analysisChatClient = analysisChatClient;
         this.conversationMapper = conversationMapper;
-        this.reasoningClient = reasoningClient;
         this.userChatMemories = userChatMemories;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
@@ -344,12 +341,11 @@ public class ChatService {
         Authentication auth = exec.auth();
         String ragCtx = exec.ragCtx();
         AgentLoopOptions options = exec.useReasoning() ? modelProfiles.pro() : modelProfiles.flash();
-        boolean persistHistory = !exec.useReasoning();
 
         log.info("聊天路由结果：{}（流式），conversationId={}，messageLength={}", options.modelLabel(), conversationId,
                 augmentedMessage == null ? 0 : augmentedMessage.length());
 
-        addUserTurn(conversationId, request, message, persistHistory);
+        appendToChatMemory(conversationId, request.memory(), "user", message, null);
         List<Map<String, Object>> msgs = buildChatMessages(request, augmentedMessage, message, ragCtx,
                 exec.useReasoning());
 
@@ -362,7 +358,7 @@ public class ChatService {
                 .doOnComplete(sseSink::tryEmitComplete)
                 .doOnError(sseSink::tryEmitError)
                 .doOnComplete(() -> {
-                    addAssistantTurn(conversationId, request, outcome, persistHistory);
+                    addAssistantTurn(conversationId, request, outcome);
                     AiCallTiming.completed(log, options.logType(), options.modelLabel(), aiStartedAt, "SUCCESS",
                             aiInputLength, outcome.reply().length());
                 })
@@ -398,12 +394,11 @@ public class ChatService {
         Authentication auth = exec.auth();
         String ragCtx = exec.ragCtx();
         AgentLoopOptions options = exec.useReasoning() ? modelProfiles.pro() : modelProfiles.flash();
-        boolean persistHistory = !exec.useReasoning();
 
         log.info("聊天路由结果：{}（非流式），conversationId={}，messageLength={}", options.modelLabel(), conversationId,
                 augmentedMessage == null ? 0 : augmentedMessage.length());
 
-        addUserTurn(conversationId, request, message, persistHistory);
+        appendToChatMemory(conversationId, request.memory(), "user", message, null);
         List<Map<String, Object>> msgs = buildChatMessages(request, augmentedMessage, message, ragCtx,
                 exec.useReasoning());
 
@@ -413,7 +408,7 @@ public class ChatService {
             AgentLoopOutcome outcome = agentLoop.run(msgs, auth, null, options);
             // 非流式：先驱动 flux 走完，再读 outcome —— 累加在流结束后才完整
             outcome.chunks().reduce(String::concat).block();
-            addAssistantTurn(conversationId, request, outcome, persistHistory);
+            addAssistantTurn(conversationId, request, outcome);
             AiCallTiming.completed(log, options.logType(), options.modelLabel(), aiStartedAt, "SUCCESS",
                     aiInputLength, outcome.reply().length());
             return outcome.reply();
@@ -536,94 +531,21 @@ public class ChatService {
         return null;
     }
 
-    private void addUserTurn(Long conversationId, ChatRequest request, String message, boolean persist) {
-        if (persist) {
-            appendToChatMemory(conversationId, request.memory(), "user", message, null);
-            return;
-        }
-        request.memory().add(new com.moodcopilot.entity.dto.CustomChatMessage(
-                java.util.UUID.randomUUID().toString(), "user", message, null, null, null, null, null));
-    }
-
-    private void addAssistantTurn(Long conversationId, ChatRequest request, AgentLoopOutcome outcome, boolean persist) {
+    /**
+     * 落库本轮回复。正文取 outcome.reply()（按构造不含推理分片），
+     * 思考过程与工具引用一并存下，重载时前端才能还原思考面板和引用卡。
+     */
+    private void addAssistantTurn(Long conversationId, ChatRequest request, AgentLoopOutcome outcome) {
         String reply = outcome.reply();
         String reasoning = outcome.reasoning();
         if (reply.isEmpty() && reasoning.isEmpty()) {
             return;
         }
-        String reasoningOrNull = reasoning.isEmpty() ? null : reasoning;
-        if (persist) {
-            appendToChatMemory(conversationId, request.memory(), "assistant", reply, reasoningOrNull);
-            return;
-        }
-        request.memory().add(new com.moodcopilot.entity.dto.CustomChatMessage(
-                java.util.UUID.randomUUID().toString(), "assistant", reply, reasoningOrNull,
-                null, null, null, null));
+        appendToChatMemory(conversationId, request.memory(), "assistant", reply,
+                reasoning.isEmpty() ? null : reasoning, outcome.toolReferences());
     }
 
     // ---- 历史压缩 ----
-
-    private static final int CHAT_HISTORY_CHAR_BUDGET = 3000;
-
-    /**
-     * 从 ChatMemory 中提取最近消息，按字符预算自动截断旧消息。
-     * 保留最近消息完整，超出预算时从最早的消息开始丢弃。
-     */
-    private String formatChatHistory(List<com.moodcopilot.entity.dto.CustomChatMessage> memory) {
-        if (memory == null || memory.isEmpty()) {
-            return "";
-        }
-        // 倒序收集，从最新消息开始累计，到达预算后停止
-        List<String> parts = new ArrayList<>();
-        int totalChars = 0;
-        for (int i = memory.size() - 1; i >= 0; i--) {
-            com.moodcopilot.entity.dto.CustomChatMessage msg = memory.get(i);
-            String role = msg.role() != null ? msg.role().toUpperCase() : "";
-            if (!role.equals("USER") && !role.equals("ASSISTANT")) continue;
-            String text = msg.content();
-            if (text == null || text.isBlank()) continue;
-            String line = (role.equals("USER") ? "用户" : "AI") + "：" + text.trim();
-            totalChars += line.length();
-            if (totalChars > CHAT_HISTORY_CHAR_BUDGET && !parts.isEmpty()) {
-                break; // 超出预算，停止累积旧消息
-            }
-            parts.add(line);
-        }
-        if (parts.isEmpty()) {
-            return "";
-        }
-        // 恢复时间顺序
-        java.util.Collections.reverse(parts);
-        StringBuilder sb = new StringBuilder("<chat_history>\n【往期聊天历史记忆】\n");
-        for (String part : parts) {
-            sb.append(part).append("\n");
-        }
-        return sb.append("</chat_history>\n\n").toString();
-    }
-
-    /**
-     * 将 ChatMemory 中的对话历史持久化到 Redis（7 天 TTL）。
-     * 推理模型路径不经过 Spring AI 的 advisor，需手动调用。
-     */
-    private void persistChatMemory(long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory) {
-        try {
-            if (memory == null || memory.isEmpty()) {
-                return;
-            }
-            List<Map<String, String>> payload = new java.util.ArrayList<>();
-            for (com.moodcopilot.entity.dto.CustomChatMessage msg : memory) {
-                String role = msg.role();
-                String text = msg.content();
-                if (text != null && !text.isBlank()) {
-                    payload.add(Map.of("role", role, "content", text));
-                }
-            }
-            String json = objectMapper.writeValueAsString(payload);
-            redisTemplate.opsForValue().set(MSG_PREFIX + conversationId, json, Duration.ofDays(7));
-        } catch (Exception e) {
-            log.warn("持久化推理模型对话历史到 Redis 失败: {}", e.getMessage());
-        }
-    }
 
     /**
      * 压缩聊天历史：当 ChatMemory 中消息数超过阈值时，将旧消息压缩为摘要存入 Redis，
@@ -864,8 +786,11 @@ public class ChatService {
                 if (role == null || content == null || content.isBlank()) {
                     continue;
                 }
+                String reasoningContent = (String) msg.get("reasoningContent");
                 history.add(new com.moodcopilot.entity.dto.CustomChatMessage(
-                    java.util.UUID.randomUUID().toString(), role, content, null, null, null, null, null
+                    java.util.UUID.randomUUID().toString(), role, content,
+                    reasoningContent == null || reasoningContent.isBlank() ? null : reasoningContent,
+                    null, null, null, null
                 ));
             }
             if (!history.isEmpty()) {
@@ -880,6 +805,7 @@ public class ChatService {
 
     // ---- 消息历史（Redis） ----
 
+    /** 客户端独有的字段：合并时允许覆盖服务端，服务端的 content 永不接受客户端覆写。 */
     public void saveHistory(Long conversationId, Map<String, Object> body) {
         UserEntity user = currentUser();
         requireOwnedConversation(conversationId, user);
@@ -896,7 +822,13 @@ public class ChatService {
     }
 
     
-    private void appendToChatMemory(Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory, String role, String content, String reasoningContent) {
+    private void appendToChatMemory(Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory,
+            String role, String content, String reasoningContent) {
+        appendToChatMemory(conversationId, memory, role, content, reasoningContent, null);
+    }
+
+    private void appendToChatMemory(Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory,
+            String role, String content, String reasoningContent, List<Map<String, String>> ragReferences) {
         if (memory == null) return;
         boolean alreadyHas = false;
         if (!memory.isEmpty()) {
@@ -907,16 +839,29 @@ public class ChatService {
         }
         if (!alreadyHas) {
             memory.add(new com.moodcopilot.entity.dto.CustomChatMessage(
-                java.util.UUID.randomUUID().toString(), role, content, reasoningContent, null, null, null, null
+                java.util.UUID.randomUUID().toString(), role, content, reasoningContent, null, null, null,
+                asObjectMaps(ragReferences)
             ));
         }
-        
+
         try {
             String json = objectMapper.writeValueAsString(memory);
             redisTemplate.opsForValue().set(MSG_PREFIX + conversationId, json, java.time.Duration.ofDays(7));
         } catch (Exception e) {
             log.warn("Failed to auto-save chat history to Redis for conversationId=" + conversationId, e);
         }
+    }
+
+    /** 工具引用在工具层是字符串值，落库字段要的是 Object 值；这里整体搬运一次。 */
+    private List<Map<String, Object>> asObjectMaps(List<Map<String, String>> refs) {
+        if (refs == null || refs.isEmpty()) {
+            return null;
+        }
+        List<Map<String, Object>> converted = new ArrayList<>(refs.size());
+        for (Map<String, String> ref : refs) {
+            converted.add(new LinkedHashMap<>(ref));
+        }
+        return converted;
     }
 
     public Object loadHistory(Long conversationId) {

@@ -303,15 +303,6 @@ public class AIConfiguration {
         });
     }
 
-    /** 向后兼容：旧代码引用 WebClientCustomizer 的地方，改为代理到自定义 Builder。 */
-    @Bean
-    public org.springframework.boot.web.reactive.function.client.WebClientCustomizer deepseekWebClientCustomizer(
-            com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
-        // 保留此 Bean 防止其他地方引用 WebClientCustomizer 报错；
-        // 核心拦截逻辑已在 webClientBuilder Bean 中完成。
-        return builder -> {};
-    }
-
     @Primary
     @Bean(name = "aiExecutor")
     public Executor aiExecutor() {

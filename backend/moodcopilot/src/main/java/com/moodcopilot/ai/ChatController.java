@@ -200,7 +200,10 @@ public class ChatController {
 
         Flux<String> chunkStream = ctx.stream()
                 .doOnNext(chunk -> {
-                    if (chunk != null && !chunk.isBlank() && !chunk.startsWith("[[TOOL_EVENT]]")) {
+                    // 这段缓冲喂给记忆抽取，只收正文：工具事件和思考过程都要排除
+                    if (chunk != null && !chunk.isBlank()
+                            && !chunk.startsWith("[[TOOL_EVENT]]")
+                            && !chunk.startsWith("[[REASONING]]")) {
                         aiReplyBuffer.append(chunk);
                     }
                 })
