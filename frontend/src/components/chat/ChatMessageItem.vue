@@ -16,6 +16,7 @@
           <span>已检索 {{ diaryRefs.length }} 条记录</span>
           <span v-if="profileRefs.length"> · {{ profileRefs.length }} 条画像</span>
           <span v-if="graphRefs.length"> · {{ graphRefs.length }} 条图谱</span>
+          <span v-if="eventRefs.length"> · {{ eventRefs.length }} 个事件</span>
           <span class="rag-refs-arrow">{{ isRefsExpanded ? '▾' : '▸' }}</span>
         </button>
         <div v-if="isRefsExpanded" class="rag-refs-list">
@@ -67,6 +68,16 @@
                 <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
                 <span v-if="ref.diaryId && String(ref.diaryId) !== '-1'" class="rag-ref-go">查看日记 →</span>
               </div>
+            </div>
+          </template>
+          <template v-if="eventRefs.length">
+            <div class="rag-refs-section-label">📌 重要事件</div>
+            <div v-for="(ref, i) in eventRefs" :key="'e'+i" class="rag-ref-item">
+              <div class="rag-ref-meta">
+                <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
+                <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
+              </div>
+              <span class="rag-ref-snippet">{{ ref.snippet }}</span>
             </div>
           </template>
         </div>
@@ -156,6 +167,9 @@ interface RagRef {
   toolName?: string
   value?: string
   key?: string
+  eventId?: string
+  title?: string
+  status?: string
 }
 
 export interface Message {
@@ -339,7 +353,7 @@ function stripHtml(html?: string): string {
 const diaryRefs = computed(() => {
   const seen = new Set<string>()
   return (props.msg.ragReferences || []).filter(r => {
-    if (r.type === 'profile_memory' || r.type === 'graph_memory' || !r.diaryId) return false
+    if (r.type === 'profile_memory' || r.type === 'graph_memory' || r.type === 'event_memory' || !r.diaryId) return false
     if (seen.has(r.diaryId)) return false
     seen.add(r.diaryId)
     return true
@@ -363,6 +377,17 @@ const graphRefs = computed(() => {
   }).map(r => ({ ...r, snippet: stripHtml(r.snippet) }))
 })
 
+const eventRefs = computed(() => {
+  const seen = new Set<string>()
+  return (props.msg.ragReferences || []).filter(r => {
+    if (r.type !== 'event_memory') return false
+    if (!r.eventId) return false
+    if (seen.has(r.eventId)) return false
+    seen.add(r.eventId)
+    return true
+  }).map(r => ({ ...r, snippet: stripHtml(r.snippet) }))
+})
+
 function toolLabel(name?: string): string {
   if (!name) return ''
   const map: Record<string, string> = {
@@ -371,6 +396,7 @@ function toolLabel(name?: string): string {
     reportSnapshot: '报告',
     memoryQuery: '画像',
     graphSearch: '图谱',
+    listEvents: '事件',
   }
   return map[name] || name
 }

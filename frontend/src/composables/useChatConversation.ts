@@ -27,6 +27,9 @@ export interface RagRef {
   toolName?: string
   value?: string
   key?: string
+  eventId?: string
+  title?: string
+  status?: string
 }
 
 export interface Conversation {

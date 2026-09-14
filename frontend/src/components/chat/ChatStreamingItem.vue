@@ -14,6 +14,7 @@
           <span>已检索 {{ streamingDiaryRefs.length }} 条记录</span>
           <span v-if="streamingProfileRefs.length"> · {{ streamingProfileRefs.length }} 条画像</span>
           <span v-if="streamingGraphRefs.length"> · {{ streamingGraphRefs.length }} 条图谱</span>
+          <span v-if="streamingEventRefs.length"> · {{ streamingEventRefs.length }} 个事件</span>
           <span class="rag-refs-arrow">{{ showStreamingRefs ? '▾' : '▸' }}</span>
         </button>
         <div v-if="showStreamingRefs" class="rag-refs-list">
@@ -67,6 +68,16 @@
               </div>
             </div>
           </template>
+          <template v-if="streamingEventRefs.length">
+            <div class="rag-refs-section-label">📌 重要事件</div>
+            <div v-for="(ref, i) in streamingEventRefs" :key="'se'+i" class="rag-ref-item">
+              <div class="rag-ref-meta">
+                <span v-if="ref.date" class="rag-ref-date">{{ formatRefDate(ref.date) }}</span>
+                <span v-if="ref.toolName" class="rag-ref-tool-badge">{{ toolLabel(ref.toolName) }}</span>
+              </div>
+              <span class="rag-ref-snippet">{{ ref.snippet }}</span>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -118,6 +129,9 @@ interface RagRef {
   toolName?: string
   value?: string
   key?: string
+  eventId?: string
+  title?: string
+  status?: string
 }
 
 const props = defineProps<{
@@ -188,7 +202,7 @@ function stripHtml(html?: string): string {
 const streamingDiaryRefs = computed(() => {
   const seen = new Set<string>()
   return (props.streamingRefs || []).filter(r => {
-    if (r.type === 'profile_memory' || r.type === 'graph_memory' || !r.diaryId) return false
+    if (r.type === 'profile_memory' || r.type === 'graph_memory' || r.type === 'event_memory' || !r.diaryId) return false
     if (seen.has(r.diaryId)) return false
     seen.add(r.diaryId)
     return true
@@ -212,6 +226,17 @@ const streamingGraphRefs = computed(() => {
   }).map(r => ({ ...r, snippet: stripHtml(r.snippet) }))
 })
 
+const streamingEventRefs = computed(() => {
+  const seen = new Set<string>()
+  return (props.streamingRefs || []).filter(r => {
+    if (r.type !== 'event_memory') return false
+    if (!r.eventId) return false
+    if (seen.has(r.eventId)) return false
+    seen.add(r.eventId)
+    return true
+  }).map(r => ({ ...r, snippet: stripHtml(r.snippet) }))
+})
+
 function toolLabel(name?: string): string {
   if (!name) return ''
   const map: Record<string, string> = {
@@ -220,6 +245,7 @@ function toolLabel(name?: string): string {
     reportSnapshot: '报告',
     memoryQuery: '画像',
     graphSearch: '图谱',
+    listEvents: '事件',
   }
   return map[name] || name
 }
