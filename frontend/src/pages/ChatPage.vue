@@ -1355,7 +1355,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   }
 
   .chat-window {
-    padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+    padding-bottom: calc(58px + env(safe-area-inset-bottom)) !important;
   }
 
   .chat-quick-starters {
@@ -1375,7 +1375,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   }
 
   .chat-input-wrapper {
-    bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+    bottom: calc(58px + env(safe-area-inset-bottom)) !important;
     padding-bottom: 12px;
   }
 

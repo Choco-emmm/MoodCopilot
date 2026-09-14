@@ -3088,9 +3088,7 @@ h3 {
 
   .nav-links {
     pointer-events: auto;
-    /* 横向滚动适配管理员多出的导航�?*/
-    justify-content: space-around;
-    padding: 0 10px;
+      justify-content: space-around;
   }
 
   .nav-link {
