@@ -18,9 +18,6 @@ import com.moodcopilot.security.RateLimitService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -30,10 +27,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import com.github.benmanes.caffeine.cache.Cache;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.MessageType;
-import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.messages.AssistantMessage;
 
 import java.time.Duration;
 import java.time.ZoneId;
@@ -41,32 +34,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
 @Service
 public class ChatService {
-
-    private List<org.springframework.ai.chat.messages.Message> convertToSpringMessages(List<com.moodcopilot.entity.dto.CustomChatMessage> customMsgs, String currentMessage) {
-        if (customMsgs == null) return new java.util.ArrayList<>();
-        List<org.springframework.ai.chat.messages.Message> springMsgs = new java.util.ArrayList<>();
-        for (int i = 0; i < customMsgs.size(); i++) {
-            com.moodcopilot.entity.dto.CustomChatMessage cm = customMsgs.get(i);
-            // Skip the last message if it's a user message that exactly matches the current message,
-            // to avoid sending duplicate user messages to the model when the frontend already saved it to history.
-            if (i == customMsgs.size() - 1 && "user".equalsIgnoreCase(cm.role()) && currentMessage != null && currentMessage.equals(cm.content())) {
-                continue;
-            }
-            if ("user".equalsIgnoreCase(cm.role())) {
-                springMsgs.add(new org.springframework.ai.chat.messages.UserMessage(cm.content() != null ? cm.content() : ""));
-            } else if ("assistant".equalsIgnoreCase(cm.role()) || "ai".equalsIgnoreCase(cm.role())) {
-                springMsgs.add(new org.springframework.ai.chat.messages.AssistantMessage(cm.content() != null ? cm.content() : ""));
-            }
-        }
-        return springMsgs;
-    }
-
 
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
     private static final String MSG_PREFIX = "chat:msgs:";
@@ -75,7 +47,6 @@ public class ChatService {
     private static final int COMPRESSION_TRIGGER_MSG_COUNT = 20;
     private static final int KEEP_RECENT_MSG_COUNT = 10;
 
-    private final ChatClient chatChatClient;
     private final ChatClient analysisChatClient;
     private final ChatConversationMapper conversationMapper;
     private final DeepSeekReasoningClient reasoningClient;
@@ -93,6 +64,9 @@ public class ChatService {
     private final com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper;
     private final com.moodcopilot.mapper.DiaryMapper diaryMapper;
     private final VisionService visionService;
+    private final com.moodcopilot.ai.tool.ChatToolRegistry toolRegistry;
+    private final ChatAgentLoop agentLoop;
+    private final ChatModelProfiles modelProfiles;
     private final com.moodcopilot.config.AiPromptProperties aiPrompts;
     private final com.moodcopilot.event.LifeEventService lifeEventService;
     private final com.moodcopilot.event.LifeChapterService lifeChapterService;
@@ -104,7 +78,7 @@ public class ChatService {
     private final PromptComposer promptComposer;
     private final ZoneId businessTimeZone;
 
-    public ChatService(ChatClient chatChatClient,
+    public ChatService(
             ChatClient analysisChatClient,
             ChatConversationMapper conversationMapper,
             DeepSeekReasoningClient reasoningClient,
@@ -122,6 +96,9 @@ public class ChatService {
             com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper,
             com.moodcopilot.mapper.DiaryMapper diaryMapper,
             VisionService visionService,
+            com.moodcopilot.ai.tool.ChatToolRegistry toolRegistry,
+            ChatAgentLoop agentLoop,
+            ChatModelProfiles modelProfiles,
             com.moodcopilot.config.AiPromptProperties aiPrompts,
             @org.springframework.context.annotation.Lazy com.moodcopilot.event.LifeEventService lifeEventService,
             @org.springframework.context.annotation.Lazy com.moodcopilot.event.LifeChapterService lifeChapterService,
@@ -132,7 +109,6 @@ public class ChatService {
             PersonaPromptSupport personaPromptSupport,
             PromptComposer promptComposer,
             @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId) {
-        this.chatChatClient = chatChatClient;
         this.analysisChatClient = analysisChatClient;
         this.conversationMapper = conversationMapper;
         this.reasoningClient = reasoningClient;
@@ -150,6 +126,9 @@ public class ChatService {
         this.diaryKnowledgeGraphMapper = diaryKnowledgeGraphMapper;
         this.diaryMapper = diaryMapper;
         this.visionService = visionService;
+        this.toolRegistry = toolRegistry;
+        this.agentLoop = agentLoop;
+        this.modelProfiles = modelProfiles;
         this.aiPrompts = aiPrompts;
         this.lifeEventService = lifeEventService;
         this.lifeChapterService = lifeChapterService;
@@ -358,69 +337,39 @@ public class ChatService {
     public ChatStreamContext chat(Long conversationId, String message, List<String> refs, String memoryBackground,
             boolean useReasoning, ReferencePurpose referencePurpose, List<UserReference> resolvedReferences,
             CurrentTurnPreference turnPreference) {
-        // 流式接口：先统一装配上下文，再按用户显式选择的模型执行。
         String augmentedMessage = augmentWithRefReminder(message, refs);
         ChatExecutionResult exec = prepareChatExecution(conversationId, augmentedMessage, refs, memoryBackground,
                 useReasoning, referencePurpose, resolvedReferences, turnPreference);
         ChatRequest request = exec.request();
         Authentication auth = exec.auth();
         String ragCtx = exec.ragCtx();
-        final String chapterQuery = augmentedMessage;
+        AgentLoopOptions options = exec.useReasoning() ? modelProfiles.pro() : modelProfiles.flash();
+        boolean persistHistory = !exec.useReasoning();
 
-        if (exec.useReasoning()) {
-            log.info("聊天路由结果：reasoning（流式），conversationId={}，messageLength={}", conversationId,
-                    augmentedMessage == null ? 0 : augmentedMessage.length());
-            return new ChatStreamContext(ragCtx, callReasoningModelStream(request, augmentedMessage, message, auth, conversationId, ragCtx));
-        }
-
-        log.info("聊天路由结果：normal，conversationId={}，messageLength={}", conversationId,
+        log.info("聊天路由结果：{}（流式），conversationId={}，messageLength={}", options.modelLabel(), conversationId,
                 augmentedMessage == null ? 0 : augmentedMessage.length());
+
+        addUserTurn(conversationId, request, message, persistHistory);
+        List<Map<String, Object>> msgs = buildChatMessages(request, augmentedMessage, message, ragCtx,
+                exec.useReasoning());
 
         Sinks.Many<String> sseSink = Sinks.many().unicast().onBackpressureBuffer();
         long aiStartedAt = AiCallTiming.start();
-        AtomicBoolean firstTokenLogged = new AtomicBoolean();
-        java.util.concurrent.atomic.AtomicInteger aiOutputLength = new java.util.concurrent.atomic.AtomicInteger();
-        final int aiInputLength = augmentedMessage == null ? 0 : augmentedMessage.length();
+        int aiInputLength = augmentedMessage == null ? 0 : augmentedMessage.length();
+        AgentLoopOutcome outcome = agentLoop.run(msgs, auth, sseSink, options);
 
-        appendToChatMemory(conversationId, request.memory(), "user", message, null);
-        StringBuilder flashReplyBuffer = new StringBuilder();
-        Flux<String> stream = chatChatClient.prompt()
-                .user(augmentedMessage)
-                .system(s -> {
-                    StringBuilder sys = new StringBuilder();
-                    sys.append(request.context()).append("\n\n");
-                     sys.append(ragCtx).append("\n").append(buildTimeMetadata());
-                    s.text(sys.toString());
-                })
-                .messages(convertToSpringMessages(request.memory(), message))
-                .functions(
-                        DiarySearchFunctionSupport.NAME,
-                        UserStatsFunctionSupport.NAME,
-                        ReportSnapshotFunctionSupport.NAME,
-                        MemoryQueryFunctionSupport.NAME,
-                        GraphSearchFunctionSupport.NAME,
-                        DiaryImageAnalysisFunctionSupport.NAME)
-                .toolContext(Map.of("auth", auth, "sseSink", sseSink))
-                .stream()
-                .content()
-                .doOnNext(chunk -> {
-                    if (chunk != null) aiOutputLength.addAndGet(chunk.length());
-                    if (firstTokenLogged.compareAndSet(false, true)) {
-                        log.info("AI首字节到达 type=CHAT_STREAM model=FLASH elapsedMs={}",
-                                AiCallTiming.elapsedMs(aiStartedAt));
-                    }
-                })
+        Flux<String> stream = outcome.chunks()
                 .doOnComplete(sseSink::tryEmitComplete)
                 .doOnError(sseSink::tryEmitError)
                 .doOnComplete(() -> {
-                    AiCallTiming.completed(log, "CHAT_STREAM", "FLASH", aiStartedAt, "SUCCESS", aiInputLength, aiOutputLength.get());
-                    appendToChatMemory(conversationId, request.memory(), "assistant", flashReplyBuffer.toString(), null);
+                    addAssistantTurn(conversationId, request, outcome, persistHistory);
+                    AiCallTiming.completed(log, options.logType(), options.modelLabel(), aiStartedAt, "SUCCESS",
+                            aiInputLength, outcome.reply().length());
                 })
-                .doOnError(error -> AiCallTiming.failed(log, "CHAT_STREAM", "FLASH", aiStartedAt, error,
-                        aiInputLength));
+                .doOnError(error -> AiCallTiming.failed(log, options.logType(), options.modelLabel(), aiStartedAt,
+                        error, aiInputLength));
 
-        Flux<String> mergedStream = Flux.merge(stream, sseSink.asFlux());
-        return new ChatStreamContext(ragCtx, mergedStream);
+        return new ChatStreamContext(ragCtx, Flux.merge(stream, sseSink.asFlux()));
     }
 
     public String reply(Long conversationId, String message, List<String> refs, String memoryBackground, boolean useReasoning) {
@@ -448,51 +397,31 @@ public class ChatService {
         ChatRequest request = exec.request();
         Authentication auth = exec.auth();
         String ragCtx = exec.ragCtx();
-        final String chapterQuery = augmentedMessage;
+        AgentLoopOptions options = exec.useReasoning() ? modelProfiles.pro() : modelProfiles.flash();
+        boolean persistHistory = !exec.useReasoning();
 
-        if (exec.useReasoning()) {
-            log.info("非流式聊天路由结果：reasoning，conversationId={}，messageLength={}", conversationId,
-                    augmentedMessage == null ? 0 : augmentedMessage.length());
-            return callReasoningModel(request, augmentedMessage, message, auth, conversationId, ragCtx);
-        }
-
-        log.info("非流式聊天路由结果：normal，conversationId={}，messageLength={}", conversationId,
+        log.info("聊天路由结果：{}（非流式），conversationId={}，messageLength={}", options.modelLabel(), conversationId,
                 augmentedMessage == null ? 0 : augmentedMessage.length());
 
+        addUserTurn(conversationId, request, message, persistHistory);
+        List<Map<String, Object>> msgs = buildChatMessages(request, augmentedMessage, message, ragCtx,
+                exec.useReasoning());
+
         long aiStartedAt = AiCallTiming.start();
+        int aiInputLength = augmentedMessage == null ? 0 : augmentedMessage.length();
         try {
-            String result = chatChatClient.prompt()
-                    .user(augmentedMessage)
-                    .system(s -> {
-                        StringBuilder sys = new StringBuilder();
-                        sys.append(request.context()).append("\n\n");
-                        sys.append(ragCtx).append("\n").append(buildTimeMetadata());
-                        s.text(sys.toString());
-                    })
-                    .messages(convertToSpringMessages(request.memory(), message))
-                    .functions(
-                            DiarySearchFunctionSupport.NAME,
-                            UserStatsFunctionSupport.NAME,
-                            ReportSnapshotFunctionSupport.NAME,
-                            MemoryQueryFunctionSupport.NAME,
-                            GraphSearchFunctionSupport.NAME,
-                            DiaryImageAnalysisFunctionSupport.NAME)
-                    .toolContext(Map.of("auth", auth))
-                    .call()
-                    .content();
-            AiCallTiming.completed(log, "CHAT", "FLASH", aiStartedAt, "SUCCESS",
-                    message == null ? 0 : message.length(), result == null ? 0 : result.length());
-            appendToChatMemory(conversationId, request.memory(), "user", message, null);
-            appendToChatMemory(conversationId, request.memory(), "assistant", result, null);
-            return result;
+            AgentLoopOutcome outcome = agentLoop.run(msgs, auth, null, options);
+            // 非流式：先驱动 flux 走完，再读 outcome —— 累加在流结束后才完整
+            outcome.chunks().reduce(String::concat).block();
+            addAssistantTurn(conversationId, request, outcome, persistHistory);
+            AiCallTiming.completed(log, options.logType(), options.modelLabel(), aiStartedAt, "SUCCESS",
+                    aiInputLength, outcome.reply().length());
+            return outcome.reply();
         } catch (RuntimeException error) {
-            AiCallTiming.failed(log, "CHAT", "FLASH", aiStartedAt, error,
-                    augmentedMessage == null ? 0 : augmentedMessage.length());
+            AiCallTiming.failed(log, options.logType(), options.modelLabel(), aiStartedAt, error, aiInputLength);
             throw error;
         }
     }
-
-
 
     private record ChatExecutionResult(ChatRequest request, Authentication auth, UserEntity user, String ragCtx, boolean useReasoning) {}
 
@@ -540,11 +469,21 @@ public class ChatService {
         return new ChatExecutionResult(request, auth, user, ragCtx, useReasoning);
     }
 
-    private List<Map<String, Object>> buildMessagesForReasoner(ChatRequest request, String augmentedMessage, String originalMessage, Authentication auth, String ragCtx) {
+    private static final String REASONING_LANGUAGE_INSTRUCTION =
+            "\n\n(IMPORTANT RULE: You MUST use the exact same language as this user message above for your internal reasoning process and your final response. If this message is in Chinese, your <think> block must be entirely in Chinese.)";
+
+    /**
+     * 唯一的消息装配入口，flash 与 pro 共用。
+     * <p>
+     * 角色白名单是刻意的：只回放 user/assistant。一条没有紧邻前置 assistant.tool_calls 的
+     * tool 消息会让 API 直接报错，所以历史里任何其它角色都必须丢弃。
+     */
+    private List<Map<String, Object>> buildChatMessages(ChatRequest request, String augmentedMessage,
+            String originalMessage, String ragCtx, boolean reasoningMode) {
         List<Map<String, Object>> msgs = new ArrayList<>();
         StringBuilder sys = new StringBuilder();
         sys.append(request.context()).append("\n\n");
-        // 深度分析路由下按需注入 CBT 认知透视技能（日常闲聊不携带，避免说教）
+        // CBT 认知透视技能：情绪支持类对话注入，日常闲聊不携带以免说教
         if ("EMOTIONAL_SUPPORT".equals(request.taskContext().taskType())
                 && aiPrompts.getCbtCognitiveSkillPrompt() != null && !aiPrompts.getCbtCognitiveSkillPrompt().isBlank()) {
             sys.append(aiPrompts.getCbtCognitiveSkillPrompt()).append("\n\n");
@@ -553,516 +492,76 @@ public class ChatService {
             sys.append(ragCtx).append("\n");
         }
         // Structured memories and timeline data already come from ContextPlanner. Do not
-        // append a second ad-hoc snapshot here, otherwise the reasoning branch would
-        // bypass the same eligibility, budget and provenance rules as normal chat.
+        // append a second ad-hoc snapshot here, otherwise this path would bypass the same
+        // eligibility, budget and provenance rules as every other chat path.
         sys.append(buildTimeMetadata());
-        
         msgs.add(Map.of("role", "system", "content", sys.toString()));
-        
+
         if (request.memory() != null) {
             for (int i = 0; i < request.memory().size(); i++) {
                 com.moodcopilot.entity.dto.CustomChatMessage msg = request.memory().get(i);
-                // Skip the last message if it's the exact same user message, because we will append it with instructions below
-                if (i == request.memory().size() - 1 && "user".equalsIgnoreCase(msg.role()) && originalMessage != null && originalMessage.equals(msg.content())) {
+                // Skip the last message if it is the exact same user turn, because it is
+                // appended below together with the language instruction.
+                if (i == request.memory().size() - 1 && "user".equalsIgnoreCase(msg.role())
+                        && originalMessage != null && originalMessage.equals(msg.content())) {
                     continue;
                 }
-                String role = msg.role() != null ? msg.role() : "user";
-                if ("ai".equalsIgnoreCase(role)) {
-                    role = "assistant";
+                String role = normalizeHistoryRole(msg.role());
+                if (role == null || msg.content() == null || msg.content().isBlank()) {
+                    continue;
                 }
-                if (msg.content() != null && !msg.content().isBlank()) {
-                    msgs.add(Map.of("role", role, "content", msg.content()));
-                }
+                msgs.add(Map.of("role", role, "content", msg.content()));
             }
         }
-        String reasoningLanguageInstruction = "\n\n(IMPORTANT RULE: You MUST use the exact same language as this user message above for your internal reasoning process and your final response. If this message is in Chinese, your <think> block must be entirely in Chinese.)";
-        msgs.add(Map.of("role", "user", "content", augmentedMessage + reasoningLanguageInstruction));
+
+        // 推理语言指令仅 pro：应用到非推理模型有让它把字面 <think> 块吐进可见正文的风险
+        String userContent = reasoningMode
+                ? augmentedMessage + REASONING_LANGUAGE_INSTRUCTION
+                : augmentedMessage;
+        msgs.add(Map.of("role", "user", "content", userContent));
         return msgs;
     }
 
-    private String callReasoningModel(ChatRequest request, String augmentedMessage, String originalMessage, Authentication auth, long conversationId, String ragCtx) {
-        log.info("调用思考模型分支（原生 WebClient），messageLength={}", augmentedMessage == null ? 0 : augmentedMessage.length());
-        List<Map<String, Object>> msgs = buildMessagesForReasoner(request, augmentedMessage, originalMessage, auth, ragCtx);
-        return deepSeekClient.streamReasoner(msgs)
-                .filter(e -> e instanceof DeepSeekStreamEvent.TextChunk)
-                .map(e -> ((DeepSeekStreamEvent.TextChunk) e).text())
-                .reduce(String::concat).block();
-    }
-
-    private Flux<String> callReasoningModelStream(ChatRequest request, String augmentedMessage, String originalMessage, Authentication auth, long conversationId, String ragCtx) {
-        log.info("调用思考模型分支（流式原生 WebClient + Agent Loop），messageLength={}", augmentedMessage == null ? 0 : augmentedMessage.length());
-
-        // 手动将用户本轮消息存入 ChatMemory（推理模型绕过了 Spring AI Advisor）
-        boolean alreadyHasMessage = false;
-        if (!request.memory().isEmpty()) {
-            com.moodcopilot.entity.dto.CustomChatMessage lastMem = request.memory().get(request.memory().size() - 1);
-            if ("user".equalsIgnoreCase(lastMem.role()) && originalMessage != null && originalMessage.equals(lastMem.content())) {
-                alreadyHasMessage = true;
-            }
+    /** 只允许 user / assistant；其它角色（含 tool）返回 null 表示丢弃。 */
+    private String normalizeHistoryRole(String role) {
+        if (role == null) {
+            return "user";
         }
-        if (!alreadyHasMessage) {
-            request.memory().add(new com.moodcopilot.entity.dto.CustomChatMessage(java.util.UUID.randomUUID().toString(), "user", originalMessage, null, null, null, null, null));
+        if ("user".equalsIgnoreCase(role)) {
+            return "user";
         }
-
-        List<Map<String, Object>> msgs = buildMessagesForReasoner(request, augmentedMessage, originalMessage, auth, ragCtx);
-        List<Map<String, Object>> tools = buildDeepSeekTools();
-        Sinks.Many<String> sseSink = Sinks.many().unicast().onBackpressureBuffer();
-
-        Flux<String> textFlux = processReasoningAgentLoop(msgs, tools, auth, 0, sseSink);
-
-        // 收集最终 AI 回复文本和思维链，流结束时存入 CustomChatMessage
-        StringBuilder finalAiReply = new StringBuilder();
-        StringBuilder finalReasoning = new StringBuilder();
-        Flux<String> tracedTextFlux = textFlux
-                .doOnNext(chunk -> {
-                    if (chunk.startsWith("[[REASONING]]")) {
-                        finalReasoning.append(chunk.substring(13));
-                    } else {
-                        finalAiReply.append(chunk);
-                    }
-                })
-                .doOnComplete(() -> {
-                    if (finalAiReply.length() > 0 || finalReasoning.length() > 0) {
-                        request.memory().add(new com.moodcopilot.entity.dto.CustomChatMessage(
-                            java.util.UUID.randomUUID().toString(), "assistant",
-                            finalAiReply.toString(),
-                            finalReasoning.length() > 0 ? finalReasoning.toString() : null,
-                            null, null, null, null
-                        ));
-                        log.info("推理模型对话已存入 CustomChatMessage，conversationId={}，回复长度={}，思考长度={}",
-                                conversationId, finalAiReply.length(), finalReasoning.length());
-                    }
-                })
-                .doFinally(signalType -> sseSink.tryEmitComplete());
-
-        return Flux.merge(tracedTextFlux, sseSink.asFlux());
-    }
-
-    // ---- DeepSeek Agent Loop ----
-
-    private List<Map<String, Object>> buildDeepSeekTools() {
-        return List.of(
-                buildTool("diarySearchFunction",
-                        "检索当前登录用户自己的历史日记、图片描述、音乐元数据等。keyword、startDate、endDate 都可选，日期格式为 YYYY-MM-DD。keyword 参数：要搜索的关键词或语义描述。由于底层采用向量语义检索，你可以直接输入概念或抽象感觉（例如'关于工作压力的事'、'那张下雨天的图片'），而不需要精确匹配原文词汇。如果用户意图宽泛，可以传入空字符串，结合时间参数查询。返回日期和内容片段。",
-                        new LinkedHashMap<>() {{
-                            put("keyword", Map.of("type", "string", "description", "搜索关键词或语义描述"));
-                            put("startDate", Map.of("type", "string", "description", "开始日期，格式 YYYY-MM-DD"));
-                            put("endDate", Map.of("type", "string", "description", "结束日期，格式 YYYY-MM-DD"));
-                        }},
-                        List.of("keyword", "startDate", "endDate")),
-                buildTool("userStatsFunction",
-                        "统计当前登录用户最近 N 天（默认 14 天）的日记与情绪分布，返回总日记数、情绪计数和高频主题。适合回答「我最近总是什么心情」这类问题。",
-                        new LinkedHashMap<>() {{
-                            put("days", Map.of("type", "integer", "description", "统计最近多少天，默认 14"));
-                        }},
-                        List.of("days")),
-                buildTool("reportSnapshotFunction",
-                        "读取当前登录用户周报或月报的关键指标。period 可选 week/month，offset 可选（默认0）。返回主导象限、正向占比、高能量占比和日记数。",
-                        new LinkedHashMap<>() {{
-                            put("period", Map.of("type", "string", "description", "报告周期：week 或 month"));
-                            put("offset", Map.of("type", "integer", "description", "偏移量，0=当前，-1=上一期"));
-                        }},
-                        List.of("period", "offset")),
-                buildTool("memoryQueryFunction",
-                        "读取当前登录用户的长期画像条目列表。可以通过 keyword 进行语义检索特定的画像片段（例如'我喜欢的食物'）。如果不提供 keyword 则返回最近更新的条目。limit 可选，默认 20，最大 50。",
-                        new LinkedHashMap<>() {{
-                            put("keyword", Map.of("type", "string", "description", "要检索的画像关键词"));
-                            put("limit", Map.of("type", "integer", "description", "返回数量上限，默认 20，最大 50"));
-                        }},
-                        List.of("keyword", "limit")),
-                buildTool("graphSearchFunction",
-                        "根据实体关键词，从知识图谱中查询因果/情绪归因关系三元组。keyword 是要搜索的实体关键词（如'工作'、'失眠'），limit 可选，默认 20，最大 50。返回三元组列表。适合回答「什么导致了什么」、「为什么」等因果问题。如果想获取用户的整体关系图谱概览，可传入空的 keyword。",
-                        new LinkedHashMap<>() {{
-                            put("keyword", Map.of("type", "string", "description", "实体关键词，传空获取整体概览"));
-                            put("limit", Map.of("type", "integer", "description", "返回数量上限，默认 20，最大 50"));
-                        }},
-                        List.of("keyword", "limit")),
-                buildTool("diaryImageAnalysisFunction",
-                        "调用视觉大模型对用户日记中的图片进行深度分析。触发条件：1. 当默认的简短图片描述无法回答提问（如问具体价格、文字细节等）时；2. 当用户明确要求'详细看看'、'还有别的吗'、'列出全部'等表明图片内还有未提及的隐藏信息时，必须强制调用此工具。注意：此功能随用户等级有每日使用限额。",
-                        new LinkedHashMap<>() {{
-                            put("diaryIds", Map.of("type", "array", "items", Map.of("type", "integer"), "description", "要深度分析图片的日记 ID 列表"));
-                            put("prompt", Map.of("type", "string", "description", "希望视觉模型重点关注的提问要求"));
-                        }},
-                        List.of("diaryIds", "prompt")),
-                buildTool("updateEventStatusFunction",
-                        "将当前登录用户的某个重要事件标记为已跟进（FOLLOWED_UP）或重新激活为待跟进（PENDING）。" +
-                        "【调用前提】必须满足以下全部条件才能调用：" +
-                        "1. 用户在本轮对话中明确表达了某个事件已经结束、解决、完成或不再需要跟进的意图（如'这件事解决了'、'不用再管了'、'已经完成了'）；" +
-                        "2. 你已经向用户确认了要操作的具体事件名称，并得到了用户的明确同意；" +
-                        "3. 你已经从上下文中获取到了事件的 eventId。" +
-                        "【禁止调用】用户仅在讨论事件进展、倾诉情绪、寻求建议时，不得调用此工具。" +
-                        "note 参数可选，用于记录用户对该事件的最终总结或跟进说明。",
-                        new LinkedHashMap<>() {{
-                            put("eventId", Map.of("type", "integer", "description", "要更新状态的事件 ID（从事件上下文中获取）"));
-                            put("status", Map.of("type", "string", "enum", List.of("FOLLOWED_UP", "PENDING"), "description", "新状态：FOLLOWED_UP=已跟进/已解决，PENDING=重新标为待跟进"));
-                            put("note", Map.of("type", "string", "description", "可选的跟进备注，记录用户对该事件的总结说明，最多 500 字"));
-                        }},
-                        List.of("eventId", "status", "note")));
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> buildTool(String name, String description,
-            LinkedHashMap<String, Object> properties, List<String> required) {
-        Map<String, Object> params = new LinkedHashMap<>();
-        params.put("type", "object");
-        params.put("properties", properties);
-        params.put("required", required);
-        params.put("additionalProperties", false);
-
-        Map<String, Object> function = new LinkedHashMap<>();
-        function.put("name", name);
-        function.put("description", description);
-        function.put("parameters", params);
-        function.put("strict", true);
-
-        Map<String, Object> tool = new LinkedHashMap<>();
-        tool.put("type", "function");
-        tool.put("function", function);
-        return tool;
-    }
-
-    private Flux<String> processReasoningAgentLoop(List<Map<String, Object>> messages,
-            List<Map<String, Object>> tools,
-            Authentication auth,
-            int depth,
-            Sinks.Many<String> sseSink) {
-        if (depth > 5) {
-            log.warn("Agent Loop 递归深度达到上限 depth={}，终止递归", depth);
-            return Flux.<String>empty();
+        if ("assistant".equalsIgnoreCase(role) || "ai".equalsIgnoreCase(role)) {
+            return "assistant";
         }
-        if (depth > 0) {
-            log.info("Agent Loop 递归 depth={}，messages 数量={}", depth, messages.size());
+        return null;
+    }
+
+    private void addUserTurn(Long conversationId, ChatRequest request, String message, boolean persist) {
+        if (persist) {
+            appendToChatMemory(conversationId, request.memory(), "user", message, null);
+            return;
         }
-
-
-        return Flux.defer(() -> {
-            List<DeepSeekStreamEvent.ToolCallReady> toolCalls = new ArrayList<>();
-            StringBuilder turnReasoning = new StringBuilder();
-            StringBuilder turnContent = new StringBuilder();
-
-            //返回的是最底层的flux对象，随时可以开始subscribe订阅，得到最顶层flux对应的工人，然后就可以按调用链执行onNext(T t)和onComplete()方法了
-            return deepSeekClient.streamReasoner(messages, tools)
-                    .doOnNext(event -> {
-                        if (event instanceof DeepSeekStreamEvent.ToolCallReady tool) {
-                            toolCalls.add(tool);
-                        } else if (event instanceof DeepSeekStreamEvent.TextChunk text) {
-                            String chunk = text.text();
-                            if (chunk.startsWith("[[REASONING]]")) {
-                                turnReasoning.append(chunk.substring(13));
-                            } else {
-                                turnContent.append(chunk);
-                            }
-                        }
-                    })
-                    .flatMap(event -> {
-                        if (event instanceof DeepSeekStreamEvent.TextChunk text) {
-                            return Flux.just(text.text());
-                        }
-                        return Flux.<String>empty();
-                    })
-                    .concatWith(Flux.defer(() -> {
-                        if (toolCalls.isEmpty()) {
-                            return Flux.<String>empty();
-                        }
-
-                        List<Map<String, Object>> toolCallsArray = new ArrayList<>();
-                        for (DeepSeekStreamEvent.ToolCallReady tool : toolCalls) {
-                            toolCallsArray.add(Map.of(
-                                    "id", tool.toolCallId(),
-                                    "type", "function",
-                                    "function", Map.of(
-                                            "name", tool.functionName(),
-                                            "arguments", tool.argumentsJson())));
-                        }
-
-                        Map<String, Object> assistantMsg = new LinkedHashMap<>();
-                        assistantMsg.put("role", "assistant");
-                        assistantMsg.put("content", turnContent.toString());
-                        assistantMsg.put("reasoning_content", turnReasoning.toString());
-                        assistantMsg.put("tool_calls", toolCallsArray);
-                        messages.add(assistantMsg);
-
-                        for (DeepSeekStreamEvent.ToolCallReady tool : toolCalls) {
-                            log.info("Agent Loop 执行工具调用: {} id={} argsLen={}", tool.functionName(),
-                                    tool.toolCallId(), tool.argumentsJson().length());
-                            try {
-                                Object result = executeToolFunction(tool.functionName(), tool.argumentsJson(), auth);
-                                String resultJson = objectMapper.writeValueAsString(result);
-                                emitToolReferences(tool.functionName(), result, sseSink);
-
-                                Map<String, Object> toolMsg = new LinkedHashMap<>();
-                                toolMsg.put("role", "tool");
-                                toolMsg.put("tool_call_id", tool.toolCallId());
-                                toolMsg.put("content", resultJson);
-                                messages.add(toolMsg);
-                            } catch (Exception e) {
-                                log.error("工具调用执行失败: {}", e.getMessage());
-                            }
-                        }
-                        return processReasoningAgentLoop(messages, tools, auth, depth + 1, sseSink);
-                    }));
-        });
+        request.memory().add(new com.moodcopilot.entity.dto.CustomChatMessage(
+                java.util.UUID.randomUUID().toString(), "user", message, null, null, null, null, null));
     }
 
-    private void emitToolReferences(String functionName, Object result, Sinks.Many<String> sseSink) {
-        if (sseSink == null || result == null) return;
-        try {
-            List<Map<String, String>> items = new ArrayList<>();
-            switch (functionName) {
-                case "diarySearchFunction" -> {
-                    if (result instanceof DiarySearchResult dsr && dsr.diaries() != null) {
-                        for (var d : dsr.diaries()) {
-                            items.add(Map.of(
-                                    "type", "tool_memory",
-                                    "diaryId", d.id() != null ? d.id().toString() : "",
-                                    "date", d.date() != null ? d.date().toString() : "",
-                                    "snippet", compactToolSnippet(d.snippet()),
-                                    "toolName", "diarySearch"));
-                        }
-                    }
-                }
-                case "memoryQueryFunction" -> {
-                    if (result instanceof MemoryQueryResult mqr && mqr.items() != null) {
-                        for (var m : mqr.items()) {
-                            String key = m.attributeKey() != null ? m.attributeKey() : "";
-                            String val = m.attributeValue() != null ? m.attributeValue() : "";
-                            items.add(Map.of(
-                                    "type", "profile_memory",
-                                    "key", key,
-                                    "value", val,
-                                    "snippet", key + ": " + val,
-                                    "toolName", "memoryQuery"));
-                        }
-                    }
-                }
-                case "graphSearchFunction" -> {
-                    if (result instanceof GraphSearchResult gsr && gsr.items() != null) {
-                        for (var g : gsr.items()) {
-                            items.add(Map.of(
-                                    "type", "graph_memory",
-                                    "snippet", compactToolSnippet(g.content()),
-                                    "date", g.date() != null ? g.date() : "",
-                                    "diaryId", g.diaryId() != null ? g.diaryId().toString() : "",
-                                    "toolName", "graphSearch"));
-                        }
-                    }
-                }
-                case "diaryImageAnalysisFunction" -> {
-                    if (result instanceof DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult dir) {
-                        items.add(Map.of(
-                                "type", "image_analysis",
-                                "snippet", compactToolSnippet(dir.analysisResult()),
-                                "toolName", "diaryImageAnalysis"));
-                    }
-                }
-            }
-            if (!items.isEmpty()) {
-                Map<String, Object> event = Map.of("type", "tool_references", "items", items);
-                sseSink.tryEmitNext("[[TOOL_EVENT]]" + objectMapper.writeValueAsString(event));
-                log.info("Agent Loop 推送工具引用事件: {} items for {}", items.size(), functionName);
-            }
-        } catch (Exception e) {
-            log.warn("推送工具引用事件失败 {}: {}", functionName, e.getMessage());
+    private void addAssistantTurn(Long conversationId, ChatRequest request, AgentLoopOutcome outcome, boolean persist) {
+        String reply = outcome.reply();
+        String reasoning = outcome.reasoning();
+        if (reply.isEmpty() && reasoning.isEmpty()) {
+            return;
         }
-    }
-
-    /** 仅限制前端引用面板的摘要，不影响完整工具结果返回给模型。 */
-    private String compactToolSnippet(String value) {
-        if (value == null || value.isBlank()) return "";
-        String normalized = value.replaceAll("\\s+", " ").trim();
-        return normalized.length() > 160 ? normalized.substring(0, 160) + "…" : normalized;
-    }
-
-    private Object executeToolFunction(String functionName, String argumentsJson, Authentication auth) throws Exception {
-        SecurityContextHolder.getContext().setAuthentication(auth);
-        try {
-            return switch (functionName) {
-                case "diarySearchFunction" -> {
-                    var req = objectMapper.readValue(argumentsJson, com.moodcopilot.diary.DiarySearchRequest.class);
-                    long userId = ((UserEntity) auth.getPrincipal()).getId();
-                    DiarySearchResult result = ragMemoryService.searchForTool(userId, req);
-                    if (result == null) {
-                        result = diaryService.searchOwnDiarySummaries(req);
-                    }
-                    yield result;
-                }
-                case "userStatsFunction" -> {
-                    var req = objectMapper.readValue(argumentsJson, UserStatsRequest.class);
-                    yield diaryService.getOwnMoodStats(req);
-                }
-                case "reportSnapshotFunction" -> {
-                    var req = objectMapper.readValue(argumentsJson, ReportSnapshotRequest.class);
-                    yield diaryService.getOwnReportSnapshot(req);
-                }
-                case "memoryQueryFunction" -> {
-                    var req = objectMapper.readValue(argumentsJson, MemoryQueryRequest.class);
-                    long userId = ((UserEntity) auth.getPrincipal()).getId();
-                    int limit = req.limit() != null ? Math.min(50, Math.max(1, req.limit())) : 20;
-                    String keyword = req.keyword() != null ? req.keyword().trim() : "";
-
-                    List<MemoryQueryResult.MemoryItem> items = new ArrayList<>();
-                    if (!keyword.isBlank()) {
-                        var hits = ragMemoryService.search(userId, keyword, limit, RagMemoryService.SOURCE_PROFILE);
-                        for (var hit : hits) {
-                            if (hit.content() != null) {
-                                String c = hit.content();
-                                String key = "画像片段";
-                                String val = c;
-                                if (c.startsWith("用户长期画像 - ")) {
-                                    c = c.substring("用户长期画像 - ".length());
-                                    String[] parts = c.split(":", 2);
-                                    if (parts.length == 2) {
-                                        key = parts[0].trim();
-                                        val = parts[1].trim();
-                                    }
-                                }
-                                items.add(new MemoryQueryResult.MemoryItem(key, val, null));
-                            }
-                        }
-                    } else {
-                        items = memoryExtractionService.listCurrentUserMemories().stream()
-                                .filter(m -> m != null && SensitiveDataDetector.allowedForMemory(
-                                        m.getAttributeKey(), m.getAttributeValue(), null))
-                                .sorted(java.util.Comparator.comparing(
-                                        m -> m.getUpdateTime(),
-                                        java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
-                                .limit(limit)
-                                .map(m -> new MemoryQueryResult.MemoryItem(
-                                        m.getAttributeKey(),
-                                        m.getAttributeValue(),
-                                        m.getUpdateTime() != null ? m.getUpdateTime().toString() : null))
-                                .toList();
-                    }
-                    yield new MemoryQueryResult(items.size(), items,
-                            items.isEmpty() ? "当前暂无符合条件的长期画像条目" : "已返回长期画像条目");
-                }
-                case "graphSearchFunction" -> {
-                    var req = objectMapper.readValue(argumentsJson, GraphSearchRequest.class);
-                    long userId = ((UserEntity) auth.getPrincipal()).getId();
-                    String keyword = req.keyword() != null ? req.keyword().trim() : "";
-                    int limit = req.limit() != null ? Math.min(50, Math.max(1, req.limit())) : 20;
-
-                    List<GraphSearchResult.GraphItem> items = new ArrayList<>();
-                    if (!keyword.isBlank()) {
-                        var hits = ragMemoryService.search(userId, keyword, limit, RagMemoryService.SOURCE_GRAPH);
-                        java.util.Set<Long> graphIds = new java.util.LinkedHashSet<>();
-                        for (var hit : hits) {
-                            if (hit.sourceId() != null && hit.sourceId().startsWith("graph:")) {
-                                try { graphIds.add(Long.parseLong(hit.sourceId().substring(6))); } catch (NumberFormatException ignored) {}
-                            }
-                        }
-                        if (!graphIds.isEmpty()) {
-                            var wrapper = new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
-                                    .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getUserId, userId)
-                                    .in(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getId, graphIds)
-                                    .and(w -> w.isNull(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getStatus)
-                                            .or().eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getStatus, "active"));
-                            java.util.Map<Long, com.moodcopilot.entity.DiaryKnowledgeGraphEntity> byId = new java.util.LinkedHashMap<>();
-                            for (var t : diaryKnowledgeGraphMapper.selectList(wrapper)) {
-                                byId.put(t.getId(), t);
-                            }
-                            for (Long gid : graphIds) {
-                                var t = byId.get(gid);
-                                if (t != null) {
-                                    items.add(new GraphSearchResult.GraphItem(
-                                            t.getHeadEntity() + " " + t.getRelation() + " " + t.getTailEntity(),
-                                            t.getCreatedAt() != null ? t.getCreatedAt().toString() : null,
-                                            t.getDiaryId()));
-                                }
-                            }
-                        }
-                    } else {
-                        // 降级全量拉取：返回最近的图谱关系概览
-                        var wrapper = new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryKnowledgeGraphEntity>()
-                                .eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getUserId, userId)
-                                .and(w -> w.isNull(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getStatus)
-                                        .or().eq(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getStatus, "active"))
-                                .orderByDesc(com.moodcopilot.entity.DiaryKnowledgeGraphEntity::getCreatedAt)
-                                ;
-                        for (var t : diaryKnowledgeGraphMapper.selectPage(
-                                com.baomidou.mybatisplus.extension.plugins.pagination.Page.of(1, limit), wrapper).getRecords()) {
-                            items.add(new GraphSearchResult.GraphItem(
-                                    t.getHeadEntity() + " " + t.getRelation() + " " + t.getTailEntity(),
-                                    t.getCreatedAt() != null ? t.getCreatedAt().toString() : null,
-                                    t.getDiaryId()));
-                        }
-                    }
-                    yield new GraphSearchResult(items.size(), items,
-                            items.isEmpty() ? (keyword.isBlank() ? "当前暂无知识图谱记录" : "未找到与 '" + keyword + "' 相关的图谱三元组") : "已返回知识图谱因果三元组（共 " + items.size() + " 条）");
-                }
-                case "diaryImageAnalysisFunction" -> {
-                    var req = objectMapper.readValue(argumentsJson, DiaryImageAnalysisRequest.class);
-                    UserEntity user = (UserEntity) auth.getPrincipal();
-                    String prompt = req.prompt() == null || req.prompt().isBlank()
-                            ? "请详细描述图片中的关键内容、文字、人物、物品、环境和与用户问题相关的细节。"
-                            : req.prompt().trim();
-                    log.info("触发图片深度分析(VLM)工具 userId={}, diaryIds={}, promptLength={}", user.getId(), req.diaryIds(), prompt.length());
-                    try {
-                        rateLimitService.tryAcquire(user, RateLimitService.AiApiType.IMAGE_ANALYSIS);
-                    } catch (RateLimitException e) {
-                        log.warn("图片深度分析(VLM)额度不足，拦截请求 userId={}", user.getId());
-                        yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult("由于今日图片深度分析次数已达限额，无法分析图片，请明日再试。");
-                    }
-                    if (req.diaryIds() == null || req.diaryIds().isEmpty()) {
-                        log.info("图片深度分析(VLM)失败：未提供日记ID userId={}", user.getId());
-                        yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult("未提供日记ID，无法分析");
-                    }
-                    var diaries = diaryMapper.selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.moodcopilot.entity.DiaryEntity>()
-                            .in(com.moodcopilot.entity.DiaryEntity::getId, req.diaryIds())
-                            .eq(com.moodcopilot.entity.DiaryEntity::getAuthorUserId, user.getId())
-                            .eq(com.moodcopilot.entity.DiaryEntity::getIsDeleted, false));
-                    List<String> images = new ArrayList<>();
-                    for (var d : diaries) {
-                        if (d.getAuthorUserId().equals(user.getId()) && d.getImages() != null) {
-                            images.addAll(d.getImages());
-                        }
-                    }
-                    if (images.isEmpty()) {
-                        log.info("图片深度分析(VLM)失败：选定的日记中没有图片 userId={}", user.getId());
-                        yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult("选定的日记中没有包含任何图片");
-                    }
-                    log.info("图片深度分析(VLM)准备请求视觉大模型 userId={}, 图片数量={}", user.getId(), images.size());
-                    String res = visionService.analyzeImageDetails(images, prompt);
-                    log.info("图片深度分析(VLM)完成 userId={}", user.getId());
-                    yield new DiaryImageAnalysisFunctionSupport.DiaryImageAnalysisResult(res);
-                }
-                case "updateEventStatusFunction" -> {
-                    var req = objectMapper.readValue(argumentsJson, UpdateEventStatusRequest.class);
-                    UserEntity user = (UserEntity) auth.getPrincipal();
-                    long userId = user.getId();
-                    if (req.eventId() == null) {
-                        yield new UpdateEventStatusResult(false, null, "缺少 eventId，无法更新事件状态");
-                    }
-                    String status = req.status() != null ? req.status().toUpperCase(java.util.Locale.ROOT).trim() : "FOLLOWED_UP";
-                    if (!java.util.Set.of("PENDING", "FOLLOWED_UP").contains(status)) {
-                        yield new UpdateEventStatusResult(false, null, "状态值不合法，只允许 PENDING 或 FOLLOWED_UP");
-                    }
-                    String note = req.note() != null && !req.note().isBlank()
-                            ? req.note().trim().substring(0, Math.min(req.note().trim().length(), 500))
-                            : null;
-                    try {
-                        com.moodcopilot.event.LifeEventService.LifeEventView updated =
-                                lifeEventService.updateEventStatus(userId, req.eventId(), status, note);
-                        String msg = "FOLLOWED_UP".equals(status)
-                                ? "已将「" + updated.title() + "」标记为已跟进"
-                                : "已将「" + updated.title() + "」重新标记为待跟进";
-                        log.info("AI工具更新事件状态 userId={} eventId={} newStatus={}", userId, req.eventId(), status);
-                        yield new UpdateEventStatusResult(true, updated.status(), msg);
-                    } catch (org.springframework.web.server.ResponseStatusException e) {
-                        log.warn("AI工具更新事件状态失败 userId={} eventId={} reason={}", userId, req.eventId(), e.getReason());
-                        yield new UpdateEventStatusResult(false, null, "更新失败：" + (e.getReason() != null ? e.getReason() : "事件不存在或无权操作"));
-                    }
-                }
-                default -> throw new IllegalArgumentException("未知的工具函数: " + functionName);
-            };
-        } finally {
-            SecurityContextHolder.clearContext();
+        String reasoningOrNull = reasoning.isEmpty() ? null : reasoning;
+        if (persist) {
+            appendToChatMemory(conversationId, request.memory(), "assistant", reply, reasoningOrNull);
+            return;
         }
+        request.memory().add(new com.moodcopilot.entity.dto.CustomChatMessage(
+                java.util.UUID.randomUUID().toString(), "assistant", reply, reasoningOrNull,
+                null, null, null, null));
     }
 
-    // ---- Tool request/result records ----
-    record UpdateEventStatusRequest(Long eventId, String status, String note) {}
-    record UpdateEventStatusResult(boolean success, String newStatus, String message) {}
+    // ---- 历史压缩 ----
 
     private static final int CHAT_HISTORY_CHAR_BUDGET = 3000;
 

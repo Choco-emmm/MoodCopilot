@@ -22,32 +22,38 @@ public class DeepSeekClient {
 
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
-    private final String reasoningModel;
-    private final int reasoningMaxTokens;
 
     public DeepSeekClient(
             WebClient.Builder webClientBuilder,
             ObjectMapper objectMapper,
             @Value("${spring.ai.openai.api-key:}") String apiKey,
-            @Value("${spring.ai.openai.base-url:https://api.deepseek.com}") String baseUrl,
-            @Value("${DEEPSEEK_REASONING_MODEL:deepseek-v4-pro}") String reasoningModel,
-            @Value("${spring.ai.reasoning.max-tokens:32768}") int reasoningMaxTokens) {
+            @Value("${spring.ai.openai.base-url:https://api.deepseek.com}") String baseUrl) {
         this.objectMapper = objectMapper;
-        this.reasoningModel = reasoningModel == null || reasoningModel.isBlank() ? "deepseek-v4-pro" : reasoningModel.trim();
-        this.reasoningMaxTokens = Math.max(1024, reasoningMaxTokens);
         this.webClient = webClientBuilder
                 .baseUrl(baseUrl)
                 .defaultHeader("Authorization", "Bearer " + apiKey)
                 .build();
     }
 
-    public Flux<DeepSeekStreamEvent> streamReasoner(List<Map<String, Object>> messages, List<Map<String, Object>> tools) {
+    /**
+     * 统一的流式入口：模型、预算、温度、reasoning_effort 全部来自 options。
+     * temperature / reasoning_effort 为 null 时不下发该字段，模型沿用端点默认值
+     * —— 这也是 flash 保持改造前行为（端点默认温度、不下发 reasoning_effort）的关键。
+     */
+    public Flux<DeepSeekStreamEvent> stream(List<Map<String, Object>> messages,
+                                            List<Map<String, Object>> tools,
+                                            AgentLoopOptions options) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", this.reasoningModel);
+        body.put("model", options.model());
         body.put("messages", messages);
         body.put("stream", true);
-        body.put("reasoning_effort", "high");
-        body.put("max_tokens", reasoningMaxTokens);
+        if (options.reasoningEffort() != null && !options.reasoningEffort().isBlank()) {
+            body.put("reasoning_effort", options.reasoningEffort());
+        }
+        if (options.temperature() != null) {
+            body.put("temperature", options.temperature());
+        }
+        body.put("max_tokens", options.maxTokens());
         if (tools != null && !tools.isEmpty()) {
             body.put("tools", tools);
         }
@@ -118,16 +124,11 @@ public class DeepSeekClient {
                         }
                         return Flux.fromIterable(events);
                     }))
-                    .doOnComplete(() -> AiCallTiming.completed(log, "CHAT_AGENT_STREAM", reasoningModel,
+                    .doOnComplete(() -> AiCallTiming.completed(log, options.logType(), options.model(),
                             startedAt, "SUCCESS", estimateInputLength(messages), outputLength.get()))
-                    .doOnError(error -> AiCallTiming.failed(log, "CHAT_AGENT_STREAM", reasoningModel,
+                    .doOnError(error -> AiCallTiming.failed(log, options.logType(), options.model(),
                             startedAt, error, estimateInputLength(messages)));
         });
-    }
-
-    /** Overload for backward compat with callers that don't pass tools. */
-    public Flux<DeepSeekStreamEvent> streamReasoner(List<Map<String, Object>> messages) {
-        return streamReasoner(messages, Collections.emptyList());
     }
 
     private static class ToolCallAccumulator {
