@@ -69,7 +69,8 @@ public class ChatGenerationService {
             List<UserReference> resolvedReferences,
             ReferencePurpose referencePurpose,
             boolean useReasoning,
-            Authentication authentication) {
+            Authentication authentication,
+            List<String> imageUrls) {
     }
 
     public record RunSnapshot(String runId, String status, long lastSequence) {
@@ -119,7 +120,8 @@ public class ChatGenerationService {
             chatService.scheduleConversationTitle(request.conversationId(), request.message());
             ChatService.ChatStreamContext result = chatService.chat(
                     request.conversationId(), request.message(), request.references(), "",
-                    request.useReasoning(), request.referencePurpose(), request.resolvedReferences());
+                    request.useReasoning(), request.referencePurpose(), request.resolvedReferences(),
+                    null, request.imageUrls());
             if (!writeEvent(runId, event("references", Map.of("items", parseRagReferences(result.ragContext()))))) {
                 throw new IllegalStateException("保存聊天引用事件失败");
             }

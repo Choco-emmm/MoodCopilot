@@ -77,6 +77,7 @@ export const chatApi = {
     references: string[],
     useReasoning: boolean,
     eventId: number | undefined,
+    imageUrls: string[],
     onChunk: (text: string) => void,
     ctrl: AbortController,
     onReferences?: (items: Array<{ type: string; diaryId: string; date: string; snippet: string }>) => void,
@@ -95,6 +96,7 @@ export const chatApi = {
       ...(eventId ? { eventId } : {}),
       ...(referencePurpose ? { referencePurpose } : {}),
       ...(referenceItems?.length ? { referenceItems } : {}),
+      ...(imageUrls?.length ? { imageUrls } : {}),
     })
     const startPayload = startResponse.data?.data ?? startResponse.data
     const runId = String(startPayload?.runId || '')

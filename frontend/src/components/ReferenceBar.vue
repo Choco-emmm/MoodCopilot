@@ -3,7 +3,8 @@
     <!-- 只有当有引用项时才显示引用栏 -->
     <div v-show="items.length > 0" class="ref-bar">
       <div v-for="(item, i) in items" :key="i" class="ref-chip">
-        <span class="ref-chip-label">{{ item.displayContent || item.content }}</span>
+        <img v-if="(item as any).url" :src="(item as any).url" style="width: 24px; height: 24px; object-fit: cover; border-radius: 4px; margin-right: 4px;" />
+          <span class="ref-chip-label">{{ item.displayContent || item.content }}</span>
         <button class="ref-chip-remove" @click="$emit('remove', i)">×</button>
       </div>
     </div>

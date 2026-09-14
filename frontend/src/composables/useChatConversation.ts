@@ -12,6 +12,7 @@ export interface Message {
   createdAt?: string
   references?: string[]
   ragReferences?: RagRef[]
+  imageUrls?: string[]
   quoteRef?: {
     content: string
     reasoningContent?: string; author: string
@@ -207,6 +208,7 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
           reasoningContent: item.reasoningContent || undefined,
           references: references.length ? references : undefined,
           ragReferences: Array.isArray(item.ragReferences) ? item.ragReferences : undefined,
+          imageUrls: Array.isArray(item.imageUrls) ? item.imageUrls.map((u: any) => String(u)) : undefined,
           quoteRef,
         }
       })

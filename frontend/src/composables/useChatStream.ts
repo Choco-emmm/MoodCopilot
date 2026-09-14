@@ -12,8 +12,9 @@ export interface ChatReference {
   fullContent: string
   diaryId?: number
   eventId?: number
-  sourceType?: 'diary' | 'event'
-  type?: 'quote'
+  sourceType?: 'diary' | 'event' | 'image'
+  url?: string
+  type?: 'quote' | 'image'
   quoteAuthor?: string
   displayContent?: string
 }
@@ -87,8 +88,9 @@ export function useChatStream(
       finalContent = `[用户引用了之前的发言：\n"${quoteRefItem.content}"]\n\n用户的回复是：\n${content}`
     }
 
-    const selectedReferences = references.value.filter(r => r.type !== 'quote').slice(0, 2)
+    const selectedReferences = references.value.filter(r => r.type !== 'quote' && r.type !== 'image').slice(0, 2)
     const refContents = selectedReferences.map(r => r.fullContent || r.content)
+    const imageUrls = references.value.filter(r => r.type === 'image' && r.url).map(r => r.url as string)
     const referenceItems = selectedReferences
       .filter(r => (r.sourceType === 'diary' || r.sourceType === 'event') && Number.isFinite(r.diaryId || r.eventId))
       .map(r => ({ sourceType: r.sourceType as string, sourceId: Number(r.diaryId || r.eventId) }))
@@ -96,6 +98,7 @@ export function useChatStream(
       id: nextMsgId(), role: 'user', content,
       createdAt: new Date().toISOString(),
       references: refContents.length ? refContents : undefined,
+      imageUrls: imageUrls.length ? imageUrls : undefined,
       quoteRef,
     })
     await saveToBackend(convId).catch(() => { })
@@ -117,7 +120,7 @@ export function useChatStream(
       return
     }
 
-    await sendReply(convId, finalContent, refContents, referenceItems, useReasoning.value, false, eventId, isFirstUserMessage)
+    await sendReply(convId, finalContent, refContents, referenceItems, useReasoning.value, false, eventId, isFirstUserMessage, imageUrls)
   }
 
   // ── Retry ──
@@ -255,7 +258,7 @@ export function useChatStream(
 
   // ── Stream Reply ──
 
-  async function sendReply(convId: number, content: string, refContents: string[], referenceItems: Array<{ sourceType: string; sourceId: number }>, requestedUseReasoning: boolean, isRetry: boolean, eventId?: number, refreshTitle = false) {
+  async function sendReply(convId: number, content: string, refContents: string[], referenceItems: Array<{ sourceType: string; sourceId: number }>, requestedUseReasoning: boolean, isRetry: boolean, eventId?: number, refreshTitle = false, imageUrls: string[] = []) {
     if (streamAbortCtrl) {
       streamAbortCtrl.abort()
       streamAbortCtrl = null
@@ -276,6 +279,7 @@ export function useChatStream(
         refContents,
         requestedUseReasoning,
         eventId,
+        imageUrls,
         (chunk: string) => {
           const normalizedChunk = normalizeReasoningChunk(chunk, reasoningCarry)
           if (normalizedChunk.startsWith(REASONING_MARKER)) {
@@ -411,6 +415,19 @@ export function useChatStream(
 
   // ── References ──
 
+
+  function addImageRef(url: string) {
+    references.value.push({
+      label: '图片',
+      displayContent: '已选图片附件',
+      content: '【图片】',
+      fullContent: url,
+      sourceType: 'image',
+      type: 'image',
+      url: url,
+    })
+  }
+
   function removeRef(index: number) {
     references.value.splice(index, 1)
   }
@@ -419,6 +436,6 @@ export function useChatStream(
     draft, streaming, streamingText, streamingReasoning, isThinking, isCompressing, compressingMessage, useReasoning, references,
     lastReplyError, lastReplyRequest, streamingRefs, showStreamingRefs,
     syncCooldownUntil,
-    send, retryLastReply, resumeActiveRun, abortStream, removeRef,
+    send, retryLastReply, resumeActiveRun, abortStream, removeRef, addImageRef,
   }
 }

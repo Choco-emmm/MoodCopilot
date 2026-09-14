@@ -402,6 +402,7 @@ export function useChat() {
     send: handleSend,
     retryLastReply: stream.retryLastReply,
     removeRef: stream.removeRef,
+    addImageRef: stream.addImageRef,
     // refs / diary
     recentDiaryOptions,
     recentDiariesLoading,

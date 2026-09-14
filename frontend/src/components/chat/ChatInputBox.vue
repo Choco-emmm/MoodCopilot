@@ -106,6 +106,7 @@
 import { ref } from 'vue'
 import { NButton, NInput, useMessage } from 'naive-ui'
 import ReferenceBar from '../ReferenceBar.vue'
+import { imageApi } from '../../api/system'
 
 const message = useMessage()
 const referenceBarRef = ref<InstanceType<typeof ReferenceBar> | null>(null)
@@ -129,7 +130,7 @@ defineProps<{
   recentEventsError: string | null
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'update:draft', val: string): void
   (e: 'send'): void
   (e: 'send-enter', event: KeyboardEvent): void
@@ -142,10 +143,29 @@ defineEmits<{
   (e: 'load-recent-events'): void
   (e: 'focus'): void
   (e: 'open-persona'): void
+  (e: 'add-image-reference', url: string): void
 }>()
 
 function handleImageUpload() {
-  message.info('发送图片功能将在后续版本接入', { duration: 3000 })
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.onchange = async (e: any) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const loadingMsg = message.loading('正在上传图片...', { duration: 0 })
+    try {
+      const url = await imageApi.uploadDirect(file)
+      loadingMsg.destroy()
+      emit('add-image-reference', url)
+      message.success('图片已添加')
+    } catch (err: any) {
+      loadingMsg.destroy()
+      message.error(err.message || '图片上传失败')
+    }
+  }
+  input.click()
 }
 </script>
 

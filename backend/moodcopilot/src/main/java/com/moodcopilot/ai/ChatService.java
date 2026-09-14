@@ -32,6 +32,7 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -66,6 +67,7 @@ public class ChatService {
     private final com.moodcopilot.ai.tool.ChatToolRegistry toolRegistry;
     private final ChatAgentLoop agentLoop;
     private final ChatModelProfiles modelProfiles;
+    private final ChatImageCaptionService imageCaptionService;
     private final com.moodcopilot.config.AiPromptProperties aiPrompts;
     private final com.moodcopilot.event.LifeEventService lifeEventService;
     private final com.moodcopilot.event.LifeChapterService lifeChapterService;
@@ -97,6 +99,7 @@ public class ChatService {
             com.moodcopilot.ai.tool.ChatToolRegistry toolRegistry,
             ChatAgentLoop agentLoop,
             ChatModelProfiles modelProfiles,
+            ChatImageCaptionService imageCaptionService,
             com.moodcopilot.config.AiPromptProperties aiPrompts,
             @org.springframework.context.annotation.Lazy com.moodcopilot.event.LifeEventService lifeEventService,
             @org.springframework.context.annotation.Lazy com.moodcopilot.event.LifeChapterService lifeChapterService,
@@ -126,6 +129,7 @@ public class ChatService {
         this.toolRegistry = toolRegistry;
         this.agentLoop = agentLoop;
         this.modelProfiles = modelProfiles;
+        this.imageCaptionService = imageCaptionService;
         this.aiPrompts = aiPrompts;
         this.lifeEventService = lifeEventService;
         this.lifeChapterService = lifeChapterService;
@@ -334,9 +338,16 @@ public class ChatService {
     public ChatStreamContext chat(Long conversationId, String message, List<String> refs, String memoryBackground,
             boolean useReasoning, ReferencePurpose referencePurpose, List<UserReference> resolvedReferences,
             CurrentTurnPreference turnPreference) {
+        return chat(conversationId, message, refs, memoryBackground, useReasoning, referencePurpose,
+                resolvedReferences, turnPreference, List.of());
+    }
+
+    public ChatStreamContext chat(Long conversationId, String message, List<String> refs, String memoryBackground,
+            boolean useReasoning, ReferencePurpose referencePurpose, List<UserReference> resolvedReferences,
+            CurrentTurnPreference turnPreference, List<String> imageUrls) {
         String augmentedMessage = augmentWithRefReminder(message, refs);
         ChatExecutionResult exec = prepareChatExecution(conversationId, augmentedMessage, refs, memoryBackground,
-                useReasoning, referencePurpose, resolvedReferences, turnPreference);
+                useReasoning, referencePurpose, resolvedReferences, turnPreference, imageUrls);
         ChatRequest request = exec.request();
         Authentication auth = exec.auth();
         String ragCtx = exec.ragCtx();
@@ -345,7 +356,7 @@ public class ChatService {
         log.info("聊天路由结果：{}（流式），conversationId={}，messageLength={}", options.modelLabel(), conversationId,
                 augmentedMessage == null ? 0 : augmentedMessage.length());
 
-        appendToChatMemory(conversationId, request.memory(), "user", message, null);
+        appendToChatMemory(conversationId, request.memory(), "user", message, null, null, imageUrls);
         List<Map<String, Object>> msgs = buildChatMessages(request, augmentedMessage, message, ragCtx,
                 exec.useReasoning());
 
@@ -386,10 +397,17 @@ public class ChatService {
     public String reply(Long conversationId, String message, List<String> refs, String memoryBackground,
             boolean useReasoning, ReferencePurpose referencePurpose, List<UserReference> resolvedReferences,
             CurrentTurnPreference turnPreference) {
+        return reply(conversationId, message, refs, memoryBackground, useReasoning, referencePurpose,
+                resolvedReferences, turnPreference, List.of());
+    }
+
+    public String reply(Long conversationId, String message, List<String> refs, String memoryBackground,
+            boolean useReasoning, ReferencePurpose referencePurpose, List<UserReference> resolvedReferences,
+            CurrentTurnPreference turnPreference, List<String> imageUrls) {
         // 非流式接口：移动端/公网优先走这里，减少 SSE 连接不稳定的影响。
         String augmentedMessage = augmentWithRefReminder(message, refs);
         ChatExecutionResult exec = prepareChatExecution(conversationId, augmentedMessage, refs, memoryBackground,
-                useReasoning, referencePurpose, resolvedReferences, turnPreference);
+                useReasoning, referencePurpose, resolvedReferences, turnPreference, imageUrls);
         ChatRequest request = exec.request();
         Authentication auth = exec.auth();
         String ragCtx = exec.ragCtx();
@@ -398,7 +416,7 @@ public class ChatService {
         log.info("聊天路由结果：{}（非流式），conversationId={}，messageLength={}", options.modelLabel(), conversationId,
                 augmentedMessage == null ? 0 : augmentedMessage.length());
 
-        appendToChatMemory(conversationId, request.memory(), "user", message, null);
+        appendToChatMemory(conversationId, request.memory(), "user", message, null, null, imageUrls);
         List<Map<String, Object>> msgs = buildChatMessages(request, augmentedMessage, message, ragCtx,
                 exec.useReasoning());
 
@@ -436,8 +454,16 @@ public class ChatService {
     private ChatExecutionResult prepareChatExecution(Long conversationId, String message, List<String> refs,
             String memoryBackground, boolean requestedUseReasoning, ReferencePurpose referencePurpose,
             List<UserReference> resolvedReferences, CurrentTurnPreference turnPreference) {
+        return prepareChatExecution(conversationId, message, refs, memoryBackground, requestedUseReasoning,
+                referencePurpose, resolvedReferences, turnPreference, List.of());
+    }
+
+    private ChatExecutionResult prepareChatExecution(Long conversationId, String message, List<String> refs,
+            String memoryBackground, boolean requestedUseReasoning, ReferencePurpose referencePurpose,
+            List<UserReference> resolvedReferences, CurrentTurnPreference turnPreference,
+            List<String> imageUrls) {
         ChatRequest request = prepareChatRequest(conversationId, message, refs, memoryBackground,
-                requestedUseReasoning, referencePurpose, resolvedReferences, turnPreference);
+                requestedUseReasoning, referencePurpose, resolvedReferences, turnPreference, imageUrls);
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity user = currentUser();
         String ragCtx = ""; // 工具按需检索；ContextPlanner 仍负责隔离可能传入的检索上下文
@@ -681,6 +707,14 @@ public class ChatService {
     private ChatRequest prepareChatRequest(Long conversationId, String message, List<String> refs,
             String memoryBackground, boolean requestedUseReasoning, ReferencePurpose referencePurpose,
             List<UserReference> resolvedReferences, CurrentTurnPreference turnPreference) {
+        return prepareChatRequest(conversationId, message, refs, memoryBackground, requestedUseReasoning,
+                referencePurpose, resolvedReferences, turnPreference, List.of());
+    }
+
+    private ChatRequest prepareChatRequest(Long conversationId, String message, List<String> refs,
+            String memoryBackground, boolean requestedUseReasoning, ReferencePurpose referencePurpose,
+            List<UserReference> resolvedReferences, CurrentTurnPreference turnPreference,
+            List<String> imageUrls) {
         UserEntity user = currentUser();
         ChatConversationEntity conv = requireOwnedConversation(conversationId, user);
         TaskContext taskContext = taskContextResolver.resolve(message);
@@ -721,6 +755,11 @@ public class ChatService {
         }
 
         ContextEnvelope plannedEnvelope = addSummaryToContext(contextPlan.envelope(), summary);
+        // 图片描述在这里一次性生成并注入，三条 Agent 路径都自动拿到；
+        // 失败只会让描述为空，不影响本轮对话。
+        String imageCaption = imageCaptionService.describeForChat(user,
+                collectCaptionImageUrls(memory, imageUrls));
+        plannedEnvelope = addImageCaptionsToContext(plannedEnvelope, imageCaption, user.getId());
         context = buildContext(user.getId(), plannedEnvelope, refs, null, persona, taskContext);
 
         log.info("准备聊天请求，userId={}，conversationId={}，messageLength={}，referenceCount={}，hasMemoryBackground={}",
@@ -747,6 +786,59 @@ public class ChatService {
                 "conversation-summary:" + (envelope.conversationId() == null ? "unknown" : envelope.conversationId()),
                 "system", "conversation_summary", envelope.generatedAt(), "conversation_compression",
                 ContextSource.TrustLevel.UNTRUSTED, envelope.userId()), 0D, 10, false));
+        return new ContextEnvelope(envelope.contextId(), envelope.conversationId(), envelope.userId(),
+                envelope.contextPurpose(), envelope.generatedAt(), envelope.plannerVersion(), envelope.coreMemory(),
+                envelope.shortTermState(), envelope.userReferences(), retrieved, envelope.timelineContext(),
+                envelope.toolResults());
+    }
+
+    private static final int IMAGE_CAPTION_LOOKBACK_USER_MESSAGES = 3;
+    private static final int IMAGE_CAPTION_MAX_URLS = 3;
+
+    /**
+     * 收集要出描述的图片：本轮附件优先，再回看最近几条用户消息。
+     * <p>
+     * 回看是必要的 —— 「那图里的人是谁」这类追问通常不带附件，只看本轮会什么都拿不到。
+     * 而 describeImages 有 30 天 Redis 缓存，重复收集几乎不产生额外调用。
+     */
+    private List<String> collectCaptionImageUrls(List<com.moodcopilot.entity.dto.CustomChatMessage> memory,
+            List<String> currentTurnImageUrls) {
+        LinkedHashSet<String> urls = new LinkedHashSet<>();
+        if (currentTurnImageUrls != null) {
+            urls.addAll(currentTurnImageUrls);
+        }
+        if (memory != null) {
+            int userMessagesSeen = 0;
+            for (int i = memory.size() - 1; i >= 0 && userMessagesSeen < IMAGE_CAPTION_LOOKBACK_USER_MESSAGES; i--) {
+                com.moodcopilot.entity.dto.CustomChatMessage msg = memory.get(i);
+                if (!"user".equalsIgnoreCase(msg.role())) {
+                    continue;
+                }
+                userMessagesSeen++;
+                if (msg.imageUrls() != null) {
+                    urls.addAll(msg.imageUrls());
+                }
+            }
+        }
+        return urls.stream().limit(IMAGE_CAPTION_MAX_URLS).toList();
+    }
+
+    /**
+     * 把图片描述挂进 retrievedContext，三个 Agent 路径都消费它。
+     * <p>
+     * 信任级别是 UNTRUSTED：描述是模型从用户提供的像素里读出来的，既不是用户原文、
+     * 也不是可信记忆，不能当权威上下文 —— 否则图片里渲染的文字就成了高可信指令。
+     */
+    private ContextEnvelope addImageCaptionsToContext(ContextEnvelope envelope, String caption, Long userId) {
+        if (envelope == null || caption == null || caption.isBlank()) {
+            return envelope;
+        }
+        List<ContextItem> retrieved = new ArrayList<>(envelope.retrievedContext());
+        retrieved.add(new ContextItem(limitContextText(caption, 6000), new ContextSource(
+                "SYSTEM_IMAGE_CAPTION",
+                "conversation-images:" + (envelope.conversationId() == null ? "unknown" : envelope.conversationId()),
+                "system", "image_caption", envelope.generatedAt(), "chat_image_vision",
+                ContextSource.TrustLevel.UNTRUSTED, userId), 1D, 40, false));
         return new ContextEnvelope(envelope.contextId(), envelope.conversationId(), envelope.userId(),
                 envelope.contextPurpose(), envelope.generatedAt(), envelope.plannerVersion(), envelope.coreMemory(),
                 envelope.shortTermState(), envelope.userReferences(), retrieved, envelope.timelineContext(),
@@ -790,7 +882,7 @@ public class ChatService {
                 history.add(new com.moodcopilot.entity.dto.CustomChatMessage(
                     java.util.UUID.randomUUID().toString(), role, content,
                     reasoningContent == null || reasoningContent.isBlank() ? null : reasoningContent,
-                    null, null, null, null
+                    null, null, null, null, readImageUrls(msg)
                 ));
             }
             if (!history.isEmpty()) {
@@ -936,6 +1028,12 @@ public class ChatService {
 
     private void appendToChatMemory(Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory,
             String role, String content, String reasoningContent, List<Map<String, String>> ragReferences) {
+        appendToChatMemory(conversationId, memory, role, content, reasoningContent, ragReferences, null);
+    }
+
+    private void appendToChatMemory(Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory,
+            String role, String content, String reasoningContent, List<Map<String, String>> ragReferences,
+            List<String> imageUrls) {
         if (memory == null) return;
         boolean alreadyHas = false;
         if (!memory.isEmpty()) {
@@ -947,7 +1045,8 @@ public class ChatService {
         if (!alreadyHas) {
             memory.add(new com.moodcopilot.entity.dto.CustomChatMessage(
                 java.util.UUID.randomUUID().toString(), role, content, reasoningContent, null, null, null,
-                asObjectMaps(ragReferences)
+                asObjectMaps(ragReferences),
+                imageUrls == null || imageUrls.isEmpty() ? null : new ArrayList<>(imageUrls)
             ));
         }
 
@@ -957,6 +1056,20 @@ public class ChatService {
         } catch (Exception e) {
             log.warn("Failed to auto-save chat history to Redis for conversationId=" + conversationId, e);
         }
+    }
+
+    /** 历史里存下的图片附件 URL；没有则返回 null。 */
+    private List<String> readImageUrls(Map<String, Object> msg) {
+        if (!(msg.get("imageUrls") instanceof List<?> raw)) {
+            return null;
+        }
+        List<String> urls = new ArrayList<>(raw.size());
+        for (Object value : raw) {
+            if (value instanceof String url && !url.isBlank()) {
+                urls.add(url);
+            }
+        }
+        return urls.isEmpty() ? null : urls;
     }
 
     /** 工具引用在工具层是字符串值，落库字段要的是 Object 值；这里整体搬运一次。 */

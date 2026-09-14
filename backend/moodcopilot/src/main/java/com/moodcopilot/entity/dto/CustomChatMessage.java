@@ -13,5 +13,6 @@ public record CustomChatMessage(
         List<Map<String, Object>> toolCalls,
         Map<String, Object> quoteRef,
         List<String> references,
-        List<Map<String, Object>> ragReferences
+        List<Map<String, Object>> ragReferences,
+        List<String> imageUrls
 ) {}

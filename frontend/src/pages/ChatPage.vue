@@ -263,6 +263,7 @@
             @remove-ref="removeRef"
             @add-diary-ref="addDiaryRef"
             @add-event-ref="addEventRef"
+            @add-image-reference="addImageRef"
             @load-recent-diaries="loadRecentDiaryOptions"
             @load-recent-events="loadRecentEventOptions"
             @focus="handleDraftFocus"
@@ -296,7 +297,7 @@ const {
   messages,
   draft, streaming, streamingText, streamingReasoning, isThinking, isCompressing, compressingMessage, useReasoning, streamingRefs,
   lastReplyError, lastReplyRequest, references,
-  send, retryLastReply, removeRef,
+  send, retryLastReply, removeRef, addImageRef,
   recentDiaryOptions, recentDiariesLoading, recentDiariesError,
   addDiaryRef, loadRecentDiaryOptions,
   recentEventOptions, recentEventsLoading, recentEventsError,

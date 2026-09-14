@@ -126,8 +126,21 @@
             <span class="quote-ref-label">{{ quoteLabel }}：</span>
             <span class="quote-ref-content">{{ msg.quoteRef.content }}</span>
           </div>
+          <div v-if="msg.imageUrls?.length" class="chat-msg-images">
+            <img
+              v-for="(url, imgIndex) in msg.imageUrls"
+              :key="`${msg.id}-img-${imgIndex}`"
+              :src="url"
+              class="chat-msg-image"
+              alt="用户上传的图片"
+              @click="previewSrc = url"
+            />
+          </div>
+          <div v-if="previewSrc" class="chat-image-lightbox" @click="previewSrc = ''">
+            <img :src="previewSrc" alt="图片预览" />
+          </div>
           <div class="md-content" v-html="renderMd(msg.content)" />
-          
+
           <ul v-if="msg.references?.length" class="chat-user-refs">
             <li v-for="(refText, refIndex) in msg.references" :key="`${msg.id}-ref-${refIndex}`">
               引用：{{ stripHtml(refText).length > 200 ? stripHtml(refText).slice(0, 200) + '...' : stripHtml(refText) }}
@@ -180,6 +193,7 @@ export interface Message {
   createdAt?: string
   references?: string[]
   ragReferences?: RagRef[]
+  imageUrls?: string[]
   quoteRef?: { content: string; author: string }
   status?: 'pending' | 'streaming' | 'success' | 'error'
 }
@@ -376,6 +390,8 @@ const graphRefs = computed(() => {
     return true
   }).map(r => ({ ...r, snippet: stripHtml(r.snippet) }))
 })
+
+const previewSrc = ref('')
 
 const eventRefs = computed(() => {
   const seen = new Set<string>()
@@ -592,6 +608,38 @@ function getTriplePolarityClass(relation: string, tail: string): string {
   justify-content: space-between;
   width: 100%;
   font-size: 11px;
+}
+
+.chat-msg-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.chat-msg-image {
+  width: 112px;
+  height: 112px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: zoom-in;
+  background: var(--theme-surface, #f3f3f3);
+}
+.chat-image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.78);
+  cursor: zoom-out;
+}
+.chat-image-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
 }
 </style>
 

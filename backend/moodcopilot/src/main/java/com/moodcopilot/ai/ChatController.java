@@ -98,7 +98,8 @@ public class ChatController {
                 ? UUID.randomUUID().toString() : String.valueOf(body.get("clientRequestId"));
         ChatGenerationService.StartRequest request = new ChatGenerationService.StartRequest(
                 user.getId(), id, clientRequestId, message, promptReferences, resolved, purpose,
-                useReasoning, SecurityContextHolder.getContext().getAuthentication());
+                useReasoning, SecurityContextHolder.getContext().getAuthentication(),
+                parseImageUrls(body.get("imageUrls")));
         return ApiResponse.ok(chatGenerationService.start(request));
     }
 
@@ -164,6 +165,7 @@ public class ChatController {
         }
         List<String> references = parseLegacyReferences(body.get("references"));
         ReferencePurpose referencePurpose = parseReferencePurpose(body.get("referencePurpose"));
+        List<String> imageUrls = parseImageUrls(body.get("imageUrls"));
         List<UserReference> resolvedReferences = chatReferenceResolver.resolve(user.getId(), referenceRequests, referencePurpose);
         List<String> referenceEvidence = resolvedReferences.isEmpty()
                 ? (references == null ? List.of() : references)
@@ -178,7 +180,7 @@ public class ChatController {
         ChatService.ChatStreamContext ctx;
         try {
             ctx = chatService.chat(id, message, promptReferences, memoryBackground, useReasoning, referencePurpose,
-                    resolvedReferences);
+                    resolvedReferences, null, imageUrls);
         } catch (com.moodcopilot.common.RateLimitException e) {
             log.info("AI 限流触发，conversationId={}，type={}", id, e.getType());
             throw new org.springframework.web.server.ResponseStatusException(
@@ -334,6 +336,7 @@ public class ChatController {
         }
         List<String> references = parseLegacyReferences(body.get("references"));
         ReferencePurpose referencePurpose = parseReferencePurpose(body.get("referencePurpose"));
+        List<String> imageUrls = parseImageUrls(body.get("imageUrls"));
         List<UserReference> resolvedReferences = chatReferenceResolver.resolve(user.getId(), referenceRequests, referencePurpose);
         List<String> referenceEvidence = resolvedReferences.isEmpty()
                 ? (references == null ? List.of() : references)
@@ -346,7 +349,7 @@ public class ChatController {
         String reply;
         try {
             reply = chatService.reply(id, message, promptReferences, memoryBackground, useReasoning, referencePurpose,
-                    resolvedReferences);
+                    resolvedReferences, null, imageUrls);
         } catch (com.moodcopilot.common.RateLimitException e) {
             log.info("AI 限流触发（非流式），conversationId={}，type={}", id, e.getType());
             throw new org.springframework.web.server.ResponseStatusException(
@@ -401,6 +404,28 @@ public class ChatController {
                     org.springframework.http.HttpStatus.UNAUTHORIZED, "登录状态已失效");
         }
         return user;
+    }
+
+    /**
+     * 用户本轮附带的图片 URL。
+     * <p>
+     * 只做形状校验（是字符串、非空、限个数量）—— 真正的安全边界在
+     * ChatImageCaptionService，那里会挡掉不属于本存储桶的链接。
+     */
+    private List<String> parseImageUrls(Object value) {
+        if (!(value instanceof List<?> raw)) {
+            return List.of();
+        }
+        List<String> urls = new ArrayList<>();
+        for (Object item : raw) {
+            if (item instanceof String url && !url.isBlank()) {
+                urls.add(url.trim());
+            }
+            if (urls.size() >= 6) {
+                break;
+            }
+        }
+        return urls;
     }
 
     private List<String> parseLegacyReferences(Object value) {
