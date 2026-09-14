@@ -2940,7 +2940,7 @@ h3 {
 
   .app-shell {
     width: 100%;
-    padding: 20px 16px 40px;
+    padding: 20px 16px calc(80px + env(safe-area-inset-bottom));
   }
 
   input,

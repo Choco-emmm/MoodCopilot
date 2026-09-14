@@ -45,8 +45,12 @@ export function renderSafeMarkdown(
 ) {
     if (!text) return ''
 
+    // 统一各类换行符（\r、\r\n、U+2028、U+2029）。
+    // 只认 \n 的话，遇到孤立 \r 时 split('\n') 会把整段当成一行，表格/列表全部失效。
+    const normalizedText = text.replace(/\r\n?|[\u2028\u2029]/g, '\n')
+
     // ── 第一道：转义复杂 Markdown，防止 DOMPurify 事后撕碎 ──
-    const escaped = preprocessComplexMarkdown(text)
+    const escaped = preprocessComplexMarkdown(normalizedText)
 
     // ── 第二道：保留用户主动按下的多次回车（Vditor 存储为多个空行） ──
     // preprocessComplexMarkdown 已转义用户输入的 HTML，这里注入的 <br> 是安全的
@@ -57,12 +61,7 @@ export function renderSafeMarkdown(
     })
 
     // ── 第三道：修复 AI 常见笔误与 CommonMark 兼容性问题 ──
-    const processedText = withLineBreaks
-        .replace(/\\\*/g, '*')                   // \*\* → **
-        .replace(/^ {0,3}-(?=[^\s])/gm, '$& ')   // -X → - X
-        .replace(/([。！？])(不过|但是|其实|所以|然而|总之)/g, '$1\n$2') // 句子+连词 → 换行
-        .replace(/([^\s\dA-Za-z])(-)(\*\*)/gu, '$1\n- $3') // ** 粗体列表
-        .replace(/([^\s\dA-Za-z])(-)([^\s\d])/gu, '$1\n- $3') // 普通列表
+    const processedText = fixAiMarkdownArtifacts(withLineBreaks)
         .replace(/\*\*(["\u201c\u201d\u201e])/g, '**\u200b$1')   // **" → 零宽空格
         .replace(/(["\u201c\u201d])\*\*/g, '$1\u200b**')   // "** → 零宽空格
 
@@ -97,6 +96,63 @@ function preprocessComplexMarkdown(text: string): string {
     })
 
     return result
+}
+
+/**
+ * 表格行（含 `|---|` 分隔行）必须原样交给 marked。
+ * 下面的行内修补规则按行匹配 `|`、`-` 等字符，会把分隔行拆成列表项，导致整张表塌成纯文本。
+ */
+function isTableLine(line: string): boolean {
+    const trimmed = line.trim()
+    return trimmed.includes('|') && (trimmed.startsWith('|') || trimmed.endsWith('|'))
+}
+
+function fixLineLevelArtifacts(line: string): string {
+    return line
+        .replace(/^ {0,3}-(?=[^\s])/, '$& ')                          // -X → - X
+        .replace(/([。！？])(不过|但是|其实|所以|然而|总之)/g, '$1\n$2')  // 句子+连词 → 换行
+        .replace(/([^\s\dA-Za-z])(-)(\*\*)/gu, '$1\n- $3')            // 行内 ** 粗体列表
+        .replace(/([^\s\dA-Za-z])(-)([^\s\d])/gu, '$1\n- $3')         // 行内普通列表
+}
+
+/**
+ * AI 常把闭合的 `**` 写到下一行行首（`**前一句。\n**后一句`），
+ * 而 CommonMark 要求闭合定界符前不能是空白，跨行 `**` 会被原样输出成字面量。
+ * 当上一行存在未闭合的 `**` 时，把行首的 `**` 移回上一行末尾补上闭合。
+ */
+function mergeLineLeadingStrong(text: string): string {
+    const lines = text.split('\n')
+    for (let i = 1; i < lines.length; i++) {
+        if (!/^\s*\*\*(?=\S)/.test(lines[i])) continue
+        const unclosed = (lines[i - 1].match(/\*\*/g) || []).length % 2 === 1
+        if (!unclosed) continue
+        lines[i] = lines[i].replace(/^(\s*)\*\*/, '$1')
+        lines[i - 1] = `${lines[i - 1].replace(/\s+$/, '')}**`
+    }
+    return lines.join('\n')
+}
+
+/**
+ * 修复 AI 常见笔误与 CommonMark 兼容性问题。
+ * 行级规则会重写 `|`、`-` 等字符，因此跳过表格行与围栏代码块，避免破坏其结构。
+ */
+function fixAiMarkdownArtifacts(text: string): string {
+    const out: string[] = []
+    let fenceMarker: string | null = null
+
+    for (const line of text.replace(/\\\*/g, '*').split('\n')) {
+        const fence = line.match(/^\s*(`{3,}|~{3,})/)
+        if (fence) {
+            const marker = fence[1].charAt(0)
+            if (fenceMarker === null) fenceMarker = marker
+            else if (fenceMarker === marker) fenceMarker = null
+            out.push(line)
+            continue
+        }
+        out.push(fenceMarker !== null || isTableLine(line) ? line : fixLineLevelArtifacts(line))
+    }
+
+    return mergeLineLeadingStrong(out.join('\n'))
 }
 
 /**
