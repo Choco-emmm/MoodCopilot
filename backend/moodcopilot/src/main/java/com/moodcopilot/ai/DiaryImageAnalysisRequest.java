@@ -3,11 +3,13 @@ package com.moodcopilot.ai;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonClassDescription;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import java.util.List;
 
 @JsonClassDescription("日记图片深度分析请求参数")
 public record DiaryImageAnalysisRequest(
         @JsonProperty(required = true, value = "diaryIds")
+        @JsonAlias({"diary_ids", "diaryId", "diary_id"})
         @JsonPropertyDescription("需要深度分析图片的日记 ID 列表")
         List<Long> diaryIds,
 
