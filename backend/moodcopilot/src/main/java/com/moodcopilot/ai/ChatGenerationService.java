@@ -36,7 +36,6 @@ public class ChatGenerationService {
     private static final String RUN_PREFIX = "chat:run:";
     private static final String IDEMPOTENCY_PREFIX = "chat:run:idempotency:";
     private static final Duration RUN_TTL = Duration.ofDays(1);
-    private static final Duration CHAT_HISTORY_TTL = Duration.ofDays(7);
     private static final Duration POLL_INTERVAL = Duration.ofMillis(250);
     private static final Duration STREAM_TIMEOUT = Duration.ofMinutes(30);
     private static final DefaultRedisScript<Long> TRANSITION_SCRIPT = new DefaultRedisScript<>(

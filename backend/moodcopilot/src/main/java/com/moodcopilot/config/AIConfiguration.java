@@ -1,25 +1,10 @@
 package com.moodcopilot.config;
 
-import com.moodcopilot.ai.DiarySearchFunctionSupport;
-import com.moodcopilot.ai.GraphSearchFunctionSupport;
-import com.moodcopilot.ai.GraphSearchRequest;
-import com.moodcopilot.ai.MemoryQueryFunctionSupport;
-import com.moodcopilot.ai.MemoryQueryRequest;
-import com.moodcopilot.ai.ReportSnapshotFunctionSupport;
-import com.moodcopilot.ai.UserStatsFunctionSupport;
-import com.moodcopilot.diary.ReportSnapshotRequest;
-import com.moodcopilot.diary.DiarySearchRequest;
-import com.moodcopilot.diary.UserStatsRequest;
-import com.moodcopilot.ai.DiaryImageAnalysisRequest;
-import com.moodcopilot.ai.DiaryImageAnalysisFunctionSupport;
-import com.moodcopilot.ai.tool.ChatToolRegistry;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.model.function.FunctionCallback;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -86,63 +71,6 @@ public class AIConfiguration {
     public ChatClient chatChatClient(ChatClient.Builder builder) {
         log.info("初始化聊天模型客户端：供画像编译使用（聊天主链路走 ChatAgentLoop）");
         return builder.build();
-    }
-
-    @Bean(name = DiarySearchFunctionSupport.NAME)
-    public FunctionCallback diarySearchFunction(ChatToolRegistry toolRegistry) {
-        log.info("注册 Function Calling 工具：{}", DiarySearchFunctionSupport.NAME);
-        return toolAdapter(toolRegistry, DiarySearchFunctionSupport.NAME, DiarySearchRequest.class);
-    }
-
-    @Bean(name = UserStatsFunctionSupport.NAME)
-    public FunctionCallback userStatsFunction(ChatToolRegistry toolRegistry) {
-        log.info("注册 Function Calling 工具：{}", UserStatsFunctionSupport.NAME);
-        return toolAdapter(toolRegistry, UserStatsFunctionSupport.NAME, UserStatsRequest.class);
-    }
-
-    @Bean(name = ReportSnapshotFunctionSupport.NAME)
-    public FunctionCallback reportSnapshotFunction(ChatToolRegistry toolRegistry) {
-        log.info("注册 Function Calling 工具：{}", ReportSnapshotFunctionSupport.NAME);
-        return toolAdapter(toolRegistry, ReportSnapshotFunctionSupport.NAME, ReportSnapshotRequest.class);
-    }
-
-    @Bean(name = MemoryQueryFunctionSupport.NAME)
-    public FunctionCallback memoryQueryFunction(ChatToolRegistry toolRegistry) {
-        log.info("注册 Function Calling 工具：{}", MemoryQueryFunctionSupport.NAME);
-        return toolAdapter(toolRegistry, MemoryQueryFunctionSupport.NAME, MemoryQueryRequest.class);
-    }
-
-    @Bean(name = GraphSearchFunctionSupport.NAME)
-    public FunctionCallback graphSearchFunction(ChatToolRegistry toolRegistry) {
-        log.info("注册 Function Calling 工具：{}", GraphSearchFunctionSupport.NAME);
-        return toolAdapter(toolRegistry, GraphSearchFunctionSupport.NAME, GraphSearchRequest.class);
-    }
-
-    /**
-     * 工具元数据与执行逻辑的唯一实现在 ChatToolRegistry，这里只做 Spring AI 侧的适配。
-     * 认证上下文（SecurityContextHolder）与 SSE 引用帧都由注册表统一处理，
-     * 见 ChatToolRegistry#execute 与 #emit。
-     * <p>
-     * flash 迁到自研 Agent Loop 后，本方法连同 {@link #delegate} 与 LegacyToolContextAdapter 一并删除。
-     */
-    private <REQ> FunctionCallback toolAdapter(ChatToolRegistry registry, String name, Class<REQ> requestType) {
-        return FunctionCallback.builder()
-                .function(name, (REQ input, ToolContext toolContext) -> delegate(registry, input, toolContext, name))
-                .description(registry.description(name))
-                .inputType(requestType)
-                .build();
-    }
-
-    private Object delegate(ChatToolRegistry registry, Object input, ToolContext toolContext, String name) {
-        com.moodcopilot.ai.tool.ToolExecutionContext context =
-                com.moodcopilot.ai.tool.LegacyToolContextAdapter.from(toolContext);
-        try {
-            Object result = registry.executeParsed(name, input, context);
-            registry.emit(name, result, context.sseSink());
-            return result;
-        } catch (Exception e) {
-            throw new IllegalStateException("工具执行失败: " + name, e);
-        }
     }
 
     /**
@@ -322,11 +250,5 @@ public class AIConfiguration {
         });
         log.info("AI 异步线程池已初始化为虚拟线程模式");
         return executor;
-    }
-
-    @Bean(name = DiaryImageAnalysisFunctionSupport.NAME)
-    public FunctionCallback diaryImageAnalysisFunction(ChatToolRegistry toolRegistry) {
-        log.info("注册 Function Calling 工具：{}", DiaryImageAnalysisFunctionSupport.NAME);
-        return toolAdapter(toolRegistry, DiaryImageAnalysisFunctionSupport.NAME, DiaryImageAnalysisRequest.class);
     }
 }
