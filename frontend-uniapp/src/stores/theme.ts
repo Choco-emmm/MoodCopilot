@@ -43,15 +43,13 @@ const updateThemeStyle = () => {
   const theme = currentTheme.value;
   const isDark = theme.dark || false;
   
-  const textPrimary = isDark
-    ? 'color-mix(in oklab, var(--theme-surface) 88%, var(--theme-primary))'
-    : 'color-mix(in oklab, var(--theme-primary) 82%, var(--theme-bg))';
-  const textSecondary = isDark
-    ? 'color-mix(in oklab, var(--theme-surface) 58%, var(--theme-primary))'
-    : 'color-mix(in oklab, var(--theme-primary) 55%, var(--theme-bg))';
-  const textPlaceholder = isDark
-    ? 'color-mix(in oklab, var(--theme-surface) 34%, var(--theme-primary))'
-    : 'color-mix(in oklab, var(--theme-primary) 34%, var(--theme-bg))';
+  // 正文色由主题直接给出（shared/theme.ts 的 text 字段），暗色主题是浅色中性。
+  // 不要从 primary 推导：暗色主题里 primary 只是中间调的强调色（有的还相当饱和），
+  // 推导出来的正文在深色气泡上对比度不够，甚至完全看不见。
+  // 次级与占位色把正文色向背景淡出，明暗两种模式同一套逻辑即可。
+  const textPrimary = theme.text;
+  const textSecondary = `color-mix(in oklab, ${theme.text} 62%, var(--theme-bg))`;
+  const textPlaceholder = `color-mix(in oklab, ${theme.text} 40%, var(--theme-bg))`;
   const borderCol = 'color-mix(in oklab, var(--theme-primary) 16%, transparent)';
   const onPrimary = isDark ? 'var(--theme-bg)' : 'var(--theme-surface)';
 
