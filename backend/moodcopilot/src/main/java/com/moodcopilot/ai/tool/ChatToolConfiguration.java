@@ -9,6 +9,7 @@ import com.moodcopilot.ai.tool.impl.DiarySearchTool;
 import com.moodcopilot.ai.tool.impl.GraphSearchTool;
 import com.moodcopilot.ai.tool.impl.ListEventsTool;
 import com.moodcopilot.ai.tool.impl.MemoryQueryTool;
+import com.moodcopilot.ai.tool.impl.ReadDiaryTool;
 import com.moodcopilot.ai.tool.impl.ReadImageTextTool;
 import com.moodcopilot.ai.tool.impl.ReportSnapshotTool;
 import com.moodcopilot.ai.tool.impl.UpdateEventStatusTool;
@@ -49,6 +50,7 @@ public class ChatToolConfiguration {
             @Lazy LifeEventService lifeEventService) {
         List<ChatTool<?>> tools = List.of(
                 new DiarySearchTool(diaryService, ragMemoryService),
+                new ReadDiaryTool(diaryMapper),
                 new UserStatsTool(diaryService),
                 new ReportSnapshotTool(diaryService),
                 new MemoryQueryTool(memoryExtractionService, ragMemoryService),

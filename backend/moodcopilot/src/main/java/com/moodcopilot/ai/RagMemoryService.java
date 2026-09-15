@@ -100,6 +100,8 @@ public class RagMemoryService {
     private final DiaryMapper diaryMapper;
     private final UserProfileMemoryMapper profileMemoryMapper;
     private final DiaryKnowledgeGraphMapper graphMapper;
+    /** 可空：只为搜索结果的索引条目取 AI 摘要，缺席时退回正文节选。 */
+    private final com.moodcopilot.mapper.DiaryAnalysisMapper diaryAnalysisMapper;
     private final ZoneId businessTimeZone;
     private final int embeddingConnectTimeoutMs;
     private final int embeddingReadTimeoutMs;
@@ -120,7 +122,7 @@ public class RagMemoryService {
             ObjectMapper objectMapper,
             DiaryMapper diaryMapper) {
         this(embeddingApiUrl, embeddingApiKey, embeddingModel, embeddingDimension, redis, objectMapper, diaryMapper,
-                null, null, "Asia/Shanghai", 3000, 15000, 2, 5, 30000, 1000, 600, true);
+                null, null, null, "Asia/Shanghai", 3000, 15000, 2, 5, 30000, 1000, 600, true);
     }
 
     public RagMemoryService(
@@ -133,7 +135,7 @@ public class RagMemoryService {
             DiaryMapper diaryMapper,
             String timeZoneId) {
         this(embeddingApiUrl, embeddingApiKey, embeddingModel, embeddingDimension, redis, objectMapper, diaryMapper,
-                null, null, timeZoneId, 3000, 15000, 2, 5, 30000, 1000, 600, true);
+                null, null, null, timeZoneId, 3000, 15000, 2, 5, 30000, 1000, 600, true);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -147,6 +149,7 @@ public class RagMemoryService {
             DiaryMapper diaryMapper,
             UserProfileMemoryMapper profileMemoryMapper,
             DiaryKnowledgeGraphMapper graphMapper,
+            com.moodcopilot.mapper.DiaryAnalysisMapper diaryAnalysisMapper,
             @Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId,
             @Value("${moodcopilot.rag.embedding.connect-timeout-ms:3000}") int connectTimeoutMs,
             @Value("${moodcopilot.rag.embedding.read-timeout-ms:15000}") int readTimeoutMs,
@@ -156,7 +159,7 @@ public class RagMemoryService {
             @Value("${moodcopilot.rag.embedding.query-cache-max-size:1000}") long cacheMaxSize,
             @Value("${moodcopilot.rag.embedding.query-cache-ttl-seconds:600}") long cacheTtlSeconds) {
         this(embeddingApiUrl, embeddingApiKey, embeddingModel, embeddingDimension, redis, objectMapper, diaryMapper,
-                profileMemoryMapper, graphMapper, timeZoneId, connectTimeoutMs, readTimeoutMs, maxRetries, failureThreshold,
+                profileMemoryMapper, graphMapper, diaryAnalysisMapper, timeZoneId, connectTimeoutMs, readTimeoutMs, maxRetries, failureThreshold,
                 circuitOpenSeconds * 1000L, cacheMaxSize, cacheTtlSeconds, true);
     }
 
@@ -170,6 +173,7 @@ public class RagMemoryService {
             DiaryMapper diaryMapper,
             UserProfileMemoryMapper profileMemoryMapper,
             DiaryKnowledgeGraphMapper graphMapper,
+            com.moodcopilot.mapper.DiaryAnalysisMapper diaryAnalysisMapper,
             String timeZoneId,
             int connectTimeoutMs,
             int readTimeoutMs,
@@ -192,6 +196,7 @@ public class RagMemoryService {
         this.diaryMapper = diaryMapper;
         this.profileMemoryMapper = profileMemoryMapper;
         this.graphMapper = graphMapper;
+        this.diaryAnalysisMapper = diaryAnalysisMapper;
         this.businessTimeZone = parseZoneId(timeZoneId);
         this.embeddingConnectTimeoutMs = Math.max(100, connectTimeoutMs);
         this.embeddingReadTimeoutMs = Math.max(100, readTimeoutMs);
@@ -1291,54 +1296,27 @@ public class RagMemoryService {
                     }
                 }
 
+                Map<Long, String> analysisSummaries = loadAnalysisSummaries(diaryIds);
+
                 // Keep the order of semantic relevance from hits
                 for (Long id : diaryIds) {
                     DiaryEntity d = diaryMap.get(id);
-                    if (d != null && d.getCreatedAt() != null) {
-                        StringBuilder prefixSb = new StringBuilder();
-                        
-                        // Check if there is music meta
-                        if (d.getMusicMeta() != null && d.getMusicMeta().getTitle() != null && !d.getMusicMeta().getTitle().isBlank()) {
-                            prefixSb.append("[分享音乐：").append(d.getMusicMeta().getTitle());
-                            if (d.getMusicMeta().getArtist() != null && !d.getMusicMeta().getArtist().isBlank()) {
-                                prefixSb.append(" - ").append(d.getMusicMeta().getArtist());
-                            }
-                            prefixSb.append("] ");
-                        }
-                        
-                        // Check if there is matched image description in RAG hits
-                        List<RagHit> diaryHits = hitsByDiaryId.getOrDefault(id, List.of());
-                        String matchedImageDesc = null;
-                        for (RagHit h : diaryHits) {
-                            if (SOURCE_IMAGE.equals(h.sourceType()) && h.content() != null && !h.content().isBlank()) {
-                                matchedImageDesc = h.content();
-                                if (matchedImageDesc.startsWith("【图片描述】")) {
-                                    matchedImageDesc = matchedImageDesc.substring("【图片描述】".length());
-                                }
-                                break;
-                            }
-                        }
-                        
-                        if (matchedImageDesc != null) {
-                            prefixSb.append("[图片描述：").append(matchedImageDesc).append("] ");
-                        } else if (d.getImages() != null && !d.getImages().isEmpty()) {
-                            prefixSb.append("[分享图片] ");
-                        }
-
-                        String snippet = d.getContent();
-                        if (snippet != null && snippet.length() > 3000) {
-                            snippet = snippet.substring(0, 3000) + "...";
-                        }
-                        
-                        String finalSnippet;
-                        if (snippet == null || snippet.isBlank()) {
-                            finalSnippet = prefixSb.toString().trim();
-                        } else {
-                            finalSnippet = snippet.trim() + (prefixSb.length() > 0 ? " " + prefixSb.toString().trim() : "");
-                        }
-                        summaries.add(new com.moodcopilot.diary.DiarySearchResult.DiarySummary(
-                            d.getId(), d.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")), finalSnippet));
+                    if (d == null || d.getCreatedAt() == null) {
+                        continue;
                     }
+                    // 命中的图片描述比「[分享图片]」更有信息量，优先带上
+                    String matchedImageDesc = null;
+                    for (RagHit h : hitsByDiaryId.getOrDefault(id, List.of())) {
+                        if (SOURCE_IMAGE.equals(h.sourceType()) && h.content() != null && !h.content().isBlank()) {
+                            matchedImageDesc = h.content();
+                            break;
+                        }
+                    }
+                    summaries.add(new com.moodcopilot.diary.DiarySearchResult.DiarySummary(
+                            d.getId(),
+                            d.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+                            com.moodcopilot.diary.DiarySearchSnippetBuilder.build(
+                                    d, analysisSummaries.get(id), matchedImageDesc)));
                 }
             } catch (Exception e) {
                 log.error("RAG 回表查询日记失败: {}", e.getMessage());
@@ -1350,6 +1328,23 @@ public class RagMemoryService {
                 : "已返回向量语义检索命中的历史记录（包含日记、图片描述、音乐元数据等）。";
 
         return new com.moodcopilot.diary.DiarySearchResult(keyword, startDate, endDate, summaries.size(), summaries, note);
+    }
+
+    /**
+     * diaryId → AI 摘要。没做过分析的日记不会出现在返回里，
+     * {@link com.moodcopilot.diary.DiarySearchSnippetBuilder} 会为它们退回正文节选。
+     */
+    private Map<Long, String> loadAnalysisSummaries(java.util.Collection<Long> diaryIds) {
+        if (diaryAnalysisMapper == null || diaryIds == null || diaryIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, String> summaries = new java.util.HashMap<>();
+        for (var analysis : diaryAnalysisMapper.selectBatchIds(diaryIds)) {
+            if (analysis.getSummary() != null && !analysis.getSummary().isBlank()) {
+                summaries.put(analysis.getDiaryId(), analysis.getSummary());
+            }
+        }
+        return summaries;
     }
 
     private static String truncate(String s, int maxLen) {

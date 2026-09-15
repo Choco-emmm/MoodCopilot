@@ -658,31 +658,18 @@ public class DiaryService {
             query.le(DiaryEntity::getCreatedAt, endDate.atTime(LocalTime.MAX));
         }
 
-        List<DiarySearchResult.DiarySummary> diaries = diaryMapper.selectPage(Page.of(1, 20), query).getRecords().stream()
+        List<DiaryEntity> records = diaryMapper.selectPage(Page.of(1, 20), query).getRecords();
+        Map<Long, DiaryAnalysisEntity> analyses = batchLoadAnalyses(
+                records.stream().map(DiaryEntity::getId).toList());
+        List<DiarySearchResult.DiarySummary> diaries = records.stream()
                 .map(diary -> {
-                    StringBuilder prefixSb = new StringBuilder();
-                    if (diary.getMusicMeta() != null && diary.getMusicMeta().getTitle() != null
-                            && !diary.getMusicMeta().getTitle().isBlank()) {
-                        prefixSb.append("[分享音乐：").append(diary.getMusicMeta().getTitle());
-                        if (diary.getMusicMeta().getArtist() != null && !diary.getMusicMeta().getArtist().isBlank()) {
-                            prefixSb.append(" - ").append(diary.getMusicMeta().getArtist());
-                        }
-                        prefixSb.append("] ");
-                    }
-                    if (diary.getImages() != null && !diary.getImages().isEmpty()) {
-                        prefixSb.append("[分享图片] ");
-                    }
-                    String snip = snippet(diary.getContent());
-                    String finalSnippet;
-                    if (snip == null || snip.isBlank()) {
-                        finalSnippet = prefixSb.toString().trim();
-                    } else {
-                        finalSnippet = snip.trim() + (prefixSb.length() > 0 ? " " + prefixSb.toString().trim() : "");
-                    }
+                    DiaryAnalysisEntity analysis = analyses.get(diary.getId());
+                    String gist = DiarySearchSnippetBuilder.build(diary,
+                            analysis == null ? null : analysis.getSummary(), null);
                     return new DiarySearchResult.DiarySummary(
                             diary.getId(),
                             diary.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
-                            finalSnippet);
+                            gist);
                 })
                 .toList();
 

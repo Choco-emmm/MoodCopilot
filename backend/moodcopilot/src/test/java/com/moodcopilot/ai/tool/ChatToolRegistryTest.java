@@ -10,6 +10,7 @@ import com.moodcopilot.ai.tool.impl.DiarySearchTool;
 import com.moodcopilot.ai.tool.impl.GraphSearchTool;
 import com.moodcopilot.ai.tool.impl.ListEventsTool;
 import com.moodcopilot.ai.tool.impl.MemoryQueryTool;
+import com.moodcopilot.ai.tool.impl.ReadDiaryTool;
 import com.moodcopilot.ai.tool.impl.ReadImageTextTool;
 import com.moodcopilot.ai.tool.impl.ReportSnapshotTool;
 import com.moodcopilot.ai.tool.impl.UpdateEventStatusTool;
@@ -39,6 +40,7 @@ class ChatToolRegistryTest {
 
     private static final List<String> EXPECTED_NAMES = List.of(
             "diarySearchFunction",
+            "readDiaryFunction",
             "userStatsFunction",
             "reportSnapshotFunction",
             "memoryQueryFunction",
@@ -54,6 +56,7 @@ class ChatToolRegistryTest {
     private ChatToolRegistry registry() {
         return new ChatToolRegistry(objectMapper, List.of(
                 new DiarySearchTool(diaryService, mock(RagMemoryService.class)),
+                new ReadDiaryTool(mock(DiaryMapper.class)),
                 new UserStatsTool(diaryService),
                 new ReportSnapshotTool(diaryService),
                 new MemoryQueryTool(mock(MemoryExtractionService.class), mock(RagMemoryService.class)),
@@ -73,7 +76,7 @@ class ChatToolRegistryTest {
     @Test
     void displayNameDropsTheFunctionSuffix() {
         List<String> displayNames = registry().tools().stream().map(ChatTool::displayName).toList();
-        assertEquals(List.of("diarySearch", "userStats", "reportSnapshot", "memoryQuery",
+        assertEquals(List.of("diarySearch", "readDiary", "userStats", "reportSnapshot", "memoryQuery",
                 "graphSearch", "diaryImageAnalysis", "readImageText", "listEvents", "updateEventStatus"),
                 displayNames);
     }
@@ -115,6 +118,7 @@ class ChatToolRegistryTest {
         }
 
         assertEquals(List.of("keyword", "startDate", "endDate"), requiredByName.get("diarySearchFunction"));
+        assertEquals(List.of("diaryId"), requiredByName.get("readDiaryFunction"));
         assertEquals(List.of("days"), requiredByName.get("userStatsFunction"));
         assertEquals(List.of("period", "offset"), requiredByName.get("reportSnapshotFunction"));
         assertEquals(List.of("keyword", "limit"), requiredByName.get("memoryQueryFunction"));

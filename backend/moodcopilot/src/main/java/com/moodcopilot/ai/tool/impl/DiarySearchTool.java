@@ -34,7 +34,9 @@ public class DiarySearchTool extends ChatTool<DiarySearchRequest> {
         return "检索当前登录用户自己的历史日记、图片描述、音乐元数据等。keyword、startDate、endDate 都可选，日期格式为 YYYY-MM-DD。"
                 + "keyword 参数：要搜索的关键词或语义描述。由于底层采用向量语义检索，你可以直接输入概念或抽象感觉"
                 + "（例如'关于工作压力的事'、'那张下雨天的图片'），而不需要精确匹配原文词汇。"
-                + "如果用户意图宽泛，可以传入空字符串，结合时间参数查询。返回日期和内容片段。";
+                + "如果用户意图宽泛，可以传入空字符串，结合时间参数查询。"
+                + "返回的是索引条目（日记 id、日期、AI 摘要或开头节选），**不是正文** —— "
+                + "摘要不足以回答具体问题时，用返回的 id 调用 readDiaryFunction 取全文，不要凭摘要编内容。";
     }
 
     @Override
