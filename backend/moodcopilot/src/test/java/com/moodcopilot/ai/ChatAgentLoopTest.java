@@ -4,9 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.tool.ChatToolRegistry;
 import org.junit.jupiter.api.Test;
 
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -145,6 +151,42 @@ class ChatAgentLoopTest {
 
         assertEquals(List.of("recovered"), chunks);
         assertEquals("recovered", outcome.reply());
+    }
+
+    @Test
+    void chunksArriveWhileTheModelCallIsStillRunning() throws Exception {
+        // 图里的节点用 toIterable() 阻塞等待分片，而真实路径上分片来自 reactor-netty 的
+        // 事件循环、不是订阅线程。这里把模型调用钉在另一线程上并中途卡住，
+        // 证明分片是「来一片推一片」，而不是攒到调用结束才一起吐出来。
+        List<String> seen = Collections.synchronizedList(new ArrayList<>());
+        CountDownLatch release = new CountDownLatch(1);
+
+        when(deepSeekClient.stream(any(), any(), any())).thenReturn(
+                Flux.<DeepSeekStreamEvent>create(sink -> {
+                    sink.next(text("一"));
+                    try {
+                        release.await(10, TimeUnit.SECONDS);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    sink.next(text("二"));
+                    sink.complete();
+                }).subscribeOn(Schedulers.boundedElastic()));
+
+        AgentLoopOutcome outcome = loop.run(newMessages(), null, null, FLASH, List.of());
+        Thread consumer = new Thread(() -> outcome.chunks().doOnNext(seen::add).blockLast());
+        consumer.start();
+
+        long deadline = System.currentTimeMillis() + 5_000;
+        while (seen.isEmpty() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10);
+        }
+        assertEquals(List.of("一"), seen, "模型还没结束时第一片就该到客户端了");
+
+        release.countDown();
+        consumer.join(5_000);
+        assertEquals(List.of("一", "二"), seen);
+        assertEquals("一二", outcome.reply());
     }
 
     @Test
