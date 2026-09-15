@@ -625,7 +625,10 @@ function handleProfileUpdated() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-on-primary);
+  /* 底色来自 .avatar-img 的 --color-primary-light（主题色的淡染），
+     不是 --color-primary —— 所以字色不能用「写在 primary 上」的 on-primary，
+     两者在任何模式下都几乎同色，首字母会整个看不见。 */
+  color: var(--color-primary);
   font-size: 28px;
   font-family: var(--font-display);
 }
