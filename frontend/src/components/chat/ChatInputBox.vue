@@ -107,6 +107,7 @@ import { ref } from 'vue'
 import { NButton, NInput, useMessage } from 'naive-ui'
 import ReferenceBar from '../ReferenceBar.vue'
 import { imageApi } from '../../api/system'
+import { compressForChat } from '../../utils/imageCompression'
 
 const message = useMessage()
 const referenceBarRef = ref<InstanceType<typeof ReferenceBar> | null>(null)
@@ -156,7 +157,10 @@ function handleImageUpload() {
 
     const loadingMsg = message.loading('正在上传图片...', { duration: 0 })
     try {
-      const url = await imageApi.uploadDirect(file)
+      // 原图动辄几 MB，视觉模型要照单全收。先按「文字图 / 普通图」压缩，
+      // 与日记上传共用同一套策略（文字图保留 PNG，保证后续 OCR 可读）。
+      const compressed = await compressForChat(file)
+      const url = await imageApi.uploadDirect(compressed)
       loadingMsg.destroy()
       emit('add-image-reference', url)
       message.success('图片已添加')
