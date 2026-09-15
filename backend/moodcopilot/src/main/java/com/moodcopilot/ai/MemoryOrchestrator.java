@@ -283,25 +283,28 @@ public class MemoryOrchestrator {
                 "USER_REJECTED");
     }
 
+    /**
+     * 按记忆 id 彻底清除：先校验归属，再按键清掉该键下所有版本。
+     * <p>
+     * 记忆中心那个「删除」按钮走的就是这里。与聊天工具相比只是入口不同 —— 两个地方的「删除」
+     * 必须是同一个意思，否则用户在一边删完以为干净了、在另一边删完才是真干净。
+     * <p>
+     * 仍然要求目标是 {@code active} 行：界面上列出来的只有生效值，这个校验同时也把「别人的记忆」
+     * 挡在外面。
+     *
+     * @return 实际清除的行数（含历史版本）
+     */
     @Transactional
-    public void deleteFormal(long userId, long memoryId) {
+    public int purgeMemory(long userId, long memoryId) {
         UserProfileMemoryEntity memory = ownedFormal(userId, memoryId);
-        memory.setStatus("rejected");
-        memory.setValidUntil(businessDate());
-        memory.setSupersededAt(businessNow());
-        memory.setSupersededReason("USER_DELETED");
-        memoryMapper.updateById(memory);
-        addRejection(userId, memory.getMemoryType(), memory.getAttributeKey(), memory.getAttributeValue(),
-                "USER_DELETED");
-        reindex(userId);
+        return purgeByKey(userId, memory.getAttributeKey());
     }
 
     /**
      * 按「键」彻底清除：把该键下**所有版本**的行一起物理删除。
      * <p>
-     * 与 {@link #deleteFormal} 的分工是「留不留痕」：那个只停用当前生效值，历史版本（superseded /
-     * rejected / expired）仍留在表里；这个连历史一起清掉，界面上和库里都不剩。产品上的原则是
-     * **编辑留历史、删除不留痕** —— 用户想要历史就该去编辑，而不是删除。
+     * 产品上的原则是**编辑留历史、删除不留痕** —— 用户想要历史就该去编辑，而不是删除。所以这里
+     * 连 superseded / rejected / expired 的行一起清掉，界面上和库里都不剩。
      * <p>
      * 删完必须补一条按键封印，否则抽取器明天又会从日记里把同一个键推导回来。「删了又自己长出来」
      * 是这种操作最不能接受的结果。

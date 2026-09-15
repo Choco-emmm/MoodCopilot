@@ -873,7 +873,7 @@ const saveMemory = async () => {
 const deleteMemory = (id: number) => {
   uni.showModal({
     title: '删除记忆',
-    content: '确定要删除这条记忆吗？',
+    content: '删除后连同全部历史版本一起清除，找不回来。确定删除吗？',
     success: async (res) => {
       if (res.confirm) {
         try {

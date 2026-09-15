@@ -18,10 +18,12 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -99,6 +101,32 @@ class MemoryOrchestratorPurgeTest {
 
         assertEquals(2, removed);
         verify(memoryMapper).delete(any());
+    }
+
+    @Test
+    void deletingByIdPurgesEveryVersionOfThatKey() {
+        // 记忆中心那个「删除」按钮传的是 id，但清的是整个键 —— 两个入口必须是同一个意思，
+        // 否则用户在一个地方删完以为干净了、在另一个地方删完才是真干净。
+        when(memoryMapper.selectById(42L)).thenReturn(memory("心理状态", "自述已好转，状态稳定", "active"));
+        when(memoryMapper.selectList(any())).thenReturn(List.of(
+                memory("心理状态", "情绪低落，有自伤念头", "superseded"),
+                memory("心理状态", "自述已好转，状态稳定", "active")));
+
+        int removed = orchestrator.purgeMemory(7L, 42L);
+
+        assertEquals(2, removed);
+        verify(memoryMapper).delete(any());
+    }
+
+    @Test
+    void deletingSomebodyElsesMemoryIsRefused() {
+        // 物理删除没有回头路，归属校验必须在这之前拦住
+        UserProfileMemoryEntity other = memory("心理状态", "别人的记忆", "active");
+        other.setUserId(99L);
+        when(memoryMapper.selectById(42L)).thenReturn(other);
+
+        assertThrows(ResponseStatusException.class, () -> orchestrator.purgeMemory(7L, 42L));
+        verify(memoryMapper, never()).delete(any());
     }
 
     @Test

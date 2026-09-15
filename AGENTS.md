@@ -208,7 +208,7 @@
 
 ### 记忆的删除与合并
 
-- **编辑留历史，删除不留痕。** 改键值走版本化（旧行标 `superseded`、插一条新的 `active`，旧行留在表里、在「历史版本」里可见）；删除走 `MemoryOrchestrator.purgeByKey`，**物理清掉该键下所有行**。想要保留历史就该去编辑。注意 `DELETE /api/memory/{id}` 是另一回事 —— 它只认 `active` 行（`ownedFormal`），只是「停用当前值」。
+- **编辑留历史，删除不留痕。** 改键值走版本化（旧行标 `superseded`、插一条新的 `active`，旧行留在表里、在「历史版本」里可见）；**删除一律走 `MemoryOrchestrator.purgeByKey`，物理清掉该键下所有版本的行**。想要保留历史就该去编辑。两个入口 —— 记忆中心的 `DELETE /api/memory/{id}`（→ `purgeMemory`）和聊天里的 `deleteMemoryFunction` —— 必须是同一个意思；别再出现「一个软删、一个硬删」，那是同一个词两个含义，用户会以为在一处删干净了而另一处才是真的。
 - 删完必须补**按键封印**（`sealKey`，`rejection_type='USER_PURGED_KEY'`），否则抽取器第二天就把它从日记里推导回来。「删了又自己长出来」是用户最不能接受的结果。
 - 封印**只记归一化后的键名、不记值**。普通墓碑 `addRejection` 存的是键+值，等于把要删的内容又抄了一份进墓碑表 —— 对「彻底删除」自相矛盾。
 - 封印**只拦自动抽取**：`processExtractedMemories` 的 explicit 分支在封印判断**之前**且 `continue`，所以「用户亲口说要记」仍然能建。别调换这个顺序，那会推翻删除确认框承诺的「你之后明确表达新的事实时，仍可重新建立」。

@@ -442,7 +442,7 @@ function forgetMemory(id: number) {
   const memory = store.memories.find((item: any) => item.id === id)
   dialog.warning({
     title: '删除这条记忆？',
-    content: `删除后，这条记忆会从当前画像中移除，但历史记录仍会保留。系统会暂时记住你不想保留这条内容，避免 AI 很快又自动加回来；你之后明确表达新的事实时，仍可重新建立。${memory?.attributeKey ? `\n\n当前记忆：${memory.attributeKey}` : ''}`,
+    content: `删除后，这条记忆连同它的全部历史版本一起清除，找不回来（想保留历史请用「编辑」）。系统会暂时记住你不想保留这条内容，避免 AI 很快又自动加回来；你之后明确表达新的事实时，仍可重新建立。${memory?.attributeKey ? `\n\n当前记忆：${memory.attributeKey}` : ''}`,
     positiveText: '确认删除',
     negativeText: '取消',
     positiveButtonProps: { type: 'error' },

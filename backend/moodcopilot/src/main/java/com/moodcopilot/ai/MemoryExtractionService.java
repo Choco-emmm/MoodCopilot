@@ -576,8 +576,8 @@ public class MemoryExtractionService {
 
     public void deleteMemory(long memoryId) {
         UserEntity user = currentUser();
-        memoryOrchestrator.deleteFormal(user.getId(), memoryId);
-        log.info("用户手动删除长期画像属性，userId={}，memoryId={}", user.getId(), memoryId);
+        int removed = memoryOrchestrator.purgeMemory(user.getId(), memoryId);
+        log.info("用户手动彻底删除长期画像属性，userId={}，memoryId={}，清除行数={}", user.getId(), memoryId, removed);
     }
 
     public void updateMemory(long memoryId, String newValue, Boolean isCore) {
