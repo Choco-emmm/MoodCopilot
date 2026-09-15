@@ -5,6 +5,7 @@ import com.moodcopilot.ai.tool.impl.ReadImageTextTool;
 import com.moodcopilot.ai.tool.impl.ReadImageTextTool.ReadImageTextRequest;
 import com.moodcopilot.ai.tool.impl.ReadImageTextTool.ReadImageTextResult;
 import com.moodcopilot.entity.UserEntity;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -26,6 +27,11 @@ class ReadImageTextToolTest {
 
     private final VisionService visionService = mock(VisionService.class);
     private final ReadImageTextTool tool = new ReadImageTextTool(visionService);
+
+    @BeforeEach
+    void visionConfigured() {
+        when(visionService.isConfigured()).thenReturn(true);
+    }
 
     private static ToolExecutionContext contextWith(List<String> imageUrls) {
         UserEntity user = new UserEntity();
@@ -77,7 +83,22 @@ class ReadImageTextToolTest {
 
         assertFalse(result.success());
         assertNull(result.text());
-        assertTrue(result.note().contains("没有识别到文字"));
+        assertTrue(result.note().contains("没有可读的文字"));
+    }
+
+    @Test
+    void anUnconfiguredVisionServiceIsReportedAsAFailureNotAsNoText() {
+        // 「图里没文字」和「视觉服务挂了」必须分开说 —— 混成一句，
+        // 模型会转述出一句用户看不懂的话。
+        when(visionService.isConfigured()).thenReturn(false);
+
+        ReadImageTextResult result = (ReadImageTextResult) tool.execute(
+                new ReadImageTextRequest(""), contextWith(List.of("https://bucket/x.png")));
+
+        assertFalse(result.success());
+        assertNull(result.text());
+        assertTrue(result.note().contains("视觉服务暂时不可用"));
+        verify(visionService, never()).extractText(any(), any());
     }
 
     @Test

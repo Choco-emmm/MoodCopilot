@@ -217,16 +217,14 @@ public class VisionService {
     }
 
     /**
-     * OCR 专用分析：使用 qwen-vl-ocr 模型，极低温度，专注文字提取。
-     * 失败时静默返回空字符串，由上层回退到常规模型。
-     */
-    /**
      * 纯 OCR：只提取文字，不混画面描述。供「让模型自己决定要不要读图上的字」的工具调用。
      * <p>
      * 结果按图片缓存 30 天 —— OCR 一张文字密集的图可能要几十秒，重复读同一张图不该重复付这个代价。
+     * <p>
+     * 并发执行：一张图几十秒，串行跑三张就是两三分钟。这里必须和 describeImages 一样并发。
      *
      * @param focus 想重点提取的内容；空则只给通用提示
-     * @return 拼接后的文字；没有文字或失败时返回 ""
+     * @return 按图片顺序拼接的文字；没有文字或失败时返回 ""
      */
     public String extractText(List<String> imageUrls, String focus) {
         if (imageUrls == null || imageUrls.isEmpty()) {
@@ -236,27 +234,52 @@ public class VisionService {
             log.warn("VLM 未配置，跳过 {} 张图片的 OCR", imageUrls.size());
             return "";
         }
+        List<Map.Entry<Integer, String>> results;
+        try (ExecutorService executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            List<CompletableFuture<Map.Entry<Integer, String>>> futures = new ArrayList<>(imageUrls.size());
+            for (int i = 0; i < imageUrls.size(); i++) {
+                final int index = i + 1;
+                final String rawUrl = imageUrls.get(i);
+                futures.add(CompletableFuture.supplyAsync(() -> Map.entry(index, extractOne(rawUrl, index, focus)),
+                        executor));
+            }
+            results = futures.stream()
+                    .map(CompletableFuture::join)
+                    .sorted(Comparator.comparingInt(Map.Entry::getKey))
+                    .toList();
+        }
         List<String> parts = new ArrayList<>();
-        for (int i = 0; i < imageUrls.size(); i++) {
-            String rawUrl = imageUrls.get(i);
-            String cacheKey = getCacheKey(rawUrl, OCR_CACHE_CHANNEL);
-            String cached = redisTemplate == null ? null : redisTemplate.opsForValue().get(cacheKey);
-            String text = cached != null
-                    ? cached
-                    : analyzeWithOcr(ossService != null ? ossService.getAccessibleUrl(rawUrl) : rawUrl, i + 1, focus);
-            if (cached == null && redisTemplate != null && text != null && !text.isBlank()) {
-                redisTemplate.opsForValue().set(cacheKey, text, Duration.ofDays(30));
+        for (Map.Entry<Integer, String> entry : results) {
+            String text = entry.getValue();
+            if (text == null || text.isBlank()) {
+                continue;
             }
-            if (text != null && !text.isBlank()) {
-                parts.add(imageUrls.size() == 1 ? text : "图片" + (i + 1) + "：\n" + text);
-            }
+            parts.add(imageUrls.size() == 1 ? text : "图片" + entry.getKey() + "：\n" + text);
         }
         return String.join("\n\n", parts);
+    }
+
+    /** 命中缓存直接返回，否则调 OCR 并按图片缓存结果。 */
+    private String extractOne(String rawUrl, int index, String focus) {
+        String cacheKey = getCacheKey(rawUrl, OCR_CACHE_CHANNEL);
+        String cached = redisTemplate == null ? null : redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        String text = analyzeWithOcr(ossService != null ? ossService.getAccessibleUrl(rawUrl) : rawUrl, index, focus);
+        if (redisTemplate != null && text != null && !text.isBlank()) {
+            redisTemplate.opsForValue().set(cacheKey, text, Duration.ofDays(30));
+        }
+        return text;
     }
 
     /** OCR 走独立缓存键，避免和 describeImages 里「视觉+OCR 合并」的缓存互相污染。 */
     private static final String OCR_CACHE_CHANNEL = "ocr";
 
+    /**
+     * OCR 专用分析：使用 qwen-vl-ocr 模型，极低温度，专注文字提取。
+     * 失败时静默返回空字符串，由上层回退到常规模型。
+     */
     private String analyzeWithOcr(String imageUrl, int index, String focus) {
         try {
             String finalUrl = fetchImageAsBase64Uri(imageUrl);

@@ -35,8 +35,9 @@ public class ReadImageTextTool extends ChatTool<ReadImageTextTool.ReadImageTextR
     @Override
     public String description() {
         return "读取用户本轮发送的图片中的文字（OCR 逐字提取）。"
-                + "默认图片描述只讲画面、不读文字；当用户问图片里写了什么、或者需要截图/表单/聊天记录里的具体文字时，必须调用本工具。"
-                + "不需要自己指定图片，工具会用本轮用户附带的所有图片。";
+                + "默认的图片描述只讲画面、不读文字。只在用户明确问图片上的文字时调用（如「图里写了什么」「截图上的数字是多少」）。"
+                + "不要为了让答案更完整就自行去读：店名、价格、型号这类信息读不到就直接说不确定。"
+                + "这个工具一次要等几十秒，不要主动调用。不需要自己指定图片，工具会用本轮用户附带的所有图片。";
     }
 
     @Override
@@ -64,10 +65,15 @@ public class ReadImageTextTool extends ChatTool<ReadImageTextTool.ReadImageTextR
             return new ReadImageTextResult(false, null,
                     "本轮对话没有附带图片，无法进行文字提取。");
         }
+        // 「没配视觉服务」是真故障，「图里没文字」是正常结果 —— 混在一句里
+        // 只会让模型转述出一句用户看不懂的话。
+        // 残余：视觉服务已配置但调用中途失败时，仍会落到「没有文字」这一支。
+        if (!visionService.isConfigured()) {
+            return new ReadImageTextResult(false, null, "视觉服务暂时不可用，这次没能读图上的文字。");
+        }
         String text = visionService.extractText(imageUrls, request.focus());
         if (text == null || text.isBlank()) {
-            return new ReadImageTextResult(false, null,
-                    "这些图片里没有识别到文字，或者视觉服务暂时不可用。");
+            return new ReadImageTextResult(false, null, "这几张图片里没有可读的文字。");
         }
         return new ReadImageTextResult(true, text, null);
     }
