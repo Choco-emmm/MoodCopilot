@@ -317,8 +317,24 @@ public class ChatService {
         }
     }
 
-    /** 流式聊天结果：RAG 上下文 + AI 文字流 */
-    public record ChatStreamContext(String ragContext, Flux<String> stream) {}
+    /**
+     * 流式聊天结果：RAG 上下文 + AI 文字流 + 驱动这一轮的累加器。
+     * <p>
+     * 累加器一并带出来，是因为「工具执行前等批准」不是结束：分片流会正常收尾，
+     * 但这一轮还没完。调用方要靠 {@link AgentLoopOutcome#paused()} 分辨这两种收尾。
+     */
+    public record ChatStreamContext(String ragContext, Flux<String> stream, AgentLoopOutcome outcome) {}
+
+    /**
+     * 把分片流与工具事件流合成一条时间线。
+     * <p>
+     * **顺序不能反。** 分片流一旦被订阅就会同步把整张图跑完，而 {@code Flux.merge} 是先订阅
+     * 第一个源、再订阅第二个。把分片流放在前面，走另一个 sink 的工具事件要等图整个跑完才
+     * 轮到被投递 —— 客户端于是只在回答结束之后才看到「已检索 N 条记录」，而不是工具跑完的当下。
+     */
+    static Flux<String> timeline(Flux<String> chunks, Sinks.Many<String> toolEvents) {
+        return Flux.merge(toolEvents.asFlux(), chunks);
+    }
 
     public ChatStreamContext chat(Long conversationId, String message, List<String> refs, String memoryBackground, boolean useReasoning) {
         return chat(conversationId, message, refs, memoryBackground, useReasoning, ReferencePurpose.DISCUSS);
@@ -345,6 +361,22 @@ public class ChatService {
     public ChatStreamContext chat(Long conversationId, String message, List<String> refs, String memoryBackground,
             boolean useReasoning, ReferencePurpose referencePurpose, List<UserReference> resolvedReferences,
             CurrentTurnPreference turnPreference, List<String> imageUrls) {
+        // 这条通道没有配套的批准接口 —— 它用的 runId 调用方根本拿不到，
+        // 所以按「这个通道问不了用户」处理：需要批准的工具会被直接拒绝并说明理由，
+        // 而不是让这一轮悬在一个没人能点的等待上。
+        return chat(conversationId, message, refs, memoryBackground, useReasoning, referencePurpose,
+                resolvedReferences, turnPreference, imageUrls, java.util.UUID.randomUUID().toString(), false);
+    }
+
+    /**
+     * @param runId                生成任务的 id，同时充当图检查点的 threadId —— 工具审批中断后要按它恢复。
+     * @param approvalsInteractive 这个客户端能否把审批弹框送到用户眼前、并按 runId 回批。
+     *                             由调用方声明而不是我们自己猜：猜错的代价是这一轮永远停在那里。
+     */
+    public ChatStreamContext chat(Long conversationId, String message, List<String> refs, String memoryBackground,
+            boolean useReasoning, ReferencePurpose referencePurpose, List<UserReference> resolvedReferences,
+            CurrentTurnPreference turnPreference, List<String> imageUrls, String runId,
+            boolean approvalsInteractive) {
         String augmentedMessage = augmentWithRefReminder(message, refs);
         ChatExecutionResult exec = prepareChatExecution(conversationId, augmentedMessage, refs, memoryBackground,
                 useReasoning, referencePurpose, resolvedReferences, turnPreference, imageUrls);
@@ -363,20 +395,67 @@ public class ChatService {
         Sinks.Many<String> sseSink = Sinks.many().unicast().onBackpressureBuffer();
         long aiStartedAt = AiCallTiming.start();
         int aiInputLength = augmentedMessage == null ? 0 : augmentedMessage.length();
-        AgentLoopOutcome outcome = agentLoop.run(msgs, auth, sseSink, options, imageUrls);
+        AgentLoopOutcome outcome = agentLoop.run(msgs, auth, sseSink, options,
+                chatTurn(conversationId, message, imageUrls, resolvedReferences), runId, approvalsInteractive);
 
         Flux<String> stream = outcome.chunks()
                 .doOnComplete(sseSink::tryEmitComplete)
                 .doOnError(sseSink::tryEmitError)
                 .doOnComplete(() -> {
-                    addAssistantTurn(conversationId, request, outcome, options.exposeReasoning());
+                    if (outcome.paused()) {
+                        // 这一轮还没结束，用户在等确认。落库与计时都推迟到 approve 之后 ——
+                        // 现在写下去，恢复时会再写一条拼起来的全文，历史里凭空多出一段重复；
+                        // 记忆抽取也会只拿到暂停前那半截。
+                        log.info("聊天停在工具执行前等待批准，conversationId={} runId={}", conversationId, runId);
+                        return;
+                    }
+                    addAssistantTurn(exec.user().getId(), conversationId, outcome, options.exposeReasoning());
                     AiCallTiming.completed(log, options.logType(), options.modelLabel(), aiStartedAt, "SUCCESS",
                             aiInputLength, outcome.reply().length());
                 })
                 .doOnError(error -> AiCallTiming.failed(log, options.logType(), options.modelLabel(), aiStartedAt,
                         error, aiInputLength));
 
-        return new ChatStreamContext(ragCtx, Flux.merge(stream, sseSink.asFlux()));
+        return new ChatStreamContext(ragCtx, timeline(stream, sseSink), outcome);
+    }
+
+    /**
+     * 用户批准或拒绝之后，接着跑完同一轮。
+     * <p>
+     * 装配上下文、写用户轮、扣额度都发生在暂停之前，所以这里只做一件事：把决定回填进图检查点，
+     * 从断点续跑。恢复出来的累加器带着暂停前那段正文，收尾时才能落一条完整的助手回复。
+     *
+     * @param decision {@link ChatAgentLoop#approvalDecision} 构造的决定
+     * @param runId    与发起时同一个 runId —— 它同时是检查点的 threadId
+     */
+    public ChatStreamContext resumeChat(Long userId, ChatTurn turn, boolean useReasoning,
+            Map<String, Object> decision, String runId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        AgentLoopOptions options = useReasoning ? modelProfiles.pro() : modelProfiles.flash();
+        log.info("恢复工具审批后的续跑：{}，conversationId={}，runId={}", options.modelLabel(), turn.conversationId(),
+                runId);
+
+        Sinks.Many<String> sseSink = Sinks.many().unicast().onBackpressureBuffer();
+        AgentLoopOutcome outcome = agentLoop.resume(auth, sseSink, options, turn, runId, decision);
+
+        // 续跑的模型调用不记 AiCallTiming：那一档日志要的是「输入多长、首字节多久」，
+        // 而这里既没有原始输入长度、也不是一轮的开头，记下去只会污染这个指标。
+        Flux<String> stream = outcome.chunks()
+                .doOnComplete(sseSink::tryEmitComplete)
+                .doOnError(sseSink::tryEmitError)
+                .doOnComplete(() -> {
+                    if (outcome.paused()) {
+                        // 模型又要求写一次：重新征求同意，不能把上一次的点头当成长期授权
+                        log.info("聊天恢复后再次停在工具执行前，conversationId={} runId={}", turn.conversationId(),
+                                runId);
+                        return;
+                    }
+                    addAssistantTurn(userId, turn.conversationId(), outcome, options.exposeReasoning());
+                })
+                .doOnError(error -> log.warn("恢复聊天生成失败 conversationId={} runId={} reason={}",
+                        turn.conversationId(), runId, error.getMessage()));
+
+        return new ChatStreamContext("", timeline(stream, sseSink), outcome);
     }
 
     public String reply(Long conversationId, String message, List<String> refs, String memoryBackground, boolean useReasoning) {
@@ -423,10 +502,14 @@ public class ChatService {
         long aiStartedAt = AiCallTiming.start();
         int aiInputLength = augmentedMessage == null ? 0 : augmentedMessage.length();
         try {
-            AgentLoopOutcome outcome = agentLoop.run(msgs, auth, null, options, imageUrls);
+            // 非流式通道没人能点确认，approvalsInteractive=false：需要批准的工具会被直接拒绝，
+            // 并把「请到 App 里确认」作为理由回给模型，而不是把这一轮挂在这里等一个不会来的点击。
+            AgentLoopOutcome outcome = agentLoop.run(msgs, auth, null, options,
+                    chatTurn(conversationId, message, imageUrls, resolvedReferences),
+                    java.util.UUID.randomUUID().toString(), false);
             // 非流式：先驱动 flux 走完，再读 outcome —— 累加在流结束后才完整
             outcome.chunks().reduce(String::concat).block();
-            addAssistantTurn(conversationId, request, outcome, options.exposeReasoning());
+            addAssistantTurn(exec.user().getId(), conversationId, outcome, options.exposeReasoning());
             AiCallTiming.completed(log, options.logType(), options.modelLabel(), aiStartedAt, "SUCCESS",
                     aiInputLength, outcome.reply().length());
             return outcome.reply();
@@ -437,6 +520,17 @@ public class ChatService {
     }
 
     private record ChatExecutionResult(ChatRequest request, Authentication auth, UserEntity user, String ragCtx, boolean useReasoning) {}
+
+    /**
+     * 本轮交给工具层的上下文。用户原话与引用是记忆类工具落库时的证据来源 ——
+     * 只认用户自己的内容，助手的转述不能当事实。
+     */
+    private static ChatTurn chatTurn(Long conversationId, String message, List<String> imageUrls,
+            List<UserReference> resolvedReferences) {
+        return new ChatTurn(imageUrls, message, conversationId,
+                resolvedReferences == null ? List.of()
+                        : resolvedReferences.stream().map(UserReference::content).toList());
+    }
 
     private ChatExecutionResult prepareChatExecution(Long conversationId, String message, List<String> refs,
             String memoryBackground, boolean requestedUseReasoning, ReferencePurpose referencePurpose) {
@@ -565,15 +659,26 @@ public class ChatService {
      * 存下来只会在重载时凭空冒出一个英文思考面板（它的推理没有语言约束）。
      * 存的和显示的必须是同一件事。
      */
-    private void addAssistantTurn(Long conversationId, ChatRequest request, AgentLoopOutcome outcome,
+    private void addAssistantTurn(Long userId, Long conversationId, AgentLoopOutcome outcome,
             boolean keepReasoning) {
         String reply = outcome.reply();
         String reasoning = keepReasoning ? outcome.reasoning() : "";
         if (reply.isEmpty() && reasoning.isEmpty()) {
             return;
         }
-        appendToChatMemory(conversationId, request.memory(), "assistant", reply,
+        appendToChatMemory(conversationId, chatMemory(userId, conversationId), "assistant", reply,
                 reasoning.isEmpty() ? null : reasoning, outcome.toolReferences());
+    }
+
+    /**
+     * 会话的消息列表。空了先从 Redis 补一份 —— 恢复审批时内存里那条多半已经被 Caffeine 淘汰，
+     * 拿一个空列表直接写回，会把整段历史覆盖成只剩这一条助手回复。
+     */
+    private List<com.moodcopilot.entity.dto.CustomChatMessage> chatMemory(Long userId, Long conversationId) {
+        List<com.moodcopilot.entity.dto.CustomChatMessage> memory = userChatMemories.get(
+                userId + ":" + conversationId, key -> new java.util.concurrent.CopyOnWriteArrayList<>());
+        restoreChatMemoryFromRedis(conversationId, memory);
+        return memory;
     }
 
     // ---- 历史压缩 ----
@@ -747,10 +852,8 @@ public class ChatService {
         // in CurrentUserRequest, while Persona has only global/conversation scopes.
         EffectivePersona persona = personaService.compileForChat(user.getId(), conversationId);
         String context = buildContext(user.getId(), contextPlan.envelope(), refs, null, persona, taskContext);
-        String memKey = user.getId() + ":" + conversationId;
-        List<com.moodcopilot.entity.dto.CustomChatMessage> memory = userChatMemories.get(memKey, k -> new java.util.concurrent.CopyOnWriteArrayList<>());
-        // 如果 ChatMemory 为空（刚启动、Caffeine 过期、或新会话），尝试从 Redis 恢复历史上下文
-        restoreChatMemoryFromRedis(conversationId, memory);
+        // 内存里没有（刚启动、Caffeine 过期、或新会话）时由 chatMemory 从 Redis 恢复历史上下文
+        List<com.moodcopilot.entity.dto.CustomChatMessage> memory = chatMemory(user.getId(), conversationId);
 
         String summary = null;
         try {

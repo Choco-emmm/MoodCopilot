@@ -243,38 +243,4 @@ public class NotificationService {
             log.warn("Failed to create profile update notification", e);
         }
     }
-
-    public void notifyMemoryUpdated(Long recipientUserId, String summaryMarkdown) {
-        try {
-            NotificationEntity n = new NotificationEntity();
-            n.setRecipientUserId(recipientUserId);
-            n.setActorUserId(null);
-            n.setType("MEMORY_UPDATED");
-            n.setMessage(summaryMarkdown);
-            n.setIsMarkdown(true);
-            n.setIsRead(false);
-            n.setCreatedAt(LocalDateTime.now());
-            notificationMapper.insert(n);
-            notificationWebSocketHandler.pushNotification(recipientUserId, n);
-        } catch (Exception e) {
-            log.warn("Failed to create memory update notification", e);
-        }
-    }
-
-    public void notifyGraphUpdated(Long recipientUserId, String summaryMarkdown) {
-        try {
-            NotificationEntity n = new NotificationEntity();
-            n.setRecipientUserId(recipientUserId);
-            n.setActorUserId(null);
-            n.setType("GRAPH_UPDATED");
-            n.setMessage(summaryMarkdown);
-            n.setIsMarkdown(true);
-            n.setIsRead(false);
-            n.setCreatedAt(LocalDateTime.now());
-            notificationMapper.insert(n);
-            notificationWebSocketHandler.pushNotification(recipientUserId, n);
-        } catch (Exception e) {
-            log.warn("Failed to create graph update notification", e);
-        }
-    }
 }

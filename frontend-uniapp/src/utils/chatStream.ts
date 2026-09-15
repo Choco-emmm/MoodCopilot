@@ -112,6 +112,9 @@ async function createRun(params: ChatStreamParams): Promise<string> {
     message: params.message,
     references: params.references ?? [],
     useReasoning: params.useReasoning === true,
+    // 小程序端没有审批弹框，也就按不了确认。明说这一点，后端才不会把这一轮停在
+    // 工具执行前等一个没人能点的确认 —— 它会改成让模型请用户去 App 里确认。
+    approvalsInteractive: false,
   }
   if (params.eventId) body.eventId = params.eventId
   if (params.referenceItems?.length) body.referenceItems = params.referenceItems

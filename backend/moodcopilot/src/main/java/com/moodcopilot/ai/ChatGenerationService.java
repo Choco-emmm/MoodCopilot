@@ -70,7 +70,9 @@ public class ChatGenerationService {
             ReferencePurpose referencePurpose,
             boolean useReasoning,
             Authentication authentication,
-            List<String> imageUrls) {
+            List<String> imageUrls,
+            /** 这个客户端有没有能力把审批弹框送到用户眼前。没有就别让图停 —— 停下来没人能点。 */
+            boolean approvalsInteractive) {
     }
 
     public record RunSnapshot(String runId, String status, long lastSequence) {
@@ -103,6 +105,12 @@ public class ChatGenerationService {
         meta.put("createdAt", LocalDateTime.now().toString());
         meta.put("updatedAt", LocalDateTime.now().toString());
         meta.put("model", request.useReasoning() ? "PRO" : "FLASH");
+        // 恢复一轮要用到的东西。它们在暂停之前就定了，而用户可能几分钟后才点确认、
+        // 甚至中间重启过一次后端 —— 到那时内存里已经什么都不剩，只能从 meta 里拿。
+        meta.put("useReasoning", String.valueOf(request.useReasoning()));
+        meta.put("userMessage", request.message() == null ? "" : request.message());
+        meta.put("imageUrls", writeStringList(request.imageUrls()));
+        meta.put("userReferences", writeStringList(evidenceOf(request)));
         redis.opsForHash().putAll(metaKey, meta);
         expire(runId);
 
@@ -115,7 +123,6 @@ public class ChatGenerationService {
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(request.authentication());
         SecurityContextHolder.setContext(context);
-        StringBuilder reply = new StringBuilder();
         try {
             chatService.scheduleConversationTitle(request.conversationId(), request.message());
             // 图片描述是在模型调用之前同步生成的，OCR 一张带文字的图可能要几十秒。
@@ -124,30 +131,22 @@ public class ChatGenerationService {
                 writeEvent(runId, event("status",
                         Map.of("stage", "reading_images", "message", "正在识别图片内容…")));
             }
+            // runId 同时是图检查点的 threadId：工具审批中断后靠它恢复
             ChatService.ChatStreamContext result = chatService.chat(
                     request.conversationId(), request.message(), request.references(), "",
                     request.useReasoning(), request.referencePurpose(), request.resolvedReferences(),
-                    null, request.imageUrls());
+                    null, request.imageUrls(), runId, request.approvalsInteractive());
             if (!writeEvent(runId, event("references", Map.of("items", parseRagReferences(result.ragContext()))))) {
                 throw new IllegalStateException("保存聊天引用事件失败");
             }
-            result.stream().doOnNext(chunk -> {
-                if ("CANCELLED".equals(status(runId))) throw new CancellationException("生成任务已取消");
-                if (chunk == null || chunk.isBlank()) return;
-                if (chunk.startsWith("[[TOOL_EVENT]]")) {
-                    if (!writeEvent(runId, parseJsonEvent(chunk.substring("[[TOOL_EVENT]]".length())))) {
-                        throw new IllegalStateException("保存聊天工具事件失败");
-                    }
-                    return;
-                }
-                // 只累加正文：这段缓冲喂给记忆抽取，不能把整条思维链也灌进去
-                if (!chunk.startsWith("[[REASONING]]")) {
-                    reply.append(chunk);
-                }
-                if (!writeEvent(runId, event("chunk", Map.of("content", chunk)))) {
-                    throw new IllegalStateException("保存聊天片段事件失败");
-                }
-            }).blockLast();
+            consume(runId, result.stream());
+
+            // 停在「工具执行前等用户批准」。这一轮没结束：不写 done、不置 SUCCEEDED，
+            // 更不能拿半截正文去跑画像抽取 —— 助手回复整个推迟到 approve 之后。
+            if (result.outcome().paused()) {
+                awaitApproval(runId, result.outcome());
+                return;
+            }
 
             if (!transitionStatus(runId, "RUNNING", "FINALIZING")) {
                 return;
@@ -157,7 +156,8 @@ public class ChatGenerationService {
                 throw new IllegalStateException("保存聊天完成事件失败");
             }
             setStatus(runId, "SUCCEEDED");
-            scheduleMemoryExtraction(request, runId, reply.toString());
+            scheduleMemoryExtraction(runId, request.userId(), request.conversationId(), request.message(),
+                    evidenceOf(request), result.outcome().reply());
         } catch (CancellationException e) {
             log.info("聊天生成任务已取消 runId={} userId={} conversationId={}", runId,
                     request.userId(), request.conversationId());
@@ -189,25 +189,72 @@ public class ChatGenerationService {
     }
 
     /**
+     * 把图产出的分片写进事件表。取消在这里生效：客户端点过停之后，后续分片一律丢弃。
+     * <p>
+     * 恢复走的也是它 —— 续跑的分片要接在暂停前那些事件后面，序号继续往下长，
+     * 这样客户端拿着同一个 {@code after=} 游标就能把两段接起来。
+     */
+    private void consume(String runId, Flux<String> stream) {
+        stream.doOnNext(chunk -> {
+            if ("CANCELLED".equals(status(runId))) throw new CancellationException("生成任务已取消");
+            if (chunk == null || chunk.isBlank()) return;
+            if (chunk.startsWith("[[TOOL_EVENT]]")) {
+                if (!writeEvent(runId, parseJsonEvent(chunk.substring("[[TOOL_EVENT]]".length())))) {
+                    throw new IllegalStateException("保存聊天工具事件失败");
+                }
+                return;
+            }
+            if (!writeEvent(runId, event("chunk", Map.of("content", chunk)))) {
+                throw new IllegalStateException("保存聊天片段事件失败");
+            }
+        }).blockLast();
+    }
+
+    /**
+     * 记下「停在工具执行前等用户批准」。
+     * <p>
+     * 帧先发、状态后改：反过来的话，一旦事件写失败，用户看到的就是一条永远没有下文的
+     * AWAITING_APPROVAL，而前端会一直轮询到超时 —— 那比看不见弹框更难排查。
+     */
+    private void awaitApproval(String runId, AgentLoopOutcome outcome) {
+        if (!writeEvent(runId, event("approval_required", approvalPayload(outcome)))) {
+            throw new IllegalStateException("保存待批准事件失败");
+        }
+        if (!transitionStatus(runId, "RUNNING", "AWAITING_APPROVAL")) {
+            log.warn("生成任务已不在运行中，待批准状态未生效 runId={}", runId);
+        }
+    }
+
+    private static Map<String, Object> approvalPayload(AgentLoopOutcome outcome) {
+        Object approval = outcome.pendingApproval().get(ChatAgentLoop.APPROVAL_KEY);
+        Object items = approval instanceof Map<?, ?> map ? map.get("items") : null;
+        return Map.of("items", items instanceof List<?> list ? list : List.of());
+    }
+
+    /**
      * 画像增量提取不能阻塞聊天完成事件。聊天回答已经落库并通知前端完成后，
      * 再使用独立 AI 任务执行画像更新；失败只记录日志，不影响本轮聊天状态。
      */
-    private void scheduleMemoryExtraction(StartRequest request, String runId, String reply) {
-        List<String> evidence = request.resolvedReferences() == null
-                ? (request.references() == null ? List.of() : List.copyOf(request.references()))
-                : request.resolvedReferences().stream().map(UserReference::content).toList();
+    private void scheduleMemoryExtraction(String runId, long userId, long conversationId, String message,
+            List<String> evidence, String reply) {
         aiExecutor.execute(() -> {
             long startedAt = System.nanoTime();
             try {
-                memoryExtractionService.extractAndSyncMemoryFromChat(
-                        request.userId(), request.conversationId(), request.message(), evidence, reply);
-                log.info("聊天画像异步更新完成 runId={} userId={} conversationId={} durationMs={}", runId,
-                        request.userId(), request.conversationId(), elapsedMillis(startedAt));
+                memoryExtractionService.extractAndSyncMemoryFromChat(userId, conversationId, message, evidence, reply);
+                log.info("聊天画像异步更新完成 runId={} userId={} conversationId={} durationMs={}", runId, userId,
+                        conversationId, elapsedMillis(startedAt));
             } catch (Exception e) {
                 log.warn("聊天结果已保存，但画像异步更新失败 runId={} userId={} conversationId={} durationMs={} reason={}",
-                        runId, request.userId(), request.conversationId(), elapsedMillis(startedAt), e.getMessage());
+                        runId, userId, conversationId, elapsedMillis(startedAt), e.getMessage());
             }
         });
+    }
+
+    /** 证据只取用户自己的内容：引用到的原文优先，没有就用裸引用串。 */
+    private static List<String> evidenceOf(StartRequest request) {
+        return request.resolvedReferences() == null
+                ? (request.references() == null ? List.of() : List.copyOf(request.references()))
+                : request.resolvedReferences().stream().map(UserReference::content).toList();
     }
 
     public RunSnapshot snapshot(String runId, long userId, long conversationId) {
@@ -234,9 +281,123 @@ public class ChatGenerationService {
                 .doFinally(signal -> log.debug("聊天事件订阅结束 runId={} signal={}", runId, signal));
     }
 
+    /**
+     * 用户对「工具执行前的人工批准」表态，从检查点续跑。
+     * <p>
+     * 表态是**逐条**的：一批里可能有好几组待批准（例如一次合并好几组记忆），用户可以只批其中几组。
+     * 没被点名的那些按拒绝处理 —— 没点头的事不该做。
+     * <p>
+     * 续跑产生的分片续写进同一条 run 的事件表，客户端拿着原来的 {@code after=} 游标就能接上，
+     * 因此这里不需要把上下文再传一遍 —— 它在暂停之前就存进 meta 了。
+     *
+     * @return 同一条 run 的最新快照（状态已回到 RUNNING）
+     */
+    public RunSnapshot approve(String runId, long userId, long conversationId, Authentication authentication,
+            List<ApprovalChoice> decisions) {
+        assertOwner(runId, userId, conversationId);
+        // 先占住状态再起异步任务：连点两下确认时，第二下在这儿就被挡住，
+        // 不会让同一份检查点被恢复两遍 —— 那会把工具执行两次，记忆也被写两遍。
+        if (!transitionStatus(runId, "AWAITING_APPROVAL", "RUNNING")) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT, "这条生成任务不在等待确认");
+        }
+        ResumeContext resume = readResumeContext(runId);
+        long lastSequence = longValue(redis.opsForHash().get(metaKey(runId), "lastSequence"));
+        aiExecutor.execute(() -> resumeRun(runId, userId, conversationId, resume, authentication, decisions));
+        return new RunSnapshot(runId, "RUNNING", lastSequence);
+    }
+
+    private void resumeRun(String runId, long userId, long conversationId, ResumeContext resume,
+            Authentication authentication, List<ApprovalChoice> decisions) {
+        SecurityContext previous = SecurityContextHolder.getContext();
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        SecurityContextHolder.setContext(context);
+        try {
+            log.info("用户已对工具调用表态，从检查点续跑 runId={} userId={} conversationId={} decisions={}", runId,
+                    userId, conversationId, decisions.size());
+            ChatTurn turn = new ChatTurn(resume.imageUrls(), resume.userMessage(), conversationId,
+                    resume.userReferences());
+            ChatService.ChatStreamContext result = chatService.resumeChat(userId, turn, resume.useReasoning(),
+                    ChatAgentLoop.approvalDecision(decisions), runId);
+            consume(runId, result.stream());
+
+            if (result.outcome().paused()) {
+                // 模型在同一轮里又要求写一次：重新征求同意，不能把上一次的点头当成长期授权
+                awaitApproval(runId, result.outcome());
+                return;
+            }
+            if (!transitionStatus(runId, "RUNNING", "FINALIZING")) {
+                return;
+            }
+            if (!writeEvent(runId, event("done", Map.of()))) {
+                throw new IllegalStateException("保存聊天完成事件失败");
+            }
+            setStatus(runId, "SUCCEEDED");
+            scheduleMemoryExtraction(runId, userId, conversationId, resume.userMessage(), resume.userReferences(),
+                    result.outcome().reply());
+        } catch (CancellationException e) {
+            log.info("聊天生成任务已取消 runId={} userId={} conversationId={}", runId, userId, conversationId);
+            setStatus(runId, "CANCELLED");
+        } catch (com.moodcopilot.common.RateLimitException e) {
+            log.info("聊天生成任务被限流 runId={} userId={} reason={}", runId, userId, e.getMessage());
+            boolean rateLimited = transitionStatus(runId, "FINALIZING", "FAILED")
+                    || transitionStatus(runId, "RUNNING", "FAILED");
+            String message = e.getMessage() == null || e.getMessage().isBlank()
+                    ? "AI 服务暂时无法完成本次回答" : e.getMessage();
+            if (rateLimited) {
+                writeEvent(runId, event("error", Map.of("message", message)));
+            }
+        } catch (Exception e) {
+            log.warn("恢复聊天生成失败 runId={} userId={} conversationId={} reason={}", runId, userId, conversationId,
+                    e.getMessage());
+            boolean markedFailed = transitionStatus(runId, "FINALIZING", "FAILED")
+                    || transitionStatus(runId, "RUNNING", "FAILED");
+            if (markedFailed) {
+                writeEvent(runId, event("error", Map.of("message", "AI 服务暂时无法完成本次回答")));
+            }
+        } finally {
+            SecurityContextHolder.setContext(previous);
+        }
+    }
+
+    /** 续跑一轮所需的东西：暂停之前就定了，随 run 一起存进 meta。 */
+    private record ResumeContext(boolean useReasoning, String userMessage, List<String> imageUrls,
+            List<String> userReferences) {}
+
+    private ResumeContext readResumeContext(String runId) {
+        return new ResumeContext(
+                Boolean.parseBoolean(stringValue(redis.opsForHash().get(metaKey(runId), "useReasoning"), "false")),
+                stringValue(redis.opsForHash().get(metaKey(runId), "userMessage"), ""),
+                readStringList(redis.opsForHash().get(metaKey(runId), "imageUrls")),
+                readStringList(redis.opsForHash().get(metaKey(runId), "userReferences")));
+    }
+
+    /** meta 里存的是 JSON 数组。解析不了就当没有：恢复时顶多少一份证据，不该把整轮弄失败。 */
+    private List<String> readStringList(Object value) {
+        if (value == null) return List.of();
+        try {
+            List<String> parsed = objectMapper.readValue(String.valueOf(value), new TypeReference<>() {});
+            return parsed == null ? List.of() : List.copyOf(parsed);
+        } catch (Exception e) {
+            log.warn("解析生成任务元数据失败 reason={}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private String writeStringList(List<String> values) {
+        try {
+            return objectMapper.writeValueAsString(values == null ? List.of() : values);
+        } catch (Exception e) {
+            return "[]";
+        }
+    }
+
     public void cancel(String runId, long userId, long conversationId) {
         assertOwner(runId, userId, conversationId);
-        if (transitionStatus(runId, "RUNNING", "CANCELLED")) {
+        // 暂停中的任务也要能取消。少了这条，弹框一挂用户就只剩「等超时」一条路。
+        if (transitionStatus(runId, "RUNNING", "CANCELLED")
+                || transitionStatus(runId, "AWAITING_APPROVAL", "CANCELLED")) {
             if (!writeEvent(runId, event("error", Map.of("message", "本次回答已取消")))) {
                 log.warn("保存取消事件失败 runId={} conversationId={}", runId, conversationId);
             }

@@ -3,16 +3,20 @@ package com.moodcopilot.ai.tool;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.GraphSearchRequest;
 import com.moodcopilot.ai.MemoryExtractionService;
+import com.moodcopilot.ai.MemoryOrchestrator;
 import com.moodcopilot.ai.RagMemoryService;
 import com.moodcopilot.ai.VisionService;
+import com.moodcopilot.ai.tool.impl.DeleteMemoryTool;
 import com.moodcopilot.ai.tool.impl.DiaryImageAnalysisTool;
 import com.moodcopilot.ai.tool.impl.DiarySearchTool;
 import com.moodcopilot.ai.tool.impl.GraphSearchTool;
 import com.moodcopilot.ai.tool.impl.ListEventsTool;
 import com.moodcopilot.ai.tool.impl.MemoryQueryTool;
+import com.moodcopilot.ai.tool.impl.MergeMemoryTool;
 import com.moodcopilot.ai.tool.impl.ReadDiaryTool;
 import com.moodcopilot.ai.tool.impl.ReadImageTextTool;
 import com.moodcopilot.ai.tool.impl.ReportSnapshotTool;
+import com.moodcopilot.ai.tool.impl.SaveMemoryTool;
 import com.moodcopilot.ai.tool.impl.UpdateEventStatusTool;
 import com.moodcopilot.ai.tool.impl.UserStatsTool;
 import com.moodcopilot.diary.DiaryService;
@@ -48,7 +52,10 @@ class ChatToolRegistryTest {
             "diaryImageAnalysisFunction",
             "readImageTextFunction",
             "listEventsFunction",
-            "updateEventStatusFunction");
+            "updateEventStatusFunction",
+            "saveMemoryFunction",
+            "deleteMemoryFunction",
+            "mergeMemoryFunction");
 
     private final DiaryService diaryService = mock(DiaryService.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -65,7 +72,10 @@ class ChatToolRegistryTest {
                         mock(RateLimitService.class)),
                 new ReadImageTextTool(mock(VisionService.class)),
                 new ListEventsTool(mock(LifeEventService.class)),
-                new UpdateEventStatusTool(mock(LifeEventService.class))));
+                new UpdateEventStatusTool(mock(LifeEventService.class)),
+                new SaveMemoryTool(mock(MemoryOrchestrator.class), mock(MemoryExtractionService.class)),
+                new DeleteMemoryTool(mock(MemoryOrchestrator.class)),
+                new MergeMemoryTool(mock(MemoryOrchestrator.class), mock(MemoryExtractionService.class))));
     }
 
     @Test
@@ -77,7 +87,8 @@ class ChatToolRegistryTest {
     void displayNameDropsTheFunctionSuffix() {
         List<String> displayNames = registry().tools().stream().map(ChatTool::displayName).toList();
         assertEquals(List.of("diarySearch", "readDiary", "userStats", "reportSnapshot", "memoryQuery",
-                "graphSearch", "diaryImageAnalysis", "readImageText", "listEvents", "updateEventStatus"),
+                "graphSearch", "diaryImageAnalysis", "readImageText", "listEvents", "updateEventStatus",
+                "saveMemory", "deleteMemory", "mergeMemory"),
                 displayNames);
     }
 
@@ -127,6 +138,23 @@ class ChatToolRegistryTest {
         assertEquals(List.of("focus"), requiredByName.get("readImageTextFunction"));
         assertEquals(List.of("keyword"), requiredByName.get("listEventsFunction"));
         assertEquals(List.of("eventId", "status", "note"), requiredByName.get("updateEventStatusFunction"));
+        assertEquals(List.of("attributeKey", "attributeValue", "memoryType", "evidence"),
+                requiredByName.get("saveMemoryFunction"));
+        assertEquals(List.of("attributeKey"), requiredByName.get("deleteMemoryFunction"));
+        assertEquals(List.of("sourceKeys", "targetKey", "targetValue", "memoryType", "evidence"),
+                requiredByName.get("mergeMemoryFunction"));
+    }
+
+    @Test
+    void onlyTheMemoryWritingToolsAskForApproval() {
+        // 「按用户配权限」的解耦点：中断逻辑只认 requiresApproval()，不认具体工具名。
+        // 用 filter 而不是先 toMap 再筛：后者过的是 HashMap，顺序不确定。
+        List<String> needsApproval = registry().tools().stream()
+                .filter(ChatTool::requiresApproval)
+                .map(ChatTool::name)
+                .toList();
+
+        assertEquals(List.of("saveMemoryFunction", "deleteMemoryFunction", "mergeMemoryFunction"), needsApproval);
     }
 
     @Test

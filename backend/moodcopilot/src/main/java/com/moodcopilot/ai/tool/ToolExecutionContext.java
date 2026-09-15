@@ -11,11 +11,26 @@ import java.util.List;
  * <p>
  * sseSink 仅在流式路径存在；非流式与推理的同步路径传 null，引用帧会被静默跳过。
  * imageUrls 是本轮用户附带的图片，供 OCR 一类的工具按需读取，模型无须自己填写 URL。
+ * <p>
+ * userMessage / userReferences / conversationId 是记忆类工具要的：写入一条用户批准的
+ * 记忆时，证据得取自用户自己的话，来源得挂到这次对话上。
  */
-public record ToolExecutionContext(Authentication auth, Sinks.Many<String> sseSink, List<String> imageUrls) {
+public record ToolExecutionContext(Authentication auth, Sinks.Many<String> sseSink, List<String> imageUrls,
+        String userMessage, Long conversationId, List<String> userReferences) {
+
+    public ToolExecutionContext {
+        imageUrls = imageUrls == null ? List.of() : List.copyOf(imageUrls);
+        userMessage = userMessage == null ? "" : userMessage;
+        userReferences = userReferences == null ? List.of() : List.copyOf(userReferences);
+    }
+
+    /** 只要认证与附件时的简写。 */
+    public ToolExecutionContext(Authentication auth, Sinks.Many<String> sseSink, List<String> imageUrls) {
+        this(auth, sseSink, imageUrls, "", null, List.of());
+    }
 
     public static ToolExecutionContext of(Authentication auth) {
-        return new ToolExecutionContext(auth, null, List.of());
+        return new ToolExecutionContext(auth, null, List.of(), "", null, List.of());
     }
 
     public UserEntity user() {

@@ -10,8 +10,6 @@ import org.bsc.langgraph4j.StateGraph;
 import org.bsc.langgraph4j.action.InterruptableAction;
 import org.bsc.langgraph4j.action.InterruptionMetadata;
 import org.bsc.langgraph4j.action.NodeActionWithConfig;
-import org.bsc.langgraph4j.checkpoint.BaseCheckpointSaver;
-import org.bsc.langgraph4j.checkpoint.Checkpoint;
 import org.bsc.langgraph4j.state.AgentState;
 import org.bsc.langgraph4j.state.Channel;
 import org.bsc.langgraph4j.state.Channels;
@@ -20,12 +18,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.bsc.langgraph4j.StateGraph.END;
@@ -224,31 +220,4 @@ class LangGraphSpikeTest {
         }
     }
 
-    /** 只记「最新一条」的内存检查点，语义与 {@code RedisCheckpointSaver} 对齐。 */
-    static class InMemoryCheckpointSaver implements BaseCheckpointSaver {
-
-        private final Map<String, Checkpoint> latest = new HashMap<>();
-
-        @Override
-        public Collection<Checkpoint> list(RunnableConfig config) {
-            return latest.containsKey(threadId(config)) ? List.of(latest.get(threadId(config))) : List.of();
-        }
-
-        @Override
-        public Optional<Checkpoint> get(RunnableConfig config) {
-            return Optional.ofNullable(latest.get(threadId(config)));
-        }
-
-        @Override
-        public RunnableConfig put(RunnableConfig config, Checkpoint checkpoint) {
-            latest.put(threadId(config), checkpoint);
-            return config;
-        }
-
-        @Override
-        public Tag release(RunnableConfig config) {
-            Checkpoint removed = latest.remove(threadId(config));
-            return new Tag(threadId(config), removed == null ? Set.of() : Set.of(removed));
-        }
-    }
 }

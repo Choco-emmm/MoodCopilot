@@ -21,6 +21,9 @@ export interface Notification {
   createdAt: string
 }
 
+/** 画像/图谱/画卷这类「AI 整理好了」通知的停留时长；倒计时条走的就是它。 */
+const INSIGHT_TOAST_DURATION_MS = 5000
+
 export const useNotificationStore = defineStore('notification', () => {
   const items = ref<Notification[]>([])
   const unreadCount = ref(0)
@@ -90,14 +93,26 @@ export const useNotificationStore = defineStore('notification', () => {
       nodes.push(h('div', { style: 'color: var(--color-text-muted); margin-top: 8px; font-size: 12px; font-style: italic;' }, `...以及其他 ${hiddenCount} 项变更`))
     }
 
+    // 通知正文是模型写的（记忆值、章节摘要都可能带 markdown），按纯文本渲染会把 ** 原样露出来
+    const body = h('div', {
+      class: 'md-content notif-markdown',
+      innerHTML: renderSafeMarkdown(message || fallbackMessage)
+    })
+
     window.$notification.create({
       title,
       content: () => h('div', null, [
-        h('div', { style: 'font-weight: bold; margin-bottom: 8px;' }, message || fallbackMessage),
-        ...nodes
+        body,
+        ...nodes,
+        // 这条指示剩余停留时间，走完通知自己收掉。悬停时与 naive-ui 的自动关闭一起暂停，
+        // 否则鼠标一停条子先走完、通知还留着，看着像卡住了。
+        h('div', {
+          class: 'notif-lifetime',
+          style: `--notif-lifetime: ${INSIGHT_TOAST_DURATION_MS}ms`
+        })
       ]),
       meta: new Date().toLocaleTimeString(),
-      duration: 12000,
+      duration: INSIGHT_TOAST_DURATION_MS,
       keepAliveOnHover: true
     })
   }

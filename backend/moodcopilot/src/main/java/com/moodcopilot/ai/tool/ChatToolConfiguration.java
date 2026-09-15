@@ -2,16 +2,20 @@ package com.moodcopilot.ai.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.MemoryExtractionService;
+import com.moodcopilot.ai.MemoryOrchestrator;
 import com.moodcopilot.ai.RagMemoryService;
 import com.moodcopilot.ai.VisionService;
+import com.moodcopilot.ai.tool.impl.DeleteMemoryTool;
 import com.moodcopilot.ai.tool.impl.DiaryImageAnalysisTool;
 import com.moodcopilot.ai.tool.impl.DiarySearchTool;
 import com.moodcopilot.ai.tool.impl.GraphSearchTool;
 import com.moodcopilot.ai.tool.impl.ListEventsTool;
 import com.moodcopilot.ai.tool.impl.MemoryQueryTool;
+import com.moodcopilot.ai.tool.impl.MergeMemoryTool;
 import com.moodcopilot.ai.tool.impl.ReadDiaryTool;
 import com.moodcopilot.ai.tool.impl.ReadImageTextTool;
 import com.moodcopilot.ai.tool.impl.ReportSnapshotTool;
+import com.moodcopilot.ai.tool.impl.SaveMemoryTool;
 import com.moodcopilot.ai.tool.impl.UpdateEventStatusTool;
 import com.moodcopilot.ai.tool.impl.UserStatsTool;
 import com.moodcopilot.diary.DiaryService;
@@ -43,6 +47,7 @@ public class ChatToolConfiguration {
             @Lazy DiaryService diaryService,
             @Lazy RagMemoryService ragMemoryService,
             @Lazy MemoryExtractionService memoryExtractionService,
+            @Lazy MemoryOrchestrator memoryOrchestrator,
             @Lazy DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper,
             DiaryMapper diaryMapper,
             VisionService visionService,
@@ -58,7 +63,11 @@ public class ChatToolConfiguration {
                 new DiaryImageAnalysisTool(diaryMapper, visionService, rateLimitService),
                 new ReadImageTextTool(visionService),
                 new ListEventsTool(lifeEventService),
-                new UpdateEventStatusTool(lifeEventService));
+                new UpdateEventStatusTool(lifeEventService),
+                // 写类工具排在读类之后：模型先查清楚再决定改什么
+                new SaveMemoryTool(memoryOrchestrator, memoryExtractionService),
+                new DeleteMemoryTool(memoryOrchestrator),
+                new MergeMemoryTool(memoryOrchestrator, memoryExtractionService));
         return new ChatToolRegistry(objectMapper, tools);
     }
 }

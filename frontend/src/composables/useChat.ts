@@ -400,6 +400,12 @@ export function useChat() {
     lastReplyError: stream.lastReplyError,
     lastReplyRequest: stream.lastReplyRequest,
     references: stream.references,
+    // 工具执行前的人工批准
+    pendingApprovals: stream.pendingApprovals,
+    awaitingApproval: stream.awaitingApproval,
+    approvalSubmitting: stream.approvalSubmitting,
+    approvalError: stream.approvalError,
+    resolveApproval: stream.resolveApproval,
     send: handleSend,
     retryLastReply: stream.retryLastReply,
     removeRef: stream.removeRef,

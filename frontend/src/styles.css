@@ -2158,6 +2158,30 @@ h3 {
   min-height: 100vh;
 }
 
+/* 桌面端：把整页钉在一屏内，让 .chat-messages 自己滚。
+   只写 min-height 是不够的 —— flex 子项的 min-height 默认是 auto，会被消息内容顶开，
+   于是一轮轮聊下来整页越来越长，输入框被推到看不见的地方。≤780px 的分支已经有了这套约束。 */
+@media (min-width: 781px) {
+  .app-shell.chat-shell {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    /* 底部那 80px 是给移动端底部导航预留的，桌面端它是空的 */
+    padding-bottom: 28px;
+  }
+
+  .chat-layout {
+    height: 100%;
+    min-height: 0;
+    /* 行高确定下来，.chat-window 的 height: 100% 才有参照可算 */
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .chat-window {
+    min-height: 0;
+  }
+}
+
 .chat-layout {
   flex: 1;
   display: grid;
@@ -2306,6 +2330,30 @@ h3 {
   50% {
     opacity: 0;
   }
+}
+
+/* 「AI 整理好了」这类通知的停留倒计时。走完通知自己收掉，悬停时一起停住 ——
+   时长由 --notif-lifetime 传入，与通知自己的 duration 保持同一个值。 */
+.notif-lifetime {
+  margin-top: 10px;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-primary) 45%, transparent);
+  transform-origin: left center;
+  animation: notif-lifetime var(--notif-lifetime, 5000ms) linear forwards;
+}
+.n-notification:hover .notif-lifetime {
+  animation-play-state: paused;
+}
+@keyframes notif-lifetime {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+.notif-markdown :is(p, ul, ol) {
+  margin: 0 0 4px;
+}
+.notif-markdown {
+  font-weight: 700;
 }
 
 /* Markdown content */

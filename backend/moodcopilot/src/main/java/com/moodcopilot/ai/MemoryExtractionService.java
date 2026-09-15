@@ -619,6 +619,24 @@ public class MemoryExtractionService {
         return sb.toString();
     }
 
+    /**
+     * 聊天证据里的「用户侧」部分：用户消息 + 用户引用。
+     * <p>
+     * 助手回复**刻意排除** —— 它只能帮助判断本轮是否值得抽取，不能作为用户事实证据。
+     * 记忆工具落库时的兜底证据与画像抽取共用这一份，避免两处口径漂移。
+     */
+    public String buildChatUserEvidence(String userMessage, List<String> references) {
+        String message = normalizeWhitespace(userMessage == null ? "" : userMessage);
+        StringBuilder sb = new StringBuilder();
+        if (!message.isBlank()) {
+            sb.append("用户消息：").append(truncate(message, 800)).append("\n");
+        }
+        if (references != null && !references.isEmpty()) {
+            sb.append("用户引用：").append(String.join("；", references)).append("\n");
+        }
+        return sb.toString();
+    }
+
     private String buildChatExtractionEvidence(String normalizedUserMessage, List<String> normalizedRefs,
             String normalizedAiReply) {
         if (normalizedUserMessage.isEmpty() && normalizedAiReply.isEmpty()) {
@@ -626,13 +644,7 @@ public class MemoryExtractionService {
         }
         StringBuilder sb = new StringBuilder();
         sb.append("新的对话证据（可用于更新长期画像）：\n");
-        if (!normalizedUserMessage.isEmpty()) {
-            sb.append("用户消息：").append(truncate(normalizedUserMessage, 800)).append("\n");
-        }
-        if (!normalizedRefs.isEmpty()) {
-            sb.append("用户引用：").append(String.join("；", normalizedRefs)).append("\n");
-        }
-        // 助手回复只能帮助判断本轮是否值得抽取，不能作为用户事实证据。
+        sb.append(buildChatUserEvidence(normalizedUserMessage, normalizedRefs));
         log.info("已构建聊天画像证据，userMessageLength={}，aiReplyLength={}，referenceCount={}，evidenceLength={}",
                 normalizedUserMessage.length(), normalizedAiReply.length(), normalizedRefs.size(), sb.length());
         return sb.toString();

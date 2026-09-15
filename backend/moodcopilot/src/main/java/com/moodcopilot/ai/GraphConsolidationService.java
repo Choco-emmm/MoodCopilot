@@ -219,8 +219,8 @@ public class GraphConsolidationService {
 
         UserEntity user = userMapper.selectById(userId);
         if (user != null && !Boolean.FALSE.equals(user.getProfileNotifyEnabled())) {
-            String summary = "### 关系图谱已更新\n\n本次共整理 **" + latest.size() + "** 条关系链路。\n\n点击查看图谱详情。";
-            notificationService.notifyGraphUpdated(userId, summary);
+            notificationService.notifyGlobalEvent(userId, "GRAPH_UPDATED",
+                    Map.of("message", "本次共整理 " + latest.size() + " 条关系链路"));
         }
     }
 

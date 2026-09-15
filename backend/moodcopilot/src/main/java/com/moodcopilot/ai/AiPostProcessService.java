@@ -17,10 +17,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 public class AiPostProcessService {
@@ -157,15 +157,39 @@ public class AiPostProcessService {
         oldTriples.forEach(old -> ragMemoryService.deleteKnowledgeGraph(old.getId()));
         UserEntity user = userMapper.selectById(userId);
         if (user != null && Boolean.TRUE.equals(user.getProfileNotifyEnabled())) {
-            Set<String> oldSet = new HashSet<>();
-            oldTriples.forEach(t -> oldSet.add(t.getHeadEntity() + "|" + t.getRelation() + "|" + t.getTailEntity()));
-            Set<String> newSet = new HashSet<>();
-            triples.forEach(t -> newSet.add(t.head() + "|" + t.relation() + "|" + t.tail()));
-            if (!oldSet.equals(newSet)) {
+            Map<String, Map<String, Object>> oldByKey = new LinkedHashMap<>();
+            oldTriples.forEach(t -> oldByKey.put(tripleKey(t.getHeadEntity(), t.getRelation(), t.getTailEntity()),
+                    tripleNode(t.getHeadEntity(), t.getRelation(), t.getTailEntity())));
+            Map<String, Map<String, Object>> newByKey = new LinkedHashMap<>();
+            triples.forEach(t -> newByKey.put(tripleKey(t.head(), t.relation(), t.tail()),
+                    tripleNode(t.head(), t.relation(), t.tail())));
+            if (!oldByKey.keySet().equals(newByKey.keySet())) {
+                List<Map<String, Object>> added = newByKey.entrySet().stream()
+                        .filter(e -> !oldByKey.containsKey(e.getKey())).map(Map.Entry::getValue).toList();
+                List<Map<String, Object>> deleted = oldByKey.entrySet().stream()
+                        .filter(e -> !newByKey.containsKey(e.getKey())).map(Map.Entry::getValue).toList();
+                List<String> changes = new ArrayList<>();
+                if (!added.isEmpty()) changes.add("新增 " + added.size() + " 条");
+                if (!deleted.isEmpty()) changes.add("移除 " + deleted.size() + " 条");
                 notificationService.notifyGlobalEvent(userId, "GRAPH_UPDATED", Map.of(
-                        "message", "AI 已更新了新的事件因果关系", "diaryId", diaryId));
+                        "message", String.join("、", changes) + "因果关系",
+                        "diaryId", diaryId,
+                        "diff", Map.of("added", added, "deleted", deleted)));
             }
         }
+    }
+
+    private static String tripleKey(String head, String relation, String tail) {
+        return head + "|" + relation + "|" + tail;
+    }
+
+    /** 弹窗按 head/relation/tail 渲染变更行，字段名要和前端约定的一致。 */
+    private static Map<String, Object> tripleNode(String head, String relation, String tail) {
+        Map<String, Object> node = new HashMap<>();
+        node.put("head", head);
+        node.put("relation", relation);
+        node.put("tail", tail);
+        return node;
     }
 
     private String describeImages(DiaryEntity diary) {

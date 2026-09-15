@@ -186,6 +186,34 @@
 - 前端 `PUT /history` 只是补标注：存量行保留、只覆盖客户端字段（`reasoningContent`/`ragReferences`/`quoteRef`/`imageUrls`）、从不截断；未命中时 user 行追加、**assistant 行丢弃**（服务端已写过权威版本，未命中只意味着客户端累积文本与服务端持久化文本有出入）。
 - 助手回复的正文、`reasoningContent` 与工具引用条目都由服务端落库，前端不需要也不应提供。
 
+### 归图 vs 归 MQ
+
+- 交互式、有状态、可中断、需要用户参与、单次会话内完成的流程归**状态图**（`ChatAgentLoop`，threadId = `runId`）：聊天、工具审批，以及以后的多轮 Agent。
+- 后台、一次性、fire-and-forget、需要重试/死信/幂等的任务归 **RabbitMQ**：日记分析流水线、记忆抽取、章节整理、通知。
+- 判据只有一条：**中途要不要等人**。要等人 → 图；不需要 → MQ。两套并存，不互相调用。
+- 图状态归检查点（`RedisCheckpointSaver`），传输归 run 事件表（`chat:run:{runId}:*`），职责不重叠。续跑以**检查点**为准、不看事件表；客户端重放以事件表为准、不读图。
+
+### 工具执行前的人工批准
+
+- 只有会改动用户数据的工具才声明 `ChatTool.requiresApproval()`。中断按**工具**判断（`toolsNode` 实现 `InterruptableAction`），不要用 `CompileConfig.interruptBefore` —— 那是节点级的，会让每个工具都停下来。
+- **暂停不是结束。** run 停在工具执行前时：发 `approval_required` 帧、状态转 `AWAITING_APPROVAL`、**不写 `done`**、不置 `SUCCEEDED`、**不跑画像抽取**、助手回复也不落库。这些全部推迟到 `POST /conversations/{id}/runs/{runId}/approve` 的续跑里。提前做任何一件，恢复时都会写出第二条拼起来的助手回复。
+- 恢复必须复用同一个 `runId`（它同时是检查点的 threadId）与**从检查点重建的累加器**。新建一个空累加器，会让暂停前已经推给前端的正文在落库时丢掉半截。
+- 用户的一次决定只生效一次：`toolsNode` 执行完就把 `approvalDecision` 从 state 里摘掉。否则一次点头等于放行了模型后面所有的写入。
+- 通道必须真的能把弹框送到用户眼前才允许中断，这件事**由客户端在 `POST /runs` 时声明**（`approvalsInteractive`）。缺省为 `false`：猜错的代价是这一轮永远停在工具执行前等一个不会来的点击，宁可让模型改成「请到 App 里确认」。网页端声明 `true`，小程序端声明 `false`；非流式 `/reply` 和不带 `runId` 的旧 SSE 入口同样按 `false` 处理。
+- 前端弹框不能只靠颜色表达「删了什么、加了什么」：红色删除线配 `−`、绿色配 `+`，两者都要在（部分主题里 `--color-success` 与 primary 同色）。弹框也不给「点背景关闭」——这一轮正停在半路，必须有个明确结论，否则输入框会一直等在那里。
+- 刷新页面时事件是从 0 号重放的，`approval_required` 那一帧仍在其中。只有 run 当前状态确实是 `AWAITING_APPROVAL` 时才把弹框弹出来，否则用户批准之后每刷新一次都会看到一个早就解决的确认框。
+- 审批预览（`approvalPreview`）不进检查点，走事件表的 `approval_required` 帧；刷新页面靠事件重放恢复弹框内容。
+- 决策是**逐条**的：后端收 `{decisions:[{toolCallId,approved,reason}]}`，没被点名的一律按**拒绝**。解析失败（缺字段、类型不对）也必须倒向「谁都没批」，绝不能倒向「都批了」—— 那是用户没点头就写库。
+- 一次工具调用 = 一个审批项 = 弹框的一页。删除和合并工具都**一次只处理一个键或一组**；把多个塞进一次调用，用户就没法逐条表态了。
+
+### 记忆的删除与合并
+
+- **编辑留历史，删除不留痕。** 改键值走版本化（旧行标 `superseded`、插一条新的 `active`，旧行留在表里、在「历史版本」里可见）；删除走 `MemoryOrchestrator.purgeByKey`，**物理清掉该键下所有行**。想要保留历史就该去编辑。注意 `DELETE /api/memory/{id}` 是另一回事 —— 它只认 `active` 行（`ownedFormal`），只是「停用当前值」。
+- 删完必须补**按键封印**（`sealKey`，`rejection_type='USER_PURGED_KEY'`），否则抽取器第二天就把它从日记里推导回来。「删了又自己长出来」是用户最不能接受的结果。
+- 封印**只记归一化后的键名、不记值**。普通墓碑 `addRejection` 存的是键+值，等于把要删的内容又抄了一份进墓碑表 —— 对「彻底删除」自相矛盾。
+- 封印**只拦自动抽取**：`processExtractedMemories` 的 explicit 分支在封印判断**之前**且 `continue`，所以「用户亲口说要记」仍然能建。别调换这个顺序，那会推翻删除确认框承诺的「你之后明确表达新的事实时，仍可重新建立」。
+- 合并（`MergeMemoryTool`）**先写目标、后清源**，并把 `targetKey` 从 `sourceKeys` 里剔掉；顺序反了会把刚写好的合并结果当场删掉。目标的旧值走正常 supersede（目标是被编辑），源走 `purgeByKey`（源是被删）。
+
 ### 聊天图片
 
 - 用户发送的图片默认**只走视觉模型**（`channel="normal"`），描述以 `SYSTEM_IMAGE_CAPTION` 注入上下文，信任等级必须是 `UNTRUSTED` —— 描述来自用户提供的像素，图片里渲染的文字不能变成高置信指令。

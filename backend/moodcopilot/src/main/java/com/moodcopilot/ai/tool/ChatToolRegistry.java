@@ -72,6 +72,30 @@ public class ChatToolRegistry {
         return require(name).references(result);
     }
 
+    /** 前端展示名：与 [[TOOL_EVENT]] 帧里的 toolName 同一套（去掉 Function 后缀）。 */
+    public String displayName(String name) {
+        return require(name).displayName();
+    }
+
+    /** 这次工具调用要不要用户先批准。未知工具返回 false —— 真正的拦截在 execute 时。 */
+    public boolean requiresApproval(String name) {
+        ChatTool<?> tool = byName.get(name);
+        return tool != null && tool.requiresApproval();
+    }
+
+    /**
+     * 审批弹框要展示的内容。预览失败不能挡住中断 —— 宁可退成「只说工具名」，
+     * 也不能因为一个取旧值的查询出错就把整轮对话卡死。
+     */
+    public Map<String, Object> approvalPreview(String name, String argumentsJson, ToolExecutionContext context) {
+        try {
+            return require(name).approvalPreview(objectMapper, argumentsJson, context);
+        } catch (Exception e) {
+            log.warn("构建审批预览失败 {}: {}", name, e.getMessage());
+            return Map.of();
+        }
+    }
+
     /**
      * 把引用条目推成 [[TOOL_EVENT]] 帧；sink 缺失时只返回条目不发帧。
      * 返回值供 Agent Loop 记进 AgentLoopOutcome，避免调用方再算一次 references()。

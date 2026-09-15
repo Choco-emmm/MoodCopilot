@@ -96,10 +96,12 @@ public class ChatController {
         boolean useReasoning = Boolean.TRUE.equals(body.get("useReasoning"));
         String clientRequestId = body.get("clientRequestId") == null
                 ? UUID.randomUUID().toString() : String.valueOf(body.get("clientRequestId"));
+        // 客户端主动声明自己能不能弹审批框。缺省为 false 是有意的：宁可让模型改成
+        // 「请到 App 里确认」，也不要让一个问不了用户的通道停在工具执行前等一个不会来的点击。
         ChatGenerationService.StartRequest request = new ChatGenerationService.StartRequest(
                 user.getId(), id, clientRequestId, message, promptReferences, resolved, purpose,
                 useReasoning, SecurityContextHolder.getContext().getAuthentication(),
-                parseImageUrls(body.get("imageUrls")));
+                parseImageUrls(body.get("imageUrls")), Boolean.TRUE.equals(body.get("approvalsInteractive")));
         return ApiResponse.ok(chatGenerationService.start(request));
     }
 
@@ -119,6 +121,42 @@ public class ChatController {
     public ApiResponse<ChatGenerationService.RunSnapshot> runStatus(@PathVariable Long id,
             @PathVariable String runId) {
         return ApiResponse.ok(chatGenerationService.snapshot(runId, currentUser().getId(), id));
+    }
+
+    /**
+     * 对「工具执行前等用户批准」表态。
+     * <p>
+     * 决定回填进图检查点后从断点续跑，分片续写进同一条 run 的事件表 ——
+     * 客户端沿用原来的 {@code after=} 游标接着消费，不用重新发起一轮。
+     */
+    @PostMapping("/conversations/{id}/runs/{runId}/approve")
+    public ApiResponse<ChatGenerationService.RunSnapshot> approveRun(@PathVariable Long id,
+            @PathVariable String runId, @RequestBody(required = false) Map<String, Object> body) {
+        UserEntity user = currentUser();
+        return ApiResponse.ok(chatGenerationService.approve(runId, user.getId(), id,
+                SecurityContextHolder.getContext().getAuthentication(), approvalDecisions(body)));
+    }
+
+    /**
+     * 解析逐条表态，形如 {@code {"decisions":[{"toolCallId":"call_1","approved":true,"reason":""}]}}。
+     * <p>
+     * 一条都解析不出来时返回空列表 —— 到了 {@code ChatLoopState} 那边就等于「谁都没批」，
+     * 与「没表态就不执行」的约定一致，不会因为请求体畸形反而误放行。
+     */
+    static List<ApprovalChoice> approvalDecisions(Map<String, Object> body) {
+        if (body == null || !(body.get("decisions") instanceof List<?> raw)) {
+            return List.of();
+        }
+        List<ApprovalChoice> decisions = new ArrayList<>();
+        for (Object entry : raw) {
+            if (!(entry instanceof Map<?, ?> map))
+                continue;
+            Object id = map.get("toolCallId");
+            decisions.add(new ApprovalChoice(id == null ? null : String.valueOf(id),
+                    Boolean.TRUE.equals(map.get("approved")),
+                    map.get("reason") == null ? "" : String.valueOf(map.get("reason"))));
+        }
+        return decisions;
     }
 
     @PostMapping("/conversations/{id}/runs/{runId}/cancel")

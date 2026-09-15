@@ -42,6 +42,15 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 public class MemoryOrchestrator {
     private static final Logger log = LoggerFactory.getLogger(MemoryOrchestrator.class);
     private static final int REJECTION_DAYS = 180;
+    /**
+     * 「彻底删除」写的**按键封印**：只记归一化后的键名，不记值。
+     * <p>
+     * 与普通墓碑区分开 —— 那个记的是「键 + 值」，等于把要删的内容又抄了一份进墓碑表，
+     * 对一个「彻底删除」的请求来说是自相矛盾的。留着键名就足够回答「这个键还要不要再自动推导」。
+     */
+    private static final String KEY_SEAL_TYPE = "USER_PURGED_KEY";
+    /** normalized_value 列是 NOT NULL，塞个哨兵占位。没有任何地方比对它 —— 封印只按 key 匹配。 */
+    private static final String KEY_SEAL_SENTINEL = "*";
     private static final String ACTIVE = "active";
     private static final String PENDING = "PENDING";
     private static final String APPROVED = "APPROVED";
@@ -182,6 +191,11 @@ public class MemoryOrchestrator {
             }
             if (isRejected(userId, type, key, value))
                 continue;
+            // 封印排在 explicit 分支之后：用户明确表达要记的，在上面那条 continue 之前就已经写完了
+            if (isKeySealed(userId, key)) {
+                log.info("记忆键已被彻底删除并封印，跳过自动推导，userId={}，attributeKey={}", userId, key);
+                continue;
+            }
             UserMemoryCandidateEntity candidate = findCandidate(userId, key, type, value);
             if (candidate == null) {
                 candidate = new UserMemoryCandidateEntity();
@@ -280,6 +294,39 @@ public class MemoryOrchestrator {
         addRejection(userId, memory.getMemoryType(), memory.getAttributeKey(), memory.getAttributeValue(),
                 "USER_DELETED");
         reindex(userId);
+    }
+
+    /**
+     * 按「键」彻底清除：把该键下**所有版本**的行一起物理删除。
+     * <p>
+     * 与 {@link #deleteFormal} 的分工是「留不留痕」：那个只停用当前生效值，历史版本（superseded /
+     * rejected / expired）仍留在表里；这个连历史一起清掉，界面上和库里都不剩。产品上的原则是
+     * **编辑留历史、删除不留痕** —— 用户想要历史就该去编辑，而不是删除。
+     * <p>
+     * 删完必须补一条按键封印，否则抽取器明天又会从日记里把同一个键推导回来。「删了又自己长出来」
+     * 是这种操作最不能接受的结果。
+     *
+     * @return 实际清除的行数（含历史版本）；键不存在时为 {@code 0}
+     */
+    @Transactional
+    public int purgeByKey(long userId, String attributeKey) {
+        String key = clean(attributeKey, 64);
+        if (key.isBlank())
+            return 0;
+        List<UserProfileMemoryEntity> rows = memoryMapper.selectList(new LambdaQueryWrapper<UserProfileMemoryEntity>()
+                .eq(UserProfileMemoryEntity::getUserId, userId)
+                .eq(UserProfileMemoryEntity::getAttributeKey, key));
+        if (rows.isEmpty())
+            return 0;
+        String memoryType = rows.get(0).getMemoryType();
+        // 外键不会挡：evidence 是 ON DELETE CASCADE，previous_memory_id 是 ON DELETE SET NULL
+        memoryMapper.delete(new LambdaQueryWrapper<UserProfileMemoryEntity>()
+                .eq(UserProfileMemoryEntity::getUserId, userId)
+                .eq(UserProfileMemoryEntity::getAttributeKey, key));
+        sealKey(userId, key, memoryType);
+        reindex(userId);
+        log.info("按 key 彻底清除长期记忆，userId={}，attributeKey={}，清除行数={}", userId, key, rows.size());
+        return rows.size();
     }
 
     @Transactional
@@ -1041,6 +1088,21 @@ public class MemoryOrchestrator {
                 .gt(UserMemoryRejectionEntity::getExpiresAt, businessNow())) > 0;
     }
 
+    /**
+     * 该键是否被「彻底删除」封印着（且未过期）。
+     * <p>
+     * 只按 key 匹配，不看值也不看类型：用户删的是整个键，所以这个键下**任何**新值都不该被自动推导回来。
+     * 注意它只拦得住自动抽取 —— 用户明确表达的写入走 {@code explicit} 分支，在封印判断之前，
+     * 所以「我之后又说要记」仍然能建起来。这是刻意的逃生门。
+     */
+    private boolean isKeySealed(long userId, String key) {
+        return rejectionMapper.selectCount(new LambdaQueryWrapper<UserMemoryRejectionEntity>()
+                .eq(UserMemoryRejectionEntity::getUserId, userId)
+                .eq(UserMemoryRejectionEntity::getRejectionType, KEY_SEAL_TYPE)
+                .eq(UserMemoryRejectionEntity::getNormalizedKey, normalize(key))
+                .gt(UserMemoryRejectionEntity::getExpiresAt, businessNow())) > 0;
+    }
+
     private void addRejection(long userId, String type, String key, String value, String reason) {
         UserMemoryRejectionEntity rejection = new UserMemoryRejectionEntity();
         rejection.setUserId(userId);
@@ -1051,6 +1113,23 @@ public class MemoryOrchestrator {
         rejection.setCreatedAt(businessNow());
         rejection.setExpiresAt(businessNow().plusDays(REJECTION_DAYS));
         rejectionMapper.insert(rejection);
+    }
+
+    /**
+     * 写一条按键封印。与 {@link #addRejection} 不复用是有意的：那个强制要一个 value，
+     * 而这里恰恰**不能**存值 —— 存了就等于把要删的内容又留了一份。
+     */
+    private void sealKey(long userId, String key, String memoryType) {
+        UserMemoryRejectionEntity seal = new UserMemoryRejectionEntity();
+        seal.setUserId(userId);
+        // memory_type 是 NOT NULL，这里只是占位；封印的匹配完全不看它
+        seal.setMemoryType(memoryType == null || memoryType.isBlank() ? "other" : memoryType);
+        seal.setNormalizedKey(normalize(key));
+        seal.setNormalizedValue(KEY_SEAL_SENTINEL);
+        seal.setRejectionType(KEY_SEAL_TYPE);
+        seal.setCreatedAt(businessNow());
+        seal.setExpiresAt(businessNow().plusDays(REJECTION_DAYS));
+        rejectionMapper.insert(seal);
     }
 
     private void rejectActive(long userId, String key, String type, String reason) {
@@ -1246,13 +1325,13 @@ public class MemoryOrchestrator {
             return;
         String summary = "记忆中心已更新：**" + clean(key, 64) + "**\n" + clean(value, 180) + "\n\n" + reason;
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            notificationService.notifyMemoryUpdated(userId, summary);
+            notificationService.notifyGlobalEvent(userId, "MEMORY_UPDATED", Map.of("message", summary));
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                notificationService.notifyMemoryUpdated(userId, summary);
+                notificationService.notifyGlobalEvent(userId, "MEMORY_UPDATED", Map.of("message", summary));
             }
         });
     }

@@ -33,6 +33,27 @@ public abstract class ChatTool<REQ> {
     }
 
     /**
+     * 执行前是否需要用户点确认。
+     * <p>
+     * 这是「以后按用户配权限」的接缝：当前由工具自己声明，将来可以改成按用户订阅
+     * 或按风险等级查策略表 —— 图那边的中断逻辑只认这个返回值，不认具体工具。
+     */
+    public boolean requiresApproval() {
+        return false;
+    }
+
+    /**
+     * 中断时推给前端的预览数据，默认没有可预览的内容。
+     * <p>
+     * 只有 {@link #requiresApproval()} 为 true 的工具才需要它 —— 用户得先看清要改什么
+     * 才能决定批不批。返回空 Map 表示「只说工具名就行」。
+     */
+    public Map<String, Object> approvalPreview(ObjectMapper mapper, String argumentsJson,
+            ToolExecutionContext context) throws Exception {
+        return Map.of();
+    }
+
+    /**
      * 前端展示名：去掉 Function 后缀。
      * 与既有 [[TOOL_EVENT]] 帧里的 toolName 约定一致（如 graphSearchFunction → graphSearch）。
      */

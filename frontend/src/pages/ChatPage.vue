@@ -229,7 +229,71 @@
           />
         </div>
 
-        <div ref="chatInputArea" class="chat-input-wrapper">
+        <!-- 工具执行前的人工批准。面板**就地占住输入框的位置**，不做全屏浮层：
+             浮层会把消息区一并盖住，用户既看不到 AI 刚说了什么，也切不了别的页面。
+             也刻意不给「点背景关闭」—— 这一轮正停在半路，必须有一个明确的结论（记或不记）。 -->
+        <section v-if="awaitingApproval && approvalItem" class="chat-approval-panel" role="dialog"
+          aria-labelledby="chat-approval-title">
+          <div class="chat-approval-heading">
+            <strong id="chat-approval-title">{{ approvalTitleText }}</strong>
+            <span>{{ approvalHintText }}</span>
+          </div>
+
+          <ul class="chat-approval-list">
+            <li class="chat-approval-item">
+              <span class="chat-approval-key">{{ approvalTitle(approvalItem) }}</span>
+              <!-- 合并：一条条列出要被吃掉的源，比拼成一个字符串看得清 -->
+              <span v-if="approvalItem.sources?.length" class="chat-approval-change">
+                <span v-for="source in approvalItem.sources" :key="source.attributeKey" class="chat-approval-old">
+                  <span class="chat-approval-sign" aria-hidden="true">−</span>
+                  <span class="chat-approval-text">{{ source.attributeKey }}：{{ source.value || '（已不存在）' }}</span>
+                </span>
+              </span>
+              <span v-else-if="approvalItem.oldValue" class="chat-approval-change">
+                <span class="chat-approval-old">
+                  <span class="chat-approval-sign" aria-hidden="true">−</span>
+                  <span class="chat-approval-text">{{ approvalItem.oldValue }}</span>
+                </span>
+              </span>
+              <span v-if="approvalItem.newValue" class="chat-approval-change">
+                <span class="chat-approval-new">
+                  <span class="chat-approval-sign" aria-hidden="true">+</span>
+                  <span class="chat-approval-text">{{ approvalItem.newValue }}</span>
+                </span>
+              </span>
+            </li>
+          </ul>
+
+          <div v-if="approvalPageCount > 1" class="chat-approval-pager">
+            <button type="button" class="chat-approval-pager-btn" :disabled="approvalPageIndex === 0"
+              @click="goToApprovalPage(approvalPageIndex - 1)">上一页</button>
+            <span class="chat-approval-pager-indicator">
+              {{ approvalPageIndex + 1 }}/{{ approvalPageCount }}
+              <template v-if="approvalDecidedCount"> · 已定 {{ approvalDecidedCount }}</template>
+            </span>
+            <button type="button" class="chat-approval-pager-btn"
+              :disabled="approvalPageIndex >= approvalPageCount - 1"
+              @click="goToApprovalPage(approvalPageIndex + 1)">下一页</button>
+          </div>
+
+          <!-- 标签折进 placeholder：面板高一块就少看一块对话，而「这是拒绝原因」由 placeholder 同样说得清。
+               读屏器仍从 aria-label 拿到完整说明。 -->
+          <input id="chat-approval-reason" v-model="approvalReason" class="chat-approval-input" maxlength="200"
+            :aria-label="approvalReasonLabel" :placeholder="approvalReasonPlaceholder" />
+
+          <p v-if="approvalError" class="chat-approval-error">{{ approvalError }}</p>
+
+          <div class="chat-approval-actions">
+            <button type="button" class="chat-approval-confirm" :disabled="approvalSubmitting"
+              @click="decideApproval(true)">
+              {{ approvalSubmitting ? '提交中' : approvalConfirmText }}
+            </button>
+            <button type="button" class="chat-approval-reject" :disabled="approvalSubmitting"
+              @click="decideApproval(false)">{{ approvalRejectText }}</button>
+          </div>
+        </section>
+
+        <div v-else ref="chatInputArea" class="chat-input-wrapper">
           <Transition name="fade-bounce">
             <button
               v-if="showScrollToBottom"
@@ -284,7 +348,7 @@ import ChatStreamingItem from '../components/chat/ChatStreamingItem.vue'
 import ChatInputBox from '../components/chat/ChatInputBox.vue'
 import { useChat } from '../composables/useChat'
 import { displayConversationTitle } from '../utils/chatTitle'
-import { chatApi } from '../api/social'
+import { chatApi, type PendingApprovalItem } from '../api/social'
 import { authApi } from '../api/auth'
 import { computed, ref, watch } from 'vue'
 
@@ -297,6 +361,7 @@ const {
   messages,
   draft, streaming, streamingText, streamingReasoning, isThinking, isCompressing, compressingMessage, compressingSubtip, useReasoning, streamingRefs,
   lastReplyError, lastReplyRequest, references,
+  pendingApprovals, awaitingApproval, approvalSubmitting, approvalError, resolveApproval,
   send, retryLastReply, removeRef, addImageRef,
   recentDiaryOptions, recentDiariesLoading, recentDiariesError,
   addDiaryRef, loadRecentDiaryOptions,
@@ -306,6 +371,123 @@ const {
   msgBox, chatInputArea,
   handleDraftFocus, handleDraftEnter, goToDiary,
 } = useChat()
+
+// ── 工具执行前的人工批准 ──
+
+/**
+ * 一个审批项 = 一页。一次工具调用对应一项，所以「一次合并一组」天然就是一页一组 ——
+ * 合并好几组就翻几页，每页各自表态。
+ */
+const approvalPageIndex = ref(0)
+const approvalReason = ref('')
+/** 已经表过态的项，键是 toolCallId。没表态的不在里面。 */
+const approvalChoices = ref<Record<string, { approved: boolean; reason: string }>>({})
+
+const approvalItem = computed(() => pendingApprovals.value[approvalPageIndex.value] ?? null)
+const approvalPageCount = computed(() => pendingApprovals.value.length)
+const approvalDecidedCount = computed(
+  () => pendingApprovals.value.filter((item) => item.toolCallId in approvalChoices.value).length)
+
+// 新一批到达（或旧的被收掉）时重置向导：上一批的页号和选择不该留到这一批。
+watch(pendingApprovals, () => {
+  approvalPageIndex.value = 0
+  approvalReason.value = ''
+  approvalChoices.value = {}
+})
+
+/** 只显示用户看得懂的属性名；工具叫什么对用户没有意义，不往外露。 */
+const approvalTitle = (item: PendingApprovalItem) => item.attributeKey?.trim() || '这条记忆'
+
+/**
+ * 弹框文案按「这一页要做什么」分派。
+ *
+ * 写入、删除、合并是三种方向不同的操作，共用「记下这条 / 先不记」会让人点错 —— 而删除和合并
+ * 都不可逆，点错没有回头路。所以宁可多写三套文案，也不硬套一种措辞。
+ */
+const APPROVAL_COPY: Record<string, {
+  title: string; hint: string; confirm: string; reject: string
+  reasonLabel: string; reasonPlaceholder: string
+}> = {
+  // hint 一律压到一行：面板每高一行，用户就少看一行对话，而「不可逆」这层意思不能省
+  saveMemory: {
+    title: '要记进你的长期记忆',
+    hint: '确认之后才会写入，以后可以再改或删。',
+    confirm: '记下这条',
+    reject: '先不记',
+    reasonLabel: '不想记的话，可以说一句原因',
+    reasonPlaceholder: '拒绝的话说一句原因，例如：这条不重要',
+  },
+  deleteMemory: {
+    title: '要删掉这条记忆',
+    hint: '连同全部历史版本一起删除，找不回来。',
+    confirm: '确认删除',
+    reject: '先不删',
+    reasonLabel: '不想删的话，可以说一句原因',
+    reasonPlaceholder: '拒绝的话说一句原因，例如：这条还想留着',
+  },
+  mergeMemory: {
+    title: '要合并这几条记忆',
+    hint: '只保留合并后的那一条，被合掉的会彻底删除。',
+    confirm: '确认合并',
+    reject: '先不合并',
+    reasonLabel: '不想合并的话，可以说一句原因',
+    reasonPlaceholder: '拒绝的话说一句原因，例如：这几条不该合并',
+  },
+}
+
+/** 工具没给预览、或者出现了新工具时的兜底：不猜语义，只请用户核对。 */
+const FALLBACK_APPROVAL_COPY = {
+  title: '要变动你的长期记忆',
+  hint: '确认之后才会执行，请核对这一条。',
+  confirm: '确认执行',
+  reject: '先不执行',
+  reasonLabel: '不想执行的话，可以说一句原因',
+  reasonPlaceholder: '拒绝的话说一句原因，例如：弄错了',
+}
+
+const approvalCopy = computed(
+  () => (approvalItem.value && APPROVAL_COPY[approvalItem.value.toolName]) || FALLBACK_APPROVAL_COPY)
+
+const approvalTitleText = computed(() => approvalCopy.value.title)
+const approvalHintText = computed(() => approvalCopy.value.hint)
+const approvalConfirmText = computed(() => approvalCopy.value.confirm)
+const approvalRejectText = computed(() => approvalCopy.value.reject)
+const approvalReasonLabel = computed(() => approvalCopy.value.reasonLabel)
+const approvalReasonPlaceholder = computed(() => approvalCopy.value.reasonPlaceholder)
+
+function goToApprovalPage(index: number) {
+  if (index < 0 || index >= approvalPageCount.value) return
+  approvalPageIndex.value = index
+  const target = pendingApprovals.value[index]
+  approvalReason.value = approvalChoices.value[target.toolCallId]?.reason ?? ''
+}
+
+/**
+ * 记下这一页的选择，然后翻到下一条还没表态的；都表完就直接提交。
+ * <p>
+ * 单条待批准时这一步就是「点完即提交」，与改造前的手感一致；多条才显出翻页。
+ */
+async function decideApproval(approved: boolean) {
+  const item = approvalItem.value
+  if (!item) return
+  const next = { ...approvalChoices.value, [item.toolCallId]: { approved, reason: approvalReason.value } }
+  approvalChoices.value = next
+
+  const undecided = pendingApprovals.value.findIndex((candidate) => !(candidate.toolCallId in next))
+  if (undecided >= 0) {
+    goToApprovalPage(undecided)
+    return
+  }
+  // 只发真的表过态的。没表态的后端按拒绝处理，漏发不会变成误放行。
+  await resolveApproval(pendingApprovals.value
+    .filter((candidate) => candidate.toolCallId in next)
+    .map((candidate) => ({
+      toolCallId: candidate.toolCallId,
+      approved: next[candidate.toolCallId].approved,
+      reason: next[candidate.toolCallId].reason,
+    })))
+  approvalReason.value = ''
+}
 
 const showScrollToBottom = ref(false)
 const handleScroll = (e: Event) => {
@@ -750,6 +932,170 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
   margin: 0;
   color: var(--color-success);
   font-size: 12px;
+}
+
+/* ── 工具执行前的人工批准 ──
+   旧值/新值不能只靠颜色区分（部分主题里 success 与 primary 同色），
+   所以同时保留 +/− 字形和删除线。 */
+/* 面板就占住输入框的位置（`.chat-window` 里的普通 flex 子项），不做固定定位浮层。
+   `.chat-messages` 是 flex:1，所以面板变高只会压缩消息区的可视高度，不会盖住文字。
+   max-height 兜住「一次合并好几组」的长列表，超出部分面板自己滚。 */
+.chat-approval-panel {
+  flex: 0 0 auto;
+  max-height: min(60vh, 460px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+/* 输入框被面板顶掉了，那截留给输入框的底部空白就没用了 —— 还给消息区，
+   否则弹框一出现，能看到的对话反而比平时更少。
+   移动端那两条规则带 !important，这里不动用同样的手段压不过它们。 */
+.chat-window:has(.chat-approval-panel) .chat-messages {
+  padding-bottom: 24px !important;
+}
+.chat-approval-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--color-text);
+}
+.chat-approval-heading strong {
+  font-size: 14px;
+}
+.chat-approval-heading span {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.chat-approval-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-approval-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+}
+.chat-approval-key {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.chat-approval-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.chat-approval-pager-btn {
+  padding: 3px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.chat-approval-pager-btn:disabled {
+  opacity: .45;
+  cursor: default;
+}
+.chat-approval-pager-indicator {
+  font-variant-numeric: tabular-nums;
+}
+.chat-approval-change {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+}
+.chat-approval-old,
+.chat-approval-new {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.chat-approval-old {
+  color: var(--color-error);
+}
+.chat-approval-old .chat-approval-text {
+  text-decoration: line-through;
+}
+.chat-approval-new {
+  color: var(--color-success);
+}
+.chat-approval-sign {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+.chat-approval-text {
+  word-break: break-word;
+}
+.chat-approval-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+.chat-approval-input:focus {
+  outline: 2px solid color-mix(in oklab, var(--color-primary) 24%, transparent);
+  border-color: var(--color-primary);
+}
+.chat-approval-error {
+  margin: 0;
+  color: var(--color-error);
+  font-size: 12px;
+}
+.chat-approval-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+.chat-approval-confirm,
+.chat-approval-reject {
+  flex: 1 1 0;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.chat-approval-confirm {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.chat-approval-reject {
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+.chat-approval-confirm:disabled,
+.chat-approval-reject:disabled {
+  cursor: not-allowed;
+  opacity: .6;
 }
 
 @media (max-width: 640px) {
