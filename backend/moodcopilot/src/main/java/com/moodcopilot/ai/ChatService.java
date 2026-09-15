@@ -369,7 +369,7 @@ public class ChatService {
                 .doOnComplete(sseSink::tryEmitComplete)
                 .doOnError(sseSink::tryEmitError)
                 .doOnComplete(() -> {
-                    addAssistantTurn(conversationId, request, outcome);
+                    addAssistantTurn(conversationId, request, outcome, options.exposeReasoning());
                     AiCallTiming.completed(log, options.logType(), options.modelLabel(), aiStartedAt, "SUCCESS",
                             aiInputLength, outcome.reply().length());
                 })
@@ -426,7 +426,7 @@ public class ChatService {
             AgentLoopOutcome outcome = agentLoop.run(msgs, auth, null, options, imageUrls);
             // 非流式：先驱动 flux 走完，再读 outcome —— 累加在流结束后才完整
             outcome.chunks().reduce(String::concat).block();
-            addAssistantTurn(conversationId, request, outcome);
+            addAssistantTurn(conversationId, request, outcome, options.exposeReasoning());
             AiCallTiming.completed(log, options.logType(), options.modelLabel(), aiStartedAt, "SUCCESS",
                     aiInputLength, outcome.reply().length());
             return outcome.reply();
@@ -560,10 +560,15 @@ public class ChatService {
     /**
      * 落库本轮回复。正文取 outcome.reply()（按构造不含推理分片），
      * 思考过程与工具引用一并存下，重载时前端才能还原思考面板和引用卡。
+     * <p>
+     * 推理内容只在 {@code exposeReasoning} 为真时才存：Flash 不向客户端展示思考过程，
+     * 存下来只会在重载时凭空冒出一个英文思考面板（它的推理没有语言约束）。
+     * 存的和显示的必须是同一件事。
      */
-    private void addAssistantTurn(Long conversationId, ChatRequest request, AgentLoopOutcome outcome) {
+    private void addAssistantTurn(Long conversationId, ChatRequest request, AgentLoopOutcome outcome,
+            boolean keepReasoning) {
         String reply = outcome.reply();
-        String reasoning = outcome.reasoning();
+        String reasoning = keepReasoning ? outcome.reasoning() : "";
         if (reply.isEmpty() && reasoning.isEmpty()) {
             return;
         }
