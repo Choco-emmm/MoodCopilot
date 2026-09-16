@@ -101,11 +101,20 @@ export const useNotificationStore = defineStore('notification', () => {
 
     window.$notification.create({
       title,
-      content: () => h('div', null, [
+      content: () => h('div', {
+        // 拦截冒泡到 n-notification 的点击，阻止 Naive UI 把点击委托给路由跳转逻辑；
+        // 同时切换 is-paused 样式，暂停进度条倒计时。
+        onClick: (e: MouseEvent) => {
+          e.preventDefault()
+          e.stopPropagation()
+          const notifEl = (e.currentTarget as HTMLElement)?.closest('.n-notification')
+          if (notifEl) {
+            notifEl.classList.toggle('is-paused')
+          }
+        }
+      }, [
         body,
         ...nodes,
-        // 这条指示剩余停留时间，走完通知自己收掉。悬停时与 naive-ui 的自动关闭一起暂停，
-        // 否则鼠标一停条子先走完、通知还留着，看着像卡住了。
         h('div', {
           class: 'notif-lifetime',
           style: `--notif-lifetime: ${INSIGHT_TOAST_DURATION_MS}ms`
@@ -114,18 +123,6 @@ export const useNotificationStore = defineStore('notification', () => {
       meta: new Date().toLocaleTimeString(),
       duration: INSIGHT_TOAST_DURATION_MS,
       keepAliveOnHover: true,
-      onClick: (e: MouseEvent) => {
-        // Prevent any default navigation if the toast was accidentally inside a link
-        // or if a global listener is attached.
-        e.preventDefault()
-        e.stopPropagation()
-        // Find the wrapper and toggle our custom pause class
-        const target = e.target as HTMLElement
-        const notifEl = target?.closest('.n-notification')
-        if (notifEl) {
-          notifEl.classList.toggle('is-paused')
-        }
-      }
     })
   }
 
