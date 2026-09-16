@@ -1,4 +1,4 @@
-﻿/* ══════════════════════════════════════════�?
+/* ══════════════════════════════════════════�?
   MoodCopilot �?绿意轻盈
   设计方向：温和、克制、轻呼吸
   ══════════════════════════════════════════�?*/
@@ -2342,7 +2342,8 @@ h3 {
   transform-origin: left center;
   animation: notif-lifetime var(--notif-lifetime, 5000ms) linear forwards;
 }
-.n-notification:hover .notif-lifetime {
+.n-notification:hover .notif-lifetime,
+.n-notification.is-paused .notif-lifetime {
   animation-play-state: paused;
 }
 @keyframes notif-lifetime {

@@ -45,7 +45,7 @@ public class DeleteMemoryTool extends ChatTool<DeleteMemoryTool.DeleteMemoryRequ
                 + "attributeKey 必须是 memoryQueryFunction 返回过的键名，照抄，不要自己改写或翻译；"
                 + "如果找不到对应的键或用户指代不清，先问清楚再调用。"
                 + "删除后 180 天内系统不会再自动推导出这个键，但用户之后明确说要记仍然可以重新建立。"
-                + "执行前会请用户确认，用户可以选择拒绝并说明理由。";
+                + "注意：你只需直接调用此工具，系统会在工具执行期间自动让用户确认。若工具返回成功，说明用户已确认且记忆已被彻底删除，你无需再告诉用户“去待确认列表点击确认”。";
     }
 
     @Override

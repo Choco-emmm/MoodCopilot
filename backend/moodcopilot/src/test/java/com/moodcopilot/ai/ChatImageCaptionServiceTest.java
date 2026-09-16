@@ -50,7 +50,7 @@ class ChatImageCaptionServiceTest {
         acceptBucketUrlsOnly();
         when(visionService.describeImages(anyList(), anyList(), any())).thenReturn("[视觉] 一张截图");
 
-        String caption = service.describeForChat(user(), List.of(GOOD_A, GOOD_B));
+        String caption = service.describeForChat(user(), List.of(GOOD_A, GOOD_B), null);
 
         assertEquals("[视觉] 一张截图", caption);
 
@@ -79,7 +79,7 @@ class ChatImageCaptionServiceTest {
 
         // 客户端可控的 URL 不能进视觉服务 —— 那里会对传入地址发真实请求
         service.describeForChat(user(),
-                List.of("http://127.0.0.1:8080/internal", "https://evil.example.com/x.jpg", GOOD_A));
+                List.of("http://127.0.0.1:8080/internal", "https://evil.example.com/x.jpg", GOOD_A), null);
         // 只有本桶那个应当被透传
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<String>> urlCaptor = ArgumentCaptor.forClass(List.class);
@@ -91,7 +91,7 @@ class ChatImageCaptionServiceTest {
     void dropsEverythingWhenNothingIsInTheBucket() {
         acceptBucketUrlsOnly();
 
-        assertEquals("", service.describeForChat(user(), List.of("https://evil.example.com/x.jpg")));
+        assertEquals("", service.describeForChat(user(), List.of("https://evil.example.com/x.jpg"), null));
         verify(visionService, never()).describeImages(anyList(), anyList(), any());
     }
 
@@ -102,7 +102,7 @@ class ChatImageCaptionServiceTest {
 
         String fourth = BUCKET + "d.jpg";
         List<String> input = new ArrayList<>(List.of(GOOD_A, GOOD_B, GOOD_A, BUCKET + "c.jpg", fourth));
-        service.describeForChat(user(), input);
+        service.describeForChat(user(), input, null);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<String>> urlCaptor = ArgumentCaptor.forClass(List.class);
@@ -115,7 +115,7 @@ class ChatImageCaptionServiceTest {
         acceptBucketUrlsOnly();
         when(visionService.isConfigured()).thenReturn(false);
 
-        assertEquals("", service.describeForChat(user(), List.of(GOOD_A)));
+        assertEquals("", service.describeForChat(user(), List.of(GOOD_A), null));
         verify(visionService, never()).describeImages(anyList(), anyList(), any());
     }
 
@@ -125,7 +125,7 @@ class ChatImageCaptionServiceTest {
         when(visionService.describeImages(anyList(), anyList(), any()))
                 .thenThrow(new IllegalStateException("VLM 挂了"));
 
-        assertEquals("", service.describeForChat(user(), List.of(GOOD_A)));
+        assertEquals("", service.describeForChat(user(), List.of(GOOD_A), null));
     }
 
     @Test
@@ -137,7 +137,7 @@ class ChatImageCaptionServiceTest {
         input.add("   ");
         input.add(GOOD_A);
 
-        service.describeForChat(user(), input);
+        service.describeForChat(user(), input, null);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<String>> urlCaptor = ArgumentCaptor.forClass(List.class);
@@ -147,8 +147,8 @@ class ChatImageCaptionServiceTest {
 
     @Test
     void emptyInputNeverTouchesTheVisionService() {
-        assertEquals("", service.describeForChat(user(), List.of()));
-        assertEquals("", service.describeForChat(user(), null));
+        assertEquals("", service.describeForChat(user(), List.of(), null));
+        assertEquals("", service.describeForChat(user(), null, null));
         verify(visionService, never()).describeImages(anyList(), anyList(), any());
         assertTrue(true);
     }

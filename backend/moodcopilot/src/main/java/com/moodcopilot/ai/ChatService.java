@@ -866,7 +866,7 @@ public class ChatService {
         // 图片描述在这里一次性生成并注入，三条 Agent 路径都自动拿到；
         // 失败只会让描述为空，不影响本轮对话。
         String imageCaption = imageCaptionService.describeForChat(user,
-                collectCaptionImageUrls(memory, imageUrls));
+                collectCaptionImageUrls(memory, imageUrls), message);
         plannedEnvelope = addImageCaptionsToContext(plannedEnvelope, imageCaption, user.getId());
         context = buildContext(user.getId(), plannedEnvelope, refs, null, persona, taskContext);
 

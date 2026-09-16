@@ -40,7 +40,7 @@ public class ChatImageCaptionService {
     /**
      * @return 描述文本；无可用图片、视觉服务未配置或调用失败时返回 "" —— 永不抛出。
      */
-    public String describeForChat(UserEntity user, List<String> imageUrls) {
+    public String describeForChat(UserEntity user, List<String> imageUrls, String userMessage) {
         List<String> accepted = acceptedUrls(imageUrls);
         if (accepted.isEmpty()) {
             return "";
@@ -63,7 +63,7 @@ public class ChatImageCaptionService {
         }
 
         try {
-            String caption = visionService.describeImages(accepted, metas, null);
+            String caption = visionService.describeImages(accepted, metas, userMessage);
             return caption == null ? "" : caption;
         } catch (Exception e) {
             log.warn("聊天图片描述失败 userId={} count={} reason={}", userId, accepted.size(), e.getMessage());

@@ -6,6 +6,7 @@
     :closable="true"
     :mask-closable="false"
     class="consolidation-preview-modal"
+    style="width: min(600px, 90vw); max-width: 90vw;"
     @close="closeCurrent"
   >
     <template v-if="preview.current?.kind === 'DIARY_ANALYSIS'">
@@ -143,7 +144,6 @@ function polarityClass(polarity?: number) {
 </script>
 
 <style scoped>
-:deep(.consolidation-preview-modal) { width: min(600px, 90vw); max-width: 90vw; }
 .diary-analysis-preview { max-width: 420px; }
 .preview-desc { margin-top: 0; color: var(--color-text-secondary); font-size: 13px; margin-bottom: 16px; }
 .preview-list-panel { max-height: 35vh; overflow-y: auto; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; padding: 12px; margin-bottom: 16px; }

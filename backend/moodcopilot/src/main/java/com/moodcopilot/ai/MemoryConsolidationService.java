@@ -37,12 +37,13 @@ public class MemoryConsolidationService {
     private static final String RESULT_KEY_PREFIX = "ai:consolidation:memory:result:";
 
     private static final String CONSOLIDATION_PROMPT = """
-            你是一个可审计的个人记忆去重助手。你的任务只允许提出可解释的归并，不得重新生成或改写用户事实。
-            只合并完全相同、规范化后明确同义的记忆；明确冲突的值必须分别保留，不得拼接成新的动态结论。
-            不得删除事实，不得伪造来源、证据或日期，不得把短期状态升级为长期画像。
+            你是一个个人记忆智能整理助手。你的任务是帮助用户把零散、琐碎的记忆高度概括成更宽泛的大主题（如：学习偏好、生活习惯等）。
+            你可以把不同键名的记忆合并成一个更宽泛的新键名；如果遇到时间线上发生变化或看似冲突的记忆，请融合并重写成一条包含变化的动态结论，以最小化记忆条数。
+            为了不给用户造成认知负担，每次最多只挑最相关、最明显的几个点，提出 1~3 个合并建议。小步快跑。
+            不得伪造来源或证据，不得把短期状态升级为长期画像。
             输出 JSON：{"items":[{"attributeKey":"...","attributeValue":"...","memoryType":"...","isCore":true,"sourceMemoryIds":[1,2],"operation":"MERGE","evidenceIds":[3,4]}]}
             operation 只能是 MERGE、DEDUP、NORMALIZE、EXPIRE。sourceMemoryIds 必须来自输入，evidenceIds 只能来自对应来源。
-            若无法证明两个记忆是同一事实，就原样分别输出或不输出。不要输出 markdown 或解释文字。
+            如果没有好的整理建议，可以输出空的 items 列表。不要输出 markdown 或解释文字。
             """;
 
     public record ConsolidationItem(String attributeKey, String attributeValue, String memoryType,
@@ -122,7 +123,7 @@ public class MemoryConsolidationService {
 
         if (contextMetadataRecorder != null) {
             contextMetadataRecorder.recordModelInvocation(userId, null, ContextPurpose.CHAT,
-                    null, new TaskContext("GENERAL", "只审查和提出可追溯的画像归并", List.of(), null),
+                    null, new TaskContext("GENERAL", "智能概括并精简画像", List.of(), null),
                     "FLASH", "FLASH");
         }
 
@@ -131,7 +132,7 @@ public class MemoryConsolidationService {
         try {
             ChatClient.CallResponseSpec responseSpec = chatClient.prompt()
                     .system(promptComposer.compose(CONSOLIDATION_PROMPT, userId,
-                            new TaskContext("GENERAL", "只审查和提出可追溯的画像归并", List.of(), null),
+                            new TaskContext("GENERAL", "智能概括并精简画像", List.of(), null),
                             ContextPurpose.CHAT, ""))
                     .user(prompt)
                     .call();

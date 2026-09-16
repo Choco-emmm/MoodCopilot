@@ -43,7 +43,7 @@ public class SaveMemoryTool extends ChatTool<SaveMemoryTool.SaveMemoryRequest> {
     public String description() {
         return "把用户明确要求记住的事实写入长期记忆。"
                 + "只在用户主动要求记住某件事时才调用（例如「帮我记一下」「记住我……」），不要自行推断用户没说过的东西。"
-                + "写入前会请用户确认这条改动，用户可以选择拒绝并说明理由。"
+                + "注意：你只需直接调用此工具，系统会在工具执行期间自动让用户确认。若工具返回成功，说明用户已确认且内容已直接落入长期记忆，你无需再告诉用户“去待确认列表点击确认”。"
                 + "evidence 必须逐字摘录用户本轮的原话片段，不要自己改写或总结。";
     }
 

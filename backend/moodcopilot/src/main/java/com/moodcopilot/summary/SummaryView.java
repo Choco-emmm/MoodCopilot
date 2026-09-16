@@ -83,8 +83,9 @@ public record SummaryView(
             int total = moods.size();
             dominantQuadrant = distribution.entrySet().stream()
                     .max(Map.Entry.comparingByValue())
+                    .filter(e -> e.getValue() > 0)
                     .map(Map.Entry::getKey)
-                    .orElse("正向低能量");
+                    .orElse("暂无");
             int positive = distribution.get("正向高能量") + distribution.get("正向低能量");
             posRatio = (int) Math.round((positive * 100.0) / total);
             int highEnergy = distribution.get("正向高能量") + distribution.get("负向高能量");

@@ -285,6 +285,8 @@ const DRAFT_KEY = 'moodcopilot:draft'
 
 let initialHtml = ''
 let initialDraftNotice = ''
+let initialDraftMeta: any = {}
+
 if (isEditMode.value) {
   initialHtml = formatLegacyContent(props.initialContent || '')
   initialDraftNotice = '正在编辑日记'
@@ -294,15 +296,24 @@ if (isEditMode.value) {
     initialHtml = savedDraft
     initialDraftNotice = '已恢复本机草稿'
   }
+  const savedMeta = localStorage.getItem('moodcopilot:draft_meta')
+  if (savedMeta) {
+    try {
+      initialDraftMeta = JSON.parse(savedMeta)
+      if (!initialDraftNotice) {
+        initialDraftNotice = '已恢复本机草稿'
+      }
+    } catch(e) {}
+  }
 }
 
 const htmlContent = ref(initialHtml)
 const draft = ref(initialHtml)
 const draftNotice = ref(initialDraftNotice)
 const draftSavedAt = ref('')
-const visibility = ref<'PRIVATE' | 'PUBLIC'>(props.initialVisibility || 'PRIVATE')
-const analyze = ref(true)
-const useReasoning = ref(false)
+const visibility = ref<'PRIVATE' | 'PUBLIC'>(isEditMode.value ? (props.initialVisibility || 'PRIVATE') : (initialDraftMeta.visibility || 'PRIVATE'))
+const analyze = ref(isEditMode.value ? true : (initialDraftMeta.analyze ?? true))
+const useReasoning = ref(isEditMode.value ? false : (initialDraftMeta.useReasoning ?? false))
 const analysisModelOptions = [
   { value: false, label: '极速分析' },
   { value: true, label: '深度思考' },
@@ -351,16 +362,16 @@ const editorConfig: Partial<IEditorConfig> = {
   scroll: false,
 }
 
-const musicMeta = ref<MusicMeta | null>(props.initialMusicMeta || null)
-const musicSongUrl = ref(props.initialSongUrl || props.initialMusicMeta?.songUrl || '')
-const userLyric = ref(props.initialLyric || props.initialMusicMeta?.userLyric || '')
+const musicMeta = ref<MusicMeta | null>(isEditMode.value ? (props.initialMusicMeta || null) : (initialDraftMeta.musicMeta || null))
+const musicSongUrl = ref(isEditMode.value ? (props.initialSongUrl || props.initialMusicMeta?.songUrl || '') : (initialDraftMeta.musicSongUrl || ''))
+const userLyric = ref(isEditMode.value ? (props.initialLyric || props.initialMusicMeta?.userLyric || '') : (initialDraftMeta.userLyric || ''))
 const musicParsing = ref(false)
 const showMusicInput = ref(false)
 const musicUrlDraft = ref('')
 const musicUrlInput = ref<HTMLInputElement | null>(null)
 
-const imageList = ref<string[]>(props.initialImages ? [...props.initialImages] : [])
-const imageMetaList = ref<DiaryImageMetaPayload[]>([])
+const imageList = ref<string[]>(isEditMode.value ? (props.initialImages ? [...props.initialImages] : []) : (initialDraftMeta.imageList || []))
+const imageMetaList = ref<DiaryImageMetaPayload[]>(isEditMode.value ? [] : (initialDraftMeta.imageMetaList || []))
 const uploadingImage = ref(false)
 const previewSrc = ref('')
 
@@ -410,6 +421,8 @@ onMounted(() => {
     if (!isNaN(id)) {
       selectedCollections.value.push(id)
     }
+  } else if (!isEditMode.value && initialDraftMeta.selectedCollections) {
+    selectedCollections.value = initialDraftMeta.selectedCollections
   }
   
   void loadCollections()
@@ -423,31 +436,53 @@ onBeforeUnmount(() => {
   }
 })
 
-// 同步编辑器 HTML 到 draft，保持现有的 localStorage 草稿逻辑
-watch(htmlContent, (val) => {
-  draft.value = val
-})
+// 统一处理草稿保存，包含正文和附件元数据
+const DRAFT_META_KEY = 'moodcopilot:draft_meta'
+watch(
+  [htmlContent, visibility, analyze, useReasoning, musicMeta, musicSongUrl, userLyric, imageList, imageMetaList, selectedCollections],
+  (newValues, oldValues) => {
+    if (isEditMode.value) return
+    const hasContent = htmlContent.value.trim() || musicMeta.value || imageList.value.length > 0 || selectedCollections.value.length > 0
+
+    if (hasContent) {
+      const meta = {
+        visibility: visibility.value,
+        analyze: analyze.value,
+        useReasoning: useReasoning.value,
+        musicMeta: musicMeta.value,
+        musicSongUrl: musicSongUrl.value,
+        userLyric: userLyric.value,
+        imageList: imageList.value,
+        imageMetaList: imageMetaList.value,
+        selectedCollections: selectedCollections.value
+      }
+      localStorage.setItem(DRAFT_META_KEY, JSON.stringify(meta))
+
+      if (htmlContent.value) {
+        localStorage.setItem(DRAFT_KEY, htmlContent.value)
+      } else {
+        localStorage.removeItem(DRAFT_KEY)
+      }
+      
+      updateDraftSavedAt()
+      if (draftNotice.value !== '已恢复本机草稿' || (oldValues[0] && htmlContent.value !== oldValues[0])) {
+        draftNotice.value = '草稿已自动保存到本机'
+      }
+    } else {
+      localStorage.removeItem(DRAFT_KEY)
+      localStorage.removeItem(DRAFT_META_KEY)
+      draftNotice.value = ''
+      draftSavedAt.value = ''
+    }
+  },
+  { deep: true }
+)
 
 // 粘贴/输入音乐链接后自动解析，无需手动 Enter
 watch(musicUrlDraft, (val) => {
   if (!val) return
   const url = detectMusicUrl(val)
   if (url) submitMusicUrl(url, val)
-})
-
-watch(draft, (value, oldValue) => {
-  if (isEditMode.value) return
-  if (value) {
-    localStorage.setItem(DRAFT_KEY, value)
-    updateDraftSavedAt()
-    if (draftNotice.value !== '已恢复本机草稿' || oldValue) {
-      draftNotice.value = '草稿已自动保存到本机'
-    }
-  } else {
-    localStorage.removeItem(DRAFT_KEY)
-    draftNotice.value = ''
-    draftSavedAt.value = ''
-  }
 })
 
 const MUSIC_URL_PATTERN = /https?:\/\/(?:(?:[a-z0-9]+\.)?music\.163\.com|163cn\.tv)\/[^\s]+/
@@ -651,6 +686,7 @@ async function handleSave() {
       imageList.value = []
       imageMetaList.value = []
       localStorage.removeItem(DRAFT_KEY)
+      localStorage.removeItem('moodcopilot:draft_meta')
     }
 
     if (selectedCollections.value.length > 0 && diaryId) {

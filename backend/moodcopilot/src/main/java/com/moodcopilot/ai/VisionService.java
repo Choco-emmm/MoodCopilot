@@ -385,34 +385,87 @@ public class VisionService {
         }
     }
 
-    /**
-     * 针对性提问分析多张图片，返回合并的文本。单张失败静默跳过。
-     */
-    public String analyzeImageDetails(List<String> imageUrls, String targetedPrompt) {
+    public String analyzeImageDetails(List<String> imageUrls, String targetedPrompt, String diaryContent) {
         if (imageUrls == null || imageUrls.isEmpty())
             return "该日记没有附带图片";
         if (!isConfigured()) {
             log.warn("VLM 未配置（VISION_API_KEY 为空），跳过 {} 张图片的深度分析", imageUrls.size());
             return "系统后台视觉服务未配置，无法分析图片";
         }
+        
+        // Limit to max images to avoid token blowup
+        List<String> urlsToAnalyze = imageUrls.size() > MAX_DIARY_IMAGES 
+                ? imageUrls.subList(0, MAX_DIARY_IMAGES) 
+                : imageUrls;
+
         String prompt = targetedPrompt == null || targetedPrompt.isBlank()
-            ? "请详细描述图片中的关键内容、文字、人物、物品、环境和与用户问题相关的细节。"
-            : targetedPrompt.trim();
-        log.info("VLM 开始深度分析 {} 张图片 model={} promptLength={}", imageUrls.size(), model, prompt.length());
-        List<String> parts = new ArrayList<>();
-        for (int i = 0; i < imageUrls.size(); i++) {
-            String accessibleUrl = ossService != null ? ossService.getAccessibleUrl(imageUrls.get(i))
-                    : imageUrls.get(i);
-            String desc = callVisionModel(model, accessibleUrl, prompt, 300, 0.5, "深度分析");
-            if (!desc.isBlank()) {
-                parts.add("图片" + (i + 1) + ": " + desc);
-            }
+            ? "请详细描述图片中的关键内容、文字、人物、物品、环境和与用户问题相关的细节。直接输出客观描述，不要做对话式的开头或寒暄。"
+            : targetedPrompt.trim() + "（注：直接输出客观描述，不要做对话式的开头或寒暄）";
+            
+        if (diaryContent != null && !diaryContent.isBlank()) {
+            prompt += "\n\n请结合以下相关的日记正文作为上下文，以帮助你更准确地识别图片中的物品或情境，优先使用日记里提到的名称。日记正文：\n" + diaryContent;
         }
-        String result = parts.isEmpty() ? "视觉模型未能读取这些图片，请确认图片仍然存在且可访问。" : String.join("; ", parts);
-        if (!result.isBlank()) {
-            log.info("VLM 图片深度分析完成 {} 张 → {} chars", parts.size(), result.length());
+            
+        log.info("VLM 开始深度分析 {} 张图片 model={} promptLength={}", urlsToAnalyze.size(), model, prompt.length());
+        
+        List<String> accessibleUrls = new ArrayList<>();
+        for (String url : urlsToAnalyze) {
+            accessibleUrls.add(ossService != null ? ossService.getAccessibleUrl(url) : url);
         }
+        
+        String result = callVisionModelMulti(model, accessibleUrls, prompt, 1024, 0.4, "深度分析");
+        
+        if (result.isBlank()) {
+            return "视觉模型未能读取这些图片，请确认图片仍然存在且可访问。";
+        }
+        
+        log.info("VLM 图片深度分析完成 {} 张 → {} chars", urlsToAnalyze.size(), result.length());
         return result;
+    }
+
+    private String callVisionModelMulti(String modelName, List<String> imageUrls, String prompt, int maxTokens, double temperature, String logTag) {
+        try {
+            List<Object> contentList = new ArrayList<>();
+            contentList.add(Map.of("type", "text", "text", prompt));
+            
+            for (String url : imageUrls) {
+                String finalUrl = fetchImageAsBase64Uri(url);
+                contentList.add(Map.of("type", "image_url", "image_url", Map.of("url", finalUrl)));
+            }
+
+            Map<String, Object> userMsg = Map.of("role", "user", "content", contentList);
+            Map<String, Object> body = Map.of(
+                    "model", modelName,
+                    "messages", List.of(userMsg),
+                    "max_tokens", maxTokens,
+                    "temperature", temperature);
+
+            String response = restClient.post()
+                    .uri(apiUrl)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("Authorization", "Bearer " + apiKey)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+
+            if (response == null || response.isBlank())
+                return "";
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsed = objectMapper.readValue(response, Map.class);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> choices = (List<Map<String, Object>>) parsed.get("choices");
+            if (choices == null || choices.isEmpty())
+                return "";
+            @SuppressWarnings("unchecked")
+            Map<String, Object> msg = (Map<String, Object>) choices.get(0).get("message");
+            if (msg == null)
+                return "";
+            String content = (String) msg.get("content");
+            return content != null ? content.trim() : "";
+        } catch (Exception e) {
+            log.warn("VLM {} 失败: {}", logTag, e.getMessage());
+            return "";
+        }
     }
 
     private String fetchImageAsBase64Uri(String imageUrl) {

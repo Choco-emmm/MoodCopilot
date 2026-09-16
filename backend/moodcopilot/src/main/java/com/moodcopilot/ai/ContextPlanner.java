@@ -1,6 +1,7 @@
 package com.moodcopilot.ai;
 
 import com.moodcopilot.entity.UserProfileMemoryEntity;
+import com.moodcopilot.entity.UserMemoryEvidenceEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -253,6 +254,24 @@ public class ContextPlanner {
                     }
                 })
                 .limit(20)
+                .map(item -> {
+                    if ("FORMAL_MEMORY".equals(item.source().sourceType()) && !item.content().contains("[依据:")) {
+                        try {
+                            long memoryId = Long.parseLong(item.source().sourceId());
+                            List<UserMemoryEvidenceEntity> evidences = memoryOrchestrator.evidence(userId, memoryId);
+                            if (evidences != null && !evidences.isEmpty()) {
+                                String evidenceText = evidences.stream()
+                                        .map(e -> limit(e.getEvidenceText(), 200) + (e.getSourceDiaryId() != null ? " (日记ID: " + e.getSourceDiaryId() + ")" : ""))
+                                        .collect(java.util.stream.Collectors.joining(" | "));
+                                String newContent = item.content() + "\n[依据: " + evidenceText + "]";
+                                return new ContextItem(newContent, item.source(), item.relevanceScore(), item.priority(), item.conflict());
+                            }
+                        } catch (Exception e) {
+                            log.warn("无法为 RAG 命中的记忆 {} 加载依据", item.source().sourceId(), e);
+                        }
+                    }
+                    return item;
+                })
                 .toList();
     }
 
@@ -339,6 +358,17 @@ public class ContextPlanner {
 
     private ContextItem memoryItem(long userId, UserProfileMemoryEntity memory, boolean core) {
         String content = limit(memory.getAttributeKey(), 64) + "：" + limit(memory.getAttributeValue(), 500);
+        try {
+            List<UserMemoryEvidenceEntity> evidences = memoryOrchestrator.evidence(userId, memory.getId());
+            if (evidences != null && !evidences.isEmpty()) {
+                String evidenceText = evidences.stream()
+                        .map(e -> limit(e.getEvidenceText(), 200) + (e.getSourceDiaryId() != null ? " (日记ID: " + e.getSourceDiaryId() + ")" : ""))
+                        .collect(java.util.stream.Collectors.joining(" | "));
+                content += "\n[依据: " + evidenceText + "]";
+            }
+        } catch (Exception e) {
+            log.warn("无法为记忆 {} 加载依据", memory.getId(), e);
+        }
         LocalDateTime updated = updatedAt(memory);
         Instant eventTime = updated == null ? null : updated.atZone(businessTimeZone).toInstant();
         return new ContextItem(content, new ContextSource(

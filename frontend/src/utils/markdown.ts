@@ -64,6 +64,12 @@ export function renderSafeMarkdown(
     const processedText = fixAiMarkdownArtifacts(withLineBreaks)
         .replace(/\*\*(["\u201c\u201d\u201e])/g, '**\u200b$1')   // **" → 零宽空格
         .replace(/(["\u201c\u201d])\*\*/g, '$1\u200b**')   // "** → 零宽空格
+        // 修复 AI 在粗体标记内部两端加空格导致 marked 无法解析的问题 (如 ** 粗体 **)
+        .replace(/(\s*)\*\*\s*((?:(?!\*\*).)+?)\s*\*\*(\s*)/g, (match, before, inner, after) => {
+            const prefix = before.length > 0 ? before : (match.trimStart().startsWith('** ') ? ' ' : '')
+            const suffix = after.length > 0 ? after : (match.trimEnd().endsWith(' **') ? ' ' : '')
+            return `${prefix}**${inner.trim()}**${suffix}`
+        })
 
     const html = marked.parse(processedText, { async: false }) as string
     return DOMPurify.sanitize(html, {

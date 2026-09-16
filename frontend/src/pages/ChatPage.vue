@@ -941,7 +941,8 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
    `.chat-messages` 是 flex:1，所以面板变高只会压缩消息区的可视高度，不会盖住文字。
    max-height 兜住「一次合并好几组」的长列表，超出部分面板自己滚。 */
 .chat-approval-panel {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-height: 0;
   max-height: min(60vh, 460px);
   overflow-y: auto;
   display: flex;
@@ -959,6 +960,7 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
    移动端那两条规则带 !important，这里不动用同样的手段压不过它们。 */
 .chat-window:has(.chat-approval-panel) .chat-messages {
   padding-bottom: 24px !important;
+  min-height: 0 !important;
 }
 .chat-approval-heading {
   display: flex;

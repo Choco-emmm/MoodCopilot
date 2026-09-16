@@ -49,7 +49,7 @@ public class MergeMemoryTool extends ChatTool<MergeMemoryTool.MergeMemoryRequest
                 + "sourceKeys 和 targetKey 都必须是 memoryQueryFunction 返回过的原样键名，不要自己改写或翻译；"
                 + "调用前先弄清楚用户要合并的是哪几条，指代不清就先问。"
                 + "一次调用只合并一组，要合并多组就多次调用，用户会逐条确认。"
-                + "执行前会请用户确认，用户可以选择拒绝并说明理由。";
+                + "注意：你只需直接调用此工具，系统会在工具执行期间自动让用户确认。若工具返回成功，说明用户已确认且记忆已被合并并落入长期记忆，你无需再告诉用户“去待确认列表点击确认”。";
     }
 
     @Override
@@ -127,25 +127,13 @@ public class MergeMemoryTool extends ChatTool<MergeMemoryTool.MergeMemoryRequest
         String targetKey = request.targetKey().trim();
         List<String> sources = normalizedSources(request);
 
-        orchestrator.processExtractedMemories(userId,
-                List.of(new MemoryExtractionService.MemoryAttribute(
-                        targetKey, request.targetValue(), Boolean.FALSE, request.memoryType(),
-                        "explicit", 1.0, request.evidence(), null, null)),
-                "explicit", null, context.conversationId(),
-                memoryExtractionService.buildChatUserEvidence(context.userMessage(), context.userReferences()),
-                null);
+        orchestrator.mergeMemories(userId, sources, targetKey, request.targetValue(), request.memoryType(),
+                request.evidence(), context.conversationId());
 
-        List<String> purged = new ArrayList<>();
-        for (String source : sources) {
-            if (orchestrator.purgeByKey(userId, source) > 0) {
-                purged.add(source);
-            }
-        }
-
-        String note = purged.isEmpty()
-                ? "已写入合并结果，但没有找到可清除的源记忆（可能键名不对或已经删过了）"
+        String note = sources.isEmpty()
+                ? "已直接写入记忆（未指定要合并掉的源记忆键名）"
                 : null;
-        return new MergeMemoryResult(true, targetKey, purged, note);
+        return new MergeMemoryResult(true, targetKey, sources, note);
     }
 
     /**

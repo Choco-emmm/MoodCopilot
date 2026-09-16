@@ -1460,7 +1460,7 @@ public class DiaryService {
             if (mood == null || mood.moodLabel() == null) {
                 continue;
             }
-            String quadrant = classifyMoodQuadrant(mood.moodLabel());
+            String quadrant = classifyMoodQuadrant(mood);
             distribution.put(quadrant, distribution.getOrDefault(quadrant, 0) + 1);
         }
         return distribution;
@@ -1469,8 +1469,9 @@ public class DiaryService {
     private String dominantQuadrant(Map<String, Integer> distribution) {
         return distribution.entrySet().stream()
                 .max(Map.Entry.comparingByValue())
+                .filter(e -> e.getValue() > 0)
                 .map(Map.Entry::getKey)
-                .orElse(Q_POS_LOW);
+                .orElse(null);
     }
 
     private int calculatePositiveRatioPercent(Map<String, Integer> distribution) {
@@ -1491,11 +1492,23 @@ public class DiaryService {
         return (int) Math.round((highEnergy * 100.0) / total);
     }
 
-    private String classifyMoodQuadrant(String moodLabel) {
-        if (isPositiveMood(moodLabel)) {
-            return isHighEnergyMood(moodLabel) ? Q_POS_HIGH : Q_POS_LOW;
+    private String classifyMoodQuadrant(WeeklyReportView.DailyMood mood) {
+        boolean positive;
+        boolean highEnergy;
+        
+        if (mood.valence() != null && mood.arousal() != null) {
+            positive = mood.valence() > 0;
+            highEnergy = mood.arousal() > 0;
+        } else {
+            String label = mood.moodLabel() != null ? mood.moodLabel() : "";
+            positive = isPositiveMood(label);
+            highEnergy = isHighEnergyMood(label);
         }
-        return isHighEnergyMood(moodLabel) ? Q_NEG_HIGH : Q_NEG_LOW;
+        
+        if (positive) {
+            return highEnergy ? Q_POS_HIGH : Q_POS_LOW;
+        }
+        return highEnergy ? Q_NEG_HIGH : Q_NEG_LOW;
     }
 
     private boolean isPositiveMood(String moodLabel) {

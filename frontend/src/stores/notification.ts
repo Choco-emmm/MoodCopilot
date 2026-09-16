@@ -113,7 +113,19 @@ export const useNotificationStore = defineStore('notification', () => {
       ]),
       meta: new Date().toLocaleTimeString(),
       duration: INSIGHT_TOAST_DURATION_MS,
-      keepAliveOnHover: true
+      keepAliveOnHover: true,
+      onClick: (e: MouseEvent) => {
+        // Prevent any default navigation if the toast was accidentally inside a link
+        // or if a global listener is attached.
+        e.preventDefault()
+        e.stopPropagation()
+        // Find the wrapper and toggle our custom pause class
+        const target = e.target as HTMLElement
+        const notifEl = target?.closest('.n-notification')
+        if (notifEl) {
+          notifEl.classList.toggle('is-paused')
+        }
+      }
     })
   }
 

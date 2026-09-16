@@ -61,7 +61,7 @@ public class DiaryImageAnalysisTool extends ChatTool<DiaryImageAnalysisRequest> 
                 "type", "array",
                 "items", Map.of("type", "integer"),
                 "description", "要深度分析图片的日记 ID 列表"));
-        props.put("prompt", Map.of("type", "string", "description", "希望视觉模型重点关注的提问要求"));
+        props.put("prompt", Map.of("type", "string", "description", "发给视觉模型的提示词。你必须把你已知的上下文（如日记中提到的特定物品名称、用户的具体疑问、需要核实的关键点）整理后写入此提示词中，指导视觉模型带着背景知识去识图，避免它在没有上下文的情况下盲目猜测。"));
         return props;
     }
 
@@ -95,9 +95,13 @@ public class DiaryImageAnalysisTool extends ChatTool<DiaryImageAnalysisRequest> 
                 .eq(DiaryEntity::getAuthorUserId, userId)
                 .eq(DiaryEntity::getIsDeleted, false));
         List<String> images = new ArrayList<>();
+        StringBuilder diaryContentBuilder = new StringBuilder();
         for (DiaryEntity diary : diaries) {
             if (diary.getImages() != null) {
                 images.addAll(diary.getImages());
+            }
+            if (diary.getContent() != null && !diary.getContent().isBlank()) {
+                diaryContentBuilder.append(diary.getContent()).append("\n");
             }
         }
         if (images.isEmpty()) {
@@ -106,7 +110,7 @@ public class DiaryImageAnalysisTool extends ChatTool<DiaryImageAnalysisRequest> 
         }
 
         log.info("图片深度分析(VLM)准备请求视觉大模型 userId={}, 图片数量={}", userId, images.size());
-        String analysis = visionService.analyzeImageDetails(images, prompt);
+        String analysis = visionService.analyzeImageDetails(images, prompt, diaryContentBuilder.toString().trim());
         log.info("图片深度分析(VLM)完成 userId={}", userId);
         return new DiaryImageAnalysisResult(analysis);
     }
