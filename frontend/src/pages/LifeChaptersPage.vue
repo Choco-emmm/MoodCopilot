@@ -18,15 +18,13 @@
       <div v-if="loading" class="state">正在翻阅你的时光...</div>
       <div v-else-if="error" class="state error">{{ error }}</div>
       <div v-else-if="chapters.length === 0" class="state">还没有足够长的一段故事。继续记录，章节会慢慢长出来。</div>
-      <div v-else-if="currentChapter" class="chapter-group current-group"><p class="group-label">当前阶段</p><article class="chapter-entry" :key="currentChapter.id">
-        <div class="chapter-marker"><span>今</span></div>
-        <div class="chapter-body"><LifeChapterContent :chapter="currentChapter" :expanded-id="expandedId" :versions-id="versionsId" :versions="versions" :refreshing-id="refreshingId" @toggle-sources="toggleSources" @toggle-versions="toggleVersions" @refresh="refreshChapter" @open-diary="openDiary" @open-events="openEvents" /></div>
+      <div v-else-if="currentChapter" class="chapter-group"><p class="group-label">当前阶段</p><article class="chapter-entry">
+        <LifeChapterContent :chapter="currentChapter" :expanded-id="expandedId" :versions-id="versionsId" :versions="versions" :refreshing-id="refreshingId" @toggle-sources="toggleSources" @toggle-versions="toggleVersions" @refresh="refreshChapter" @open-diary="openDiary" @open-events="openEvents" />
       </article></div>
-      <div v-if="historyChapters.length" class="chapter-group"><p class="group-label">更早阶段</p><article v-for="(chapter, index) in historyChapters" :key="chapter.id" class="chapter-entry">
-        <div class="chapter-marker"><span>{{ String(index + 1).padStart(2, '0') }}</span></div>
-        <div class="chapter-body"><LifeChapterContent :chapter="chapter" :expanded-id="expandedId" :versions-id="versionsId" :versions="versions" :refreshing-id="refreshingId" @toggle-sources="toggleSources" @toggle-versions="toggleVersions" @refresh="refreshChapter" @open-diary="openDiary" @open-events="openEvents" /></div>
+      <div v-if="historyChapters.length" class="chapter-group"><p class="group-label">更早阶段</p><article v-for="chapter in historyChapters" :key="chapter.id" class="chapter-entry">
+        <LifeChapterContent :chapter="chapter" :expanded-id="expandedId" :versions-id="versionsId" :versions="versions" :refreshing-id="refreshingId" @toggle-sources="toggleSources" @toggle-versions="toggleVersions" @refresh="refreshChapter" @open-diary="openDiary" @open-events="openEvents" />
       </article></div>
-      <div v-if="gaps.length" class="gaps"><p class="group-label">记录较少的时间段</p><div v-for="gap in gaps" :key="`${gap.startDate}-${gap.endDate}`">{{ gap.startDate }} - {{ gap.endDate }}<span>这段时间暂时没有足够记录</span></div></div>
+      <div v-if="gaps.length" class="gaps"><p class="group-label">记录较少的时间段</p><div v-for="gap in gaps" :key="`${gap.startDate}-${gap.endDate}`">{{ gap.startDate }} — {{ gap.endDate }}<span>这段时间暂时没有足够记录</span></div></div>
       <div v-if="nextCursor" class="timeline-load-more"><button type="button" class="text-button" :disabled="loadingMore" @click="loadMoreChapters">{{ loadingMore ? '正在加载…' : '继续查看更早阶段' }}</button></div>
     </section>
   </main>
@@ -79,8 +77,13 @@ function toggleSources(id: number) { expandedId.value = expandedId.value === id 
 
 async function toggleVersions(id: number) {
   if (versionsId.value === id) { versionsId.value = null; return }
-  if (!versions.value[id]) versions.value[id] = (await lifeChapterApi.timelineVersions(id)).data.data || []
-  versionsId.value = id
+  try {
+    // 每次展开都重拉：整理完成会新增版本，缓存住的话用户永远看不到最新那一版。
+    versions.value[id] = (await lifeChapterApi.timelineVersions(id)).data.data || []
+    versionsId.value = id
+  } catch {
+    window.$message?.error('历史版本加载失败，请稍后重试', { duration: 4000 })
+  }
 }
 
 async function acceptCandidate(id: number) { await lifeChapterApi.acceptCandidate(id); await loadChapters() }
@@ -113,46 +116,41 @@ onMounted(async () => {
 
 <style scoped>
 .life-page { min-height: 100vh; }
-.life-intro { max-width: 860px; margin: 42px auto 32px; padding: 0 24px; }
+.life-intro { max-width: 860px; margin: 42px auto 40px; padding: 0 24px; }
 .eyebrow { margin: 0 0 10px; color: var(--color-primary); font-size: 11px; font-weight: 700; letter-spacing: .14em; }
-.life-intro h2 { margin: 0 0 8px; color: var(--color-text); font-family: var(--font-display); font-size: 2.3rem; }
-.life-intro p:last-child { max-width: 560px; margin: 0; color: var(--color-text-secondary); line-height: 1.7; }
-.candidate-panel { max-width: 860px; margin: 0 auto 34px; padding: 18px 24px; border: 1px solid var(--color-border); background: var(--color-surface-soft); }
-.section-heading { display: flex; align-items: baseline; gap: 12px; }.section-heading h3 { margin: 0; color: var(--color-text); font-family: var(--font-display); font-size: 1.3rem; }.section-kicker, .group-label { color: var(--color-primary); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }.candidate-item { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 0 4px; border-top: 1px solid var(--color-border); }.candidate-item:first-of-type { margin-top: 14px; }.candidate-item p { margin: 6px 0; color: var(--color-text-secondary); }.candidate-item span { color: var(--color-text-muted); font-size: 12px; }.candidate-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }.primary-button { padding: 8px 14px; border: 0; background: var(--color-primary); color: var(--color-on-primary); cursor: pointer; font: inherit; font-size: 12px; }.group-label { margin: 0; padding: 0 0 8px; }.chapter-group { max-width: none; margin: 0; padding: 0; }.current-group { margin-bottom: 24px; }.gaps { max-width: none; margin: 30px 0; padding: 0; }.gaps > div { display: flex; justify-content: space-between; gap: 20px; padding: 12px 0; border-top: 1px solid var(--color-border); color: var(--color-text-muted); font-size: 12px; }.gaps span { color: var(--color-text-secondary); }
-.chapter-list { max-width: 860px; margin: 0 auto 70px; padding: 0 24px; }
-.chapter-entry { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 22px; padding: 28px 0 34px; border-top: 1px solid var(--color-border); }
-.chapter-marker { display: flex; justify-content: center; }
-.chapter-marker span { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid var(--color-primary); border-radius: 50%; color: var(--color-primary); font-size: 11px; }
-.chapter-period { color: var(--color-text-muted); font-size: 12px; letter-spacing: .03em; }
-.chapter-meta { display: flex; flex-wrap: wrap; gap: 10px; color: var(--color-text-muted); font-size: 11px; }
-.status.updating { color: var(--color-primary); }.status.failed, .chapter-error { color: var(--color-error); }
-.chapter-error { margin: 8px 0; font-size: 12px; }
-.chapter-body h3 { margin: 9px 0 10px; color: var(--color-text); font-family: var(--font-display); font-size: 1.55rem; }
-.chapter-summary, .chapter-reflection { max-width: 650px; margin: 0 0 10px; color: var(--color-text-secondary); line-height: 1.75; }
-.chapter-reflection { padding-left: 14px; border-left: 2px solid var(--color-primary); }
-.mood-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 15px; }
-.mood-row span { padding: 4px 9px; border: 1px solid var(--color-border); color: var(--color-text-muted); font-size: 11px; }
+.life-intro h2 { margin: 0 0 10px; color: var(--color-text); font-family: var(--font-display); font-size: 2.3rem; line-height: 1.25; }
+.life-intro p:last-child { max-width: 560px; margin: 0; color: var(--color-text-secondary); line-height: 1.75; }
+.candidate-panel { max-width: 860px; margin: 0 auto 44px; padding: 18px 24px; border: 1px solid var(--color-border); background: var(--color-surface-soft); }
+.section-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.section-heading h3 { margin: 0; color: var(--color-text); font-family: var(--font-display); font-size: 1.25rem; }
+.section-kicker { color: var(--color-text-muted); font-size: 12px; }
+.candidate-item { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 0 4px; border-top: 1px solid var(--color-border); }
+.candidate-item:first-of-type { margin-top: 16px; }
+.candidate-item p { margin: 6px 0; color: var(--color-text-secondary); }
+.candidate-item span { color: var(--color-text-muted); font-size: 12px; }
+.candidate-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.primary-button { padding: 8px 14px; border: 0; background: var(--color-primary); color: var(--color-on-primary); cursor: pointer; font: inherit; font-size: 12px; }
+.gaps { margin: 30px 0 0; padding: 0; }
+.gaps > div { display: flex; justify-content: space-between; gap: 20px; padding: 12px 0; border-top: 1px solid var(--color-border); color: var(--color-text-muted); font-size: 12px; }
+.gaps span { color: var(--color-text-secondary); }
+/* 章节列表：去掉时间轴竖杆和编号圆点，每个阶段就是一章的开场，内容列与页面同一条左边线 */
+.chapter-list { max-width: 860px; margin: 0 auto 90px; padding: 0 24px; }
+.group-label { margin: 0; padding: 0 0 6px; color: var(--color-text-muted); font-size: 12px; letter-spacing: .02em; }
+.chapter-group { margin: 0; padding: 0; }
+.chapter-group + .chapter-group { margin-top: 34px; }
+.chapter-entry { padding: 24px 0 30px; border-top: 1px solid var(--color-border); }
 .state { padding: 42px 0; color: var(--color-text-muted); text-align: center; }
-.timeline-load-more { padding: 24px 0; text-align: center; }
 .state.error { color: var(--color-error); }
-.chapter-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 16px; }
-.text-button, .source-link { padding: 0; border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font: inherit; font-size: 12px; }
+.timeline-load-more { padding: 26px 0; text-align: center; }
+.text-button { padding: 0; border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font: inherit; font-size: 12px; }
 .text-button:disabled { cursor: wait; opacity: .55; }
-.source-list, .version-list { margin-top: 14px; border-left: 2px solid var(--color-border); padding-left: 14px; }
-.source-item, .version-item { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--color-border); font-size: 12px; }
-.source-date { display: inline-block; min-width: 90px; color: var(--color-text-muted); }
-.source-excerpt, .version-item span { color: var(--color-text-secondary); }
-.empty-source { color: var(--color-text-muted); font-size: 12px; }
 @media (max-width: 620px) {
+  .life-intro { margin: 30px auto 30px; padding: 0 16px; }
+  .life-intro h2 { font-size: 1.8rem; }
+  .candidate-panel { margin-left: 16px; margin-right: 16px; padding: 16px; }
+  .candidate-item { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .gaps > div { align-items: flex-start; flex-direction: column; gap: 4px; }
   .chapter-list { padding: 0 16px; }
-  .candidate-item, .gaps > div { align-items: flex-start; flex-direction: column; gap: 10px; }
-  .chapter-entry { grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 22px 0 28px; }
-  .chapter-marker span { width: 32px; height: 32px; font-size: 10px; }
-  .chapter-body h3 { margin-top: 8px; font-size: 1.35rem; line-height: 1.35; }
-  .chapter-period, .chapter-meta { line-height: 1.55; }
-  .chapter-summary, .chapter-reflection, .collecting-note { max-width: none; }
-  .chapter-actions { gap: 12px 16px; }
-  .source-item { align-items: flex-start; flex-direction: column; gap: 5px; }
-  .source-date { min-width: auto; margin-right: 8px; }
+  .chapter-entry { padding: 22px 0 26px; }
 }
 </style>

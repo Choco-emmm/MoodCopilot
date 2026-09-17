@@ -163,6 +163,11 @@ timeline:
   max-gap-days: ${TIMELINE_MAX_GAP_DAYS:14}
   min-evidence-count: ${TIMELINE_MIN_EVIDENCE_COUNT:3}
   boundary-confidence-threshold: ${TIMELINE_BOUNDARY_CONFIDENCE_THRESHOLD:0.85}
+  # 首个动态阶段往回补多长时间的无归属记录，避免这段日记不属于任何章节
+  backfill-max-days: ${TIMELINE_BACKFILL_MAX_DAYS:90}
+  # 章节停在 READY/GENERATING 超过这么久就认为卡死，强制重投
+  stuck-recovery-minutes: ${TIMELINE_STUCK_RECOVERY_MINUTES:30}
+  stuck-recovery-interval-ms: ${TIMELINE_STUCK_RECOVERY_INTERVAL_MS:600000}
 #Mybatis相关配置
 mybatis-plus:
   map-underscore-to-camel-case: true

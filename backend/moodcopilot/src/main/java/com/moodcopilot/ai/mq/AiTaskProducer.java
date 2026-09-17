@@ -72,6 +72,10 @@ public class AiTaskProducer {
         submitLifeChapterRefreshTask(chapterId, userId, sourceSnapshotHash, false);
     }
 
+    public boolean hasLiveChapterRefreshTask(Long chapterId) {
+        return taskService.hasLiveTask(AiTaskMessage.TYPE_LIFE_CHAPTER_REFRESH, String.valueOf(chapterId));
+    }
+
     /** force=true 用于用户主动触发的重整：快照没变也要真的再跑一次。 */
     public void submitLifeChapterRefreshTask(Long chapterId, Long userId, String sourceSnapshotHash, boolean force) {
         String operationKey = force

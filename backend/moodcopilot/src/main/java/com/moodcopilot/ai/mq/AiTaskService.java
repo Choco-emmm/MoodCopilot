@@ -65,6 +65,21 @@ public class AiTaskService {
         return task.getTaskId();
     }
 
+    /**
+     * 该聚合对象是否还有真正在跑或待跑的任务。RUNNING 的要看租约：消费者中途挂掉时状态会一直停在
+     * RUNNING，只有租约过期才算真的没了——否则卡死的任务会被误判成「还在跑」而永远得不到恢复。
+     */
+    public boolean hasLiveTask(String taskType, String aggregateId) {
+        LocalDateTime now = LocalDateTime.now();
+        Long count = taskMapper.selectCount(new LambdaQueryWrapper<AiTaskEntity>()
+                .eq(AiTaskEntity::getTaskType, taskType)
+                .eq(AiTaskEntity::getAggregateId, aggregateId)
+                .and(w -> w.in(AiTaskEntity::getStatus, "PENDING_DISPATCH", "PUBLISHED", "RETRY_WAIT")
+                        .or(x -> x.eq(AiTaskEntity::getStatus, "RUNNING")
+                                .and(y -> y.isNull(AiTaskEntity::getLeaseUntil).or().gt(AiTaskEntity::getLeaseUntil, now)))));
+        return count != null && count > 0;
+    }
+
     public void dispatchDueTasks() {
         LocalDateTime now = LocalDateTime.now();
         List<AiTaskEntity> due = taskMapper.selectList(new LambdaQueryWrapper<AiTaskEntity>()
