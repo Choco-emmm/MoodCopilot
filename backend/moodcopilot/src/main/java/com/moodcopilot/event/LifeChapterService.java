@@ -202,22 +202,49 @@ public class LifeChapterService {
     public void recomputeTimeline(Long userId, LocalDate affectedDate, String sourceSnapshot) {
         if (userId == null || affectedDate == null) return;
         withTimelineLock(userId, () -> {
-            UserLifeChapterEntity chapter = openDynamicChapter(userId);
-            if (chapter == null) chapter = createDynamicChapter(userId, affectedDate);
-            LocalDate previousLast = chapter.getLastSourceAt() == null ? null : chapter.getLastSourceAt().toLocalDate();
-            if (previousLast != null && affectedDate.isAfter(previousLast)
-                    && previousLast.plusDays(maxGapDays).isBefore(affectedDate)) {
-                createBoundaryCandidateIfMissing(userId, chapter, affectedDate,
-                        "新记录与当前阶段相隔超过 " + maxGapDays + " 天", 0.90d);
+            UserLifeChapterEntity chapter = chapterMapper.selectOne(new LambdaQueryWrapper<UserLifeChapterEntity>()
+                    .eq(UserLifeChapterEntity::getUserId, userId)
+                    .eq(UserLifeChapterEntity::getSegmentType, "DYNAMIC")
+                    .le(UserLifeChapterEntity::getStartDate, affectedDate)
+                    .and(w -> w.isNull(UserLifeChapterEntity::getEndDate).or().ge(UserLifeChapterEntity::getEndDate, affectedDate))
+                    .last("LIMIT 1"));
+
+            boolean isCurrentOpen = false;
+            if (chapter == null) {
+                UserLifeChapterEntity openChapter = openDynamicChapter(userId);
+                if (openChapter == null) {
+                    chapter = createDynamicChapter(userId, affectedDate);
+                    isCurrentOpen = true;
+                } else {
+                    if (!affectedDate.isBefore(openChapter.getStartDate())) {
+                        chapter = openChapter;
+                        isCurrentOpen = true;
+                    } else {
+                        log.info("历史记录无对应动态阶段，不触碰历史月度章节。userId={}, affectedDate={}", userId, affectedDate);
+                        return null;
+                    }
+                }
+            } else {
+                isCurrentOpen = Boolean.TRUE.equals(chapter.getIsOpen());
             }
-            if (hasTransitionEvent(userId, affectedDate)) {
-                createBoundaryCandidateIfMissing(userId, chapter, affectedDate,
-                        "记录中出现了明确的人生阶段变化", 0.88d);
+
+            if (isCurrentOpen) {
+                LocalDate previousLast = chapter.getLastSourceAt() == null ? null : chapter.getLastSourceAt().toLocalDate();
+                if (previousLast != null && affectedDate.isAfter(previousLast)
+                        && previousLast.plusDays(maxGapDays).isBefore(affectedDate)) {
+                    createBoundaryCandidateIfMissing(userId, chapter, affectedDate,
+                            "新记录与当前阶段相隔超过 " + maxGapDays + " 天", 0.90d);
+                }
+                if (hasTransitionEvent(userId, affectedDate)) {
+                    createBoundaryCandidateIfMissing(userId, chapter, affectedDate,
+                            "记录中出现了明确的人生阶段变化", 0.88d);
+                }
+                if (hasSustainedMoodOrTopicChange(userId, chapter, affectedDate)) {
+                    createBoundaryCandidateIfMissing(userId, chapter, affectedDate,
+                            "最近连续几条记录的主题或情绪出现持续变化", 0.86d);
+                }
             }
-            if (hasSustainedMoodOrTopicChange(userId, chapter, affectedDate)) {
-                createBoundaryCandidateIfMissing(userId, chapter, affectedDate,
-                        "最近连续几条记录的主题或情绪出现持续变化", 0.86d);
-            }
+
             attachDiariesForDate(userId, chapter, affectedDate);
             attachEventsForDate(userId, chapter, affectedDate);
             refreshDynamicMetadata(chapter);
@@ -875,8 +902,14 @@ public class LifeChapterService {
             prompt.append("重要事件：\n");
             lifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>().in(UserLifeEventEntity::getId, eventIds)
                             .isNull(UserLifeEventEntity::getDeletedAt))
-                    .forEach(event -> prompt.append("- ").append(event.getTargetDate()).append("：")
-                            .append(excerpt(event.getTitle(), 128)).append(" ").append(excerpt(event.getDescription(), 180)).append("\n"));
+                    .forEach(event -> {
+                        prompt.append("- ").append(event.getTargetDate()).append("：")
+                                .append(excerpt(event.getTitle(), 128)).append(" ").append(excerpt(event.getDescription(), 180));
+                        if (event.getFollowUpNote() != null && !event.getFollowUpNote().isBlank()) {
+                            prompt.append(" (最新状态：").append(excerpt(event.getFollowUpNote(), 180)).append(")");
+                        }
+                        prompt.append("\n");
+                    });
         }
         return prompt.toString();
     }
