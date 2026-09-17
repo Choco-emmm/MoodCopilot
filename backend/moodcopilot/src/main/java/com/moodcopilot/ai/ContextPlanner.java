@@ -356,6 +356,13 @@ public class ContextPlanner {
         return memoryItem(userId, memory, false);
     }
 
+    private String authorForMemory(UserProfileMemoryEntity memory) {
+        if (memory == null || memory.getSourceType() == null) return "system";
+        String s = memory.getSourceType().toLowerCase(java.util.Locale.ROOT);
+        if (s.contains("explicit") || s.contains("user")) return "user";
+        return "system";
+    }
+
     private ContextItem memoryItem(long userId, UserProfileMemoryEntity memory, boolean core) {
         String content = limit(memory.getAttributeKey(), 64) + "：" + limit(memory.getAttributeValue(), 500);
         try {
@@ -367,12 +374,12 @@ public class ContextPlanner {
                 content += "\n[依据: " + evidenceText + "]";
             }
         } catch (Exception e) {
-            log.warn("无法为记忆 {} 加载依据", memory.getId(), e);
+            log.warn("无法为记忆{} 加载依据", memory.getId(), e);
         }
         LocalDateTime updated = updatedAt(memory);
         Instant eventTime = updated == null ? null : updated.atZone(businessTimeZone).toInstant();
         return new ContextItem(content, new ContextSource(
-                "FORMAL_MEMORY", String.valueOf(memory.getId()), "user",
+                "FORMAL_MEMORY", String.valueOf(memory.getId()), authorForMemory(memory),
                 "short_term_state".equalsIgnoreCase(memory.getMemoryType()) ? "short_term_state" : "structured_memory",
                 eventTime, null, ContextSource.TrustLevel.AUTHORITATIVE, userId),
                 memory.getConfidence() == null ? 0.5D : memory.getConfidence(),
