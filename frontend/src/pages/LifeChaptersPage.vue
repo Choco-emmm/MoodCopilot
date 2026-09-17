@@ -89,13 +89,13 @@ function openDiary(id: number) { router.push(`/diary/${id}`) }
 function openEvents() { router.push('/life-events') }
 
 async function refreshChapter(chapter: LifeChapter) {
-  window.$message?.info('已开始整理这个阶段，完成后会通知你。', { duration: 3500 })
   refreshingId.value = chapter.id
   try {
     await lifeChapterApi.refresh(chapter.id)
+    window.$message?.info('已开始整理这个阶段，完成后会通知你。', { duration: 3500 })
     await loadChapters()
-  } catch {
-    window.$message?.error('阶段整理任务提交失败，请稍后重试', { duration: 5000 })
+  } catch (e: any) {
+    window.$message?.error(e?.response?.data?.message || '阶段整理任务提交失败，请稍后重试', { duration: 5000 })
   }
   finally { window.setTimeout(() => { if (refreshingId.value === chapter.id) refreshingId.value = null }, 1200) }
 }

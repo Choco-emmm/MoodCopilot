@@ -69,8 +69,16 @@ public class AiTaskProducer {
     }
 
     public void submitLifeChapterRefreshTask(Long chapterId, Long userId, String sourceSnapshotHash) {
+        submitLifeChapterRefreshTask(chapterId, userId, sourceSnapshotHash, false);
+    }
+
+    /** force=true 用于用户主动触发的重整：快照没变也要真的再跑一次。 */
+    public void submitLifeChapterRefreshTask(Long chapterId, Long userId, String sourceSnapshotHash, boolean force) {
+        String operationKey = force
+                ? "chapter:" + chapterId + ":refresh:" + sourceSnapshotHash + ":retry:" + java.util.UUID.randomUUID()
+                : "chapter:" + chapterId + ":refresh:" + sourceSnapshotHash;
         taskService.enqueue(userId, AiTaskMessage.TYPE_LIFE_CHAPTER_REFRESH, String.valueOf(chapterId),
-                sourceSnapshotHash, null, "chapter:" + chapterId + ":refresh:" + sourceSnapshotHash,
+                sourceSnapshotHash, null, operationKey,
                 Map.of(), null);
     }
 

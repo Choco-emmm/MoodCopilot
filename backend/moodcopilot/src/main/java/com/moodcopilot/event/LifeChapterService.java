@@ -707,11 +707,16 @@ public class LifeChapterService {
         if (Boolean.TRUE.equals(chapter.getIsOpen()) || "COLLECTING".equals(chapter.getGenerationStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "当前阶段仍在积累，暂不需要整理");
         }
+        if ("GENERATING".equals(chapter.getGenerationStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "这一章正在整理中，请稍候");
+        }
         if (chapter.getSourceSnapshotHash() == null) chapter.setSourceSnapshotHash(sourceSnapshotHash(chapterId));
         chapter.setGenerationStatus("DIRTY");
-        if (chapter.getDirtySince() == null) chapter.setDirtySince(LocalDateTime.now());
+        chapter.setDirtySince(LocalDateTime.now());
         chapter.setUpdatedAt(LocalDateTime.now()); chapterMapper.updateById(chapter);
-        aiTaskProducer.submitLifeChapterRefreshTask(chapterId, userId, chapter.getSourceSnapshotHash());
+        // 主动重整时来源快照通常没变，沿用自动路径的幂等键会命中上一次的任务被静默丢弃，
+        // 所以走 force 让这次请求真的排队；同时把静默期重置，挡住调度器的自动派发。
+        aiTaskProducer.submitLifeChapterRefreshTask(chapterId, userId, chapter.getSourceSnapshotHash(), true);
     }
 
     public TimelinePage listTimeline(Long userId, LocalDate from, LocalDate to, String cursor, int size, boolean includeGaps) {

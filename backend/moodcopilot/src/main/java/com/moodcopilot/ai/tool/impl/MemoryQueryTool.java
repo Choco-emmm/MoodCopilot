@@ -86,7 +86,13 @@ public class MemoryQueryTool extends ChatTool<MemoryQueryRequest> {
                     value = parts[1].trim();
                 }
             }
-            items.add(new MemoryQueryResult.MemoryItem(key, value, null));
+            Long id = null;
+            if (hit.sourceId() != null && hit.sourceId().startsWith("profile:")) {
+                try {
+                    id = Long.parseLong(hit.sourceId().substring(8));
+                } catch (Exception e) {}
+            }
+            items.add(new MemoryQueryResult.MemoryItem(id, key, value, null));
         }
         return items;
     }
@@ -100,6 +106,7 @@ public class MemoryQueryTool extends ChatTool<MemoryQueryRequest> {
                         Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(limit)
                 .map(m -> new MemoryQueryResult.MemoryItem(
+                        m.getId(),
                         m.getAttributeKey(),
                         m.getAttributeValue(),
                         m.getUpdateTime() != null ? m.getUpdateTime().toString() : null))

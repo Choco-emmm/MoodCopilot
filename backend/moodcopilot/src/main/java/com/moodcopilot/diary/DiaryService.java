@@ -624,15 +624,18 @@ public class DiaryService {
     }
 
     public DiarySearchResult searchOwnDiarySummaries(DiarySearchRequest request) {
-        UserEntity user = currentUser();
+        return searchOwnDiarySummaries(currentUser().getId(), request);
+    }
+
+    public DiarySearchResult searchOwnDiarySummaries(long userId, DiarySearchRequest request) {
         String keyword = request != null && request.keyword() != null ? request.keyword().trim() : null;
         keyword = keyword != null && !keyword.isBlank() ? keyword : null;
         LocalDate startDate = request != null ? request.startDate() : null;
         LocalDate endDate = request != null ? request.endDate() : null;
-        log.info("执行历史日记检索，userId={}，startDate={}，endDate={}", user.getId(), startDate, endDate);
+        log.info("执行历史日记检索，userId={}，startDate={}，endDate={}", userId, startDate, endDate);
 
         if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
-            log.info("历史日记检索参数非法，userId={}，startDate={}，endDate={}", user.getId(), startDate, endDate);
+            log.info("历史日记检索参数非法，userId={}，startDate={}，endDate={}", userId, startDate, endDate);
             return new DiarySearchResult(
                     keyword,
                     startDate,
@@ -643,7 +646,7 @@ public class DiaryService {
         }
 
         LambdaQueryWrapper<DiaryEntity> query = new LambdaQueryWrapper<DiaryEntity>()
-                .eq(DiaryEntity::getAuthorUserId, user.getId())
+                .eq(DiaryEntity::getAuthorUserId, userId)
                 .eq(DiaryEntity::getIsDeleted, false)
                 .orderByDesc(DiaryEntity::getCreatedAt)
                 ;
@@ -677,7 +680,7 @@ public class DiaryService {
                 ? "未找到符合条件的历史日记"
                 : "已返回最多 20 条按时间倒序排列的历史日记摘要";
 
-        log.info("历史日记检索完成，userId={}，resultCount={}", user.getId(), diaries.size());
+        log.info("历史日记检索完成，userId={}，resultCount={}", userId, diaries.size());
 
         return new DiarySearchResult(keyword, startDate, endDate, diaries.size(), diaries, note);
     }

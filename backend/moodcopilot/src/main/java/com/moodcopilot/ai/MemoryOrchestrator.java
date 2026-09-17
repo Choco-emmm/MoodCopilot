@@ -469,59 +469,48 @@ public class MemoryOrchestrator {
         processExtractedMemories(userId, attributes, "explicit", null, null, "用户确认重写", businessDate());
     }
 
-    @Transactional
-    public UserProfileMemoryEntity mergeMemories(long userId, List<String> sourceKeys, String targetKey, String targetValue,
-                                                 String memoryType, String evidence, Long conversationId) {
-        // 1. Create the new merged memory
-        UserProfileMemoryEntity target = new UserProfileMemoryEntity();
-        target.setUserId(userId);
-        target.setMemoryType(memoryType == null ? "other" : memoryType);
-        target.setAttributeKey(clean(targetKey, 64));
-        target.setAttributeValue(clean(targetValue, 500));
-        target.setStatus(ACTIVE);
-        target.setValidFrom(businessDate());
-        target.setConfidence(1.0);
-        target.setIsCore(false);
-        memoryMapper.insert(target);
-
-        // 2. Add the current chat evidence
-        addEvidence(userId, target.getId(), null, "chat", conversationId, null,
-                evidence == null ? "聊天过程确认合并" : evidence, businessDate(), 1.0, 1.0);
-
-        // 3. Process source memories: mark as superseded and MOVE their evidence to the target
-        if (sourceKeys != null && !sourceKeys.isEmpty()) {
-            List<UserProfileMemoryEntity> sources = memoryMapper.selectList(new LambdaQueryWrapper<UserProfileMemoryEntity>()
-                    .eq(UserProfileMemoryEntity::getUserId, userId)
-                    .in(UserProfileMemoryEntity::getAttributeKey, sourceKeys)
-                    .eq(UserProfileMemoryEntity::getStatus, ACTIVE));
-
-            for (UserProfileMemoryEntity source : sources) {
-                evidenceMapper.update(null,
-                        new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserMemoryEvidenceEntity>()
-                                .eq(UserMemoryEvidenceEntity::getUserId, userId)
-                                .eq(UserMemoryEvidenceEntity::getMemoryId, source.getId())
-                                .set(UserMemoryEvidenceEntity::getMemoryId, target.getId()));
-                
-                source.setStatus("superseded");
-                source.setValidUntil(businessDate());
-                source.setSupersededAt(businessNow());
-                source.setSupersededReason("AI_CONSOLIDATED");
-                memoryMapper.updateById(source);
-            }
-        }
-        
-        reindex(userId);
-        return target;
-    }
 
     @Transactional
     public UserProfileMemoryEntity mergeMemoriesByIds(long userId, List<Long> sourceIds, String targetKey, String targetValue,
                                                  String memoryType, Boolean isCore, String evidence, Long conversationId) {
+        String cleanTargetKey = clean(targetKey, 64);
+        String cleanTargetValue = clean(targetValue, 500);
+
+        List<UserProfileMemoryEntity> existingTarget = memoryMapper.selectList(new LambdaQueryWrapper<UserProfileMemoryEntity>()
+                .eq(UserProfileMemoryEntity::getUserId, userId)
+                .eq(UserProfileMemoryEntity::getAttributeKey, cleanTargetKey)
+                .eq(UserProfileMemoryEntity::getStatus, ACTIVE));
+
+        List<Long> allSourceIds = new ArrayList<>();
+        if (sourceIds != null) {
+            allSourceIds.addAll(sourceIds);
+        }
+        for (UserProfileMemoryEntity ext : existingTarget) {
+            if (!allSourceIds.contains(ext.getId())) {
+                allSourceIds.add(ext.getId());
+            }
+        }
+
+        if (!allSourceIds.isEmpty()) {
+            List<UserProfileMemoryEntity> sources = memoryMapper.selectList(new LambdaQueryWrapper<UserProfileMemoryEntity>()
+                    .eq(UserProfileMemoryEntity::getUserId, userId)
+                    .in(UserProfileMemoryEntity::getId, allSourceIds)
+                    .eq(UserProfileMemoryEntity::getStatus, ACTIVE));
+
+            for (UserProfileMemoryEntity source : sources) {
+                source.setStatus("superseded");
+                source.setValidUntil(businessDate());
+                source.setSupersededAt(businessNow());
+                source.setSupersededReason("USER_CONSOLIDATED");
+                memoryMapper.updateById(source);
+            }
+        }
+
         UserProfileMemoryEntity target = new UserProfileMemoryEntity();
         target.setUserId(userId);
         target.setMemoryType(memoryType == null ? "other" : memoryType);
-        target.setAttributeKey(clean(targetKey, 64));
-        target.setAttributeValue(clean(targetValue, 500));
+        target.setAttributeKey(cleanTargetKey);
+        target.setAttributeValue(cleanTargetValue);
         target.setStatus(ACTIVE);
         target.setValidFrom(businessDate());
         target.setConfidence(1.0);
@@ -531,25 +520,12 @@ public class MemoryOrchestrator {
         addEvidence(userId, target.getId(), null, "USER_ACTION", conversationId, null,
                 evidence == null ? "确认合并" : evidence, businessDate(), 1.0, 1.0);
 
-        if (sourceIds != null && !sourceIds.isEmpty()) {
-            List<UserProfileMemoryEntity> sources = memoryMapper.selectList(new LambdaQueryWrapper<UserProfileMemoryEntity>()
-                    .eq(UserProfileMemoryEntity::getUserId, userId)
-                    .in(UserProfileMemoryEntity::getId, sourceIds)
-                    .eq(UserProfileMemoryEntity::getStatus, ACTIVE));
-
-            for (UserProfileMemoryEntity source : sources) {
-                evidenceMapper.update(null,
-                        new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserMemoryEvidenceEntity>()
-                                .eq(UserMemoryEvidenceEntity::getUserId, userId)
-                                .eq(UserMemoryEvidenceEntity::getMemoryId, source.getId())
-                                .set(UserMemoryEvidenceEntity::getMemoryId, target.getId()));
-                
-                source.setStatus("superseded");
-                source.setValidUntil(businessDate());
-                source.setSupersededAt(businessNow());
-                source.setSupersededReason("USER_CONSOLIDATED");
-                memoryMapper.updateById(source);
-            }
+        if (!allSourceIds.isEmpty()) {
+            evidenceMapper.update(null,
+                    new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserMemoryEvidenceEntity>()
+                            .eq(UserMemoryEvidenceEntity::getUserId, userId)
+                            .in(UserMemoryEvidenceEntity::getMemoryId, allSourceIds)
+                            .set(UserMemoryEvidenceEntity::getMemoryId, target.getId()));
         }
         reindex(userId);
         return target;
@@ -1131,6 +1107,13 @@ public class MemoryOrchestrator {
                 && (requestedIsCore != null ? requestedIsCore
                         : ("preference".equals(type) || "relationship".equals(type))));
         memoryMapper.insert(next);
+        if (old != null) {
+            evidenceMapper.update(null,
+                    new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserMemoryEvidenceEntity>()
+                            .eq(UserMemoryEvidenceEntity::getUserId, userId)
+                            .eq(UserMemoryEvidenceEntity::getMemoryId, old.getId())
+                            .set(UserMemoryEvidenceEntity::getMemoryId, next.getId()));
+        }
         if ("explicit".equals(source)) {
             cleanupPendingCandidatesOnFormalSave(userId, key, value, next.getId());
         }

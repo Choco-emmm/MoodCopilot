@@ -51,9 +51,9 @@ class LifeEventServiceTest {
                 mock(DiaryAnalysisMapper.class), mock(ChatClient.class), new ObjectMapper(), mock(AiPromptProperties.class), null);
 
         assertThrows(ResponseStatusException.class, () -> service.createEvent(7L,
-                new LifeEventService.LifeEventUpsertRequest("考试", "", "2026-09-03", "2026-09-02", null, null, List.of())));
+                new LifeEventService.LifeEventUpsertRequest("考试", "", "2026-09-03", "2026-09-02", null, null, null, List.of())));
         service.createEvent(7L, new LifeEventService.LifeEventUpsertRequest(
-                "考试", "", "2026-09-03", null, "14:00", "16:00", null, List.of())));
+                "考试", "", "2026-09-03", null, "14:00", "16:00", null, List.of()));
         verify(eventMapper).insert(any(UserLifeEventEntity.class));
     }
 
@@ -87,7 +87,7 @@ class LifeEventServiceTest {
         String context = service.buildEventContextForChat(7L, 12L);
 
         org.junit.jupiter.api.Assertions.assertTrue(context.contains("AI摘要：AI 摘要"));
-        org.junit.jupiter.api.Assertions.assertFalse(context.contains("原文片段�?));
+        org.junit.jupiter.api.Assertions.assertFalse(context.contains("原文片段："));
     }
 
     @Test
@@ -112,7 +112,7 @@ class LifeEventServiceTest {
                 mock(DiaryAnalysisMapper.class), mock(ChatClient.class), new ObjectMapper(), mock(AiPromptProperties.class), null);
 
         LifeEventService.LifeEventView view = service.createEvent(7L,
-                new LifeEventService.LifeEventUpsertRequest("期末考试", "", "2099-09-04", null, null, null, null, List.of())));
+                new LifeEventService.LifeEventUpsertRequest("期末考试", "", "2099-09-04", null, null, null, null, List.of()));
 
         assertEquals("UPCOMING", view.temporalPhase());
         assertNotNull(view.nextFollowUpAt());
@@ -150,7 +150,7 @@ class LifeEventServiceTest {
         sameEvent.setAccessible(true);
 
         assertEquals(true, sameEvent.invoke(service, event, "期末考试", event.getTargetDate(),
-                event.getEndDate(), "今天回想期末考试的结�?));
+                event.getEndDate(), "今天回想期末考试的结果"));
     }
 
     @Test

@@ -8,6 +8,7 @@ public record MemoryQueryResult(
         String note) {
 
     public record MemoryItem(
+            Long id,
             String attributeKey,
             String attributeValue,
             String updateTime) {

@@ -44,9 +44,9 @@ public class MergeMemoryTool extends ChatTool<MergeMemoryTool.MergeMemoryRequest
 
     @Override
     public String description() {
-        return "把用户指定的几条长期记忆合并成一条：写入合并后的 targetKey / targetValue，并彻底删除 sourceKeys 里的源记忆。"
+        return "把用户指定的几条长期记忆合并成一条：写入合并后的 targetKey / targetValue，并彻底删除 sourceIds 里的源记忆。"
                 + "只在用户明确要求合并、去重或整理某几条记忆时调用（例如「把这两条合并一下」「这俩重复了」）。"
-                + "sourceKeys 和 targetKey 都必须是 memoryQueryFunction 返回过的原样键名，不要自己改写或翻译；"
+                + "sourceIds 必须是 memoryQueryFunction 返回过的记忆 ID (id 字段)，不要自己捏造；"
                 + "调用前先弄清楚用户要合并的是哪几条，指代不清就先问。"
                 + "一次调用只合并一组，要合并多组就多次调用，用户会逐条确认。"
                 + "注意：你只需直接调用此工具，系统会在工具执行期间自动让用户确认。若工具返回成功，说明用户已确认且记忆已被合并并落入长期记忆，你无需再告诉用户“去待确认列表点击确认”。";
@@ -65,8 +65,8 @@ public class MergeMemoryTool extends ChatTool<MergeMemoryTool.MergeMemoryRequest
     @Override
     public LinkedHashMap<String, Object> properties() {
         LinkedHashMap<String, Object> props = new LinkedHashMap<>();
-        props.put("sourceKeys", Map.of("type", "array", "items", Map.of("type", "string"),
-                "description", "要被合并掉的记忆键列表，必须是 memoryQueryFunction 返回过的原样键名"));
+        props.put("sourceIds", Map.of("type", "array", "items", Map.of("type", "integer"),
+                "description", "要被合并掉的记忆 ID 列表，必须是 memoryQueryFunction 返回过的 id"));
         props.put("targetKey", Map.of("type", "string",
                 "description", "合并后保留的记忆键；可以与某个源键相同，也可以是新键"));
         props.put("targetValue", Map.of("type", "string",
@@ -81,15 +81,9 @@ public class MergeMemoryTool extends ChatTool<MergeMemoryTool.MergeMemoryRequest
 
     @Override
     public List<String> required() {
-        return List.of("sourceKeys", "targetKey", "targetValue", "memoryType", "evidence");
+        return List.of("sourceIds", "targetKey", "targetValue", "memoryType", "evidence");
     }
 
-    /**
-     * 弹框内容：哪几条要消失、变成哪一条。
-     * <p>
-     * 源不止一条，塞不进一个 {@code oldValue} 字符串，所以额外给一份 {@code sources} 结构让前端逐条渲染。
-     * {@code oldValue} / {@code newValue} 照旧填，供不认 {@code sources} 的渲染路径兜底。
-     */
     @Override
     public Map<String, Object> approvalPreview(ObjectMapper mapper, String argumentsJson,
             ToolExecutionContext context) throws Exception {
@@ -98,11 +92,16 @@ public class MergeMemoryTool extends ChatTool<MergeMemoryTool.MergeMemoryRequest
         Long userId = context.userId();
 
         List<Map<String, Object>> sources = new ArrayList<>();
-        for (String key : normalizedSources(request)) {
+        List<Long> sIds = request.sourceIds() == null ? List.of() : request.sourceIds();
+        for (Long id : sIds) {
             Map<String, Object> source = new LinkedHashMap<>();
-            source.put("attributeKey", key);
-            source.put("value", currentValue(userId, key));
-            sources.add(source);
+            UserProfileMemoryEntity memory = orchestrator.current(userId).stream()
+                    .filter(m -> id.equals(m.getId())).findFirst().orElse(null);
+            if (memory != null) {
+                source.put("attributeKey", memory.getAttributeKey());
+                source.put("value", memory.getAttributeValue());
+                sources.add(source);
+            }
         }
 
         Map<String, Object> preview = new LinkedHashMap<>();
@@ -125,46 +124,15 @@ public class MergeMemoryTool extends ChatTool<MergeMemoryTool.MergeMemoryRequest
         }
 
         String targetKey = request.targetKey().trim();
-        List<String> sources = normalizedSources(request);
+        List<Long> sourceIds = request.sourceIds() == null ? List.of() : request.sourceIds();
 
-        orchestrator.mergeMemories(userId, sources, targetKey, request.targetValue(), request.memoryType(),
-                request.evidence(), context.conversationId());
+        orchestrator.mergeMemoriesByIds(userId, sourceIds, targetKey, request.targetValue(), request.memoryType(),
+                false, request.evidence(), context.conversationId());
 
-        String note = sources.isEmpty()
-                ? "已直接写入记忆（未指定要合并掉的源记忆键名）"
+        String note = sourceIds.isEmpty()
+                ? "已直接写入记忆（未指定要合并掉的源记忆 ID）"
                 : null;
-        return new MergeMemoryResult(true, targetKey, sources, note);
-    }
-
-    /**
-     * 去重 + 去掉目标键本身。
-     * <p>
-     * 剔除目标键不是顺手做的清理，而是**正确性要求**：源是在目标写完之后才清的，
-     * 留着它就会把刚写好的合并结果当场删掉。
-     */
-    private static List<String> normalizedSources(MergeMemoryRequest request) {
-        if (request.sourceKeys() == null || isBlank(request.targetKey())) {
-            return List.of();
-        }
-        String target = request.targetKey().trim();
-        return request.sourceKeys().stream()
-                .filter(key -> !isBlank(key))
-                .map(String::trim)
-                .distinct()
-                .filter(key -> !key.equals(target))
-                .toList();
-    }
-
-    private String currentValue(Long userId, String attributeKey) {
-        if (userId == null) {
-            return null;
-        }
-        for (UserProfileMemoryEntity memory : orchestrator.current(userId)) {
-            if (attributeKey.equals(memory.getAttributeKey())) {
-                return memory.getAttributeValue();
-            }
-        }
-        return null;
+        return new MergeMemoryResult(true, targetKey, sourceIds, note);
     }
 
     private static String joinSources(List<Map<String, Object>> sources) {
@@ -178,10 +146,10 @@ public class MergeMemoryTool extends ChatTool<MergeMemoryTool.MergeMemoryRequest
         return value == null || value.isBlank();
     }
 
-    public record MergeMemoryRequest(List<String> sourceKeys, String targetKey, String targetValue,
+    public record MergeMemoryRequest(List<Long> sourceIds, String targetKey, String targetValue,
             String memoryType, String evidence) {
     }
 
-    public record MergeMemoryResult(boolean success, String targetKey, List<String> purgedKeys, String note) {
+    public record MergeMemoryResult(boolean success, String targetKey, List<Long> purgedIds, String note) {
     }
 }

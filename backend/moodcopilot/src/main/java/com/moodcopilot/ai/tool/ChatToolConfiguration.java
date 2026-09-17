@@ -7,7 +7,8 @@ import com.moodcopilot.ai.RagMemoryService;
 import com.moodcopilot.ai.VisionService;
 import com.moodcopilot.ai.tool.impl.DeleteMemoryTool;
 import com.moodcopilot.ai.tool.impl.DiaryImageAnalysisTool;
-import com.moodcopilot.ai.tool.impl.DiarySearchTool;
+import com.moodcopilot.ai.tool.impl.DiarySemanticSearchTool;
+import com.moodcopilot.ai.tool.impl.DiaryKeywordSearchTool;
 import com.moodcopilot.ai.tool.impl.GraphSearchTool;
 import com.moodcopilot.ai.tool.impl.ListEventsTool;
 import com.moodcopilot.ai.tool.impl.MemoryQueryTool;
@@ -54,7 +55,8 @@ public class ChatToolConfiguration {
             RateLimitService rateLimitService,
             @Lazy LifeEventService lifeEventService) {
         List<ChatTool<?>> tools = List.of(
-                new DiarySearchTool(diaryService, ragMemoryService),
+                new DiarySemanticSearchTool(ragMemoryService),
+                new DiaryKeywordSearchTool(diaryService),
                 new ReadDiaryTool(diaryMapper),
                 new UserStatsTool(diaryService),
                 new ReportSnapshotTool(diaryService),

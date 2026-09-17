@@ -8,7 +8,8 @@ import com.moodcopilot.ai.RagMemoryService;
 import com.moodcopilot.ai.VisionService;
 import com.moodcopilot.ai.tool.impl.DeleteMemoryTool;
 import com.moodcopilot.ai.tool.impl.DiaryImageAnalysisTool;
-import com.moodcopilot.ai.tool.impl.DiarySearchTool;
+import com.moodcopilot.ai.tool.impl.DiaryKeywordSearchTool;
+import com.moodcopilot.ai.tool.impl.DiarySemanticSearchTool;
 import com.moodcopilot.ai.tool.impl.GraphSearchTool;
 import com.moodcopilot.ai.tool.impl.ListEventsTool;
 import com.moodcopilot.ai.tool.impl.MemoryQueryTool;
@@ -43,7 +44,8 @@ import static org.mockito.Mockito.verify;
 class ChatToolRegistryTest {
 
     private static final List<String> EXPECTED_NAMES = List.of(
-            "diarySearchFunction",
+            "diarySemanticSearchFunction",
+            "diaryKeywordSearchFunction",
             "readDiaryFunction",
             "userStatsFunction",
             "reportSnapshotFunction",
@@ -62,7 +64,8 @@ class ChatToolRegistryTest {
 
     private ChatToolRegistry registry() {
         return new ChatToolRegistry(objectMapper, List.of(
-                new DiarySearchTool(diaryService, mock(RagMemoryService.class)),
+                new DiarySemanticSearchTool(mock(RagMemoryService.class)),
+                new DiaryKeywordSearchTool(diaryService),
                 new ReadDiaryTool(mock(DiaryMapper.class)),
                 new UserStatsTool(diaryService),
                 new ReportSnapshotTool(diaryService),
@@ -86,7 +89,7 @@ class ChatToolRegistryTest {
     @Test
     void displayNameDropsTheFunctionSuffix() {
         List<String> displayNames = registry().tools().stream().map(ChatTool::displayName).toList();
-        assertEquals(List.of("diarySearch", "readDiary", "userStats", "reportSnapshot", "memoryQuery",
+        assertEquals(List.of("diarySemanticSearch", "diaryKeywordSearch", "readDiary", "userStats", "reportSnapshot", "memoryQuery",
                 "graphSearch", "diaryImageAnalysis", "readImageText", "listEvents", "updateEventStatus",
                 "saveMemory", "deleteMemory", "mergeMemory"),
                 displayNames);
@@ -128,7 +131,8 @@ class ChatToolRegistryTest {
             requiredByName.put((String) function.get("name"), required);
         }
 
-        assertEquals(List.of("keyword", "startDate", "endDate"), requiredByName.get("diarySearchFunction"));
+        assertEquals(List.of("keyword", "startDate", "endDate"), requiredByName.get("diarySemanticSearchFunction"));
+        assertEquals(List.of("keyword", "startDate", "endDate"), requiredByName.get("diaryKeywordSearchFunction"));
         assertEquals(List.of("diaryId"), requiredByName.get("readDiaryFunction"));
         assertEquals(List.of("days"), requiredByName.get("userStatsFunction"));
         assertEquals(List.of("period", "offset"), requiredByName.get("reportSnapshotFunction"));
