@@ -13,6 +13,7 @@
         <view class="event-main">
           <text class="event-title">{{ event.title }}</text>
           <text v-if="event.description" class="event-desc">{{ event.description }}</text>
+          <text v-if="event.followUpNote" class="event-meta">最新状态：{{ event.followUpNote }}</text>
           <text v-if="event.followUpReason && event.status === 'PENDING'" class="event-meta">适合之后再聊：{{ event.followUpReason }}</text>
           <text class="event-meta">{{ event.diaryIds?.length ? `关联 ${event.diaryCount || event.diaryIds.length} 篇日记` : '暂无关联日记' }}</text>
           <view class="event-actions">

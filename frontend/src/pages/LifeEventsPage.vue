@@ -28,6 +28,9 @@
         <div class="event-body">
           <h3>{{ event.title }}</h3>
           <p v-if="event.description">{{ event.description }}</p>
+          <p v-if="event.followUpNote" class="event-meta">
+            最新状态：{{ event.followUpNote }}
+          </p>
           <p v-if="event.followUpReason && event.status === 'PENDING'" class="event-meta">适合之后再聊：{{ event.followUpReason }}</p>
           <button v-if="event.diaryIds?.length" class="event-meta event-meta-link" type="button" title="查看关联日记" @click="openLinkedDiary(event)">
             关联 {{ event.diaryCount ?? event.diaryIds.length }} 篇日记 <span aria-hidden="true">↗</span>
