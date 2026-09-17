@@ -338,6 +338,14 @@ public class ChatController {
         String diaryId = "diary".equals(type) && sourceId != null && sourceId.matches("\\d+") ? sourceId : "";
         String date = eventTime == null ? "" : eventTime;
         String snippet = extractAllTextContent(inner);
+        if ("diary".equals(type)) {
+            snippet = snippet.replaceAll("\\[图片描述[：:].*?\\]\\s*", "")
+                             .replaceAll("\\[分享图片\\]\\s*", "")
+                             .replaceAll("\\[分享音乐[：:].*?\\]\\s*", "");
+            if (snippet.isBlank()) {
+                snippet = "分享了多媒体内容";
+            }
+        }
         Map<String, String> item = new LinkedHashMap<>();
         item.put("type", type);
         item.put("diaryId", diaryId);

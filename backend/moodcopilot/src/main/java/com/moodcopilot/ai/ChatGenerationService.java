@@ -452,6 +452,14 @@ public class ChatGenerationService {
         while (matcher.find()) {
             String type = "USER_DIARY".equals(matcher.group(1)) ? "diary" : matcher.group(1);
             String snippet = matcher.group(4).replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
+            if ("diary".equals(type)) {
+                snippet = snippet.replaceAll("\\[图片描述[：:].*?\\]\\s*", "")
+                                 .replaceAll("\\[分享图片\\]\\s*", "")
+                                 .replaceAll("\\[分享音乐[：:].*?\\]\\s*", "");
+                if (snippet.isBlank()) {
+                    snippet = "分享了多媒体内容";
+                }
+            }
             Map<String, String> item = new LinkedHashMap<>();
             item.put("type", type);
             item.put("diaryId", "diary".equals(type) ? matcher.group(2) : "");
