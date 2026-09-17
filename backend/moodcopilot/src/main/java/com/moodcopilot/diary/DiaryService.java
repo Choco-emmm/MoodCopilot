@@ -1937,6 +1937,7 @@ public class DiaryService {
 
         ragMemoryService.deleteDiaryEmbedding(diaryId);
         ossService.deleteImages(diary.getImages());
+        lifeChapterService.onDiaryDeleted(diary.getAuthorUserId(), diaryId);
         log.info("日记{}删除成功，diaryId={}，操作者UserId={}，原作者UserId={}",
                 "ADMIN".equals(user.getRole()) ? "强制" : "", diaryId, user.getId(), diary.getAuthorUserId());
     }

@@ -94,11 +94,15 @@ public class LifeChapterService {
     private final int maxGapDays;
     private final int minEvidenceCount;
     private final double boundaryConfidenceThreshold;
+    private final int backfillMaxDays;
     private final PromptComposer promptComposer;
     private final NotificationService notificationService;
 
     @org.springframework.beans.factory.annotation.Value("${timeline.refresh-debounce-minutes:10}")
     private int refreshDebounceMinutes = 10;
+
+    @org.springframework.beans.factory.annotation.Value("${timeline.stuck-recovery-minutes:30}")
+    private int stuckRecoveryMinutes = 30;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.moodcopilot.ai.ContextMetadataRecorder contextMetadataRecorder;
@@ -123,6 +127,7 @@ public class LifeChapterService {
                               @Value("${timeline.max-gap-days:14}") int maxGapDays,
                               @Value("${timeline.min-evidence-count:3}") int minEvidenceCount,
                               @Value("${timeline.boundary-confidence-threshold:0.85}") double boundaryConfidenceThreshold,
+                              @Value("${timeline.backfill-max-days:90}") int backfillMaxDays,
                               PromptComposer promptComposer,
                               NotificationService notificationService) {
         this.chapterMapper = chapterMapper;
@@ -145,6 +150,7 @@ public class LifeChapterService {
         this.maxGapDays = maxGapDays;
         this.minEvidenceCount = minEvidenceCount;
         this.boundaryConfidenceThreshold = boundaryConfidenceThreshold;
+        this.backfillMaxDays = backfillMaxDays;
         this.promptComposer = promptComposer;
         this.notificationService = notificationService;
     }
@@ -213,8 +219,15 @@ public class LifeChapterService {
             if (chapter == null) {
                 UserLifeChapterEntity openChapter = openDynamicChapter(userId);
                 if (openChapter == null) {
-                    chapter = createDynamicChapter(userId, affectedDate);
+                    LocalDate start = firstDynamicStartDate(userId, affectedDate);
+                    chapter = createDynamicChapter(userId, start);
                     isCurrentOpen = true;
+                    if (start.isBefore(affectedDate)) {
+                        // 首个动态阶段要把之前那些「不属于任何章节」的来源一起收进来，
+                        // 否则升级前那几天的日记会掉在两个章节之外，页面上也看不出来。
+                        attachDiariesBetween(userId, chapter, start, affectedDate);
+                        attachEventsBetween(userId, chapter, start, affectedDate);
+                    }
                 } else {
                     if (!affectedDate.isBefore(openChapter.getStartDate())) {
                         chapter = openChapter;
@@ -229,6 +242,16 @@ public class LifeChapterService {
             }
 
             if (isCurrentOpen) {
+                // 起点之前的孤儿来源也要收进来。已经有动态阶段的用户不会走上面的创建分支，
+                // 否则他们升级前那几天会永远不属于任何章节。收拢后起点前移，下一轮就没有孤儿了。
+                LocalDate orphanStart = firstDynamicStartDate(userId, affectedDate);
+                if (orphanStart.isBefore(chapter.getStartDate())) {
+                    attachDiariesBetween(userId, chapter, orphanStart, affectedDate);
+                    attachEventsBetween(userId, chapter, orphanStart, affectedDate);
+                    log.info("动态阶段起点前移以收拢无归属记录，chapterId={}，{} -> {}",
+                            chapter.getId(), chapter.getStartDate(), orphanStart);
+                    chapter.setStartDate(orphanStart);
+                }
                 LocalDate previousLast = chapter.getLastSourceAt() == null ? null : chapter.getLastSourceAt().toLocalDate();
                 if (previousLast != null && affectedDate.isAfter(previousLast)
                         && previousLast.plusDays(maxGapDays).isBefore(affectedDate)) {
@@ -283,6 +306,23 @@ public class LifeChapterService {
         log.info("事件删除后已失效相关章节向量，userId={}，eventId={}，chapterCount={}", userId, eventId, sources.size());
     }
 
+    /** 日记逻辑删除后，清理 life_chapter_diaries 孤行并将受影响章节标脏、异步重建摘要。 */
+    public void onDiaryDeleted(Long userId, Long diaryId) {
+        if (userId == null || diaryId == null) return;
+        List<LifeChapterDiaryEntity> sources = chapterDiaryMapper.selectList(new LambdaQueryWrapper<LifeChapterDiaryEntity>()
+                .eq(LifeChapterDiaryEntity::getDiaryId, diaryId));
+        for (LifeChapterDiaryEntity source : sources) {
+            UserLifeChapterEntity chapter = chapterMapper.selectById(source.getChapterId());
+            if (chapter == null || !userId.equals(chapter.getUserId())) continue;
+            chapterDiaryMapper.deleteById(source.getId());
+            if (ragMemoryService != null) ragMemoryService.deleteLifeChapter(userId, chapter.getId());
+            refreshDynamicMetadata(chapter);
+            if ("DYNAMIC".equals(chapter.getSegmentType())) markDynamicDirtyAndQueue(chapter);
+            else markDirtyAndQueue(chapter);
+        }
+        log.info("日记删除后已清理相关章节来源并标脏，userId={}，diaryId={}，chapterCount={}", userId, diaryId, sources.size());
+    }
+
     private UserLifeChapterEntity openDynamicChapter(Long userId) {
         return chapterMapper.selectOne(new LambdaQueryWrapper<UserLifeChapterEntity>()
                 .eq(UserLifeChapterEntity::getUserId, userId)
@@ -306,10 +346,30 @@ public class LifeChapterService {
         return chapter;
     }
 
+    /**
+     * 首个动态阶段的起点：取还没有归属任何章节的最早来源，让新阶段顺手把这些散落记录收进来。
+     * 上限 {@code backfillMaxDays} 是为了别把长期不用、一回来就写一篇的用户的历史全部塞进第一个阶段
+     * （生成提示词会带上该阶段全部日记）。
+     */
+    private LocalDate firstDynamicStartDate(Long userId, LocalDate affectedDate) {
+        LocalDate earliest = null;
+        LocalDateTime diaryAt = chapterMapper.earliestUnattachedDiaryAt(userId);
+        if (diaryAt != null) earliest = diaryAt.toLocalDate();
+        LocalDate eventDate = chapterMapper.earliestUnattachedEventDate(userId);
+        if (eventDate != null && (earliest == null || eventDate.isBefore(earliest))) earliest = eventDate;
+        if (earliest == null || !earliest.isBefore(affectedDate)) return affectedDate;
+        LocalDate floor = affectedDate.minusDays(Math.max(1, backfillMaxDays));
+        return earliest.isBefore(floor) ? floor : earliest;
+    }
+
     private void attachDiariesForDate(Long userId, UserLifeChapterEntity chapter, LocalDate date) {
+        attachDiariesBetween(userId, chapter, date, date);
+    }
+
+    private void attachDiariesBetween(Long userId, UserLifeChapterEntity chapter, LocalDate from, LocalDate to) {
         List<DiaryEntity> diaries = diaryMapper.selectList(new LambdaQueryWrapper<DiaryEntity>()
                 .eq(DiaryEntity::getAuthorUserId, userId).eq(DiaryEntity::getIsDeleted, false)
-                .ge(DiaryEntity::getCreatedAt, date.atStartOfDay()).lt(DiaryEntity::getCreatedAt, date.plusDays(1).atStartOfDay()));
+                .ge(DiaryEntity::getCreatedAt, from.atStartOfDay()).lt(DiaryEntity::getCreatedAt, to.plusDays(1).atStartOfDay()));
         for (DiaryEntity diary : diaries) {
             LifeChapterDiaryEntity current = chapterDiaryMapper.selectOne(new LambdaQueryWrapper<LifeChapterDiaryEntity>()
                     .eq(LifeChapterDiaryEntity::getDiaryId, diary.getId()).last("LIMIT 1"));
@@ -326,8 +386,13 @@ public class LifeChapterService {
     }
 
     private void attachEventsForDate(Long userId, UserLifeChapterEntity chapter, LocalDate date) {
+        attachEventsBetween(userId, chapter, date, date);
+    }
+
+    private void attachEventsBetween(Long userId, UserLifeChapterEntity chapter, LocalDate from, LocalDate to) {
         List<UserLifeEventEntity> events = lifeEventMapper.selectList(new LambdaQueryWrapper<UserLifeEventEntity>()
-                .eq(UserLifeEventEntity::getUserId, userId).eq(UserLifeEventEntity::getTargetDate, date)
+                .eq(UserLifeEventEntity::getUserId, userId)
+                .ge(UserLifeEventEntity::getTargetDate, from).le(UserLifeEventEntity::getTargetDate, to)
                 .isNull(UserLifeEventEntity::getDeletedAt));
         for (UserLifeEventEntity event : events) {
             if (parseIds(event.getDiaryIdsJson()).isEmpty() && countEventSources(chapter.getId()) == 0
@@ -420,6 +485,31 @@ public class LifeChapterService {
         }
     }
 
+    /**
+     * 回收卡在中间态的动态阶段。READY 是调度器「已认领、待消费」，任务没落地就会永远停在那里；
+     * GENERATING 是消费者中途挂掉（异常没走到 markGenerationFailed）留下的。这两个状态都没有别的兜底。
+     *
+     * 用 force 重投，是因为快照没变时确定性幂等键会命中旧任务被静默丢掉——那正是卡住的成因。
+     * 真实失败会落到 FAILED（不再被扫到），所以不会一直重试烧额度；而先查 hasLiveTask 是为了
+     * RabbitMQ 长时间不可用时不要每轮都堆一个任务，否则恢复后会一次性跑成多次生成。
+     */
+    @Scheduled(fixedDelayString = "${timeline.stuck-recovery-interval-ms:600000}")
+    public void recoverStuckDynamicChapters() {
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(Math.max(1, stuckRecoveryMinutes));
+        List<UserLifeChapterEntity> stuck = chapterMapper.selectList(new LambdaQueryWrapper<UserLifeChapterEntity>()
+                .eq(UserLifeChapterEntity::getSegmentType, "DYNAMIC")
+                .in(UserLifeChapterEntity::getGenerationStatus, "READY", "GENERATING")
+                .le(UserLifeChapterEntity::getUpdatedAt, cutoff)
+                .isNotNull(UserLifeChapterEntity::getSourceSnapshotHash));
+        for (UserLifeChapterEntity chapter : stuck) {
+            if (aiTaskProducer.hasLiveChapterRefreshTask(chapter.getId())) continue;
+            aiTaskProducer.submitLifeChapterRefreshTask(chapter.getId(), chapter.getUserId(),
+                    chapter.getSourceSnapshotHash(), true);
+            log.warn("动态阶段长时间停留在 {}，已强制重新投递，chapterId={}，userId={}，snapshot={}",
+                    chapter.getGenerationStatus(), chapter.getId(), chapter.getUserId(), chapter.getSourceSnapshotHash());
+        }
+    }
+
     private void createBoundaryCandidateIfMissing(Long userId, UserLifeChapterEntity left, LocalDate start,
                                                    String reason, double confidence) {
         if (confidence < boundaryConfidenceThreshold) return;
@@ -463,13 +553,18 @@ public class LifeChapterService {
                         .eq(LifeChapterDiaryEntity::getChapterId, chapter.getId()).orderByDesc(LifeChapterDiaryEntity::getDiaryId))
                 .stream().map(LifeChapterDiaryEntity::getDiaryId).limit(6).toList();
         if (ids.size() < 6) return false;
-        List<DiaryAnalysisEntity> analyses = diaryAnalysisMapper.selectList(new LambdaQueryWrapper<DiaryAnalysisEntity>()
-                .in(DiaryAnalysisEntity::getDiaryId, ids).orderByDesc(DiaryAnalysisEntity::getUpdatedAt));
-        if (analyses.size() < 6) return false;
-        String latestMood = analyses.get(0).getMoodLabel();
-        String previousMood = analyses.get(3).getMoodLabel();
+        Map<Long, DiaryAnalysisEntity> byDiary = diaryAnalysisMapper.selectList(new LambdaQueryWrapper<DiaryAnalysisEntity>()
+                        .in(DiaryAnalysisEntity::getDiaryId, ids)).stream()
+                .collect(Collectors.toMap(DiaryAnalysisEntity::getDiaryId, Function.identity(), (a, b) -> a));
+        // 情绪序列必须跟着 ids 的日记新旧走。按分析记录的 updatedAt 排会把用户改过的旧日记顶到最前，
+        // 「最近三条情绪一致且与更早的不同」这个判据就失真了。
+        List<String> moods = ids.stream().map(byDiary::get).filter(java.util.Objects::nonNull)
+                .map(DiaryAnalysisEntity::getMoodLabel).toList();
+        if (moods.size() < 6) return false;
+        String latestMood = moods.get(0);
+        String previousMood = moods.get(3);
         return latestMood != null && previousMood != null && !latestMood.equals(previousMood)
-                && analyses.subList(0, 3).stream().allMatch(a -> latestMood.equals(a.getMoodLabel()));
+                && moods.subList(0, 3).stream().allMatch(latestMood::equals);
     }
 
     private void syncPeriodSources(UserLifeChapterEntity chapter, LocalDate start, LocalDate end) {
@@ -554,6 +649,12 @@ public class LifeChapterService {
         log.info("人生章节已标记为待更新，chapterId={}，snapshot={}", chapter.getId(), snapshot);
     }
 
+    /**
+     * 认领一次生成。GENERATING 也在可认领集合里：任务失败走 MQ 重试时，章节还停在 GENERATING
+     * （markGenerationFailed 只在最终失败时才调用），重试必须能重新认领。代价是同一章节可能有
+     * 两次生成并行，但这已经无害——commitVersion 用 lock_version 判胜负，输的那次不会写章节、
+     * 不会插版本行、也不会建向量。
+     */
     public boolean markGenerationStarted(Long userId, Long chapterId, String snapshot) {
         return chapterMapper.update(null, new LambdaUpdateWrapper<UserLifeChapterEntity>()
                 .eq(UserLifeChapterEntity::getId, chapterId).eq(UserLifeChapterEntity::getUserId, userId)
@@ -604,18 +705,14 @@ public class LifeChapterService {
             if (result.get("dominantMoods") instanceof List<?> raw) {
                 for (Object item : raw) if (item != null && !String.valueOf(item).isBlank()) moods.add(boundedText(item, 32));
             }
-            transactionTemplate.executeWithoutResult(status ->
+            Boolean committed = transactionTemplate.execute(status ->
                     commitVersion(userId, chapterId, snapshot, title, summary, reflection, moods, diaryIds, eventIds));
-            UserLifeChapterEntity committed = chapterMapper.selectOne(new LambdaQueryWrapper<UserLifeChapterEntity>()
-                    .eq(UserLifeChapterEntity::getId, chapterId)
-                    .eq(UserLifeChapterEntity::getUserId, userId)
-                    .eq(UserLifeChapterEntity::getSourceSnapshotHash, snapshot)
-                    .eq(UserLifeChapterEntity::getGenerationStatus, "SUCCEEDED"));
-            if (committed != null && ragMemoryService != null) {
+            // 只有真正写进章节的那一版才能建向量，否则库里的正文和向量会指向两次不同的生成结果。
+            if (Boolean.TRUE.equals(committed) && ragMemoryService != null) {
                 ragMemoryService.indexLifeChapter(userId, chapterId,
                         title + "\n" + summary + "\n" + reflection, snapshot);
             } else {
-                log.info("跳过过期章节摘要向量化，chapterId={}，snapshot={}", chapterId, snapshot);
+                log.info("跳过未提交成功的章节摘要向量化，chapterId={}，snapshot={}", chapterId, snapshot);
             }
         } catch (Exception e) {
             if (e instanceof RuntimeException runtime) throw runtime;
@@ -624,7 +721,7 @@ public class LifeChapterService {
     }
 
     @Transactional
-    protected void commitVersion(Long userId, Long chapterId, String snapshot, String title, String summary,
+    protected boolean commitVersion(Long userId, Long chapterId, String snapshot, String title, String summary,
                                  String reflection, List<String> moods, List<Long> diaryIds, List<Long> eventIds) {
         UserLifeChapterEntity current = ownedChapter(userId, chapterId);
         long lock = current.getLockVersion() == null ? 0L : current.getLockVersion();
@@ -639,7 +736,7 @@ public class LifeChapterService {
                 .set(UserLifeChapterEntity::getGenerationStatus, "SUCCEEDED").set(UserLifeChapterEntity::getDirtySince, null)
                 .set(UserLifeChapterEntity::getLastGeneratedAt, now).set(UserLifeChapterEntity::getLastGenerationError, null)
                 .set(UserLifeChapterEntity::getLockVersion, lock + 1).set(UserLifeChapterEntity::getUpdatedAt, now));
-        if (updated != 1) { log.info("放弃提交过期的人生章节版本，chapterId={}，snapshot={}", chapterId, snapshot); return; }
+        if (updated != 1) { log.info("放弃提交过期的人生章节版本，chapterId={}，snapshot={}", chapterId, snapshot); return false; }
         UserLifeChapterVersionEntity version = new UserLifeChapterVersionEntity(); version.setChapterId(chapterId);
         version.setVersion(nextVersion); version.setTitle(title); version.setThemeSummary(summary);
         version.setGrowthReflection(reflection); version.setDominantMoodsJson(writeMoods(moods));
@@ -659,6 +756,7 @@ public class LifeChapterService {
         log.info("人生章节版本已生成，chapterId={}，version={}", chapterId, nextVersion);
         notificationService.notifyGlobalEvent(userId, "CHAPTER_UPDATED",
                 Map.of("message", "时光画卷整理已完成", "chapterId", chapterId, "version", nextVersion));
+        return true;
     }
 
     public void markGenerationFailed(Long userId, Long chapterId, String snapshot, String error) {
@@ -706,9 +804,6 @@ public class LifeChapterService {
         UserLifeChapterEntity chapter = ownedChapter(userId, chapterId);
         if (Boolean.TRUE.equals(chapter.getIsOpen()) || "COLLECTING".equals(chapter.getGenerationStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "当前阶段仍在积累，暂不需要整理");
-        }
-        if ("GENERATING".equals(chapter.getGenerationStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "这一章正在整理中，请稍候");
         }
         if (chapter.getSourceSnapshotHash() == null) chapter.setSourceSnapshotHash(sourceSnapshotHash(chapterId));
         chapter.setGenerationStatus("DIRTY");
@@ -785,13 +880,17 @@ public class LifeChapterService {
 
     private int parseCursor(String cursor) { try { return cursor == null || cursor.isBlank() ? 0 : Math.max(0, Integer.parseInt(cursor)); } catch (NumberFormatException e) { return 0; } }
 
+    /**
+     * 相邻阶段之间没有被任何阶段覆盖的日期区间。历史月度章节也要参与比较，
+     * 否则升级前那段没归属的记录在页面上完全看不出来。
+     */
     private List<TimelineGap> timelineGaps(List<ChapterView> chapters) {
-        List<ChapterView> dynamic = chapters.stream().filter(c -> "DYNAMIC".equals(c.segmentType()))
+        List<ChapterView> ordered = chapters.stream()
                 .sorted(Comparator.comparing(ChapterView::startDate)).toList();
         List<TimelineGap> gaps = new ArrayList<>();
-        for (int i = 1; i < dynamic.size(); i++) {
-            LocalDate previousEnd = parseDate(dynamic.get(i - 1).endDate());
-            LocalDate nextStart = parseDate(dynamic.get(i).startDate());
+        for (int i = 1; i < ordered.size(); i++) {
+            LocalDate previousEnd = parseDate(ordered.get(i - 1).endDate());
+            LocalDate nextStart = parseDate(ordered.get(i).startDate());
             if (previousEnd != null && nextStart != null && nextStart.isAfter(previousEnd.plusDays(1)))
                 gaps.add(new TimelineGap(previousEnd.plusDays(1).toString(), nextStart.minusDays(1).toString()));
         }
