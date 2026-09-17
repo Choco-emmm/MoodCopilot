@@ -135,7 +135,7 @@ public class LifeEventService {
             this(title, description, null, targetDate, endDate, startTime, endTime, null, null);
         }
     }
-    public record LifeEventUpsertRequest(String title, String description, String targetDate,
+    public record LifeEventUpsertRequest(String title, String description, String followUpNote, String targetDate,
                                          String endDate, String startTime, String endTime,
                                          List<Long> diaryIds) {}
     public record LifeEventView(Long id, String title, String description, String targetDate,
@@ -258,6 +258,7 @@ public class LifeEventService {
         entity.setUserId(userId);
         entity.setTitle(clean(request.title(), 128));
         entity.setDescription(clean(request.description(), 1000));
+        entity.setFollowUpNote(clean(request.followUpNote(), 2000));
         applySchedule(entity, schedule);
         entity.setStatus("PENDING");
         applyTemporalAndFollowUp(entity, null, null, null, schedule, false);
@@ -282,6 +283,7 @@ public class LifeEventService {
         }
         entity.setTitle(title);
         entity.setDescription(clean(request.description(), 1000));
+        entity.setFollowUpNote(clean(request.followUpNote(), 2000));
         applySchedule(entity, schedule);
         applyTemporalAndFollowUp(entity, null, null, entity.getImportance(), schedule, false);
         if (request.diaryIds() != null) {

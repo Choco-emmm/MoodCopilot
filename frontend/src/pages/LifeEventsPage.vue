@@ -73,6 +73,7 @@
         <div class="editor-form">
           <label>事件名称<input v-model.trim="form.title" maxlength="128" placeholder="例如：期末考试" /></label>
           <label>描述<textarea v-model.trim="form.description" maxlength="1000" rows="3" placeholder="可以补充一点背景"></textarea></label>
+          <label>最新状态<textarea v-model.trim="form.followUpNote" maxlength="2000" rows="2" placeholder="当前事件的最新进展"></textarea></label>
           <div class="field-grid">
             <label>开始日期<input v-model="form.targetDate" type="date" /></label>
             <label>结束日期（可选）<input v-model="form.endDate" type="date" /></label>
@@ -161,12 +162,12 @@ async function loadMoreDiaries() { if (!diariesHasMore.value || diariesLoading.v
 
 function openCreate() {
   editing.value = null; editorError.value = ''; selectedDiaryIds.value = []
-  form.value = { title: '', description: '', targetDate: localDate(), endDate: '', startTime: '', endTime: '', diaryIds: [] }
+  form.value = { title: '', description: '', followUpNote: '', targetDate: localDate(), endDate: '', startTime: '', endTime: '', diaryIds: [] }
   editorOpen.value = true; diaryKeyword.value = ''; diaryStartDate.value = ''; diaryEndDate.value = ''; void loadDiaries()
 }
 function openEdit(event: LifeEvent) {
   editing.value = event; editorError.value = ''; selectedDiaryIds.value = [...(event.diaryIds || [])]
-  form.value = { title: event.title, description: event.description || '', targetDate: event.targetDate || '', endDate: event.endDate || '', startTime: event.startTime || '', endTime: event.endTime || '', diaryIds: selectedDiaryIds.value }
+  form.value = { title: event.title, description: event.description || '', followUpNote: event.followUpNote || '', targetDate: event.targetDate || '', endDate: event.endDate || '', startTime: event.startTime || '', endTime: event.endTime || '', diaryIds: selectedDiaryIds.value }
   editorOpen.value = true; diaryKeyword.value = ''; diaryStartDate.value = ''; diaryEndDate.value = ''; void loadDiaries()
 }
 function closeEditor() { if (!saving.value) editorOpen.value = false }

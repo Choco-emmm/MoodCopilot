@@ -76,6 +76,9 @@ public class ChatReferenceResolver {
         if (event.getDescription() != null && !event.getDescription().isBlank()) {
             content.append("\n说明：").append(event.getDescription().trim());
         }
+        if (event.getFollowUpNote() != null && !event.getFollowUpNote().isBlank()) {
+            content.append("\n最新状态：").append(event.getFollowUpNote().trim());
+        }
         if (event.getTargetDate() != null) {
             content.append("\n时间：").append(event.getTargetDate());
             if (event.getEndDate() != null) content.append(" 至 ").append(event.getEndDate());

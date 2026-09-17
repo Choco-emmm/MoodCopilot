@@ -90,6 +90,7 @@ export interface LifeDiaryPage {
 export interface LifeEventPayload {
   title: string
   description?: string
+  followUpNote?: string
   targetDate: string
   endDate?: string
   startTime?: string

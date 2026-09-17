@@ -43,6 +43,7 @@
         <scroll-view scroll-y class="editor-scroll" :show-scrollbar="false" @scrolltolower="loadMoreDiaries" lower-threshold="80">
           <view class="form-field"><text>事件名称</text><input v-model="form.title" maxlength="128" placeholder="例如：期末考试" /></view>
           <view class="form-field"><text>描述</text><textarea v-model="form.description" maxlength="1000" auto-height placeholder="可以补充一点背景" /></view>
+          <view class="form-field"><text>最新状态</text><textarea v-model="form.followUpNote" maxlength="2000" auto-height placeholder="当前事件的最新进展" /></view>
           <view class="field-row">
             <view class="form-field"><text>开始日期</text><picker mode="date" :value="form.targetDate" start="2000-01-01" end="2100-12-31" @change="form.targetDate = $event.detail.value"><view class="picker-value">{{ form.targetDate || '请选择' }}</view></picker></view>
             <view class="form-field"><text>结束日期</text><picker mode="date" :value="form.endDate || form.targetDate" start="2000-01-01" end="2100-12-31" @change="form.endDate = $event.detail.value"><view class="picker-value">{{ form.endDate || '可选' }}</view></picker><text v-if="form.endDate" class="clear-link" @click="form.endDate = ''">清除</text></view>
@@ -68,8 +69,8 @@ import { hasLoginToken, requireLogin } from '@/stores/login'
 import { currentTheme } from '@/stores/theme'
 
 interface LifeDiaryOption { id: number; date: string; excerpt: string; summary?: string }
-interface LifeEvent { id: number; title: string; description?: string; targetDate: string; endDate?: string; startTime?: string; endTime?: string; status: string; diaryIds?: number[]; diaryCount?: number; lastDiaryId?: number; temporalPhase?: string; nextFollowUpAt?: string; followUpReason?: string; followUpCompleted?: boolean; followUpCount?: number }
-interface EventForm { title: string; description: string; targetDate: string; endDate: string; startTime: string; endTime: string }
+interface LifeEvent { id: number; title: string; description?: string; followUpNote?: string; targetDate: string; endDate?: string; startTime?: string; endTime?: string; status: string; diaryIds?: number[]; diaryCount?: number; lastDiaryId?: number; temporalPhase?: string; nextFollowUpAt?: string; followUpReason?: string; followUpCompleted?: boolean; followUpCount?: number }
+interface EventForm { title: string; description: string; followUpNote?: string; targetDate: string; endDate: string; startTime: string; endTime: string }
 const events = ref<LifeEvent[]>([])
 const diaries = ref<LifeDiaryOption[]>([])
 const loading = ref(true)
@@ -84,7 +85,7 @@ const editing = ref<LifeEvent | null>(null)
 const saving = ref(false)
 const editorError = ref('')
 const selectedDiaryIds = ref<number[]>([])
-const form = ref<EventForm>({ title: '', description: '', targetDate: '', endDate: '', startTime: '', endTime: '' })
+const form = ref<EventForm>({ title: '', description: '', followUpNote: '', targetDate: '', endDate: '', startTime: '', endTime: '' })
 const undoEvent = ref<LifeEvent | null>(null)
 const eventInfoOpen = ref(false)
 let undoTimer: ReturnType<typeof setTimeout> | undefined
@@ -102,8 +103,8 @@ function applyDiaryFilters() {
 }
 async function loadMoreDiaries() { if (!diariesHasMore.value || diariesLoading.value) return; diaryPage.value += 1; await loadDiaries(false) }
 function resetDiaryFilters() { diaryKeyword.value = ''; diaryStartDate.value = ''; diaryEndDate.value = '' }
-function openCreate() { editing.value = null; editorError.value = ''; selectedDiaryIds.value = []; resetDiaryFilters(); form.value = { title: '', description: '', targetDate: localDate(), endDate: '', startTime: '', endTime: '' }; editorOpen.value = true; void loadDiaries() }
-function openEdit(event: LifeEvent) { editing.value = event; editorError.value = ''; selectedDiaryIds.value = [...(event.diaryIds || [])]; resetDiaryFilters(); form.value = { title: event.title, description: event.description || '', targetDate: event.targetDate || '', endDate: event.endDate || '', startTime: event.startTime || '', endTime: event.endTime || '' }; editorOpen.value = true; void loadDiaries() }
+function openCreate() { editing.value = null; editorError.value = ''; selectedDiaryIds.value = []; resetDiaryFilters(); form.value = { title: '', description: '', followUpNote: '', targetDate: localDate(), endDate: '', startTime: '', endTime: '' }; editorOpen.value = true; void loadDiaries() }
+function openEdit(event: LifeEvent) { editing.value = event; editorError.value = ''; selectedDiaryIds.value = [...(event.diaryIds || [])]; resetDiaryFilters(); form.value = { title: event.title, description: event.description || '', followUpNote: event.followUpNote || '', targetDate: event.targetDate || '', endDate: event.endDate || '', startTime: event.startTime || '', endTime: event.endTime || '' }; editorOpen.value = true; void loadDiaries() }
 function closeEditor() { if (!saving.value) editorOpen.value = false }
 function onDiaryChange(event: any) {
   const visibleIds = new Set(diaries.value.map(diary => diary.id))
