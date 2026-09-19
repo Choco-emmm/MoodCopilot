@@ -44,6 +44,9 @@ public final class DiarySearchSnippetBuilder {
             String desc = matchedImageDesc.startsWith("【图片描述】")
                     ? matchedImageDesc.substring("【图片描述】".length())
                     : matchedImageDesc;
+            if (desc.codePointCount(0, desc.length()) > EXCERPT_CHARS) {
+                desc = desc.substring(0, desc.offsetByCodePoints(0, EXCERPT_CHARS)) + "...";
+            }
             sb.append("[图片描述：").append(desc).append("] ");
         } else if (diary.getImages() != null && !diary.getImages().isEmpty()) {
             sb.append("[分享图片] ");
