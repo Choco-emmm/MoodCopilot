@@ -247,15 +247,19 @@ public class UserProfileMemoryController {
 
     @PostMapping("/candidates/{id}/approve")
     public ApiResponse<Void> approve(@AuthenticationPrincipal com.moodcopilot.entity.UserEntity user,
-            @PathVariable long id) {
-        memoryOrchestrator.approveCandidate(user.getId(), id);
+            @PathVariable long id,
+            @RequestBody(required = false) com.moodcopilot.api.ApproveCandidateRequest request) {
+        String editedValue = (request != null) ? request.getEditedValue() : null;
+        memoryOrchestrator.approveCandidate(user.getId(), id, editedValue);
         return ApiResponse.ok();
     }
 
     @PostMapping("/candidates/{id}/reject")
     public ApiResponse<Void> reject(@AuthenticationPrincipal com.moodcopilot.entity.UserEntity user,
-            @PathVariable long id) {
-        memoryOrchestrator.rejectCandidate(user.getId(), id);
+            @PathVariable long id,
+            @RequestBody(required = false) com.moodcopilot.api.RejectCandidateRequest request) {
+        String reason = (request != null) ? request.getReason() : null;
+        memoryOrchestrator.rejectCandidate(user.getId(), id, reason);
         return ApiResponse.ok();
     }
 

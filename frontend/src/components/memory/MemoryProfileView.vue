@@ -22,7 +22,26 @@
           <small>这些内容还没有进入正式画像，请确认哪些值得长期保留。 如果 AI 再次观察到相同的记忆规律，也会自动转正。</small>
         </div>
         <span class="candidate-summary">
-          {{ candidateGroups.length }} 个属性<template v-if="candidateConflictGroupCount"> · {{ candidateConflictGroupCount }} 个属性有不同候选</template>
+          {{ candidateGroups.length }} 个属性<template v-if="candidateConflictGroupCount"> · {{ candidateConflictGroupCount }} 个属性有不同候选
+    <!-- Approve Candidate Modal -->
+    <n-modal v-model:show="showApproveModal" preset="dialog" title="确认候选记忆" :show-icon="false"
+      positive-text="确认并保存" negative-text="取消" @positive-click="doApproveCandidate" @negative-click="showApproveModal = false">
+      <div style="margin-top: 16px;">
+        <p style="margin-bottom: 8px; color: var(--color-text-secondary);">你可以直接确认，也可以在这里修改后再确认：</p>
+        <n-input v-model:value="approveEditedValue" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" placeholder="请输入最终的记忆内容" />
+      </div>
+    </n-modal>
+
+    <!-- Reject Candidate Modal -->
+    <n-modal v-model:show="showRejectModal" preset="dialog" title="拒绝候选记忆" :show-icon="false"
+      positive-text="确认拒绝" negative-text="取消" :positive-button-props="{ type: 'warning' }" @positive-click="doRejectCandidate" @negative-click="showRejectModal = false">
+      <div style="margin-top: 16px;">
+        <p style="margin-bottom: 8px; color: var(--color-text-secondary);">拒绝后，这条内容不会进入正式画像。你可以写下拒绝原因，AI 会根据你的原因重新思考并提取正确的记忆：</p>
+        <n-input v-model:value="rejectReason" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" placeholder="（可选）例如：这只是一时冲动，并不是我的习惯..." />
+      </div>
+    </n-modal>
+
+</template>
         </span>
       </div>
       <div v-for="group in candidateGroups" :key="group.key" class="candidate-group">
@@ -193,7 +212,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton, NSpin, NInput, NTag, NCheckbox, NPopover, useDialog } from 'naive-ui'
+import { NButton, NSpin, NInput, NTag, NCheckbox, NPopover, useDialog, NModal } from 'naive-ui'
 import { memoryApi } from '../../api'
 import { logWarn } from '../../utils/logger'
 import { useConsolidationStore } from '../../stores/consolidation'
@@ -215,6 +234,11 @@ const deletingMemoryId = ref<number | null>(null)
 const editingMemoryId = ref<number | null>(null)
 const editingMemoryValue = ref('')
 const editingMemoryIsCore = ref(false)
+const showApproveModal = ref(false)
+const showRejectModal = ref(false)
+const activeCandidateId = ref<number | null>(null)
+const rejectReason = ref('')
+const approveEditedValue = ref('')
 const savingMemoryId = ref<number | null>(null)
 const candidates = ref<any[]>([])
 const candidateDetailsId = ref<number | null>(null)
@@ -313,41 +337,53 @@ function formatMemoryTime(value: string | null | undefined): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+
 async function approveCandidate(id: number) {
-  await memoryApi.approveCandidate(id)
+  const candidate = candidates.value.find(c => c.id === id)
+  if (candidate) {
+    approveEditedValue.value = candidate.attributeValue
+    activeCandidateId.value = id
+    showApproveModal.value = true
+  }
+}
+
+async function doApproveCandidate() {
+  if (activeCandidateId.value === null) return
+  const id = activeCandidateId.value
+  await memoryApi.approveCandidate(id, { editedValue: approveEditedValue.value })
   await loadMemories()
   resetMemoryDetails()
   window.$message?.success('记忆已确认')
+  showApproveModal.value = false
 }
 
 function confirmRejectCandidate(candidate: any) {
-  dialog.warning({
-    title: '拒绝这条候选记忆？',
-    content: `拒绝后，这条内容不会进入正式画像，但相关依据和历史记录仍会保留。系统会暂时记住你不希望 AI 自动添加这条内容，避免近期再次提出；之后你明确表达新的事实时，仍可以重新建立。${candidate?.attributeKey ? `\n\n当前候选：${candidate.attributeKey}` : ''}`,
-    positiveText: '确认拒绝',
-    negativeText: '取消',
-    positiveButtonProps: { type: 'warning' },
-    onPositiveClick: () => rejectCandidate(candidate.id),
-  })
+  activeCandidateId.value = candidate.id
+  rejectReason.value = ''
+  showRejectModal.value = true
 }
 
-async function rejectCandidate(id: number) {
+async function doRejectCandidate() {
+  if (activeCandidateId.value === null) return
+  const id = activeCandidateId.value
   if (rejectingCandidateId.value !== null) return
   rejectingCandidateId.value = id
   try {
-    await memoryApi.rejectCandidate(id)
+    await memoryApi.rejectCandidate(id, { reason: rejectReason.value })
     candidates.value = candidates.value.filter(candidate => candidate.id !== id)
     if (candidateDetailsId.value === id) {
       candidateDetailsId.value = null
       candidateEvidence.value = []
     }
     window.$message?.success('已拒绝，这条内容近期不会再被自动加入')
+    showRejectModal.value = false
   } catch (e) {
     logWarn('memory', '拒绝候选记忆失败', id, e)
   } finally {
     rejectingCandidateId.value = null
   }
 }
+
 
 async function toggleCandidateDetails(id: number) {
   if (candidateDetailsId.value === id) {

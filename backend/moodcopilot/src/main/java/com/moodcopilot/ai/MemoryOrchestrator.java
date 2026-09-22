@@ -68,6 +68,7 @@ public class MemoryOrchestrator {
     private final NotificationService notificationService;
     private final DiaryMapper diaryMapper;
     private final ZoneId businessTimeZone;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Autowired
     public MemoryOrchestrator(UserProfileMemoryMapper memoryMapper,
@@ -78,6 +79,7 @@ public class MemoryOrchestrator {
             ObjectMapper objectMapper,
             NotificationService notificationService,
             DiaryMapper diaryMapper,
+            org.springframework.context.ApplicationEventPublisher eventPublisher,
             @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId) {
         this.memoryMapper = memoryMapper;
         this.candidateMapper = candidateMapper;
@@ -87,6 +89,7 @@ public class MemoryOrchestrator {
         this.objectMapper = objectMapper;
         this.notificationService = notificationService;
         this.diaryMapper = diaryMapper;
+        this.eventPublisher = eventPublisher;
         this.businessTimeZone = parseZoneId(timeZoneId);
     }
 
@@ -99,7 +102,7 @@ public class MemoryOrchestrator {
             ObjectMapper objectMapper,
             NotificationService notificationService) {
         this(memoryMapper, candidateMapper, evidenceMapper, rejectionMapper, ragMemoryService,
-                objectMapper, notificationService, null, "Asia/Shanghai");
+                objectMapper, notificationService, null, null, "Asia/Shanghai");
     }
 
     public MemoryOrchestrator(UserProfileMemoryMapper memoryMapper,
@@ -109,7 +112,7 @@ public class MemoryOrchestrator {
             RagMemoryService ragMemoryService,
             ObjectMapper objectMapper) {
         this(memoryMapper, candidateMapper, evidenceMapper, rejectionMapper, ragMemoryService,
-                objectMapper, null, null, "Asia/Shanghai");
+                objectMapper, null, null, null, "Asia/Shanghai");
     }
 
     @Transactional
@@ -279,10 +282,18 @@ public class MemoryOrchestrator {
 
     @Transactional
     public void approveCandidate(long userId, long candidateId) {
+        approveCandidate(userId, candidateId, null);
+    }
+
+    @Transactional
+    public void approveCandidate(long userId, long candidateId, String editedValue) {
         UserMemoryCandidateEntity candidate = ownedCandidate(userId, candidateId);
         if (!PENDING.equals(candidate.getStatus()))
             return;
-        UserProfileMemoryEntity memory = saveFormal(userId, candidate.getAttributeKey(), candidate.getAttributeValue(),
+        
+        String finalValue = (editedValue != null && !editedValue.isBlank()) ? editedValue.trim() : candidate.getAttributeValue();
+
+        UserProfileMemoryEntity memory = saveFormal(userId, candidate.getAttributeKey(), finalValue,
                 candidate.getMemoryType(), "explicit", candidate.getSourceDiaryId(),
                 candidate.getSourceConversationId(),
                 candidate.getConfidence(), candidate.getValidFrom(), "user approved candidate", candidate.getIsCore());
@@ -292,17 +303,28 @@ public class MemoryOrchestrator {
                         .set(UserMemoryEvidenceEntity::getMemoryId, memory.getId()));
         candidate.setStatus("APPROVED");
         candidateMapper.updateById(candidate);
-        notifyFormalized(userId, candidate.getAttributeKey(), candidate.getAttributeValue(), "你确认了候选记忆");
+        notifyFormalized(userId, candidate.getAttributeKey(), finalValue, "你确认了候选记忆");
         reindex(userId);
     }
 
     @Transactional
     public void rejectCandidate(long userId, long candidateId) {
+        rejectCandidate(userId, candidateId, null);
+    }
+
+    @Transactional
+    public void rejectCandidate(long userId, long candidateId, String reason) {
         UserMemoryCandidateEntity candidate = ownedCandidate(userId, candidateId);
         candidate.setStatus("REJECTED");
         candidateMapper.updateById(candidate);
+        String finalReason = (reason != null && !reason.isBlank()) ? reason.trim() : "USER_REJECTED";
         addRejection(userId, candidate.getMemoryType(), candidate.getAttributeKey(), candidate.getAttributeValue(),
-                "USER_REJECTED");
+                finalReason);
+                
+        if (reason != null && !reason.isBlank() && eventPublisher != null) {
+            String originalText = candidate.getAttributeValue();
+            eventPublisher.publishEvent(new MemoryCandidateRejectedEvent(this, userId, candidateId, candidate.getSourceDiaryId(), reason, originalText));
+        }
     }
 
     /**

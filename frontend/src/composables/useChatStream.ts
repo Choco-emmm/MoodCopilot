@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import { chatApi, type ApprovalDecision, type PendingApprovalItem } from '../api'
 import { tryExpToast } from '../utils/toast'
 import { logWarn } from '../utils/logger'
@@ -294,9 +294,11 @@ export function useChatStream(
           lastReplyError.value = e?.message || '恢复聊天生成失败，请稍后重试。'
         }
       } finally {
-        isCompressing.value = false
-        streamAbortCtrl = null
-        await finishSend(convId)
+        if (streamAbortCtrl === ctrl) {
+          isCompressing.value = false
+          streamAbortCtrl = null
+          await finishSend(convId)
+        }
       }
     })()
 
@@ -419,9 +421,11 @@ export function useChatStream(
         }
       }
     } finally {
-      isCompressing.value = false
-      streamAbortCtrl = null
-      await finishSend(convId, refreshTitle)
+      if (streamAbortCtrl === ctrl) {
+        isCompressing.value = false
+        streamAbortCtrl = null
+        await finishSend(convId, refreshTitle)
+      }
     }
   }
 
@@ -460,6 +464,11 @@ export function useChatStream(
     lastReplyError.value = null
     lastReplyRequest.value = null
     sendGuard.value = false
+    streaming.value = false
+    isThinking.value = false
+    streamingText.value = ''
+    streamingReasoning.value = ''
+    streamingRefs.value = []
     if (streamRafId !== null) {
       cancelAnimationFrame(streamRafId)
       streamRafId = null
@@ -469,6 +478,12 @@ export function useChatStream(
       streamAbortCtrl = null
     }
   }
+
+  watch(activeConvId, (newId, oldId) => {
+    if (newId !== oldId) {
+      abortStream()
+    }
+  })
 
   // ── Error Message ──
 

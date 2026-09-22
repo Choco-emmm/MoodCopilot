@@ -901,8 +901,11 @@ const finishTurn = (errorMessage: string | null, isFirstUserMessage: boolean) =>
   }
 };
 
+let currentStreamSessionId = 0;
+
 /** 切换/新建会话时中断进行中的流，避免增量文本落到别的会话里 */
 const abortActiveStream = () => {
+  currentStreamSessionId++;
   if (streamTickTimer !== null) {
     clearTimeout(streamTickTimer);
     streamTickTimer = null;
@@ -949,6 +952,7 @@ const sendMessage = async () => {
   scrollToBottom('waiting');
 
   // 失败一律走 onError，这里不需要 try/catch
+  const streamSessionId = currentStreamSessionId;
   activeStream = await startChatStream(
     {
       conversationId: conversationId.value,
@@ -959,11 +963,25 @@ const sendMessage = async () => {
       ...(eventId ? { eventId } : {}),
     },
     {
-      onChunk: appendStreamText,
-      onDone: () => finishTurn(null, isFirstUserMessage),
-      onError: error => finishTurn(toReplyErrorMessage(error), isFirstUserMessage),
+      onChunk: (text) => {
+        if (currentStreamSessionId !== streamSessionId) return;
+        appendStreamText(text);
+      },
+      onDone: () => {
+        if (currentStreamSessionId !== streamSessionId) return;
+        finishTurn(null, isFirstUserMessage);
+      },
+      onError: error => {
+        if (currentStreamSessionId !== streamSessionId) return;
+        finishTurn(toReplyErrorMessage(error), isFirstUserMessage);
+      },
     },
   );
+
+  if (currentStreamSessionId !== streamSessionId) {
+    activeStream?.cancel();
+    activeStream = null;
+  }
 };
 
 const waitForConversationTitle = async (id: number) => {
