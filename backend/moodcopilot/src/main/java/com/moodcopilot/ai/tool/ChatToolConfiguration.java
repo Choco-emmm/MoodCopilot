@@ -5,6 +5,7 @@ import com.moodcopilot.ai.MemoryExtractionService;
 import com.moodcopilot.ai.MemoryOrchestrator;
 import com.moodcopilot.ai.RagMemoryService;
 import com.moodcopilot.ai.VisionService;
+import com.moodcopilot.ai.tool.impl.CreateEventTool;
 import com.moodcopilot.ai.tool.impl.DeleteMemoryTool;
 import com.moodcopilot.ai.tool.impl.DiaryImageAnalysisTool;
 import com.moodcopilot.ai.tool.impl.DiarySemanticSearchTool;
@@ -66,6 +67,7 @@ public class ChatToolConfiguration {
                 new ReadImageTextTool(visionService),
                 new ListEventsTool(lifeEventService),
                 new UpdateEventStatusTool(lifeEventService),
+                new CreateEventTool(lifeEventService),
                 // 写类工具排在读类之后：模型先查清楚再决定改什么
                 new SaveMemoryTool(memoryOrchestrator, memoryExtractionService),
                 new DeleteMemoryTool(memoryOrchestrator),
