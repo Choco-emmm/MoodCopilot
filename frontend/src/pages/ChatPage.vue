@@ -409,14 +409,14 @@ const APPROVAL_COPY: Record<string, {
   reasonLabel: string; reasonPlaceholder: string
 }> = {
   // hint 一律压到一行：面板每高一行，用户就少看一行对话，而「不可逆」这层意思不能省
-      createEventFunction: {
-      title: '要创建一条新事件',
-      hint: '确认之后才会创建，以后可以在事件页面修改。',
-      confirm: '确认创建',
-      reject: '先不创建',
-      reasonLabel: '不想创建的话，可以说一句原因',
-      reasonPlaceholder: '拒绝的话说一句原因，例如：时间不对',
-    },
+      createEvent: {
+        title: '要创建一条新事件',
+        hint: '确认之后才会创建，以后可以在事件页面修改。',
+        confirm: '确认创建',
+        reject: '先不建',
+        reasonLabel: '拒绝的话说一句原因',
+        reasonPlaceholder: '拒绝的话说一句原因，例如：时间不对',
+      },
     saveMemory: {
     title: '要记进你的长期记忆',
     hint: '确认之后才会写入，以后可以再改或删。',
