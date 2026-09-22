@@ -323,7 +323,7 @@ public class MemoryOrchestrator {
                 
         if (reason != null && !reason.isBlank() && eventPublisher != null) {
             String originalText = candidate.getAttributeValue();
-            eventPublisher.publishEvent(new MemoryCandidateRejectedEvent(this, userId, candidateId, candidate.getSourceDiaryId(), reason, originalText));
+            eventPublisher.publishEvent(new MemoryCandidateRejectedEvent(this, userId, candidateId, candidate.getSourceDiaryId(), candidate.getSourceConversationId(), reason, originalText));
         }
     }
 

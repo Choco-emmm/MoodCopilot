@@ -214,12 +214,12 @@ public class MemoryExtractionService {
      */
     @Async("aiExecutor")
     
-    public List<MemoryAttribute> extractMemoryFromDiary(String diaryContent, String sourceType, Long userId, Long diaryId, String hint) {
-        if (diaryContent == null || diaryContent.isBlank()) {
+    public List<MemoryAttribute> extractMemoryFromContext(String contextContent, String sourceType, Long userId, Long sourceId, String hint) {
+        if (contextContent == null || contextContent.isBlank()) {
             return List.of();
         }
         try {
-            String prompt = buildExtractionUserPrompt(diaryContent, null, null);
+            String prompt = buildExtractionUserPrompt(contextContent, null, null);
             if (hint != null && !hint.isBlank()) {
                 prompt = prompt + "\n\n" + hint;
             }
@@ -240,7 +240,7 @@ public class MemoryExtractionService {
                 return sanitizeAttributes(response.attributes());
             }
         } catch (Exception e) {
-            log.error("Failed to re-extract memory for diary " + diaryId + " with hint", e);
+            log.error("Failed to re-extract memory for source " + sourceId + " with hint", e);
         }
         return List.of();
     }

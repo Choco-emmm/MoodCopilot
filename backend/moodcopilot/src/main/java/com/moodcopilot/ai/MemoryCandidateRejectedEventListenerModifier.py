@@ -1,35 +1,14 @@
-package com.moodcopilot.ai;
+import re
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Component;
+with open("backend/moodcopilot/src/main/java/com/moodcopilot/ai/MemoryCandidateRejectedEventListener.java", "r", encoding="utf-8") as f:
+    code = f.read()
 
-import com.moodcopilot.mapper.DiaryMapper;
-import com.moodcopilot.entity.DiaryEntity;
-import java.util.List;
+if "ChatService chatService" not in code:
+    code = code.replace("private final MemoryOrchestrator memoryOrchestrator;", "private final MemoryOrchestrator memoryOrchestrator;\n    private final ChatService chatService;")
+    code = code.replace("MemoryExtractionService memoryExtractionService,", "MemoryExtractionService memoryExtractionService,\n            @org.springframework.context.annotation.Lazy ChatService chatService,")
+    code = code.replace("this.memoryOrchestrator = memoryOrchestrator;", "this.memoryOrchestrator = memoryOrchestrator;\n        this.chatService = chatService;")
 
-@Component
-public class MemoryCandidateRejectedEventListener {
-    private static final Logger log = LoggerFactory.getLogger(MemoryCandidateRejectedEventListener.class);
-
-    private final DiaryMapper diaryMapper;
-    private final MemoryExtractionService memoryExtractionService;
-    private final MemoryOrchestrator memoryOrchestrator;
-    private final ChatService chatService;
-
-    public MemoryCandidateRejectedEventListener(DiaryMapper diaryMapper,
-            MemoryExtractionService memoryExtractionService,
-            @org.springframework.context.annotation.Lazy ChatService chatService,
-            @org.springframework.context.annotation.Lazy MemoryOrchestrator memoryOrchestrator) {
-        this.diaryMapper = diaryMapper;
-        this.memoryExtractionService = memoryExtractionService;
-        this.memoryOrchestrator = memoryOrchestrator;
-        this.chatService = chatService;
-    }
-
-    
+logic_replacement = """
     @EventListener
     @Async
     public void onMemoryCandidateRejected(MemoryCandidateRejectedEvent event) {
@@ -73,7 +52,7 @@ public class MemoryCandidateRejectedEventListener {
                 + "原因是：“" + event.getReason() + "”。请结合用户的意见，重新从上下文中提取修正后的记忆，不能再犯相同的错误。如果不需要提取任何新记忆则返回空数组。";
                 
         // Extract memory with hint
-        List<MemoryExtractionService.MemoryAttribute> attributes = memoryExtractionService.extractMemoryFromContext(
+        List<MemoryExtractionService.MemoryAttribute> attributes = memoryExtractionService.extractMemoryFromDiary(
                 contextContent, sourceType, event.getUserId(), sourceId, hint);
 
         if (attributes != null && !attributes.isEmpty()) {
@@ -83,5 +62,10 @@ public class MemoryCandidateRejectedEventListener {
                     "explicit", diaryId, convId, null, null);
         }
     }
+"""
 
-}
+code = re.sub(r"@EventListener\s*@Async\s*public void onMemoryCandidateRejected\(MemoryCandidateRejectedEvent event\) \{.*\}\s*\}", logic_replacement + "\n}", code, flags=re.DOTALL)
+
+with open("backend/moodcopilot/src/main/java/com/moodcopilot/ai/MemoryCandidateRejectedEventListener.java", "w", encoding="utf-8") as f:
+    f.write(code)
+print("Success")
