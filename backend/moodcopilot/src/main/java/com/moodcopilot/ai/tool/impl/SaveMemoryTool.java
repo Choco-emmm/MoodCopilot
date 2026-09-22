@@ -41,8 +41,9 @@ public class SaveMemoryTool extends ChatTool<SaveMemoryTool.SaveMemoryRequest> {
 
     @Override
     public String description() {
-        return "把用户明确要求记住的事实写入长期记忆。"
+        return "把用户明确要求记住的长期事实写入长期记忆。"
                 + "只在用户主动要求记住某件事时才调用（例如「帮我记一下」「记住我……」），不要自行推断用户没说过的东西。"
+                + "【重要限制】：如果用户要求记录的是带有明确时间点的事件或待办（例如“记一下我明天要看牙”、“帮我记事件：下周去日本”），请【绝对不要】使用本工具，而必须使用 createEventFunction 工具！"
                 + "注意：你只需直接调用此工具，系统会在工具执行期间自动让用户确认。若工具返回成功，说明用户已确认且内容已直接落入长期记忆，你无需再告诉用户“去待确认列表点击确认”。"
                 + "evidence 必须逐字摘录用户本轮的原话片段，不要自己改写或总结。";
     }

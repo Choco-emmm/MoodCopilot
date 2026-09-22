@@ -139,7 +139,7 @@
               </n-popover>
             </n-tag>
             {{ m.attributeValue }}
-            <small v-if="isSafetyState(m)" class="memory-safety-note">仅作为近期关怀参考，不是诊断，也不会作为核心画像长期注入。</small>
+            <small v-if="isSafetyState(m)" class="memory-safety-note">仅作为你近期状态的背景参考，一段时间后会自然淡出，不会被固化为长期的核心特征。</small>
           </div>
           <small v-if="m.updatedAt || m.updateTime" class="memory-updated">最近更新 {{ formatMemoryTime(m.updatedAt || m.updateTime) }}</small>
         </div>
