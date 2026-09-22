@@ -58,6 +58,37 @@ public class CreateEventTool extends ChatTool<LifeEventUpsertRequest> {
     }
 
     @Override
+    public boolean requiresApproval() {
+        return true;
+    }
+
+    @Override
+    public Map<String, Object> approvalPreview(com.fasterxml.jackson.databind.ObjectMapper mapper, String argumentsJson,
+            ToolExecutionContext context) throws Exception {
+        LifeEventUpsertRequest req = mapper.readValue(argumentsJson, LifeEventUpsertRequest.class);
+        Map<String, Object> preview = new LinkedHashMap<>();
+        preview.put("attributeKey", req.title());
+        
+        StringBuilder sb = new StringBuilder();
+        if (req.targetDate() != null) {
+            sb.append("日期: ").append(req.targetDate());
+            if (req.startTime() != null) sb.append(" ").append(req.startTime());
+            if (req.endDate() != null) {
+                sb.append(" 至 ").append(req.endDate());
+                if (req.endTime() != null) sb.append(" ").append(req.endTime());
+            }
+            sb.append("\n");
+        }
+        if (req.description() != null && !req.description().isBlank()) {
+            sb.append("描述: ").append(req.description());
+        }
+        
+        preview.put("oldValue", null);
+        preview.put("newValue", sb.toString());
+        return preview;
+    }
+
+    @Override
     public Object execute(LifeEventUpsertRequest request, ToolExecutionContext ctx) {
         if (request.title() == null || request.title().isBlank()) {
             return Map.of("success", false, "message", "事件标题(title)不能为空");
