@@ -34,8 +34,8 @@ public class CreateEventTool extends ChatTool<LifeEventUpsertRequest> {
 
     @Override
     public String description() {
-        return "新建或记录用户的重要人生事件（如买房、看病、入职、旅行等）。"
-                + "请根据用户提供的信息或日记内容，提取出事件的标题、描述、发生日期等要素。";
+        return "新建待跟进的事件或事项（如“周五交材料”、“下月搬家”、“明天看牙”等）。"
+                + "【重要定义】：事件工具专门用于记录带有时间点、且需要后续跟进或有完成状态的具体事项。如果用户陈述的是长期的个人事实、偏好或习惯（如“我要搬去某个城市”、“我喜欢吃面包”），请使用记忆(Memory)相关工具，不要记为事件。";
     }
 
     @Override
