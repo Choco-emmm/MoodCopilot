@@ -1957,8 +1957,10 @@ public class DiaryService {
         if (comment == null || !comment.getDiaryId().equals(diaryId)) {
             throw new ResponseStatusException(NOT_FOUND, "评论不存在");
         }
-        if (!comment.getAuthorUserId().equals(user.getId()) && !"ADMIN".equals(user.getRole())) {
-            throw new ResponseStatusException(FORBIDDEN, "只能删除自己的评论或由管理员操作");
+        if (!comment.getAuthorUserId().equals(user.getId()) 
+                && !diary.getAuthorUserId().equals(user.getId())
+                && !"ADMIN".equals(user.getRole())) {
+            throw new ResponseStatusException(FORBIDDEN, "只能删除自己的评论、自己日记下的评论，或由管理员操作");
         }
         diaryCommentMapper.deleteById(commentId);
         evictRelatedUserCaches(comment.getAuthorUserId(), diary.getAuthorUserId());

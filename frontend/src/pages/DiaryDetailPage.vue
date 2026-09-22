@@ -356,6 +356,7 @@ async function deleteComment(commentId: number) {
 
 function canDeleteComment(comment: any) {
   if (auth.isAdmin) return true
+  if (diary.value?.userId != null && auth.userId === diary.value.userId) return true
   const authorUserId = Number(comment?.authorUserId)
   if (Number.isFinite(authorUserId) && auth.userId != null) {
     return authorUserId === auth.userId
