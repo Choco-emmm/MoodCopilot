@@ -51,9 +51,9 @@ class LifeEventServiceTest {
                 mock(DiaryAnalysisMapper.class), mock(ChatClient.class), new ObjectMapper(), mock(AiPromptProperties.class), null);
 
         assertThrows(ResponseStatusException.class, () -> service.createEvent(7L,
-                new LifeEventService.LifeEventUpsertRequest("考试", "", "2026-09-03", "2026-09-02", null, null, null, List.of())));
+                new LifeEventService.LifeEventUpsertRequest("考试", "", null, "2026-09-03", "2026-09-02", null, null, List.of())));
         service.createEvent(7L, new LifeEventService.LifeEventUpsertRequest(
-                "考试", "", "2026-09-03", null, "14:00", "16:00", null, List.of()));
+                "考试", "", null, "2026-09-03", null, "14:00", "16:00", List.of()));
         verify(eventMapper).insert(any(UserLifeEventEntity.class));
     }
 
@@ -112,7 +112,7 @@ class LifeEventServiceTest {
                 mock(DiaryAnalysisMapper.class), mock(ChatClient.class), new ObjectMapper(), mock(AiPromptProperties.class), null);
 
         LifeEventService.LifeEventView view = service.createEvent(7L,
-                new LifeEventService.LifeEventUpsertRequest("期末考试", "", "2099-09-04", null, null, null, null, List.of()));
+                new LifeEventService.LifeEventUpsertRequest("期末考试", "", null, "2099-09-04", null, null, null, List.of()));
 
         assertEquals("UPCOMING", view.temporalPhase());
         assertNotNull(view.nextFollowUpAt());

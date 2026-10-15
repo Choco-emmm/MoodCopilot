@@ -181,8 +181,9 @@ class MemoryOrchestratorTest {
         UserMemoryEvidenceMapper evidenceMapper = mock(UserMemoryEvidenceMapper.class);
         UserMemoryRejectionMapper rejectionMapper = mock(UserMemoryRejectionMapper.class);
         UserMemoryCandidateEntity candidate = candidate(8L, "PENDING", .95, "喜欢通过写日记整理思绪");
-        UserMemoryEvidenceEntity first = evidence(candidate.getId(), java.time.LocalDate.of(2026, 9, 1));
-        UserMemoryEvidenceEntity second = evidence(candidate.getId(), java.time.LocalDate.of(2026, 9, 2));
+        var today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai"));
+        UserMemoryEvidenceEntity first = evidence(candidate.getId(), today.minusDays(1));
+        UserMemoryEvidenceEntity second = evidence(candidate.getId(), today);
         when(rejectionMapper.selectCount(any())).thenReturn(0L);
         // First lookup finds the pending branch; subsequent approved-branch
         // lookups intentionally return no winner.
@@ -198,7 +199,7 @@ class MemoryOrchestratorTest {
         orchestrator.processExtractedMemories(1006L,
                 List.of(new MemoryExtractionService.MemoryAttribute("思考方式", "喜欢通过写日记整理思绪", false,
                         "preference", "inferred", .99, "我喜欢通过写日记整理思绪", null, null)),
-                "diary_inferred", 2015L, null, "我喜欢通过写日记整理思绪", java.time.LocalDate.of(2026, 9, 2));
+                "diary_inferred", 2015L, null, "我喜欢通过写日记整理思绪", today);
 
         var ordered = inOrder(candidateMapper, memoryMapper);
         ordered.verify(candidateMapper).update(any(), any());
@@ -212,13 +213,14 @@ class MemoryOrchestratorTest {
         UserMemoryEvidenceMapper evidenceMapper = mock(UserMemoryEvidenceMapper.class);
         UserMemoryRejectionMapper rejectionMapper = mock(UserMemoryRejectionMapper.class);
         UserMemoryCandidateEntity candidate = candidate(9L, "PENDING", .95, "喜欢通过写日记整理思绪");
+        var today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai"));
         when(rejectionMapper.selectCount(any())).thenReturn(0L);
         when(candidateMapper.selectList(any())).thenReturn(List.of(candidate), List.of(), List.of());
         when(candidateMapper.update(any(), any())).thenReturn(0);
         when(evidenceMapper.selectCount(any())).thenReturn(0L);
         when(evidenceMapper.selectList(any())).thenReturn(List.of(
-                evidence(candidate.getId(), java.time.LocalDate.of(2026, 9, 1)),
-                evidence(candidate.getId(), java.time.LocalDate.of(2026, 9, 2))));
+                evidence(candidate.getId(), today.minusDays(1)),
+                evidence(candidate.getId(), today)));
         when(memoryMapper.selectList(any())).thenReturn(List.of());
         MemoryOrchestrator orchestrator = new MemoryOrchestrator(memoryMapper, candidateMapper, evidenceMapper,
                 rejectionMapper, mock(RagMemoryService.class), new ObjectMapper());
@@ -226,8 +228,9 @@ class MemoryOrchestratorTest {
         orchestrator.processExtractedMemories(1006L,
                 List.of(new MemoryExtractionService.MemoryAttribute("思考方式", "喜欢通过写日记整理思绪", false,
                         "preference", "inferred", .99, "我喜欢通过写日记整理思绪", null, null)),
-                "diary_inferred", 2015L, null, "我喜欢通过写日记整理思绪", java.time.LocalDate.of(2026, 9, 2));
+                "diary_inferred", 2015L, null, "我喜欢通过写日记整理思绪", today);
 
+        verify(candidateMapper).update(any(), any());
         verify(memoryMapper, never()).insert(any(UserProfileMemoryEntity.class));
     }
 

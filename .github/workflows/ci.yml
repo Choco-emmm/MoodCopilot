@@ -1,0 +1,227 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master, develop, 'codex/**']
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: '检查通过后发布镜像并部署到服务器'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  web:
+    name: Web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - name: Verify frontend Docker image
+        run: docker build -f frontend/Dockerfile -t moodcopilot-frontend:check .
+
+  miniapp:
+    name: Miniapp check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend-uniapp/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: frontend-uniapp
+      - run: npm run type-check
+        working-directory: frontend-uniapp
+      - run: npm test
+        working-directory: frontend-uniapp
+      - run: npm run build:mp-weixin
+        working-directory: frontend-uniapp
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: miniapp-${{ github.sha }}
+          path: frontend-uniapp/dist/build/mp-weixin/
+          retention-days: 3
+          if-no-files-found: error
+
+  backend:
+    name: Backend verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MOODCOPILOT_RUN_REASONING_TESTS: 'false'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/moodcopilot/pom.xml
+      - run: mvn --batch-mode --no-transfer-progress clean verify
+        working-directory: backend/moodcopilot
+      - name: Verify backend Docker image
+        run: docker build -t moodcopilot-backend:check backend/moodcopilot
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: backend-test-results-${{ github.sha }}
+          path: backend/moodcopilot/target/surefire-reports/
+          retention-days: 3
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: github.event_name != 'pull_request' && (inputs.deploy || vars.AUTO_DEPLOY == 'true')
+        with:
+          name: backend-jar-${{ github.sha }}
+          path: backend/moodcopilot/target/*.jar
+          retention-days: 1
+          if-no-files-found: error
+
+  automation:
+    name: Deployment checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - run: bash -n deploy.sh scripts/deploy-images.sh scripts/tests/deploy-images.test.sh
+      - run: bash scripts/tests/deploy-images.test.sh
+      - name: Validate Compose without production credentials
+        run: docker compose config --quiet
+
+  ready:
+    name: CI Ready
+    if: always()
+    needs: [web, miniapp, backend, automation]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every check to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -e 'all(.[]; .result == "success")'
+          echo '所有检查通过。' >> "$GITHUB_STEP_SUMMARY"
+
+  images:
+    name: Publish images
+    needs: ready
+    if: >-
+      github.event_name != 'pull_request' &&
+      github.ref_name == (vars.DEPLOY_BRANCH || 'develop') &&
+      ((github.event_name == 'workflow_dispatch' && inputs.deploy) ||
+       (github.event_name == 'push' && vars.AUTO_DEPLOY == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      owner: ${{ steps.meta.outputs.owner }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: backend-jar-${{ github.sha }}
+          path: backend/moodcopilot/target/
+      - name: Set registry owner
+        id: meta
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: echo "owner=${OWNER,,}" >> "$GITHUB_OUTPUT"
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Build and publish the checked commit
+        env:
+          OWNER: ${{ steps.meta.outputs.owner }}
+        run: |
+          set -euo pipefail
+          for service in backend frontend; do
+            context=.
+            file=frontend/Dockerfile
+            if [[ "$service" == backend ]]; then
+              context=backend/moodcopilot
+              file=backend/moodcopilot/Dockerfile
+            fi
+            image="ghcr.io/$OWNER/moodcopilot-$service:$GITHUB_SHA"
+            docker build --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+              --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+              --file "$file" --tag "$image" "$context"
+            docker push "$image"
+          done
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io
+
+  deploy:
+    name: Deploy production
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    concurrency:
+      group: moodcopilot-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Deploy fixed image versions over SSH
+        env:
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          SSH_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          PROJECT_DIR: ${{ vars.DEPLOY_PATH }}
+          OWNER: ${{ needs.images.outputs.owner }}
+        run: |
+          set -euo pipefail
+          for name in SSH_HOST SSH_USER SSH_KEY SSH_KNOWN_HOSTS PROJECT_DIR; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::缺少部署配置 $name，请参考 docs/CI-CD.md"
+              exit 1
+            fi
+          done
+          [[ "$SSH_PORT" =~ ^[0-9]+$ ]]
+          [[ "$SSH_HOST" =~ ^[a-zA-Z0-9.-]+$ && "$SSH_USER" =~ ^[a-zA-Z0-9_-]+$ ]]
+          umask 077
+          ssh_dir=$(mktemp -d)
+          trap 'rm -rf "$ssh_dir"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          printf -v args '%q ' "$PROJECT_DIR" "$OWNER" "$GITHUB_SHA"
+          ssh -i "$ssh_dir/key" -p "$SSH_PORT" -o BatchMode=yes \
+            -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$ssh_dir/known_hosts" -o ConnectTimeout=20 \
+            "$SSH_USER@$SSH_HOST" "bash -s -- $args" < scripts/deploy-images.sh
+          echo "已部署提交 $GITHUB_SHA，服务健康检查通过。" >> "$GITHUB_STEP_SUMMARY"

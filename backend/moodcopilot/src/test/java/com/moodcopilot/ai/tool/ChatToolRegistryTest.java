@@ -145,7 +145,7 @@ class ChatToolRegistryTest {
         assertEquals(List.of("attributeKey", "attributeValue", "memoryType", "evidence"),
                 requiredByName.get("saveMemoryFunction"));
         assertEquals(List.of("attributeKey"), requiredByName.get("deleteMemoryFunction"));
-        assertEquals(List.of("sourceKeys", "targetKey", "targetValue", "memoryType", "evidence"),
+        assertEquals(List.of("sourceIds", "targetKey", "targetValue", "memoryType", "evidence"),
                 requiredByName.get("mergeMemoryFunction"));
     }
 

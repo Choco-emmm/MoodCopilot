@@ -7,6 +7,11 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$PROJECT_DIR/backend/moodcopilot"
 
+# CI publishes immutable images; preserve the existing source-build entry point.
+if [[ "${1:-}" == --images ]]; then
+  exec bash "$PROJECT_DIR/scripts/deploy-images.sh" "$PROJECT_DIR" "${2:?registry owner}" "${3:?commit SHA}"
+fi
+
 echo "[1/7] 进入项目目录: $PROJECT_DIR"
 cd "$PROJECT_DIR"
 
