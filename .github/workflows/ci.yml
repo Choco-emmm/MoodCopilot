@@ -217,8 +217,8 @@ jobs:
           umask 077
           ssh_dir=$(mktemp -d)
           trap 'rm -rf "$ssh_dir"' EXIT
-          printf '%s\n' "$SSH_KEY" > "$ssh_dir/key"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          printf '%s\n' "${SSH_KEY//$'\r'/}" > "$ssh_dir/key"
+          printf '%s\n' "${SSH_KNOWN_HOSTS//$'\r'/}" > "$ssh_dir/known_hosts"
           printf -v args '%q ' "$PROJECT_DIR" "$OWNER" "$GITHUB_SHA"
           ssh -i "$ssh_dir/key" -p "$SSH_PORT" -o BatchMode=yes \
             -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
