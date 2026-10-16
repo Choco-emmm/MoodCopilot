@@ -1,5 +1,10 @@
 # MoodCopilot Agent Guide
 
+## CI/CD
+
+- 修改构建、测试、Docker 或发布流程时，先阅读 `docs/CI-CD.md`，并同步 `.github/workflows/ci.yml` 的实际命令。分支合并保护使用汇总检查 `CI Ready`。
+- 生产发布使用固定提交 SHA 的应用镜像；服务器 `.env`、证书和数据卷保留在服务器。修改部署脚本后执行 `bash scripts/tests/deploy-images.test.sh`，覆盖拉取失败、健康检查失败、恢复旧镜像和并发互斥。
+
 ## 产品边界
 
 - `frontend/` 是网页端，包含完整社区能力。

@@ -25,7 +25,7 @@ class MemoryQueryToolTest {
         // 前端模板是 {{ ref.snippet || ref.value }}；若这里带上 snippet = "key: value"，
         // 会渲染成「【key】key: value」。所以画像条目刻意不发 snippet。
         MemoryQueryResult result = new MemoryQueryResult(1,
-                List.of(new MemoryQueryResult.MemoryItem("工作压力", "项目排期太紧", "2026-01-01T00:00:00")),
+                List.of(new MemoryQueryResult.MemoryItem(11L, "工作压力", "项目排期太紧", "2026-01-01T00:00:00")),
                 "已返回长期画像条目");
 
         List<Map<String, String>> items = tool.references(result);

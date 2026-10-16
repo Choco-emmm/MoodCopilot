@@ -1,0 +1,4 @@
+*.sh text eol=lf
+**/Dockerfile text eol=lf
+.github/workflows/*.yml text eol=lf
+**/package-lock.json text eol=lf

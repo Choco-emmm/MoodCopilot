@@ -1,0 +1,16 @@
+.git
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+**/uploads
+nginx/ssl
+.deploy
+.maven-repo
+.maven-verify-repo
+.agents
+.claude
+test-results
+**/*.log
+backend
+frontend-uniapp
