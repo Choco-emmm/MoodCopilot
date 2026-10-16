@@ -1,0 +1,62 @@
+name: Server connectivity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    name: Check server without deploying
+    if: github.ref_name == (vars.DEPLOY_BRANCH || 'develop')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    environment: production
+    steps:
+      - name: Check SSH, installation and application health
+        env:
+          SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_USER: ${{ secrets.DEPLOY_USER }}
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          SSH_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          PROJECT_DIR: ${{ vars.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          for name in SSH_HOST SSH_USER SSH_KEY SSH_KNOWN_HOSTS PROJECT_DIR; do
+            [[ -n "${!name}" ]] || { echo "::error::Missing $name"; exit 1; }
+          done
+          [[ "$SSH_PORT" =~ ^[0-9]+$ ]]
+          [[ "$SSH_HOST" =~ ^[a-zA-Z0-9.-]+$ && "$SSH_USER" =~ ^[a-zA-Z0-9_-]+$ ]]
+          umask 077
+          ssh_dir=$(mktemp -d)
+          trap 'rm -rf "$ssh_dir"' EXIT
+          printf '%s\n' "${SSH_KEY//$'\r'/}" > "$ssh_dir/key"
+          printf '%s\n' "${SSH_KNOWN_HOSTS//$'\r'/}" > "$ssh_dir/known_hosts"
+          printf -v args '%q ' "$PROJECT_DIR"
+          ssh -i "$ssh_dir/key" -p "$SSH_PORT" -o BatchMode=yes \
+            -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$ssh_dir/known_hosts" -o ConnectTimeout=20 \
+            "$SSH_USER@$SSH_HOST" "bash -s -- $args" <<'REMOTE'
+          set -euo pipefail
+          cd "$1"
+          echo 'Project directory:'
+          pwd
+          echo 'Architecture:'
+          uname -m
+          echo 'Source version:'
+          git branch --show-current
+          git log -1 --oneline
+          git status --short
+          echo 'Deployment prerequisites:'
+          command -v flock
+          docker compose version --short
+          echo 'Services:'
+          docker compose ps --format '{{.Service}} {{.State}} {{.Health}}'
+          echo 'Backend health:'
+          docker compose exec -T backend curl --fail --silent --show-error http://localhost:18080/api/health
+          echo
+          echo 'Disk space:'
+          df -h .
+          REMOTE

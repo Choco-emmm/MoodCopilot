@@ -17,6 +17,23 @@ mkdir -p .deploy
 exec 9>.deploy/deploy.lock
 flock -n 9 || { echo 'Another deployment is running' >&2; exit 1; }
 
+work_dir=''
+registry_dir=''
+cleanup() {
+  [[ -z "$work_dir" ]] || rm -rf -- "$work_dir"
+  [[ -z "$registry_dir" ]] || rm -rf -- "$registry_dir"
+}
+trap cleanup EXIT
+
+# Use the workflow's short-lived token for private GHCR images. Credentials live
+# only in a private temporary directory, not the server's persistent Docker config.
+if [[ -n "${GHCR_TOKEN:-}" ]]; then
+  registry_dir=$(mktemp -d "$PWD/.deploy/auth.XXXXXX")
+  export DOCKER_CONFIG="$registry_dir"
+  printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "${GHCR_USER:?Missing registry user}" --password-stdin
+  unset GHCR_TOKEN
+fi
+
 compose=(docker compose --project-directory "$PWD" -f "$PWD/docker-compose.yml")
 # Require an existing installation, and capture the actual local image IDs for rollback.
 backend_id=$("${compose[@]}" ps -q backend)
@@ -30,7 +47,6 @@ old_web=$(docker inspect --format '{{.Image}}' "$web_id")
 [[ "$old_backend" =~ ^sha256:[a-f0-9]{64}$ && "$old_web" =~ ^sha256:[a-f0-9]{64}$ ]]
 
 work_dir=$(mktemp -d "$PWD/.deploy/release.XXXXXX")
-trap 'rm -rf "$work_dir"' EXIT
 cat > "$work_dir/next.yml" <<EOF
 services:
   backend:

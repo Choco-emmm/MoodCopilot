@@ -33,11 +33,13 @@
 | `DEPLOY_PATH` | 服务器已有项目的绝对路径，如 `/root/MoodCopilot`，以实际路径为准 |
 | `DEPLOY_PORT` | SSH 端口，可省略，默认 `22` |
 
+需要单独排查服务器时，使用 **Actions → Server connectivity → Run workflow**（选择 `develop`）。该工作流只验证 SSH、安装目录、Compose、当前容器和健康接口，不更新代码或重启服务，也不输出生产环境变量或应用日志。
+
 `DEPLOY_BRANCH` / `AUTO_DEPLOY` 必须是 **仓库级 Variables**，因为发布镜像的 job 在 production 环境外运行。
 
 不要把 `.env` 或私钥提交到仓库。服务器继续使用原有 `.env`、证书和数据卷。SSH 强制核验 known_hosts，不接受关闭主机校验的捷径。部署账号需要 Bash、`flock`、Docker Engine 和支持 `up --wait` 的 Compose v2，以及拉取 GHCR 的网络条件。
 
-GHCR 首次发布的 package 可能默认私有：可在两个 package 的设置中调整可见性，或在服务器用有 `read:packages` 权限的账号事先执行 `docker login ghcr.io`。Actions 推送镜像使用其临时 `GITHUB_TOKEN`，不需要自建推送 PAT。镜像是当前 GitHub Runner 的 amd64 架构，服务器需为 amd64。
+GHCR 首次发布的 package 可能默认私有。Actions 发布和部署分别使用临时 `GITHUB_TOKEN` 的写入/读取权限；部署时经 SSH 加密传给服务器，只在私有临时目录中登录 GHCR，任务结束后删除认证文件，不覆盖服务器原有 Docker 配置，不需要自建 PAT。手动使用 `./deploy.sh --images` 时仍需服务器事先登录 GHCR，或使用可公开拉取的镜像。镜像是当前 GitHub Runner 的 amd64 架构，服务器需为 amd64。
 
 先在服务器用原来的 `./deploy.sh` 完成已有安装。CD 要求现有 `backend` 和 `web` 服务正在运行，拒绝隐式初始化数据库。部署使用服务器当前 Compose 文件；基础设施、反代、数据库迁移和配置变更仍需单独审核同步。此工作流更新应用镜像，不会自动把 Git 工作目录切换到另一个分支。
 

@@ -9,7 +9,10 @@ cat > "$test_dir/bin/docker" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "$MOCK_LOG"
-if [[ "$1" == inspect ]]; then
+if [[ "$1" == login ]]; then
+  cat >/dev/null
+  [[ "$SCENARIO" != auth-failure ]]
+elif [[ "$1" == inspect ]]; then
   printf 'sha256:%064d\n' 1
 elif [[ "$*" == *'ps -q backend'* ]]; then
   [[ "$SCENARIO" == missing ]] || echo backend-container
@@ -18,7 +21,7 @@ elif [[ "$*" == *'ps -q web'* ]]; then
 elif [[ "$*" == *'ps -q frontend'* ]]; then
   echo public-nginx
 elif [[ "$*" == *'pull backend web'* ]]; then
-  [[ "$SCENARIO" != pull-failure ]]
+  [[ "$SCENARIO" != *pull-failure ]]
 elif [[ "$*" == *' up '* ]]; then
   if [[ "$SCENARIO" == rollback-failure ]]; then exit 1; fi
   if [[ "$SCENARIO" == unhealthy && "$*" == *next.yml* ]]; then exit 1; fi
@@ -40,6 +43,11 @@ run_case() {
   export MOCK_LOG="$project/docker.log"
   export MOCK_PROBE_FAILED="$project/probe.failed"
   : > "$MOCK_LOG"
+  if [[ "$SCENARIO" == auth-* ]]; then
+    export GHCR_TOKEN=token-fixture-that-must-not-be-logged GHCR_USER=test-user
+  else
+    unset GHCR_TOKEN GHCR_USER
+  fi
   local actual=0
   bash "$script_dir/deploy-images.sh" "$project" choco-emmm "$revision" > "$project/output" 2>&1 || actual=$?
   [[ "$actual" -eq "$expected" ]] || { cat "$project/output"; echo "FAIL $SCENARIO ($actual)"; exit 1; }
@@ -51,12 +59,16 @@ run_case() {
     [[ ! -e "$project/.deploy/current-revision" ]]
   fi
   case "$SCENARIO" in
-    pull-failure|missing) ! grep -q ' up ' "$MOCK_LOG" ;;
+    pull-failure|auth-pull-failure|missing|auth-failure) ! grep -q ' up ' "$MOCK_LOG" ;;
     unhealthy|web-failure|rollback-failure) grep -q 'previous.yml up' "$MOCK_LOG" ;;
   esac
   # Data stores, source checkout, volumes and the public ingress are never recreated.
   ! grep ' up ' "$MOCK_LOG" | grep -Eq ' (mysql|redis|rabbitmq|tunnel|frontend)( |$)'
   ! grep -Eq 'down|prune|volume rm|--build' "$MOCK_LOG"
+  ! grep -q 'token-fixture' "$MOCK_LOG" "$project/output"
+  if compgen -G "$project/.deploy/auth.*" >/dev/null; then
+    echo 'FAIL registry credentials were not cleaned up'; exit 1
+  fi
   echo "PASS $SCENARIO"
 }
 
@@ -66,6 +78,10 @@ run_case missing 1
 run_case unhealthy 1
 run_case web-failure 1
 run_case rollback-failure 1
+run_case auth-healthy 0
+run_case auth-failure 1
+run_case auth-pull-failure 1
+unset GHCR_TOKEN GHCR_USER
 export MOCK_LOG="$test_dir/invalid.log"
 : > "$MOCK_LOG"
 if bash "$script_dir/deploy-images.sh" "$test_dir/healthy" choco-emmm latest >/dev/null 2>&1; then
