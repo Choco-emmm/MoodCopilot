@@ -68,6 +68,7 @@ export function useChatStream(
   let streamAbortCtrl: AbortController | null = null
   let syncCooldownUntil = 0
   let resumePromise: Promise<void> | null = null
+  let preparingSend = false
 
   // ── Approval ──
 
@@ -117,63 +118,72 @@ export function useChatStream(
 
   // ── Send ──
 
-  async function send(creatingConversation: boolean, doCreate: () => Promise<void>, eventId?: number) {
+  async function send(creatingConversation: boolean, doCreate: () => Promise<number | null | void>, eventId?: number) {
     const content = draft.value.trim()
-    if (!content || streaming.value || sendGuard.value || creatingConversation) return
-
-    if (!activeConvId.value) {
-      await doCreate()
-    }
-
-    const convId = activeConvId.value
-    if (!convId) return
-    const isFirstUserMessage = !messages.value.some(message => message.role === 'user')
-
-    lastReplyError.value = null
-    lastReplyRequest.value = null
-
-    let finalContent = content
-    let quoteRef: { content: string; author: string } | undefined
-    const quoteRefItem = references.value.find(r => r.type === 'quote')
-    if (quoteRefItem) {
-      const author = quoteRefItem.quoteAuthor || 'AI'
-      quoteRef = { content: quoteRefItem.content, author }
-      finalContent = `[用户引用了之前的发言：\n"${quoteRefItem.content}"]\n\n用户的回复是：\n${content}`
-    }
-
-    const selectedReferences = references.value.filter(r => r.type !== 'quote' && r.type !== 'image').slice(0, 2)
-    const refContents = selectedReferences.map(r => r.fullContent || r.content)
-    const imageUrls = references.value.filter(r => r.type === 'image' && r.url).map(r => r.url as string)
-    const referenceItems = selectedReferences
-      .filter(r => (r.sourceType === 'diary' || r.sourceType === 'event') && Number.isFinite(r.diaryId || r.eventId))
-      .map(r => ({ sourceType: r.sourceType as string, sourceId: Number(r.diaryId || r.eventId) }))
-    messages.value.push({
-      id: nextMsgId(), role: 'user', content,
-      createdAt: new Date().toISOString(),
-      references: refContents.length ? refContents : undefined,
-      imageUrls: imageUrls.length ? imageUrls : undefined,
-      quoteRef,
-    })
-    await saveToBackend(convId).catch(() => { })
-    references.value = []
-    draft.value = ''
-    tryExpToast('chat', '聊天 +5 EXP')
-    sendGuard.value = true
-    streaming.value = true
-    streamingText.value = ''
-    streamingReasoning.value = ''
-    isThinking.value = true
-    scrollManager.scrollBottom()
-
-    const token = getStoredToken()
-    if (!token) {
-      isThinking.value = false
-      messages.value.push({ id: nextMsgId(), role: 'ai', content: '请先登录' })
-      streaming.value = false
+    if (!content || streaming.value || sendGuard.value || preparingSend || creatingConversation) return
+    if (!getStoredToken()) {
+      lastReplyError.value = '请先登录'
       return
     }
+    preparingSend = true
+    sendGuard.value = true
+    const requestedUseReasoning = useReasoning.value
+    try {
+      if (!activeConvId.value) {
+        const createdId = await doCreate()
+        if (createdId === null) {
+          lastReplyError.value = '创建对话失败，请稍后重试。'
+          return
+        }
+        if (createdId && activeConvId.value !== createdId) return
+      }
 
-    await sendReply(convId, finalContent, refContents, referenceItems, useReasoning.value, false, eventId, isFirstUserMessage, imageUrls)
+      const convId = activeConvId.value
+      if (!convId) return
+      const isFirstUserMessage = !messages.value.some(message => message.role === 'user')
+
+      lastReplyError.value = null
+      lastReplyRequest.value = null
+
+      let finalContent = content
+      let quoteRef: { content: string; author: string } | undefined
+      const quoteRefItem = references.value.find(r => r.type === 'quote')
+      if (quoteRefItem) {
+        const author = quoteRefItem.quoteAuthor || 'AI'
+        quoteRef = { content: quoteRefItem.content, author }
+        finalContent = `[用户引用了之前的发言：\n"${quoteRefItem.content}"]\n\n用户的回复是：\n${content}`
+      }
+
+      const selectedReferences = references.value.filter(r => r.type !== 'quote' && r.type !== 'image').slice(0, 2)
+      const refContents = selectedReferences.map(r => r.fullContent || r.content)
+      const imageUrls = references.value.filter(r => r.type === 'image' && r.url).map(r => r.url as string)
+      const referenceItems = selectedReferences
+        .filter(r => (r.sourceType === 'diary' || r.sourceType === 'event') && Number.isFinite(r.diaryId || r.eventId))
+        .map(r => ({ sourceType: r.sourceType as string, sourceId: Number(r.diaryId || r.eventId) }))
+      messages.value.push({
+        id: nextMsgId(), role: 'user', content,
+        createdAt: new Date().toISOString(),
+        references: refContents.length ? refContents : undefined,
+        imageUrls: imageUrls.length ? imageUrls : undefined,
+        quoteRef,
+      })
+      // 服务端负责权威历史；客户端的补标注请求不能延迟启动回复。
+      void saveToBackend(convId).catch(() => { })
+      references.value = []
+      draft.value = ''
+      tryExpToast('chat', '聊天 +5 EXP')
+      sendGuard.value = true
+      streaming.value = true
+      streamingText.value = ''
+      streamingReasoning.value = ''
+      isThinking.value = true
+      scrollManager.scrollBottom()
+
+      await sendReply(convId, finalContent, refContents, referenceItems, requestedUseReasoning, false, eventId, isFirstUserMessage, imageUrls)
+    } finally {
+      preparingSend = false
+      if (!streaming.value) sendGuard.value = false
+    }
   }
 
   // ── Retry ──
@@ -448,14 +458,12 @@ export function useChatStream(
     approvalError.value = null
     scrollManager.scrollBottom()
     if (activeConvId.value === convId) {
-      try {
-        await saveToBackend(convId)
-      } catch (e) {
+      void saveToBackend(convId).catch((e) => {
         logWarn('chat', '发送后保存历史失败', e)
         syncCooldownUntil = Date.now() + 5000
-      }
+      })
     }
-    loadConversations()
+    void loadConversations()
     if (refreshTitle) void waitForConversationTitle(convId)
   }
 

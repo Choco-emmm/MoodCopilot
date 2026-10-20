@@ -197,7 +197,8 @@ public class ChatGenerationService {
     private void consume(String runId, Flux<String> stream) {
         stream.doOnNext(chunk -> {
             if ("CANCELLED".equals(status(runId))) throw new CancellationException("生成任务已取消");
-            if (chunk == null || chunk.isBlank()) return;
+            // 空格与换行本身也是正文：丢掉独立空白分片会破坏 Markdown 标题和表格。
+            if (chunk == null || chunk.isEmpty()) return;
             if (chunk.startsWith("[[TOOL_EVENT]]")) {
                 if (!writeEvent(runId, parseJsonEvent(chunk.substring("[[TOOL_EVENT]]".length())))) {
                     throw new IllegalStateException("保存聊天工具事件失败");

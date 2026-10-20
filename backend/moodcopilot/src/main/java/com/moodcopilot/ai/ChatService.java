@@ -53,6 +53,7 @@ public class ChatService {
     private final Cache<String, List<com.moodcopilot.entity.dto.CustomChatMessage>> userChatMemories;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final ChatHistoryStore historyStore;
     private final RateLimitService rateLimitService;
     private final UserGrowthService userGrowthService;
     private final DiaryService diaryService;
@@ -115,6 +116,7 @@ public class ChatService {
         this.userChatMemories = userChatMemories;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+        this.historyStore = new ChatHistoryStore(redisTemplate, objectMapper);
         this.rateLimitService = rateLimitService;
         this.userGrowthService = userGrowthService;
         this.diaryService = diaryService;
@@ -754,15 +756,7 @@ public class ChatService {
 
             // 安全裁剪 Redis JSON 历史（保留前端 ragReferences 等扩展字段，不覆写结构）
             try {
-                String json = redisTemplate.opsForValue().get(MSG_PREFIX + conversationId);
-                if (json != null && !json.isBlank()) {
-                    List<Map<String, Object>> msgs = objectMapper.readValue(json, List.class);
-                    if (msgs.size() > KEEP_RECENT_MSG_COUNT) {
-                        msgs = msgs.subList(msgs.size() - KEEP_RECENT_MSG_COUNT, msgs.size());
-                        redisTemplate.opsForValue().set(MSG_PREFIX + conversationId,
-                                objectMapper.writeValueAsString(msgs), Duration.ofDays(7));
-                    }
-                }
+                historyStore.trimToRecent(conversationId, KEEP_RECENT_MSG_COUNT);
             } catch (Exception e) {
                 log.warn("压缩历史时保留富文本结构失败: {}", e.getMessage());
             }
@@ -1013,10 +1007,8 @@ public class ChatService {
         UserEntity user = currentUser();
         requireOwnedConversation(conversationId, user);
         try {
-            List<Map<String, Object>> merged = mergeHistory(loadRawHistory(conversationId),
+            List<Map<String, Object>> merged = historyStore.annotate(conversationId,
                     toHistoryRows(body.get("messages")));
-            String json = objectMapper.writeValueAsString(merged);
-            redisTemplate.opsForValue().set(MSG_PREFIX + conversationId, json, Duration.ofDays(7));
             log.info("合并保存聊天历史成功，userId={}，conversationId={}，storedMessages={}", user.getId(),
                     conversationId, merged.size());
         } catch (Exception e) {
@@ -1126,22 +1118,6 @@ public class ChatService {
         return rows;
     }
 
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> loadRawHistory(Long conversationId) {
-        try {
-            String json = redisTemplate.opsForValue().get(MSG_PREFIX + conversationId);
-            if (json == null || json.isBlank()) {
-                return List.of();
-            }
-            List<Map<String, Object>> stored = objectMapper.readValue(json, List.class);
-            return stored == null ? List.of() : stored;
-        } catch (Exception e) {
-            log.warn("读取聊天历史失败，conversationId={}，reason={}", conversationId, e.getMessage());
-            return List.of();
-        }
-    }
-
-    
     private void appendToChatMemory(Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory,
             String role, String content, String reasoningContent) {
         appendToChatMemory(conversationId, memory, role, content, reasoningContent, null);
@@ -1172,10 +1148,10 @@ public class ChatService {
         }
 
         try {
-            String json = objectMapper.writeValueAsString(memory);
-            redisTemplate.opsForValue().set(MSG_PREFIX + conversationId, json, java.time.Duration.ofDays(7));
+            historyStore.append(conversationId, memory.get(memory.size() - 1));
         } catch (Exception e) {
-            log.warn("Failed to auto-save chat history to Redis for conversationId=" + conversationId, e);
+            log.warn("保存聊天历史失败 conversationId={} errorType={}", conversationId, e.getClass().getSimpleName());
+            throw new IllegalStateException("保存聊天历史失败", e);
         }
     }
 

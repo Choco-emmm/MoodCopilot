@@ -186,17 +186,16 @@ export const useDiaryStore = defineStore('diary', () => {
         const bonus = content.length > 100 ? '+30' : '+20'
         tryExpToast('diary', `写日记 ${bonus} EXP`)
       }
-      await fetchDiaries()
-      if (diary.analysisStatus === 'skipped_quota' || diary.analysisStatus === 'failed_limit' || diary.analysisStatus === 'skipped_user') {
-        replaceIn(myDiaries, { ...diary, analysisStatus: diary.analysisStatus } as Diary)
-      }
+      myDiaries.value.unshift(diary)
+      if (diary.visibility === 'PUBLIC') publicDiaries.value.unshift(diary)
       if (diary.analysis == null && diary.analysisStatus !== 'skipped_quota' && diary.analysisStatus !== 'failed_limit' && diary.analysisStatus !== 'skipped_user') {
         window.$message?.success('已保存，MoodCopilot 正在分析中...', { duration: 5000 })
         pollAnalysis(diary.id)
       }
-      if (activeDiary.value) {
-        await loadSimilar(activeDiary.value.id)
-      }
+      // 保存的确认只取决于写入接口。列表刷新和相似日记不能阻塞编辑器清空，
+      // 也不能把已保存的日记误报为保存失败。
+      void fetchDiaries()
+      return diary
     } catch (e: any) {
       errorMessage.value = e.response?.data?.message || '保存失败'
       throw e

@@ -216,10 +216,10 @@
       </div>
       <button
         class="composer-submit"
-        :disabled="!plainText.trim() || isOverLimit"
+        :disabled="store.saving || !plainText.trim() || isOverLimit"
         @click="handleSave"
       >
-        {{ isEditMode ? '保存修改' : (analyze ? '保存并分析' : '保存') }}
+        {{ store.saving ? '正在保存…' : (isEditMode ? '保存修改' : (analyze ? '保存并分析' : '保存')) }}
       </button>
     </div>
 
@@ -442,7 +442,7 @@ watch(
   [htmlContent, visibility, analyze, useReasoning, musicMeta, musicSongUrl, userLyric, imageList, imageMetaList, selectedCollections],
   (newValues, oldValues) => {
     if (isEditMode.value) return
-    const hasContent = htmlContent.value.trim() || musicMeta.value || imageList.value.length > 0 || selectedCollections.value.length > 0
+    const hasContent = plainText.value || musicMeta.value || imageList.value.length > 0 || selectedCollections.value.length > 0
 
     if (hasContent) {
       const meta = {
@@ -458,7 +458,7 @@ watch(
       }
       localStorage.setItem(DRAFT_META_KEY, JSON.stringify(meta))
 
-      if (htmlContent.value) {
+      if (plainText.value) {
         localStorage.setItem(DRAFT_KEY, htmlContent.value)
       } else {
         localStorage.removeItem(DRAFT_KEY)
@@ -652,7 +652,8 @@ async function submitCreateCollection() {
 
 async function handleSave() {
   const content = htmlContent.value.trim()
-  if (!content) return
+  if (!content || store.saving) return
+  const collectionIds = [...selectedCollections.value]
   try {
     const musicPayload = musicMeta.value
       ? { ...musicMeta.value, userLyric: userLyric.value, songUrl: musicSongUrl.value }
@@ -677,20 +678,23 @@ async function handleSave() {
       await store.updateDiary(diaryId, content, visibility.value, musicPayload, imagesPayload, analyze.value && contentChanged.value, imageMetaPayload, useReasoning.value)
       router.push(`/diary/${diaryId}`)
     } else {
-      await store.createDiary(content, visibility.value, musicPayload, analyze.value, imagesPayload, imageMetaPayload, useReasoning.value)
-      diaryId = store.activeDiary?.id!
+      const saved = await store.createDiary(content, visibility.value, musicPayload, analyze.value, imagesPayload, imageMetaPayload, useReasoning.value)
+      diaryId = saved.id
       htmlContent.value = ''
+      editorRef.value?.clear()
       draft.value = ''
       musicMeta.value = null
+      musicSongUrl.value = ''
       userLyric.value = ''
       imageList.value = []
       imageMetaList.value = []
+      selectedCollections.value = []
       localStorage.removeItem(DRAFT_KEY)
       localStorage.removeItem('moodcopilot:draft_meta')
     }
 
-    if (selectedCollections.value.length > 0 && diaryId) {
-      for (const collectionId of selectedCollections.value) {
+    if (collectionIds.length > 0 && diaryId) {
+      for (const collectionId of collectionIds) {
         try {
           await collectionApi.addDiaries(collectionId, [diaryId])
         } catch (e) {
@@ -699,7 +703,6 @@ async function handleSave() {
       }
     }
 
-    selectedCollections.value = []
   } catch (e) {
     console.error('[DiarySave] 保存失败', e)
     // error message is displayed by store.errorMessage

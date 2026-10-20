@@ -20,9 +20,13 @@ export function useChatSync(
   let syncTimer: number | null = null
   let convListSyncTick = 0
   let currentBackoff = BASE_SYNC_INTERVAL
+  let syncInFlight = false
+  let syncEnabled = false
+  let syncVersion = 0
 
   function scheduleNextSync() {
-    stopAutoSync()
+    if (!syncEnabled) return
+    if (syncTimer != null) window.clearTimeout(syncTimer)
     syncTimer = window.setTimeout(() => {
       syncFromServer(false)
     }, currentBackoff)
@@ -30,11 +34,14 @@ export function useChatSync(
 
   function startAutoSync() {
     stopAutoSync()
+    syncEnabled = true
     currentBackoff = BASE_SYNC_INTERVAL
     scheduleNextSync()
   }
 
   function stopAutoSync() {
+    syncEnabled = false
+    syncVersion++
     if (syncTimer != null) {
       window.clearTimeout(syncTimer)
       syncTimer = null
@@ -55,24 +62,29 @@ export function useChatSync(
   }
 
   async function syncFromServer(forceScroll: boolean) {
+    if (syncInFlight) return
     const convId = activeConvId.value
     if (!convId || streaming.value || creatingConversation.value || document.visibilityState !== 'visible') {
       scheduleNextSync()
       return
     }
 
+    const snapshot = messages.value
+    const snapshotLength = snapshot.length
+    const version = syncVersion
+    syncInFlight = true
     try {
       const latest = await loadFromBackend(convId)
+      if (version !== syncVersion || activeConvId.value !== convId || streaming.value || creatingConversation.value
+        || document.visibilityState !== 'visible' || messages.value !== snapshot || messages.value.length !== snapshotLength) return
       // 成功则重置回退
       currentBackoff = BASE_SYNC_INTERVAL
 
       const current = messages.value
       if (latest.length === 0) {
-        scheduleNextSync()
         return
       }
       if (current.length > latest.length) {
-        scheduleNextSync()
         return
       }
 
@@ -97,9 +109,10 @@ export function useChatSync(
         currentBackoff = Math.min(currentBackoff * BACKOFF_MULTIPLIER, MAX_BACKOFF)
       }
       logWarn('chat', '同步消息失败', e)
+    } finally {
+      syncInFlight = false
+      scheduleNextSync()
     }
-
-    scheduleNextSync()
   }
 
   function isSameMessageList(a: Message[], b: Message[]): boolean {
