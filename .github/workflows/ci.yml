@@ -34,6 +34,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --no-audit --no-fund
         working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:interactions
+        working-directory: frontend
       - run: npm run build
         working-directory: frontend
       - name: Verify frontend Docker image

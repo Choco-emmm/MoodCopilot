@@ -4,7 +4,7 @@
 
 仓库的 **Actions → CI** 显示每次检查和发布的步骤与日志。
 
-- 任意目标分支的 PR：自动检查 Web 构建、小程序类型/单测/微信构建、后端测试与打包、部署脚本回归。
+- 任意目标分支的 PR：自动检查 Web 浏览器交互回归与构建、小程序类型/单测/微信构建、后端测试与打包、部署脚本回归。
 - 推送 `develop` / `master` / `codex/**`：自动检查。文档改动也运行，避免必需检查一直处于等待状态。
 - **Actions → CI → Run workflow**：选择部署分支并勾选“检查通过后发布镜像并部署到服务器”。检查全部通过后，发布两份以完整提交 SHA 命名的 GHCR 镜像，再通过 SSH 更新现有服务。
 - 默认不自动上线。仓库变量 `AUTO_DEPLOY=true` 可开启部署分支 push 后自动上线；`DEPLOY_BRANCH` 默认 `develop`（目前包含较新的应用代码），可在正式发布流程改为 `master` 后调整。
@@ -81,7 +81,7 @@ docker compose exec -T frontend nginx -s reload
 ## 本地验证
 
 ```bash
-cd frontend && npm ci && npm run build
+cd frontend && npm ci && npx playwright install chromium && npm run test:interactions && npm run build
 cd ../frontend-uniapp && npm ci && npm run type-check && npm test && npm run build:mp-weixin
 cd ../backend/moodcopilot && mvn --batch-mode --no-transfer-progress clean verify
 cd ../.. && bash scripts/tests/deploy-images.test.sh

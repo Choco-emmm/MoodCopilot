@@ -169,6 +169,27 @@ class ChatGenerationServiceTest {
         return lists.getOrDefault("chat:run:" + runId + ":events", List.of());
     }
 
+    @Test
+    void preservesWhitespaceChunksForMarkdownAndReplay() throws Exception {
+        List<String> chunks = List.of("##", " ", "分数分布", "\n\n",
+                "| 分数 | 数量 |", "\n", "|---|---|", "\n", "| 4.5 | 1 |", "\n");
+        AgentLoopOutcome outcome = new AgentLoopOutcome();
+        chunks.forEach(outcome::appendText);
+        outcome.attachChunks(Flux.fromIterable(chunks));
+        startRun(outcome);
+
+        ObjectMapper mapper = new ObjectMapper();
+        StringBuilder replay = new StringBuilder();
+        for (String event : events()) {
+            var frame = mapper.readTree(event);
+            if ("chunk".equals(frame.path("type").asText())) {
+                replay.append(frame.path("content").asText());
+            }
+        }
+        assertEquals(String.join("", chunks), replay.toString(),
+                "The browser and replay must receive every Markdown delimiter, including whitespace-only chunks");
+    }
+
     private String status() {
         return hashes.get("chat:run:" + runId + ":meta").get("status");
     }

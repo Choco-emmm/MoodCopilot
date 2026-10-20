@@ -52,22 +52,24 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
   const messages = ref<Message[]>([])
   const creatingConversation = ref(false)
   let ensureConversationPromise: Promise<number | null> | null = null
+  let selectionVersion = 0
+  let listRequestVersion = 0
+  const getSelectionVersion = () => selectionVersion
 
   // ── Load / Select ──
 
   async function loadConversations() {
+    const requestVersion = ++listRequestVersion
+    const knownIds = new Set(conversations.value.map(conv => conv.id))
     try {
       const res = await chatApi.listConversations()
-      conversations.value = (res.data.data || []) as Conversation[]
-      const currentId = activeConvId.value
-      if (currentId && !conversations.value.some(conv => conv.id === currentId)) {
-        if (conversations.value.length > 0) {
-          await selectConversation(conversations.value[0].id)
-        } else {
-          activeConvId.value = null
-        }
-      }
-    } catch (e) { logWarn('chat', '加载会话列表失败', e); conversations.value = [] }
+      if (requestVersion !== listRequestVersion) return
+      const incoming = (res.data.data || []) as Conversation[]
+      // 请求发出后才创建的会话，以及当前会话，不能被旧列表撤销。
+      const local = conversations.value.filter(conv =>
+        (!knownIds.has(conv.id) || conv.id === activeConvId.value) && !incoming.some(item => item.id === conv.id))
+      conversations.value = [...local, ...incoming]
+    } catch (e) { logWarn('chat', '加载会话列表失败', e) }
   }
 
   async function waitForConversationTitle(id: number) {
@@ -82,12 +84,17 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
 
   async function selectConversation(id: number) {
     if (id === activeConvId.value) return
+    const version = ++selectionVersion
     if (activeConvId.value && messages.value.length > 0) {
-      await saveToBackend(activeConvId.value).catch(() => { })
+      void saveToBackend(activeConvId.value).catch(() => { })
     }
     activeConvId.value = id
     sessionStorage.setItem('currentChatId', String(id))
-    messages.value = await loadFromBackend(id)
+    messages.value = []
+    const emptyMessages = messages.value
+    const loaded = await loadFromBackend(id)
+    if (version !== selectionVersion || activeConvId.value !== id || messages.value !== emptyMessages || messages.value.length) return
+    messages.value = loaded
     await nextTick()
     scrollContainerRef.scrollBottom()
   }
@@ -96,9 +103,10 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
 
   async function createConversation() {
     if (creatingConversation.value) return
+    selectionVersion++
     try {
       if (activeConvId.value && messages.value.length > 0) {
-        await saveToBackend(activeConvId.value).catch(() => { })
+        void saveToBackend(activeConvId.value).catch(() => { })
       }
       activeConvId.value = null
       sessionStorage.removeItem('currentChatId')
@@ -107,11 +115,14 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
   }
 
   async function doCreateConversationOnServer() {
+    const version = ++selectionVersion
     const res = await chatApi.createConversation()
     const conv = res.data.data as Conversation
     conversations.value.unshift(conv)
+    if (version !== selectionVersion) return null
     activeConvId.value = conv.id
     sessionStorage.setItem('currentChatId', String(conv.id))
+    return conv.id
   }
 
   async function ensureConversation(): Promise<number | null> {
@@ -121,8 +132,7 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
     ensureConversationPromise = (async () => {
       creatingConversation.value = true
       try {
-        await doCreateConversationOnServer()
-        return activeConvId.value
+        return await doCreateConversationOnServer()
       } catch (e) {
         logWarn('chat', '创建会话请求失败', e)
         return null
@@ -167,7 +177,8 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
   // ── Persistence ──
 
   function saveToBackend(convId: number) {
-    return chatApi.saveHistory(convId, messages.value).catch((error) => {
+    const snapshot = messages.value.map(message => ({ ...message }))
+    return chatApi.saveHistory(convId, snapshot).catch((error) => {
       console.warn('[chat] 保存历史失败', { convId, error })
       throw error
     })
@@ -227,5 +238,6 @@ export function useChatConversation(scrollContainerRef: ReturnType<typeof useScr
     doCreateConversationOnServer, ensureConversation, deleteConversation,
     renameConversation,
     saveToBackend, loadFromBackend, waitForConversationTitle,
+    getSelectionVersion,
   }
 }

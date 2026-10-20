@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "test:interactions": "node e2e/interaction-regression.mjs",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0"
   },

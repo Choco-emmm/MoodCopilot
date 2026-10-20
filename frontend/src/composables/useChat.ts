@@ -248,9 +248,7 @@ export function useChat() {
   // ── Send wrapper (handles conversation creation) ──
   async function handleSend() {
     const eventId = pendingEventId.value
-    await stream.send(conv.creatingConversation.value, async () => {
-      await conv.ensureConversation()
-    }, eventId)
+    await stream.send(conv.creatingConversation.value, () => conv.ensureConversation(), eventId)
     pendingEventId.value = undefined
   }
 
@@ -266,7 +264,10 @@ export function useChat() {
     return false
   }
 
+  let mounted = false
+  let disposed = false
   onMounted(async () => {
+    const initialSelectionVersion = conv.getSelectionVersion()
     if (authStore.isAuthenticated && !authStore.userId) authStore.fetchProfile()
 
     const state = history.state as any
@@ -288,28 +289,33 @@ export function useChat() {
 
     await consumePendingEventContext()
 
+    // 推荐话题和引用选项只是辅助内容，不参与会话初始化的关键路径。
+    void loadRecentDiaryOptions()
+    void loadWelcomeTopics()
     await conv.loadConversations()
-    await loadRecentDiaryOptions()
-    await loadWelcomeTopics()
+    if (disposed) return
 
-    const openedPendingConversation = await selectPendingConversation()
-    const isNewSession = !openedPendingConversation && !sessionStorage.getItem('chatSessionInitialized')
-    const storedConvId = sessionStorage.getItem('currentChatId')
+    if (conv.getSelectionVersion() === initialSelectionVersion) {
+      const openedPendingConversation = await selectPendingConversation()
+      const isNewSession = !openedPendingConversation && !sessionStorage.getItem('chatSessionInitialized')
+      const storedConvId = sessionStorage.getItem('currentChatId')
 
-    if (isNewSession) {
-      sessionStorage.setItem('chatSessionInitialized', 'true')
-      sessionStorage.removeItem('currentChatId')
-      await conv.createConversation()
-    } else if (!openedPendingConversation && storedConvId) {
-      const id = Number(storedConvId)
-      if (conv.conversations.value.some(c => c.id === id)) {
-        await conv.selectConversation(id)
-      } else {
+      if (isNewSession) {
+        sessionStorage.setItem('chatSessionInitialized', 'true')
+        sessionStorage.removeItem('currentChatId')
+        await conv.createConversation()
+      } else if (!openedPendingConversation && storedConvId) {
+        const id = Number(storedConvId)
+        if (conv.conversations.value.some(c => c.id === id)) {
+          await conv.selectConversation(id)
+        } else {
+          await conv.createConversation()
+        }
+      } else if (!openedPendingConversation) {
         await conv.createConversation()
       }
-    } else if (!openedPendingConversation) {
-      await conv.createConversation()
     }
+    sessionStorage.setItem('chatSessionInitialized', 'true')
 
     if (conv.activeConvId.value) {
       await stream.resumeActiveRun(conv.activeConvId.value)
@@ -326,9 +332,11 @@ export function useChat() {
     document.addEventListener('visibilitychange', sync.handleVisibilityChange)
     window.addEventListener('focus', sync.handleWindowFocus)
     sync.startAutoSync()
+    mounted = true
   })
 
   onBeforeUnmount(() => {
+    disposed = true
     stream.abortStream()
     if (window.visualViewport) {
       window.visualViewport.removeEventListener('resize', handleViewportResize)
@@ -348,6 +356,7 @@ export function useChat() {
   })
 
   onActivated(async () => {
+    if (!mounted) return
     // Resume sync polling and scroll to latest messages
     sync.startAutoSync()
     await consumePendingEventContext()

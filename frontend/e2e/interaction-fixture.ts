@@ -1,0 +1,11 @@
+// Real composables with controllable API boundaries; no account or private data required.
+export { createApp, h, ref, nextTick } from 'vue'
+export { createPinia, setActivePinia } from 'pinia'
+export { createRouter, createMemoryHistory } from 'vue-router'
+export { chatApi, diaryApi, collectionApi } from '../src/api'
+export { useDiaryStore } from '../src/stores/diary'
+export { useChat } from '../src/composables/useChat'
+export { useChatConversation } from '../src/composables/useChatConversation'
+export { useChatStream } from '../src/composables/useChatStream'
+export { useChatSync } from '../src/composables/useChatSync'
+export { renderSafeMarkdown } from '../src/utils/markdown'

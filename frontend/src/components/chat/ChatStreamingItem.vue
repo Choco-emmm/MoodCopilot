@@ -102,7 +102,7 @@
             <span>正在深度思考...</span>
             <span class="reasoning-arrow">{{ isReasoningExpanded ? '▾' : '▸' }}</span>
           </button>
-          <div v-if="isReasoningExpanded" class="reasoning-content md-content" v-html="renderStreamingMd(parsedStreaming.think, !parsedStreaming.text)"></div>
+          <div v-if="isReasoningExpanded" class="reasoning-content md-content" v-html="reasoningHtml"></div>
         </div>
 
         <div v-else-if="!parsedStreaming.text && !parsedStreaming.think" class="thinking-status">
@@ -111,7 +111,7 @@
           <span class="typing-dots"></span>
         </div>
 
-        <div v-if="parsedStreaming.text" class="md-content streaming-md" v-html="renderStreamingMd(parsedStreaming.text, true)" />
+        <div v-if="parsedStreaming.text" class="md-content streaming-md" v-html="replyHtml" />
       </div>
     </div>
   </div>
@@ -167,21 +167,6 @@ function isSnippetExpanded(idx: number) {
   return expandedSnippets.value.has(idx)
 }
 
-const mdCache = new Map<string, string>()
-function renderMd(text: string) {
-  let cached = mdCache.get(text)
-  if (cached) return cached
-  cached = renderSafeMarkdown(text)
-  mdCache.set(text, cached)
-  return cached
-}
-
-function renderStreamingMd(text: string, showCursor: boolean) {
-  const html = renderMd(text)
-  if (!showCursor) return html
-  return html + '<span class="streaming-cursor">▋</span>'
-}
-
 function stripReasoningMarkers(text?: string): string {
   return (text || '').replace(/\[\[REASONING\]\]/gi, '').replace(/\[REASONING\]/gi, '').trim()
 }
@@ -192,6 +177,12 @@ const parsedStreaming = computed(() => {
     text: stripReasoningMarkers(props.streamingText || '')
   }
 })
+
+// 只缓存当前正文与思考，不为每一帧累积一份完整 HTML。
+const cursorHtml = '<span class="streaming-cursor">▋</span>'
+const replyHtml = computed(() => renderSafeMarkdown(parsedStreaming.value.text) + cursorHtml)
+const reasoningHtml = computed(() => renderSafeMarkdown(parsedStreaming.value.think)
+  + (parsedStreaming.value.text ? '' : cursorHtml))
 
 function stripHtml(html?: string): string {
   if (!html) return ''
