@@ -165,7 +165,7 @@ npm run dev
 
 ### GitHub Actions CI/CD
 
-PR 自动检查网页构建、小程序类型/单测/构建、后端测试和部署脚本。Actions → CI → Run workflow 可以在检查通过后发布固定提交的 Docker 镜像并更新现有服务器；部署失败会尝试恢复旧镜像。首次使用需配置 SSH Secrets、部署目录和分支合并保护，详见 [CI/CD 配置与操作说明](docs/CI-CD.md)。
+PR 自动检查网页浏览器交互回归与构建、小程序类型/单测/构建、后端测试和部署脚本。Actions → CI → Run workflow 可以在检查通过后发布固定提交的 Docker 镜像并更新现有服务器；部署失败会尝试恢复旧镜像。首次使用需配置 SSH Secrets、部署目录和分支合并保护，详见 [CI/CD 配置与操作说明](docs/CI-CD.md)。
 
 ## 📂 项目结构概览
 
