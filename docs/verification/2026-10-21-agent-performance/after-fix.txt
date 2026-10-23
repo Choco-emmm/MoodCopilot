@@ -1,0 +1,585 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------< com.moodcopilot:moodcopilot-backend >-----------------
+[INFO] Building moodcopilot 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ moodcopilot-backend ---
+[INFO] Copying 3 resources from src\main\resources to target\classes
+[INFO] Copying 62 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.14.1:compile (default-compile) @ moodcopilot-backend ---
+[WARNING]  Parameter 'compilerVersion' (user property 'maven.compiler.compilerVersion') is deprecated: This parameter is no longer evaluated by the underlying compilers, instead the actual version of the javac binary is automatically retrieved.
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ moodcopilot-backend ---
+[INFO] skip non existing resourceDirectory D:\Code\MoodCopilot\backend\moodcopilot\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ moodcopilot-backend ---
+[WARNING]  Parameter 'compilerVersion' (user property 'maven.compiler.compilerVersion') is deprecated: This parameter is no longer evaluated by the underlying compilers, instead the actual version of the javac binary is automatically retrieved.
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 45 source files with javac [debug parameters release 21] to target\test-classes
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ReasoningTest.java: ĳЩ�����ļ�ʹ�û򸲸����ѹ�ʱ�� API��
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ReasoningTest.java: �й���ϸ��Ϣ, ��ʹ�� -Xlint:deprecation ���±��롣
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/ChatAgentApprovalTest.java: ĳЩ�����ļ�ʹ����δ�����򲻰�ȫ�Ĳ�����
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/ChatAgentApprovalTest.java: �й���ϸ��Ϣ, ��ʹ�� -Xlint:unchecked ���±��롣
+[INFO] 
+[INFO] --- surefire:3.5.5:test (default-test) @ moodcopilot-backend ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.moodcopilot.ai.ChatAgentApprovalTest
+Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build as described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+WARNING: A Java agent has been loaded dynamically (D:\coding\apache-maven-3.9.12\mvn_repo\net\bytebuddy\byte-buddy-agent\1.17.8\byte-buddy-agent-1.17.8.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+Java HotSpot(TM) 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+SLF4J(W): Class path contains multiple SLF4J providers.
+SLF4J(W): Found provider [ch.qos.logback.classic.spi.LogbackServiceProvider@63f34b70]
+SLF4J(W): Found provider [org.slf4j.simple.SimpleServiceProvider@641856]
+SLF4J(W): See https://www.slf4j.org/codes.html#multiple_bindings for an explanation.
+SLF4J(I): Actual provider is of type [ch.qos.logback.classic.spi.LogbackServiceProvider@63f34b70]
+08:47:29.492 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- ����ִ��ǰ�ȴ��û���׼��items=1 model=FLASH
+08:47:29.499 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- �ܾ����ߵ��� saveMemoryFunction id=call-1 interactive=true reason=�����Ҳ����
+08:47:29.503 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=4
+08:47:29.504 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=9
+08:47:29.526 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=4
+08:47:29.530 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- ����ִ��ǰ�ȴ��û���׼��items=2 model=FLASH
+08:47:29.531 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: mergeMemoryFunction id=call-a argsLen=21 model=FLASH
+08:47:29.533 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- �ܾ����ߵ��� mergeMemoryFunction id=call-b interactive=true reason=�ڶ����ȱ�
+08:47:29.535 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=5
+08:47:29.536 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=4
+08:47:29.549 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=4
+08:47:29.552 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- ����ִ��ǰ�ȴ��û���׼��items=1 model=FLASH
+08:47:29.552 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: saveMemoryFunction id=call-1 argsLen=46 model=FLASH
+08:47:29.556 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=4
+08:47:29.556 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=4
+08:47:29.567 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=3
+08:47:29.570 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- ����ִ��ǰ�ȴ��û���׼��items=2 model=FLASH
+08:47:29.571 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: mergeMemoryFunction id=call-a argsLen=21 model=FLASH
+08:47:29.571 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- �ܾ����ߵ��� mergeMemoryFunction id=call-b interactive=true reason=�û��ܾ�����θĶ���û��˵��ԭ�򡣲�Ҫ�ٳ���д������������������Ϊʲô�����߻������������
+08:47:29.574 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=5
+08:47:29.574 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=4
+08:47:29.583 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=3
+08:47:29.585 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- ����ִ��ǰ�ȴ��û���׼��items=2 model=FLASH
+08:47:29.587 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: mergeMemoryFunction id=call-a argsLen=21 model=FLASH
+08:47:29.589 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: mergeMemoryFunction id=call-b argsLen=21 model=FLASH
+08:47:29.590 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=5
+08:47:29.591 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=4
+08:47:29.605 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=3
+08:47:29.607 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- ����ִ��ǰ�ȴ��û���׼��items=2 model=FLASH
+08:47:29.616 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- �ܾ����ߵ��� saveMemoryFunction id=call-1 interactive=false reason=��ǰͨ���޷�����ȷ�������Ķ�����ֱ�Ӹ����û�������סʲô���������� App ��ȷ�ϡ�
+08:47:29.618 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=4
+08:47:29.618 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=6
+08:47:29.627 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=call-9 argsLen=2 model=FLASH
+08:47:29.628 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=4
+08:47:29.628 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=5
+08:47:29.637 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- ����ִ��ǰ�ȴ��û���׼��items=1 model=FLASH
+08:47:29.638 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- �ܾ����ߵ��� saveMemoryFunction id=call-1 interactive=true reason=�û��ܾ�����θĶ���û��˵��ԭ�򡣲�Ҫ�ٳ���д������������������Ϊʲô�����߻������������
+08:47:29.639 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=4
+08:47:29.640 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=2
+08:47:29.650 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- ����ִ��ǰ�ȴ��û���׼��items=1 model=FLASH
+08:47:29.651 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: saveMemoryFunction id=call-1 argsLen=46 model=FLASH
+08:47:29.652 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=4
+08:47:29.653 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- ����ִ��ǰ�ȴ��û���׼��items=1 model=FLASH
+08:47:29.659 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=2
+08:47:29.663 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- ����ִ��ǰ�ȴ��û���׼��items=1 model=FLASH
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.325 s -- in com.moodcopilot.ai.ChatAgentApprovalTest
+[INFO] Running com.moodcopilot.ai.ChatAgentLoopTest
+08:47:29.676 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=3
+08:47:29.689 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=9
+08:47:29.698 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_AGENT_STREAM model=PRO elapsedMs=2
+08:47:29.704 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: updateEventStatusFunction id=call-9 argsLen=2 model=FLASH
+08:47:29.705 [main] ERROR com.moodcopilot.ai.ChatAgentLoop -- ���ߵ���ִ��ʧ��: �¼������� model=FLASH
+08:47:29.707 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=4
+08:47:29.707 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=5
+08:47:29.720 [Thread-1] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=5
+08:47:29.733 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=call-1 argsLen=2 model=FLASH
+08:47:29.734 [main] WARN com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ���ȴﵽ���� depth=1 model=FLASH����ֹ�ݹ�
+08:47:29.740 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=CHAT_STREAM model=FLASH elapsedMs=2
+08:47:29.740 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=call-1 argsLen=15 model=FLASH
+08:47:29.741 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=4
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.073 s -- in com.moodcopilot.ai.ChatAgentLoopTest
+[INFO] Running com.moodcopilot.ai.ChatAgentResilienceTest
+08:47:29.775 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=one argsLen=2 model=FLASH
+08:47:29.775 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=two argsLen=2 model=FLASH
+08:47:29.776 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=4
+08:47:29.778 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=one argsLen=2 model=FLASH
+08:47:29.779 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=3
+08:47:29.788 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=one argsLen=2 model=PRO
+08:47:29.789 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=two argsLen=2 model=PRO
+08:47:29.790 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=PRO��messages ����=4
+08:47:29.793 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=one argsLen=2 model=PRO
+08:47:29.794 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=PRO��messages ����=3
+08:47:29.802 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=read argsLen=2 model=FLASH
+08:47:29.803 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=3
+08:47:29.804 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- ����ִ��ǰ�ȴ��û���׼��items=1 model=FLASH
+08:47:29.805 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: saveMemoryFunction id=write argsLen=2 model=FLASH
+08:47:29.806 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=2 model=FLASH��messages ����=5
+08:47:29.810 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=3 model=FLASH��messages ����=7
+08:47:29.819 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=read argsLen=2 model=PRO
+08:47:29.820 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=PRO��messages ����=3
+08:47:29.820 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- ����ִ��ǰ�ȴ��û���׼��items=1 model=PRO
+08:47:29.821 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: saveMemoryFunction id=write argsLen=2 model=PRO
+08:47:29.822 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=2 model=PRO��messages ����=5
+08:47:29.824 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=3 model=PRO��messages ����=7
+08:47:29.928 [agent-timeout-regression] ERROR org.bsc.langgraph4j -- reactor.core.Exceptions$ReactiveException: java.util.concurrent.TimeoutException: Did not observe any item or terminal signal within 80ms in 'peek' (and no fallback has been configured)
+java.util.concurrent.ExecutionException: reactor.core.Exceptions$ReactiveException: java.util.concurrent.TimeoutException: Did not observe any item or terminal signal within 80ms in 'peek' (and no fallback has been configured)
+	at java.base/java.util.concurrent.CompletableFuture.wrapInExecutionException(CompletableFuture.java:345)
+	at java.base/java.util.concurrent.CompletableFuture.reportGet(CompletableFuture.java:440)
+	at java.base/java.util.concurrent.CompletableFuture.get(CompletableFuture.java:2094)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.applyAction(CompiledGraph.java:833)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.next(CompiledGraph.java:966)
+	at org.bsc.async.AsyncGenerator$WithEmbed.next(AsyncGenerator.java:329)
+	at org.bsc.async.InternalIterator.hasNext(AsyncGenerator.java:658)
+	at com.moodcopilot.ai.ChatAgentLoop.iterateGraph(ChatAgentLoop.java:215)
+	at com.moodcopilot.ai.ChatAgentLoop.lambda$drive$0(ChatAgentLoop.java:182)
+	at reactor.core.publisher.FluxCreate.subscribe(FluxCreate.java:97)
+	at reactor.core.publisher.Flux.subscribe(Flux.java:8891)
+	at reactor.core.publisher.Flux.blockLast(Flux.java:2816)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.lambda$silentModelTimesOutAndCancelsUpstreamWithoutRetry$1(ChatAgentResilienceTest.java:54)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:328)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: reactor.core.Exceptions$ReactiveException: java.util.concurrent.TimeoutException: Did not observe any item or terminal signal within 80ms in 'peek' (and no fallback has been configured)
+	at reactor.core.Exceptions.propagate(Exceptions.java:410)
+	at reactor.core.publisher.BlockingIterable$SubscriberIterator.hasNext(BlockingIterable.java:176)
+	at com.moodcopilot.ai.ChatAgentLoop.lambda$agentAction$0(ChatAgentLoop.java:285)
+	at org.bsc.langgraph4j.action.AsyncNodeActionWithConfig.lambda$node_async$1(AsyncNodeActionWithConfig.java:50)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks$WrapCalls.apply(NodeHooks.java:120)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.applyWrapCallHooksHandlingInterruption(NodeHooks.java:174)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.lambda$applyActionWithHooksHandlingInterruption$1(NodeHooks.java:188)
+	at java.base/java.util.concurrent.CompletableFuture.uniComposeStage(CompletableFuture.java:1208)
+	at java.base/java.util.concurrent.CompletableFuture.thenCompose(CompletableFuture.java:2368)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.applyActionWithHooksHandlingInterruption(NodeHooks.java:187)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.applyAction(CompiledGraph.java:807)
+	... 13 common frames omitted
+Caused by: java.util.concurrent.TimeoutException: Did not observe any item or terminal signal within 80ms in 'peek' (and no fallback has been configured)
+	at reactor.core.publisher.FluxTimeout$TimeoutMainSubscriber.handleTimeout(FluxTimeout.java:296)
+	at reactor.core.publisher.FluxTimeout$TimeoutMainSubscriber.doTimeout(FluxTimeout.java:281)
+	at reactor.core.publisher.FluxTimeout$TimeoutTimeoutSubscriber.onNext(FluxTimeout.java:420)
+	at reactor.core.publisher.FluxOnErrorReturn$ReturnSubscriber.onNext(FluxOnErrorReturn.java:162)
+	at reactor.core.publisher.MonoDelay$MonoDelayRunnable.propagateDelay(MonoDelay.java:270)
+	at reactor.core.publisher.MonoDelay$MonoDelayRunnable.run(MonoDelay.java:285)
+	at reactor.core.scheduler.SchedulerTask.call(SchedulerTask.java:68)
+	at reactor.core.scheduler.SchedulerTask.call(SchedulerTask.java:28)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:328)
+	at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:309)
+	... 3 common frames omitted
+08:47:29.929 [agent-timeout-regression] WARN com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ��ʧ�� model=FLASH reason=org.bsc.langgraph4j.GraphRunnerException: java.util.concurrent.ExecutionException: reactor.core.Exceptions$ReactiveException: java.util.concurrent.TimeoutException: Did not observe any item or terminal signal within 80ms in 'peek' (and no fallback has been configured)
+08:47:30.016 [agent-timeout-regression] ERROR org.bsc.langgraph4j -- reactor.core.Exceptions$ReactiveException: java.util.concurrent.TimeoutException: Did not observe any item or terminal signal within 80ms in 'peek' (and no fallback has been configured)
+java.util.concurrent.ExecutionException: reactor.core.Exceptions$ReactiveException: java.util.concurrent.TimeoutException: Did not observe any item or terminal signal within 80ms in 'peek' (and no fallback has been configured)
+	at java.base/java.util.concurrent.CompletableFuture.wrapInExecutionException(CompletableFuture.java:345)
+	at java.base/java.util.concurrent.CompletableFuture.reportGet(CompletableFuture.java:440)
+	at java.base/java.util.concurrent.CompletableFuture.get(CompletableFuture.java:2094)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.applyAction(CompiledGraph.java:833)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.next(CompiledGraph.java:966)
+	at org.bsc.async.AsyncGenerator$WithEmbed.next(AsyncGenerator.java:329)
+	at org.bsc.async.InternalIterator.hasNext(AsyncGenerator.java:658)
+	at com.moodcopilot.ai.ChatAgentLoop.iterateGraph(ChatAgentLoop.java:215)
+	at com.moodcopilot.ai.ChatAgentLoop.lambda$drive$0(ChatAgentLoop.java:182)
+	at reactor.core.publisher.FluxCreate.subscribe(FluxCreate.java:97)
+	at reactor.core.publisher.Flux.subscribe(Flux.java:8891)
+	at reactor.core.publisher.Flux.blockLast(Flux.java:2816)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.lambda$silentModelTimesOutAndCancelsUpstreamWithoutRetry$1(ChatAgentResilienceTest.java:54)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:328)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: reactor.core.Exceptions$ReactiveException: java.util.concurrent.TimeoutException: Did not observe any item or terminal signal within 80ms in 'peek' (and no fallback has been configured)
+	at reactor.core.Exceptions.propagate(Exceptions.java:410)
+	at reactor.core.publisher.BlockingIterable$SubscriberIterator.hasNext(BlockingIterable.java:176)
+	at com.moodcopilot.ai.ChatAgentLoop.lambda$agentAction$0(ChatAgentLoop.java:285)
+	at org.bsc.langgraph4j.action.AsyncNodeActionWithConfig.lambda$node_async$1(AsyncNodeActionWithConfig.java:50)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks$WrapCalls.apply(NodeHooks.java:120)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.applyWrapCallHooksHandlingInterruption(NodeHooks.java:174)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.lambda$applyActionWithHooksHandlingInterruption$1(NodeHooks.java:188)
+	at java.base/java.util.concurrent.CompletableFuture.uniComposeStage(CompletableFuture.java:1208)
+	at java.base/java.util.concurrent.CompletableFuture.thenCompose(CompletableFuture.java:2368)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.applyActionWithHooksHandlingInterruption(NodeHooks.java:187)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.applyAction(CompiledGraph.java:807)
+	... 13 common frames omitted
+Caused by: java.util.concurrent.TimeoutException: Did not observe any item or terminal signal within 80ms in 'peek' (and no fallback has been configured)
+	at reactor.core.publisher.FluxTimeout$TimeoutMainSubscriber.handleTimeout(FluxTimeout.java:296)
+	at reactor.core.publisher.FluxTimeout$TimeoutMainSubscriber.doTimeout(FluxTimeout.java:281)
+	at reactor.core.publisher.FluxTimeout$TimeoutTimeoutSubscriber.onNext(FluxTimeout.java:420)
+	at reactor.core.publisher.FluxOnErrorReturn$ReturnSubscriber.onNext(FluxOnErrorReturn.java:162)
+	at reactor.core.publisher.MonoDelay$MonoDelayRunnable.propagateDelay(MonoDelay.java:270)
+	at reactor.core.publisher.MonoDelay$MonoDelayRunnable.run(MonoDelay.java:285)
+	at reactor.core.scheduler.SchedulerTask.call(SchedulerTask.java:68)
+	at reactor.core.scheduler.SchedulerTask.call(SchedulerTask.java:28)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:328)
+	at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:309)
+	... 3 common frames omitted
+08:47:30.016 [agent-timeout-regression] WARN com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ��ʧ�� model=PRO reason=org.bsc.langgraph4j.GraphRunnerException: java.util.concurrent.ExecutionException: reactor.core.Exceptions$ReactiveException: java.util.concurrent.TimeoutException: Did not observe any item or terminal signal within 80ms in 'peek' (and no fallback has been configured)
+08:47:30.023 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=one argsLen=2 model=FLASH
+08:47:30.024 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=3
+08:47:30.025 [main] ERROR org.bsc.langgraph4j -- java.lang.IllegalStateException: Conflicting tool call ID
+java.util.concurrent.ExecutionException: java.lang.IllegalStateException: Conflicting tool call ID
+	at java.base/java.util.concurrent.CompletableFuture.wrapInExecutionException(CompletableFuture.java:345)
+	at java.base/java.util.concurrent.CompletableFuture.reportGet(CompletableFuture.java:440)
+	at java.base/java.util.concurrent.CompletableFuture.get(CompletableFuture.java:2094)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.applyAction(CompiledGraph.java:833)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.next(CompiledGraph.java:966)
+	at org.bsc.async.AsyncGenerator$WithEmbed.next(AsyncGenerator.java:329)
+	at org.bsc.async.InternalIterator.hasNext(AsyncGenerator.java:658)
+	at com.moodcopilot.ai.ChatAgentLoop.iterateGraph(ChatAgentLoop.java:215)
+	at com.moodcopilot.ai.ChatAgentLoop.lambda$drive$0(ChatAgentLoop.java:182)
+	at reactor.core.publisher.FluxCreate.subscribe(FluxCreate.java:97)
+	at reactor.core.publisher.Flux.subscribe(Flux.java:8891)
+	at reactor.core.publisher.Flux.blockLast(Flux.java:2816)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.lambda$reusedIdWithDifferentArgumentsFailsClosed$0(ChatAgentResilienceTest.java:141)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:53)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)
+	at org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.reusedIdWithDifferentArgumentsFailsClosed(ChatAgentResilienceTest.java:141)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:775)
+	at org.junit.platform.commons.support.ReflectionSupport.invokeMethod(ReflectionSupport.java:479)
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)
+	at org.junit.jupiter.params.ArgumentCountValidator.interceptTestTemplateMethod(ArgumentCountValidator.java:45)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:112)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:94)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:161)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:152)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestTemplateMethod(TimeoutExtension.java:99)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:112)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:94)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:93)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:87)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$7(TestMethodTestDescriptor.java:216)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:212)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:137)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:69)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:156)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask$DefaultDynamicTestExecutor.execute(NodeTestTask.java:231)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask$DefaultDynamicTestExecutor.execute(NodeTestTask.java:209)
+	at org.junit.jupiter.engine.descriptor.TestTemplateTestDescriptor.execute(TestTemplateTestDescriptor.java:157)
+	at org.junit.jupiter.engine.descriptor.TestTemplateTestDescriptor.lambda$executeForProvider$0(TestTemplateTestDescriptor.java:115)
+	at java.base/java.util.Optional.ifPresent(Optional.java:178)
+	at org.junit.jupiter.engine.descriptor.TestTemplateTestDescriptor.lambda$executeForProvider$1(TestTemplateTestDescriptor.java:115)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.stream.ReferencePipeline$7$1FlatMap.accept(ReferencePipeline.java:293)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1716)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.stream.ReferencePipeline$7$1FlatMap.accept(ReferencePipeline.java:293)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1716)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at org.junit.jupiter.engine.descriptor.TestTemplateTestDescriptor.executeForProvider(TestTemplateTestDescriptor.java:114)
+	at org.junit.jupiter.engine.descriptor.TestTemplateTestDescriptor.execute(TestTemplateTestDescriptor.java:103)
+	at org.junit.jupiter.engine.descriptor.TestTemplateTestDescriptor.execute(TestTemplateTestDescriptor.java:43)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:156)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:201)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:170)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:94)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:59)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:142)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:58)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:103)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:85)
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47)
+	at org.junit.platform.launcher.core.InterceptingLauncher.lambda$execute$1(InterceptingLauncher.java:39)
+	at org.junit.platform.launcher.core.ClasspathAlignmentCheckingLauncherInterceptor.intercept(ClasspathAlignmentCheckingLauncherInterceptor.java:25)
+	at org.junit.platform.launcher.core.InterceptingLauncher.execute(InterceptingLauncher.java:38)
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47)
+	at org.apache.maven.surefire.junitplatform.LauncherAdapter.executeWithoutCancellationToken(LauncherAdapter.java:60)
+	at org.apache.maven.surefire.junitplatform.LauncherAdapter.execute(LauncherAdapter.java:52)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.execute(JUnitPlatformProvider.java:203)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invokeAllTests(JUnitPlatformProvider.java:168)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invoke(JUnitPlatformProvider.java:136)
+	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+Caused by: java.lang.IllegalStateException: Conflicting tool call ID
+	at com.moodcopilot.ai.ChatAgentLoop.requireSameCall(ChatAgentLoop.java:550)
+	at com.moodcopilot.ai.ChatAgentLoop.lambda$agentAction$0(ChatAgentLoop.java:292)
+	at org.bsc.langgraph4j.action.AsyncNodeActionWithConfig.lambda$node_async$1(AsyncNodeActionWithConfig.java:50)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks$WrapCalls.apply(NodeHooks.java:120)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.applyWrapCallHooksHandlingInterruption(NodeHooks.java:174)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.lambda$applyActionWithHooksHandlingInterruption$1(NodeHooks.java:188)
+	at java.base/java.util.concurrent.CompletableFuture.uniComposeStage(CompletableFuture.java:1208)
+	at java.base/java.util.concurrent.CompletableFuture.thenCompose(CompletableFuture.java:2368)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.applyActionWithHooksHandlingInterruption(NodeHooks.java:187)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.applyAction(CompiledGraph.java:807)
+	... 141 common frames omitted
+08:47:30.026 [main] WARN com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ��ʧ�� model=FLASH reason=org.bsc.langgraph4j.GraphRunnerException: java.util.concurrent.ExecutionException: java.lang.IllegalStateException: Conflicting tool call ID
+08:47:30.030 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=one argsLen=2 model=PRO
+08:47:30.031 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=PRO��messages ����=3
+08:47:30.031 [main] ERROR org.bsc.langgraph4j -- java.lang.IllegalStateException: Conflicting tool call ID
+java.util.concurrent.ExecutionException: java.lang.IllegalStateException: Conflicting tool call ID
+	at java.base/java.util.concurrent.CompletableFuture.wrapInExecutionException(CompletableFuture.java:345)
+	at java.base/java.util.concurrent.CompletableFuture.reportGet(CompletableFuture.java:440)
+	at java.base/java.util.concurrent.CompletableFuture.get(CompletableFuture.java:2094)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.applyAction(CompiledGraph.java:833)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.next(CompiledGraph.java:966)
+	at org.bsc.async.AsyncGenerator$WithEmbed.next(AsyncGenerator.java:329)
+	at org.bsc.async.InternalIterator.hasNext(AsyncGenerator.java:658)
+	at com.moodcopilot.ai.ChatAgentLoop.iterateGraph(ChatAgentLoop.java:215)
+	at com.moodcopilot.ai.ChatAgentLoop.lambda$drive$0(ChatAgentLoop.java:182)
+	at reactor.core.publisher.FluxCreate.subscribe(FluxCreate.java:97)
+	at reactor.core.publisher.Flux.subscribe(Flux.java:8891)
+	at reactor.core.publisher.Flux.blockLast(Flux.java:2816)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.lambda$reusedIdWithDifferentArgumentsFailsClosed$0(ChatAgentResilienceTest.java:141)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:53)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)
+	at org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3128)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.reusedIdWithDifferentArgumentsFailsClosed(ChatAgentResilienceTest.java:141)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:775)
+	at org.junit.platform.commons.support.ReflectionSupport.invokeMethod(ReflectionSupport.java:479)
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)
+	at org.junit.jupiter.params.ArgumentCountValidator.interceptTestTemplateMethod(ArgumentCountValidator.java:45)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:112)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:94)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:161)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:152)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestTemplateMethod(TimeoutExtension.java:99)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(InterceptingExecutableInvoker.java:112)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.lambda$invoke$0(InterceptingExecutableInvoker.java:94)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:93)
+	at org.junit.jupiter.engine.execution.InterceptingExecutableInvoker.invoke(InterceptingExecutableInvoker.java:87)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$7(TestMethodTestDescriptor.java:216)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:212)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:137)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:69)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:156)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask$DefaultDynamicTestExecutor.execute(NodeTestTask.java:231)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask$DefaultDynamicTestExecutor.execute(NodeTestTask.java:209)
+	at org.junit.jupiter.engine.descriptor.TestTemplateTestDescriptor.execute(TestTemplateTestDescriptor.java:157)
+	at org.junit.jupiter.engine.descriptor.TestTemplateTestDescriptor.lambda$executeForProvider$0(TestTemplateTestDescriptor.java:115)
+	at java.base/java.util.Optional.ifPresent(Optional.java:178)
+	at org.junit.jupiter.engine.descriptor.TestTemplateTestDescriptor.lambda$executeForProvider$1(TestTemplateTestDescriptor.java:115)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.stream.ReferencePipeline$7$1FlatMap.accept(ReferencePipeline.java:293)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1716)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.stream.ReferencePipeline$7$1FlatMap.accept(ReferencePipeline.java:293)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1716)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at org.junit.jupiter.engine.descriptor.TestTemplateTestDescriptor.executeForProvider(TestTemplateTestDescriptor.java:114)
+	at org.junit.jupiter.engine.descriptor.TestTemplateTestDescriptor.execute(TestTemplateTestDescriptor.java:103)
+	at org.junit.jupiter.engine.descriptor.TestTemplateTestDescriptor.execute(TestTemplateTestDescriptor.java:43)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:156)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:160)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:146)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:144)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:143)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:100)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:201)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:170)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:94)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:59)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:142)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:58)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:103)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:85)
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47)
+	at org.junit.platform.launcher.core.InterceptingLauncher.lambda$execute$1(InterceptingLauncher.java:39)
+	at org.junit.platform.launcher.core.ClasspathAlignmentCheckingLauncherInterceptor.intercept(ClasspathAlignmentCheckingLauncherInterceptor.java:25)
+	at org.junit.platform.launcher.core.InterceptingLauncher.execute(InterceptingLauncher.java:38)
+	at org.junit.platform.launcher.core.DelegatingLauncher.execute(DelegatingLauncher.java:47)
+	at org.apache.maven.surefire.junitplatform.LauncherAdapter.executeWithoutCancellationToken(LauncherAdapter.java:60)
+	at org.apache.maven.surefire.junitplatform.LauncherAdapter.execute(LauncherAdapter.java:52)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.execute(JUnitPlatformProvider.java:203)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invokeAllTests(JUnitPlatformProvider.java:168)
+	at org.apache.maven.surefire.junitplatform.JUnitPlatformProvider.invoke(JUnitPlatformProvider.java:136)
+	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+Caused by: java.lang.IllegalStateException: Conflicting tool call ID
+	at com.moodcopilot.ai.ChatAgentLoop.requireSameCall(ChatAgentLoop.java:550)
+	at com.moodcopilot.ai.ChatAgentLoop.lambda$agentAction$0(ChatAgentLoop.java:292)
+	at org.bsc.langgraph4j.action.AsyncNodeActionWithConfig.lambda$node_async$1(AsyncNodeActionWithConfig.java:50)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks$WrapCalls.apply(NodeHooks.java:120)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.applyWrapCallHooksHandlingInterruption(NodeHooks.java:174)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.lambda$applyActionWithHooksHandlingInterruption$1(NodeHooks.java:188)
+	at java.base/java.util.concurrent.CompletableFuture.uniComposeStage(CompletableFuture.java:1208)
+	at java.base/java.util.concurrent.CompletableFuture.thenCompose(CompletableFuture.java:2368)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.applyActionWithHooksHandlingInterruption(NodeHooks.java:187)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.applyAction(CompiledGraph.java:807)
+	... 141 common frames omitted
+08:47:30.031 [main] WARN com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ��ʧ�� model=PRO reason=org.bsc.langgraph4j.GraphRunnerException: java.util.concurrent.ExecutionException: java.lang.IllegalStateException: Conflicting tool call ID
+08:47:30.037 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=failed-call argsLen=2 model=FLASH
+08:47:30.038 [main] ERROR com.moodcopilot.ai.ChatAgentLoop -- ���ߵ���ִ��ʧ��: synthetic failure model=FLASH
+08:47:30.038 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=3
+08:47:30.039 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=RESILIENCE_TEST model=FLASH elapsedMs=3
+08:47:30.046 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=failed-call argsLen=2 model=PRO
+08:47:30.046 [main] ERROR com.moodcopilot.ai.ChatAgentLoop -- ���ߵ���ִ��ʧ��: synthetic failure model=PRO
+08:47:30.047 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=PRO��messages ����=3
+08:47:30.047 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=RESILIENCE_TEST model=PRO elapsedMs=3
+08:47:30.053 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=same-id argsLen=2 model=FLASH
+08:47:30.054 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=3
+08:47:30.055 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=2 model=FLASH��messages ����=5
+08:47:30.055 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=RESILIENCE_TEST model=FLASH elapsedMs=3
+08:47:30.060 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=same-id argsLen=2 model=PRO
+08:47:30.060 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=PRO��messages ����=3
+08:47:30.062 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=2 model=PRO��messages ����=5
+08:47:30.062 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=RESILIENCE_TEST model=PRO elapsedMs=4
+08:47:30.066 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=one argsLen=2 model=FLASH
+08:47:30.067 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=3
+08:47:30.073 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=one argsLen=2 model=PRO
+08:47:30.074 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=PRO��messages ����=3
+08:47:30.079 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=one argsLen=2 model=FLASH
+08:47:30.081 [main] ERROR com.moodcopilot.ai.ChatAgentLoop -- ���ߵ���ִ��ʧ��: partial failure model=FLASH
+08:47:30.081 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=3
+08:47:30.082 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=2 model=FLASH��messages ����=5
+08:47:30.086 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=one argsLen=2 model=PRO
+08:47:30.087 [main] ERROR com.moodcopilot.ai.ChatAgentLoop -- ���ߵ���ִ��ʧ��: partial failure model=PRO
+08:47:30.088 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=PRO��messages ����=3
+08:47:30.089 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=2 model=PRO��messages ����=5
+[INFO] Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.344 s -- in com.moodcopilot.ai.ChatAgentResilienceTest
+[INFO] Running com.moodcopilot.ai.tool.ChatToolRegistryTest
+[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.518 s -- in com.moodcopilot.ai.tool.ChatToolRegistryTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 48, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  6.784 s
+[INFO] Finished at: 2026-10-21T08:47:30+08:00
+[INFO] ------------------------------------------------------------------------

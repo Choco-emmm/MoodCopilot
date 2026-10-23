@@ -89,3 +89,5 @@ git diff --check
 ```
 
 前端依赖以各自的 package-lock.json 固定，CI 使用 Node 22、后端使用 Java 21，并实际构建两端 Docker 镜像。测试报告和小程序构建产物仅保留 3 天；大体积 JAR 只在准备发布时上传，保留 1 天。容器镜像在 GHCR 单独管理。
+
+后端的 `clean verify` 自动包含 `ChatAgentResilienceTest` 的 Flash/Pro 超时、工具失败及重复调用回归，不需要真实 AI Key。固定条件只读压测是本地显式操作，不加入 CI 服务调用；复现命令、逐请求记录、瓶颈说明与修复前后测试结果见 [2026-10-21 验证报告](verification/2026-10-21-agent-performance/README.md)。

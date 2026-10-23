@@ -1,0 +1,65 @@
+{
+  "startedAt": "2026-10-21T00:47:51.625Z",
+  "base": "http://127.0.0.1:18080",
+  "localAddress": "127.0.0.2",
+  "node": "v24.14.0",
+  "platform": "win32 10.0.26200 x64",
+  "cpu": "AMD Ryzen 9 8945HX with Radeon Graphics        ",
+  "logicalCpus": 32,
+  "totalMemoryBytes": 33605316608,
+  "workload": "GET only; HTTP/1.1 keep-alive; closed loop; 5s socket inactivity timeout; no retries or think time",
+  "results": [
+    {
+      "name": "health-c8",
+      "path": "/api/health",
+      "concurrency": 8,
+      "scheduledSeconds": 20,
+      "elapsedSeconds": 20.0002279,
+      "requests": 262875,
+      "successes": 262875,
+      "throughputRps": 13143.600228675396,
+      "successfulRps": 13143.600228675396,
+      "p95Ms": 0.951,
+      "successP95Ms": 0.951,
+      "errorRate": 0,
+      "statusCounts": {
+        "200": 262875
+      }
+    },
+    {
+      "name": "health-c32",
+      "path": "/api/health",
+      "concurrency": 32,
+      "scheduledSeconds": 20,
+      "elapsedSeconds": 20.000503700000003,
+      "requests": 263196,
+      "successes": 263196,
+      "throughputRps": 13159.46857878384,
+      "successfulRps": 13159.46857878384,
+      "p95Ms": 3.506,
+      "successP95Ms": 3.506,
+      "errorRate": 0,
+      "statusCounts": {
+        "200": 263196
+      }
+    },
+    {
+      "name": "announcements-c8",
+      "path": "/api/announcements/active",
+      "concurrency": 8,
+      "scheduledSeconds": 20,
+      "elapsedSeconds": 20.002471099999994,
+      "requests": 49195,
+      "successes": 296,
+      "throughputRps": 2459.446123134257,
+      "successfulRps": 14.798171611906495,
+      "p95Ms": 3.911,
+      "successP95Ms": 6.774,
+      "errorRate": 0.9939831283667039,
+      "statusCounts": {
+        "200": 296,
+        "429": 48899
+      }
+    }
+  ]
+}

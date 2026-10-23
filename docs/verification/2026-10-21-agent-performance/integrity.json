@@ -1,0 +1,20 @@
+[
+  {
+    "file": "health-c8.ndjson.gz",
+    "sha256": "8f521fa8f8ac8a7e7e06ad35013489a3f9ebf8bb255c6fbb94262a8372df6676",
+    "samples": 262875,
+    "verified": true
+  },
+  {
+    "file": "health-c32.ndjson.gz",
+    "sha256": "cdffcd47cadcceca9fc8c09d5c5f4c92d658ceb84c9b5ebf66e5ce26105f4c49",
+    "samples": 263196,
+    "verified": true
+  },
+  {
+    "file": "announcements-c8.ndjson.gz",
+    "sha256": "0aa149c21f0165c72b3d1e5138d7c16db9ba46f6129710ec4614e2394bc8a494",
+    "samples": 49195,
+    "verified": true
+  }
+]

@@ -1,0 +1,397 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------< com.moodcopilot:moodcopilot-backend >-----------------
+[INFO] Building moodcopilot 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ moodcopilot-backend ---
+[INFO] Copying 3 resources from src\main\resources to target\classes
+[INFO] Copying 62 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.14.1:compile (default-compile) @ moodcopilot-backend ---
+[WARNING]  Parameter 'compilerVersion' (user property 'maven.compiler.compilerVersion') is deprecated: This parameter is no longer evaluated by the underlying compilers, instead the actual version of the javac binary is automatically retrieved.
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 286 source files with javac [debug parameters release 21] to target\classes
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/main/java/com/moodcopilot/ai/RagMemoryService.java: ĳЩ�����ļ�ʹ�û򸲸����ѹ�ʱ�� API��
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/main/java/com/moodcopilot/ai/RagMemoryService.java: �й���ϸ��Ϣ, ��ʹ�� -Xlint:deprecation ���±��롣
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/main/java/com/moodcopilot/ai/PersonaCompiler.java: ĳЩ�����ļ�ʹ����δ�����򲻰�ȫ�Ĳ�����
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/main/java/com/moodcopilot/ai/PersonaCompiler.java: �й���ϸ��Ϣ, ��ʹ�� -Xlint:unchecked ���±��롣
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ moodcopilot-backend ---
+[INFO] skip non existing resourceDirectory D:\Code\MoodCopilot\backend\moodcopilot\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ moodcopilot-backend ---
+[WARNING]  Parameter 'compilerVersion' (user property 'maven.compiler.compilerVersion') is deprecated: This parameter is no longer evaluated by the underlying compilers, instead the actual version of the javac binary is automatically retrieved.
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 45 source files with javac [debug parameters release 21] to target\test-classes
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ReasoningTest.java: ĳЩ�����ļ�ʹ�û򸲸����ѹ�ʱ�� API��
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ReasoningTest.java: �й���ϸ��Ϣ, ��ʹ�� -Xlint:deprecation ���±��롣
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/ChatAgentApprovalTest.java: ĳЩ�����ļ�ʹ����δ�����򲻰�ȫ�Ĳ�����
+[INFO] /D:/Code/MoodCopilot/backend/moodcopilot/src/test/java/com/moodcopilot/ai/ChatAgentApprovalTest.java: �й���ϸ��Ϣ, ��ʹ�� -Xlint:unchecked ���±��롣
+[INFO] 
+[INFO] --- surefire:3.5.5:test (default-test) @ moodcopilot-backend ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.moodcopilot.ai.ChatAgentResilienceTest
+Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build as described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+Java HotSpot(TM) 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+WARNING: A Java agent has been loaded dynamically (D:\coding\apache-maven-3.9.12\mvn_repo\net\bytebuddy\byte-buddy-agent\1.17.8\byte-buddy-agent-1.17.8.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+SLF4J(W): Class path contains multiple SLF4J providers.
+SLF4J(W): Found provider [ch.qos.logback.classic.spi.LogbackServiceProvider@ecf9049]
+SLF4J(W): Found provider [org.slf4j.simple.SimpleServiceProvider@672f11c2]
+SLF4J(W): See https://www.slf4j.org/codes.html#multiple_bindings for an explanation.
+SLF4J(I): Actual provider is of type [ch.qos.logback.classic.spi.LogbackServiceProvider@ecf9049]
+08:43:59.003 [agent-timeout-regression] ERROR org.bsc.langgraph4j -- reactor.core.Exceptions$ReactiveException: java.lang.InterruptedException
+java.util.concurrent.ExecutionException: reactor.core.Exceptions$ReactiveException: java.lang.InterruptedException
+	at java.base/java.util.concurrent.CompletableFuture.wrapInExecutionException(CompletableFuture.java:345)
+	at java.base/java.util.concurrent.CompletableFuture.reportGet(CompletableFuture.java:440)
+	at java.base/java.util.concurrent.CompletableFuture.get(CompletableFuture.java:2094)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.applyAction(CompiledGraph.java:833)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.next(CompiledGraph.java:966)
+	at org.bsc.async.AsyncGenerator$WithEmbed.next(AsyncGenerator.java:329)
+	at org.bsc.async.InternalIterator.hasNext(AsyncGenerator.java:658)
+	at com.moodcopilot.ai.ChatAgentLoop.iterateGraph(ChatAgentLoop.java:215)
+	at com.moodcopilot.ai.ChatAgentLoop.lambda$drive$0(ChatAgentLoop.java:182)
+	at reactor.core.publisher.FluxCreate.subscribe(FluxCreate.java:97)
+	at reactor.core.publisher.Flux.subscribe(Flux.java:8891)
+	at reactor.core.publisher.Flux.blockLast(Flux.java:2816)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.lambda$silentModelTimesOutAndCancelsUpstreamWithoutRetry$1(ChatAgentResilienceTest.java:54)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:328)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: reactor.core.Exceptions$ReactiveException: java.lang.InterruptedException
+	at reactor.core.Exceptions.propagate(Exceptions.java:410)
+	at reactor.core.publisher.BlockingIterable$SubscriberIterator.hasNext(BlockingIterable.java:192)
+	at com.moodcopilot.ai.ChatAgentLoop.lambda$agentAction$0(ChatAgentLoop.java:285)
+	at org.bsc.langgraph4j.action.AsyncNodeActionWithConfig.lambda$node_async$1(AsyncNodeActionWithConfig.java:50)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks$WrapCalls.apply(NodeHooks.java:120)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.applyWrapCallHooksHandlingInterruption(NodeHooks.java:174)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.lambda$applyActionWithHooksHandlingInterruption$1(NodeHooks.java:188)
+	at java.base/java.util.concurrent.CompletableFuture.uniComposeStage(CompletableFuture.java:1208)
+	at java.base/java.util.concurrent.CompletableFuture.thenCompose(CompletableFuture.java:2368)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.applyActionWithHooksHandlingInterruption(NodeHooks.java:187)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.applyAction(CompiledGraph.java:807)
+	... 13 common frames omitted
+Caused by: java.lang.InterruptedException
+	at java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await(AbstractQueuedSynchronizer.java:1767)
+	at reactor.core.publisher.BlockingIterable$SubscriberIterator.hasNext(BlockingIterable.java:186)
+	... 22 common frames omitted
+08:43:59.006 [agent-timeout-regression] WARN com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ��ʧ�� model=FLASH reason=org.bsc.langgraph4j.GraphRunnerException: java.util.concurrent.ExecutionException: reactor.core.Exceptions$ReactiveException: java.lang.InterruptedException
+08:44:01.017 [agent-timeout-regression] ERROR org.bsc.langgraph4j -- reactor.core.Exceptions$ReactiveException: java.lang.InterruptedException
+java.util.concurrent.ExecutionException: reactor.core.Exceptions$ReactiveException: java.lang.InterruptedException
+	at java.base/java.util.concurrent.CompletableFuture.wrapInExecutionException(CompletableFuture.java:345)
+	at java.base/java.util.concurrent.CompletableFuture.reportGet(CompletableFuture.java:440)
+	at java.base/java.util.concurrent.CompletableFuture.get(CompletableFuture.java:2094)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.applyAction(CompiledGraph.java:833)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.next(CompiledGraph.java:966)
+	at org.bsc.async.AsyncGenerator$WithEmbed.next(AsyncGenerator.java:329)
+	at org.bsc.async.InternalIterator.hasNext(AsyncGenerator.java:658)
+	at com.moodcopilot.ai.ChatAgentLoop.iterateGraph(ChatAgentLoop.java:215)
+	at com.moodcopilot.ai.ChatAgentLoop.lambda$drive$0(ChatAgentLoop.java:182)
+	at reactor.core.publisher.FluxCreate.subscribe(FluxCreate.java:97)
+	at reactor.core.publisher.Flux.subscribe(Flux.java:8891)
+	at reactor.core.publisher.Flux.blockLast(Flux.java:2816)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.lambda$silentModelTimesOutAndCancelsUpstreamWithoutRetry$1(ChatAgentResilienceTest.java:54)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:328)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1090)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:614)
+	at java.base/java.lang.Thread.run(Thread.java:1474)
+Caused by: reactor.core.Exceptions$ReactiveException: java.lang.InterruptedException
+	at reactor.core.Exceptions.propagate(Exceptions.java:410)
+	at reactor.core.publisher.BlockingIterable$SubscriberIterator.hasNext(BlockingIterable.java:192)
+	at com.moodcopilot.ai.ChatAgentLoop.lambda$agentAction$0(ChatAgentLoop.java:285)
+	at org.bsc.langgraph4j.action.AsyncNodeActionWithConfig.lambda$node_async$1(AsyncNodeActionWithConfig.java:50)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks$WrapCalls.apply(NodeHooks.java:120)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.applyWrapCallHooksHandlingInterruption(NodeHooks.java:174)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.lambda$applyActionWithHooksHandlingInterruption$1(NodeHooks.java:188)
+	at java.base/java.util.concurrent.CompletableFuture.uniComposeStage(CompletableFuture.java:1208)
+	at java.base/java.util.concurrent.CompletableFuture.thenCompose(CompletableFuture.java:2368)
+	at org.bsc.langgraph4j.internal.hook.NodeHooks.applyActionWithHooksHandlingInterruption(NodeHooks.java:187)
+	at org.bsc.langgraph4j.CompiledGraph$AsyncNodeGenerator.applyAction(CompiledGraph.java:807)
+	... 13 common frames omitted
+Caused by: java.lang.InterruptedException
+	at java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await(AbstractQueuedSynchronizer.java:1767)
+	at reactor.core.publisher.BlockingIterable$SubscriberIterator.hasNext(BlockingIterable.java:186)
+	... 22 common frames omitted
+08:44:01.018 [agent-timeout-regression] WARN com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ��ʧ�� model=PRO reason=org.bsc.langgraph4j.GraphRunnerException: java.util.concurrent.ExecutionException: reactor.core.Exceptions$ReactiveException: java.lang.InterruptedException
+08:44:01.039 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=failed-call argsLen=2 model=FLASH
+08:44:01.039 [main] ERROR com.moodcopilot.ai.ChatAgentLoop -- ���ߵ���ִ��ʧ��: synthetic failure model=FLASH
+08:44:01.043 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=3
+08:44:01.043 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=RESILIENCE_TEST model=FLASH elapsedMs=16
+08:44:01.063 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=failed-call argsLen=2 model=PRO
+08:44:01.064 [main] ERROR com.moodcopilot.ai.ChatAgentLoop -- ���ߵ���ִ��ʧ��: synthetic failure model=PRO
+08:44:01.065 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=PRO��messages ����=3
+08:44:01.066 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=RESILIENCE_TEST model=PRO elapsedMs=8
+08:44:01.077 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=same-id argsLen=2 model=FLASH
+08:44:01.079 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=FLASH��messages ����=3
+08:44:01.082 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=same-id argsLen=2 model=FLASH
+08:44:01.084 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=2 model=FLASH��messages ����=5
+08:44:01.084 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=RESILIENCE_TEST model=FLASH elapsedMs=11
+08:44:01.100 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=same-id argsLen=2 model=PRO
+08:44:01.103 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=1 model=PRO��messages ����=3
+08:44:01.105 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop ִ�й��ߵ���: diarySearchFunction id=same-id argsLen=2 model=PRO
+08:44:01.107 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- Agent Loop �ݹ� depth=2 model=PRO��messages ����=5
+08:44:01.107 [main] INFO com.moodcopilot.ai.ChatAgentLoop -- AI���ֽڵ��� type=RESILIENCE_TEST model=PRO elapsedMs=10
+[ERROR] Tests run: 6, Failures: 4, Errors: 0, Skipped: 0, Time elapsed: 4.905 s <<< FAILURE! -- in com.moodcopilot.ai.ChatAgentResilienceTest
+[ERROR] com.moodcopilot.ai.ChatAgentResilienceTest.silentModelTimesOutAndCancelsUpstreamWithoutRetry(boolean)[1] -- Time elapsed: 2.095 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: silent model must terminate before the test guard ==> Unexpected exception type thrown, expected: <java.util.concurrent.ExecutionException> but was: <java.util.concurrent.TimeoutException>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:67)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:39)
+	at org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3153)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.silentModelTimesOutAndCancelsUpstreamWithoutRetry(ChatAgentResilienceTest.java:56)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.Optional.ifPresent(Optional.java:178)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.stream.ReferencePipeline$7$1FlatMap.accept(ReferencePipeline.java:293)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1716)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.stream.ReferencePipeline$7$1FlatMap.accept(ReferencePipeline.java:293)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1716)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+Caused by: java.util.concurrent.TimeoutException
+	at java.base/java.util.concurrent.FutureTask.get(FutureTask.java:206)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.lambda$silentModelTimesOutAndCancelsUpstreamWithoutRetry$2(ChatAgentResilienceTest.java:57)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:53)
+	... 38 more
+
+[ERROR] com.moodcopilot.ai.ChatAgentResilienceTest.silentModelTimesOutAndCancelsUpstreamWithoutRetry(boolean)[2] -- Time elapsed: 2.004 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: silent model must terminate before the test guard ==> Unexpected exception type thrown, expected: <java.util.concurrent.ExecutionException> but was: <java.util.concurrent.TimeoutException>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:67)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:39)
+	at org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3153)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.silentModelTimesOutAndCancelsUpstreamWithoutRetry(ChatAgentResilienceTest.java:56)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.Optional.ifPresent(Optional.java:178)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.stream.ReferencePipeline$7$1FlatMap.accept(ReferencePipeline.java:293)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1716)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.stream.ReferencePipeline$7$1FlatMap.accept(ReferencePipeline.java:293)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1716)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+Caused by: java.util.concurrent.TimeoutException
+	at java.base/java.util.concurrent.FutureTask.get(FutureTask.java:206)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.lambda$silentModelTimesOutAndCancelsUpstreamWithoutRetry$2(ChatAgentResilienceTest.java:57)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:53)
+	... 38 more
+
+[ERROR] com.moodcopilot.ai.ChatAgentResilienceTest.repeatedCallIdAcrossRoundsReusesResultWithoutExecutingAgain(boolean)[1] -- Time elapsed: 0.021 s <<< FAILURE!
+org.mockito.exceptions.verification.TooManyActualInvocations: 
+
+chatToolRegistry.execute(
+    <any string>,
+    <any string>,
+    <any>
+);
+Wanted 1 time:
+-> at com.moodcopilot.ai.tool.ChatToolRegistry.execute(ChatToolRegistry.java:62)
+But was 2 times:
+-> at com.moodcopilot.ai.ChatAgentLoop$ToolsAction.apply(ChatAgentLoop.java:399)
+-> at com.moodcopilot.ai.ChatAgentLoop$ToolsAction.apply(ChatAgentLoop.java:399)
+
+
+	at com.moodcopilot.ai.tool.ChatToolRegistry.execute(ChatToolRegistry.java:62)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.repeatedCallIdAcrossRoundsReusesResultWithoutExecutingAgain(ChatAgentResilienceTest.java:99)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.Optional.ifPresent(Optional.java:178)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.stream.ReferencePipeline$7$1FlatMap.accept(ReferencePipeline.java:293)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1716)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.stream.ReferencePipeline$7$1FlatMap.accept(ReferencePipeline.java:293)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1716)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[ERROR] com.moodcopilot.ai.ChatAgentResilienceTest.repeatedCallIdAcrossRoundsReusesResultWithoutExecutingAgain(boolean)[2] -- Time elapsed: 0.013 s <<< FAILURE!
+org.mockito.exceptions.verification.TooManyActualInvocations: 
+
+chatToolRegistry.execute(
+    <any string>,
+    <any string>,
+    <any>
+);
+Wanted 1 time:
+-> at com.moodcopilot.ai.tool.ChatToolRegistry.execute(ChatToolRegistry.java:62)
+But was 2 times:
+-> at com.moodcopilot.ai.ChatAgentLoop$ToolsAction.apply(ChatAgentLoop.java:399)
+-> at com.moodcopilot.ai.ChatAgentLoop$ToolsAction.apply(ChatAgentLoop.java:399)
+
+
+	at com.moodcopilot.ai.tool.ChatToolRegistry.execute(ChatToolRegistry.java:62)
+	at com.moodcopilot.ai.ChatAgentResilienceTest.repeatedCallIdAcrossRoundsReusesResultWithoutExecutingAgain(ChatAgentResilienceTest.java:99)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.Optional.ifPresent(Optional.java:178)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.accept(ForEachOps.java:186)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.Spliterators$ArraySpliterator.forEachRemaining(Spliterators.java:1024)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.stream.ReferencePipeline$7$1FlatMap.accept(ReferencePipeline.java:293)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1716)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.stream.ReferencePipeline$7$1FlatMap.accept(ReferencePipeline.java:293)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.stream.ReferencePipeline$3$1.accept(ReferencePipeline.java:214)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.forEachRemaining(ArrayList.java:1716)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:570)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:560)
+	at java.base/java.util.stream.ForEachOps$ForEachOp.evaluateSequential(ForEachOps.java:153)
+	at java.base/java.util.stream.ForEachOps$ForEachOp$OfRef.evaluateSequential(ForEachOps.java:176)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:265)
+	at java.base/java.util.stream.ReferencePipeline.forEach(ReferencePipeline.java:632)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[INFO] 
+[INFO] Results:
+[INFO] 
+[ERROR] Failures: 
+[ERROR]   ChatAgentResilienceTest.repeatedCallIdAcrossRoundsReusesResultWithoutExecutingAgain:99 
+chatToolRegistry.execute(
+    <any string>,
+    <any string>,
+    <any>
+);
+Wanted 1 time:
+-> at com.moodcopilot.ai.tool.ChatToolRegistry.execute(ChatToolRegistry.java:62)
+But was 2 times:
+-> at com.moodcopilot.ai.ChatAgentLoop$ToolsAction.apply(ChatAgentLoop.java:399)
+-> at com.moodcopilot.ai.ChatAgentLoop$ToolsAction.apply(ChatAgentLoop.java:399)
+
+
+[ERROR]   ChatAgentResilienceTest.repeatedCallIdAcrossRoundsReusesResultWithoutExecutingAgain:99 
+chatToolRegistry.execute(
+    <any string>,
+    <any string>,
+    <any>
+);
+Wanted 1 time:
+-> at com.moodcopilot.ai.tool.ChatToolRegistry.execute(ChatToolRegistry.java:62)
+But was 2 times:
+-> at com.moodcopilot.ai.ChatAgentLoop$ToolsAction.apply(ChatAgentLoop.java:399)
+-> at com.moodcopilot.ai.ChatAgentLoop$ToolsAction.apply(ChatAgentLoop.java:399)
+
+
+[ERROR]   ChatAgentResilienceTest.silentModelTimesOutAndCancelsUpstreamWithoutRetry:56 silent model must terminate before the test guard ==> Unexpected exception type thrown, expected: <java.util.concurrent.ExecutionException> but was: <java.util.concurrent.TimeoutException>
+[ERROR]   ChatAgentResilienceTest.silentModelTimesOutAndCancelsUpstreamWithoutRetry:56 silent model must terminate before the test guard ==> Unexpected exception type thrown, expected: <java.util.concurrent.ExecutionException> but was: <java.util.concurrent.TimeoutException>
+[INFO] 
+[ERROR] Tests run: 6, Failures: 4, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  14.700 s
+[INFO] Finished at: 2026-10-21T08:44:01+08:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.5:test (default-test) on project moodcopilot-backend: There are test failures.
+[ERROR] 
+[ERROR] See D:\Code\MoodCopilot\backend\moodcopilot\target\surefire-reports for the individual test results.
+[ERROR] See dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
