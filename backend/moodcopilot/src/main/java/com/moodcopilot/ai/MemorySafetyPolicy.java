@@ -5,8 +5,9 @@ import java.util.Set;
 
 /** Prevents transient states from becoming permanent core profile facts. */
 public final class MemorySafetyPolicy {
-    private static final Set<String> SUPPORTED_MEMORY_TYPES = Set.of(
+    public static final java.util.List<String> MEMORY_TYPES = java.util.List.of(
             "preference", "relationship", "habit", "event", "short_term_state", "pattern");
+    private static final Set<String> SUPPORTED_MEMORY_TYPES = Set.copyOf(MEMORY_TYPES);
     private static final String[] SAFETY_TERMS = {
             "自杀", "自残", "轻生", "想死", "不想活", "结束生命", "伤害自己", "割腕", "跳楼",
             "自杀意念", "严重心理危机", "心理危机", "危机干预"
@@ -42,7 +43,8 @@ public final class MemorySafetyPolicy {
     public static boolean isChineseAttributeKey(String attributeKey) {
         if (attributeKey == null || attributeKey.isBlank()) return false;
         return attributeKey.matches(".*\\p{IsHan}.*")
-                && !attributeKey.matches(".*[A-Za-z].*");
+                && attributeKey.matches("[\\p{IsHan}\\p{N}\\p{P}\\p{Zs}]+")
+                && !attributeKey.contains("_");
     }
 
     public static boolean isSafetyState(String attributeKey, String attributeValue) {

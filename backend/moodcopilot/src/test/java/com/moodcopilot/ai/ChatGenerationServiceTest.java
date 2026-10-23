@@ -1,8 +1,12 @@
 package com.moodcopilot.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moodcopilot.ai.tool.ChatToolRegistry;
+import com.moodcopilot.langgraph.InMemoryCheckpointSaver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.ListOperations;
@@ -17,6 +21,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -47,7 +56,7 @@ class ChatGenerationServiceTest {
     private static final long CONV = 42L;
     private static final String MESSAGE = "帮我记一下：我讨厌吃番茄";
 
-    private final Map<String, Map<String, String>> hashes = new LinkedHashMap<>();
+    private final Map<String, Map<String, String>> hashes = new ConcurrentHashMap<>();
     private final Map<String, List<String>> lists = new LinkedHashMap<>();
     private final Map<String, String> values = new LinkedHashMap<>();
 
@@ -56,6 +65,7 @@ class ChatGenerationServiceTest {
 
     private String runId;
     private ChatGenerationService service;
+    private StringRedisTemplate redis;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
@@ -82,7 +92,7 @@ class ChatGenerationServiceTest {
 
         HashOperations<String, Object, Object> hashOps = mock(HashOperations.class);
         doAnswer(invocation -> {
-            Map<String, String> target = hashes.computeIfAbsent(invocation.getArgument(0), k -> new LinkedHashMap<>());
+            Map<String, String> target = hashes.computeIfAbsent(invocation.getArgument(0), k -> new ConcurrentHashMap<>());
             ((Map<?, ?>) invocation.getArgument(1))
                     .forEach((k, v) -> target.put(String.valueOf(k), String.valueOf(v)));
             return null;
@@ -92,20 +102,20 @@ class ChatGenerationServiceTest {
             return hash == null ? null : hash.get(String.valueOf((Object) invocation.getArgument(1)));
         });
         doAnswer(invocation -> {
-            Map<String, String> hash = hashes.computeIfAbsent(invocation.getArgument(0), k -> new LinkedHashMap<>());
+            Map<String, String> hash = hashes.computeIfAbsent(invocation.getArgument(0), k -> new ConcurrentHashMap<>());
             hash.put(String.valueOf((Object) invocation.getArgument(1)),
                     String.valueOf((Object) invocation.getArgument(2)));
             return null;
         }).when(hashOps).put(anyString(), any(), any());
         when(hashOps.increment(anyString(), any(), anyLong())).thenAnswer(invocation -> {
-            Map<String, String> hash = hashes.computeIfAbsent(invocation.getArgument(0), k -> new LinkedHashMap<>());
+            Map<String, String> hash = hashes.computeIfAbsent(invocation.getArgument(0), k -> new ConcurrentHashMap<>());
             String field = String.valueOf((Object) invocation.getArgument(1));
             long next = Long.parseLong(hash.getOrDefault(field, "0")) + (Long) invocation.getArgument(2);
             hash.put(field, String.valueOf(next));
             return next;
         });
 
-        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        redis = mock(StringRedisTemplate.class);
         when(redis.opsForList()).thenReturn(listOps);
         when(redis.opsForValue()).thenReturn(valueOps);
         when(redis.opsForHash()).thenReturn(hashOps);
@@ -244,14 +254,14 @@ class ChatGenerationServiceTest {
 
         ChatGenerationService.RunSnapshot snapshot = service.approve(runId, USER, CONV,
                 new UsernamePasswordAuthenticationToken("user", null, List.of()),
-                List.of(ApprovalChoice.forAll(true, null)));
+                List.of(new ApprovalChoice("call-1", true, null)));
 
         assertEquals("RUNNING", snapshot.status());
         assertTrue(hasEvent("done"), "确认之后这一轮才算结束：" + events());
         assertEquals("SUCCEEDED", status());
         // 正文必须是暂停前后拼起来的整段 —— 画像抽取拿半截，记下来的就是错的东西
         verify(memoryExtractionService).extractAndSyncMemoryFromChat(USER, CONV, MESSAGE, List.of(),
-                "好的，帮你记一下 记好了");
+                "好的，帮你记一下 记好了", java.util.Set.of("讨厌的食物"));
     }
 
     @Test
@@ -262,7 +272,7 @@ class ChatGenerationServiceTest {
                 .thenReturn(new ChatService.ChatStreamContext("", resumed.chunks(), resumed));
 
         service.approve(runId, USER, CONV, new UsernamePasswordAuthenticationToken("user", null, List.of()),
-                List.of(ApprovalChoice.forAll(false, "这条我不想记")));
+                List.of(new ApprovalChoice("call-1", false, "这条我不想记")));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> decision = ArgumentCaptor.forClass(Map.class);
@@ -274,8 +284,7 @@ class ChatGenerationServiceTest {
         assertEquals(1, entries.size());
         assertEquals(Boolean.FALSE, entries.get(0).get("approved"));
         assertEquals("这条我不想记", entries.get(0).get("reason"));
-        // 通配决定不该带 toolCallId，带了就被当成「只对某一次调用有效」
-        assertFalse(entries.get(0).containsKey("toolCallId"));
+        assertEquals("call-1", entries.get(0).get("toolCallId"));
     }
 
     @Test
@@ -287,7 +296,7 @@ class ChatGenerationServiceTest {
                 .thenReturn(new ChatService.ChatStreamContext("", pausedAgain.chunks(), pausedAgain));
 
         service.approve(runId, USER, CONV, new UsernamePasswordAuthenticationToken("user", null, List.of()),
-                List.of(ApprovalChoice.forAll(true, null)));
+                List.of(new ApprovalChoice("call-1", true, null)));
 
         assertEquals("AWAITING_APPROVAL", status());
         assertFalse(hasEvent("done"), "又停下来问了一次，还没结束：" + events());
@@ -317,7 +326,7 @@ class ChatGenerationServiceTest {
         // 正常跑完的 run 没有检查点可恢复；放行就等于凭空执行一次工具
         assertThrows(RuntimeException.class, () -> service.approve(runId, USER, CONV,
                 new UsernamePasswordAuthenticationToken("user", null, List.of()),
-                List.of(ApprovalChoice.forAll(true, null))));
+                List.of(new ApprovalChoice("call-1", true, null))));
     }
 
     @Test
@@ -327,11 +336,11 @@ class ChatGenerationServiceTest {
         when(chatService.resumeChat(anyLong(), any(), anyBoolean(), any(), any()))
                 .thenReturn(new ChatService.ChatStreamContext("", resumed.chunks(), resumed));
         var auth = new UsernamePasswordAuthenticationToken("user", null, List.of());
-        service.approve(runId, USER, CONV, auth, List.of(ApprovalChoice.forAll(true, null)));
+        service.approve(runId, USER, CONV, auth, List.of(new ApprovalChoice("call-1", true, null)));
 
         // 连点两下确认：第二下必须在恢复检查点之前就被挡住，否则工具会跑两次
         assertThrows(RuntimeException.class,
-                () -> service.approve(runId, USER, CONV, auth, List.of(ApprovalChoice.forAll(true, null))));
+                () -> service.approve(runId, USER, CONV, auth, List.of(new ApprovalChoice("call-1", true, null))));
     }
 
     @Test
@@ -352,5 +361,105 @@ class ChatGenerationServiceTest {
         assertFalse(hasEvent("approval_required"));
         assertEquals("SUCCEEDED", status());
         verify(memoryExtractionService).extractAndSyncMemoryFromChat(USER, CONV, MESSAGE, List.of(), "今天天气不错");
+    }
+
+    private void connectAgent(DeepSeekClient client, ChatToolRegistry tools, boolean pro) {
+        var loop = new ChatAgentLoop(client, tools, new InMemoryCheckpointSaver(), new ObjectMapper(), new ChatRunCancellation(redis));
+        var options = new AgentLoopOptions(pro ? "test-pro" : "test-flash", 256, null,
+                pro ? "high" : null, 3, pro, "CANCELLATION_TEST", pro ? "PRO" : "FLASH");
+        var turn = new ChatTurn(List.of(), MESSAGE, CONV, List.of());
+        when(chatService.chat(any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any(), any(),
+                anyBoolean())).thenAnswer(call -> {
+                    var messages = new ArrayList<Map<String, Object>>(List.of(Map.of("role", "user", "content", MESSAGE)));
+                    var outcome = loop.run(messages, null, null, options, turn, call.getArgument(9), true);
+                    return new ChatService.ChatStreamContext("", outcome.chunks(), outcome);
+                });
+        when(chatService.resumeChat(anyLong(), any(), anyBoolean(), any(), anyString())).thenAnswer(call -> {
+            var outcome = loop.resume(null, null, options, turn, call.getArgument(4), call.getArgument(3));
+            return new ChatService.ChatStreamContext("", outcome.chunks(), outcome);
+        });
+    }
+
+    private String startConnectedAgent() {
+        return service.start(new ChatGenerationService.StartRequest(USER, CONV, "req-cancel", MESSAGE,
+                List.of(), List.of(), ReferencePurpose.DISCUSS, false,
+                new UsernamePasswordAuthenticationToken("user", null, List.of()), List.of(), true)).runId();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void cancellingAnotherRunDoesNotCancelThisRun(boolean pro) {
+        hashes.put("chat:run:another-run:meta", new LinkedHashMap<>(Map.of("status", "CANCELLED")));
+        var client = mock(DeepSeekClient.class);
+        var tools = mock(ChatToolRegistry.class);
+        when(client.stream(any(), any(), any())).thenReturn(Flux.just(new DeepSeekStreamEvent.TextChunk("still running")));
+        connectAgent(client, tools, pro);
+        runId = startConnectedAgent();
+        assertEquals("SUCCEEDED", status());
+        assertTrue(hasEvent("done"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void cancellationBetweenApprovedToolsStopsTheNextToolAndModelRound(boolean pro) throws Exception {
+        var client = mock(DeepSeekClient.class);
+        var tools = mock(ChatToolRegistry.class);
+        when(tools.requiresApproval("saveMemoryFunction")).thenReturn(true);
+        when(tools.displayName("saveMemoryFunction")).thenReturn("saveMemory");
+        when(client.stream(any(), any(), any())).thenReturn(Flux.just(
+                new DeepSeekStreamEvent.ToolCallReady("write-a", "saveMemoryFunction", "{}"),
+                new DeepSeekStreamEvent.ToolCallReady("write-b", "saveMemoryFunction", "{}")),
+                Flux.just(new DeepSeekStreamEvent.TextChunk("must not continue")));
+        connectAgent(client, tools, pro);
+        runId = startConnectedAgent();
+        assertEquals("AWAITING_APPROVAL", status());
+        var executions = new AtomicInteger();
+        when(tools.execute(anyString(), anyString(), any())).thenAnswer(call -> {
+            executions.incrementAndGet();
+            service.cancel(runId, USER, CONV);
+            return Map.of("synthetic", true);
+        });
+
+        service.approve(runId, USER, CONV, new UsernamePasswordAuthenticationToken("user", null, List.of()),
+                List.of(new ApprovalChoice("write-a", true, ""), new ApprovalChoice("write-b", true, "")));
+
+        assertEquals(1, executions.get(), "the second approved write must not start after cancellation");
+        verify(client, org.mockito.Mockito.times(1)).stream(any(), any(), any());
+        assertEquals("CANCELLED", status());
+        assertFalse(hasEvent("done"));
+        verify(memoryExtractionService, never()).extractAndSyncMemoryFromChat(anyLong(), anyLong(), any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void cancellationStopsASilentModelWithoutWaitingForIdleTimeout(boolean pro) throws Exception {
+        var queued = new ArrayList<Runnable>();
+        service = new ChatGenerationService(chatService, memoryExtractionService, redis, new ObjectMapper(), queued::add);
+        var client = mock(DeepSeekClient.class);
+        var tools = mock(ChatToolRegistry.class);
+        var subscribed = new CountDownLatch(1);
+        var cancelled = new CountDownLatch(1);
+        when(client.stream(any(), any(), any())).thenReturn(Flux.<DeepSeekStreamEvent>never()
+                .doOnSubscribe(ignored -> subscribed.countDown()).doOnCancel(cancelled::countDown));
+        connectAgent(client, tools, pro);
+        runId = startConnectedAgent();
+        var executor = Executors.newSingleThreadExecutor(runnable -> {
+            var thread = new Thread(runnable, "cancel-silent-model-test");
+            thread.setDaemon(true);
+            return thread;
+        });
+        var running = executor.submit(queued.remove(0));
+        try {
+            assertTrue(subscribed.await(2, TimeUnit.SECONDS));
+            service.cancel(runId, USER, CONV);
+            running.get(2, TimeUnit.SECONDS);
+            assertTrue(cancelled.await(1, TimeUnit.SECONDS), "the upstream model subscription must be cancelled");
+            assertEquals("CANCELLED", status());
+            assertFalse(hasEvent("done"));
+            verify(memoryExtractionService, never()).extractAndSyncMemoryFromChat(anyLong(), anyLong(), any(), any(), any());
+        } finally {
+            running.cancel(true);
+            executor.shutdownNow();
+        }
     }
 }

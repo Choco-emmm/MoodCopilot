@@ -139,6 +139,8 @@ oss:
   secret-key: ${OSS_SECRET_KEY:}
 moodcopilot:
   time-zone: ${MOODCOPILOT_TIME_ZONE:Asia/Shanghai}
+  ai:
+    stream-idle-timeout: ${AI_STREAM_IDLE_TIMEOUT:90s}
   rag:
     embedding:
       connect-timeout-ms: ${RAG_EMBEDDING_CONNECT_TIMEOUT_MS:3000}

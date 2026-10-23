@@ -20,15 +20,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Sinks;
 
 import java.util.ArrayList;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.bsc.langgraph4j.StateGraph.END;
@@ -61,7 +64,6 @@ public class ChatAgentLoop {
 
     private static final Logger log = LoggerFactory.getLogger(ChatAgentLoop.class);
 
-    private static final int MAX_ERROR_MESSAGE_CHARS = 200;
 
     private static final String AGENT_NODE = "agentNode";
     private static final String TOOLS_NODE = "toolsNode";
@@ -76,13 +78,18 @@ public class ChatAgentLoop {
     /** 面向接口：生产用 {@link RedisCheckpointSaver}，测试塞内存实现即可，不必伺候 Redis。 */
     private final BaseCheckpointSaver checkpointSaver;
     private final ObjectMapper objectMapper;
+    private final ChatRunCancellation cancellation;
+
+    @Value("${moodcopilot.ai.stream-idle-timeout:90s}")
+    private Duration streamIdleTimeout = Duration.ofSeconds(90);
 
     public ChatAgentLoop(DeepSeekClient deepSeekClient, ChatToolRegistry toolRegistry,
-            BaseCheckpointSaver checkpointSaver, ObjectMapper objectMapper) {
+            BaseCheckpointSaver checkpointSaver, ObjectMapper objectMapper, ChatRunCancellation cancellation) {
         this.deepSeekClient = deepSeekClient;
         this.toolRegistry = toolRegistry;
         this.checkpointSaver = checkpointSaver;
         this.objectMapper = objectMapper;
+        this.cancellation = cancellation;
     }
 
     /**
@@ -93,29 +100,19 @@ public class ChatAgentLoop {
     }
 
     /**
-     * 构造 {@link #resume} 要回填的决定。键名是图状态的一部分，调用方不该自己拼字符串。
-     * <p>
-     * 这条是不带 {@code toolCallId} 的通配决定：整批共用。只有一条待批准时用它就够了。
-     */
-    public static Map<String, Object> approvalDecision(boolean approved, String reason) {
-        return approvalDecision(List.of(ApprovalChoice.forAll(approved, reason)));
-    }
-
-    /**
      * 逐条表态。多组工具调用（例如一次合并好几组）时，用户可以只批其中几组。
      * <p>
-     * 没被点名的调用会落到通配决定上；连通配都没有的按**拒绝**处理 —— 没点头的事不该做。
+     * 没被点名的调用按**拒绝**处理 —— 没点头的事不该做。
      */
     public static Map<String, Object> approvalDecision(List<ApprovalChoice> choices) {
         List<Map<String, Object>> payload = new ArrayList<>();
         for (ApprovalChoice choice : choices) {
             Map<String, Object> entry = new LinkedHashMap<>();
-            // 不带 toolCallId 的那条就是通配，别补 null 值把它变成逐条
-            if (choice.toolCallId() != null) {
-                entry.put("toolCallId", choice.toolCallId());
-            }
+            if (choice.toolCallId() == null || choice.toolCallId().isBlank()) continue;
+            entry.put("toolCallId", choice.toolCallId());
             entry.put("approved", choice.approved());
             entry.put("reason", choice.reason() == null ? "" : choice.reason());
+            if (choice.editedValue() != null) entry.put("editedValue", choice.editedValue());
             payload.add(entry);
         }
         return Map.of(ChatLoopState.APPROVAL_DECISION, Map.of("decisions", payload));
@@ -176,6 +173,7 @@ public class ChatAgentLoop {
             try {
                 List<Map<String, Object>> latest = iterateGraph(messages, context, options, outcome, sink,
                         threadId, resumeDecision, approvalsInteractive);
+                checkCancellation(config(threadId), sink);
                 // 节点拿到的是 state 的深拷贝（图在每个节点前 cloneState），所以回灌的 assistant / tool
                 // 消息只活在图里。调用方持有的那一份要同步过来 —— 这是「消息回灌」这个对外行为的落点。
                 if (messages != null && latest != null && latest != messages) {
@@ -184,6 +182,13 @@ public class ChatAgentLoop {
                 }
                 sink.complete();
             } catch (Throwable failure) {
+                Throwable cause = failure;
+                while (cause.getCause() != null && cause.getCause() != cause) cause = cause.getCause();
+                if (cause instanceof CancellationException cancelled) {
+                    log.info("Agent Loop 已取消 model={}", options.modelLabel());
+                    sink.error(cancelled);
+                    return;
+                }
                 log.warn("Agent Loop 执行失败 model={} reason={}", options.modelLabel(), failure.getMessage());
                 sink.error(failure);
             }
@@ -208,6 +213,7 @@ public class ChatAgentLoop {
 
         List<Map<String, Object>> latest = messages;
         for (NodeOutput<ChatLoopState> output : generator) {
+            checkCancellation(config, sink);
             latest = output.state().messages();
         }
 
@@ -236,7 +242,7 @@ public class ChatAgentLoop {
                 firstTokenLogged, startedAt)));
         // toolsNode 是 InterruptableAction：只有它自己能按「这次要跑哪些工具」决定停不停，
         // 而不是 CompileConfig.interruptBefore 那种「进这个节点就一律停」的节点级拦截。
-        graph.addNode(TOOLS_NODE, node_async(new ToolsAction(context, options, outcome)));
+        graph.addNode(TOOLS_NODE, node_async(new ToolsAction(context, options, outcome, sink)));
 
         graph.addEdge(START, AGENT_NODE);
         graph.addConditionalEdges(AGENT_NODE,
@@ -266,6 +272,7 @@ public class ChatAgentLoop {
             AtomicBoolean firstTokenLogged, long startedAt) {
 
         return (state, config) -> {
+            checkCancellation(config, sink);
             int round = state.loopCount();
             if (round > 0) {
                 log.info("Agent Loop 递归 depth={} model={}，messages 数量={}", round, options.modelLabel(),
@@ -277,34 +284,58 @@ public class ChatAgentLoop {
             StringBuilder turnReasoning = new StringBuilder();
             StringBuilder turnContent = new StringBuilder();
 
-            for (DeepSeekStreamEvent event : deepSeekClient.stream(messages, toolRegistry.schemas(), options)
-                    .toIterable()) {
-                if (event instanceof DeepSeekStreamEvent.ToolCallReady tool) {
-                    toolCalls.add(tool);
-                    continue;
-                }
-                if (!(event instanceof DeepSeekStreamEvent.TextChunk text)) {
-                    continue;
-                }
-                String chunk = text.text();
-                if (chunk.startsWith(AgentLoopOutcome.REASONING_MARKER)) {
-                    turnReasoning.append(chunk.substring(AgentLoopOutcome.REASONING_MARKER.length()));
-                } else {
-                    turnContent.append(chunk);
-                }
+            // Closing the blocking stream disposes its subscription even when an error comes
+            // from the cancellation publisher or processing a tool call throws mid-stream.
+            try (var events = deepSeekClient.stream(messages, toolRegistry.schemas(), options)
+                    .timeout(streamIdleTimeout)
+                    .takeUntilOther(cancellation.signal(config.threadId().orElseThrow()))
+                    .toStream()) {
+                var iterator = events.iterator();
+                while (iterator.hasNext()) {
+                    DeepSeekStreamEvent event = iterator.next();
+                    if (sink.isCancelled()) throw new CancellationException("生成订阅已取消");
+                    if (event instanceof DeepSeekStreamEvent.ToolCallReady tool) {
+                        // Duplicate delivery of a call is not authorization for a second execution.
+                        Map<String, Object> receipt = state.toolResults().get(tool.toolCallId());
+                        if (receipt != null) {
+                            requireSameCall(receipt, tool.functionName(), tool.argumentsJson());
+                        }
+                        DeepSeekStreamEvent.ToolCallReady previous = toolCalls.stream()
+                                .filter(call -> call.toolCallId().equals(tool.toolCallId())).findFirst().orElse(null);
+                        if (previous != null) {
+                            if (!previous.functionName().equals(tool.functionName())
+                                    || !java.util.Objects.equals(previous.argumentsJson(), tool.argumentsJson())) {
+                                throw new IllegalStateException("Conflicting tool call ID");
+                            }
+                            continue;
+                        }
+                        toolCalls.add(tool);
+                        continue;
+                    }
+                    if (!(event instanceof DeepSeekStreamEvent.TextChunk text)) {
+                        continue;
+                    }
+                    String chunk = text.text();
+                    if (chunk.startsWith(AgentLoopOutcome.REASONING_MARKER)) {
+                        turnReasoning.append(chunk.substring(AgentLoopOutcome.REASONING_MARKER.length()));
+                    } else {
+                        turnContent.append(chunk);
+                    }
 
-                // 累加在过滤之前：即使不向客户端暴露思考过程，reasoning() 仍然完整
-                outcome.appendText(chunk);
-                if (firstTokenLogged.compareAndSet(false, true)) {
-                    log.info("AI首字节到达 type={} model={} elapsedMs={}", options.logType(),
-                            options.modelLabel(), AiCallTiming.elapsedMs(startedAt));
-                }
-                if (options.exposeReasoning() || !chunk.startsWith(AgentLoopOutcome.REASONING_MARKER)) {
-                    sink.next(chunk);
+                    // 累加在过滤之前：即使不向客户端暴露思考过程，reasoning() 仍然完整
+                    outcome.appendText(chunk);
+                    if (firstTokenLogged.compareAndSet(false, true)) {
+                        log.info("AI首字节到达 type={} model={} elapsedMs={}", options.logType(),
+                                options.modelLabel(), AiCallTiming.elapsedMs(startedAt));
+                    }
+                    if (options.exposeReasoning() || !chunk.startsWith(AgentLoopOutcome.REASONING_MARKER)) {
+                        sink.next(chunk);
+                    }
                 }
             }
 
             Map<String, Object> update = new LinkedHashMap<>();
+            checkCancellation(config, sink);
             update.put(ChatLoopState.LOOP_COUNT, round + 1);
             if (!toolCalls.isEmpty()) {
                 messages.add(assistantToolCallMessage(toolCalls, turnContent, turnReasoning));
@@ -331,16 +362,19 @@ public class ChatAgentLoop {
         private final ToolExecutionContext context;
         private final AgentLoopOptions options;
         private final AgentLoopOutcome outcome;
+        private final FluxSink<String> sink;
 
-        ToolsAction(ToolExecutionContext context, AgentLoopOptions options, AgentLoopOutcome outcome) {
+        ToolsAction(ToolExecutionContext context, AgentLoopOptions options, AgentLoopOutcome outcome, FluxSink<String> sink) {
             this.context = context;
             this.options = options;
             this.outcome = outcome;
+            this.sink = sink;
         }
 
         @Override
         public Optional<InterruptionMetadata<ChatLoopState>> interrupt(String nodeId, ChatLoopState state,
                 RunnableConfig config) {
+            checkCancellation(config, sink);
             // 没人能来点确认的通道永远不中断，直接走 apply 里的拒绝分支
             if (!state.approvalsInteractive()) {
                 return Optional.empty();
@@ -349,7 +383,7 @@ public class ChatAgentLoop {
             if (state.hasApprovalDecision()) {
                 return Optional.empty();
             }
-            List<Map<String, Object>> items = approvalItems(state);
+            List<Map<String, Object>> items = approvalItems(state, config.threadId().orElseThrow());
             if (items.isEmpty()) {
                 return Optional.empty();
             }
@@ -362,8 +396,10 @@ public class ChatAgentLoop {
         @Override
         public Map<String, Object> apply(ChatLoopState state, RunnableConfig config) {
             List<Map<String, Object>> messages = new ArrayList<>(state.messages());
+            Map<String, Map<String, Object>> receipts = new LinkedHashMap<>(state.toolResults());
 
             for (Map<String, Object> call : state.pendingToolCalls()) {
+                checkCancellation(config, sink);
                 String name = (String) call.get("name");
                 String toolCallId = (String) call.get("id");
                 String arguments = (String) call.get("arguments");
@@ -372,18 +408,36 @@ public class ChatAgentLoop {
                 toolMsg.put("role", "tool");
                 toolMsg.put("tool_call_id", toolCallId);
 
+                Map<String, Object> receipt = receipts.get(toolCallId);
+                if (receipt != null) {
+                    requireSameCall(receipt, name, arguments);
+                    toolMsg.put("content", receipt.get("content"));
+                    messages.add(toolMsg);
+                    continue;
+                }
+
+                Object declined = previousDecline(receipts, name, arguments);
+                if (declined != null) {
+                    toolMsg.put("content", declined);
+                    receipts.put(toolCallId, toolReceipt(name, arguments, declined));
+                    messages.add(toolMsg);
+                    continue;
+                }
+
                 // 逐条取决定：用户可能只批了这批里的某几条，没被批到的必须逐个拒绝而不是整批处理。
                 ApprovalChoice decision = state.decisionFor(toolCallId).orElse(null);
                 boolean approved = decision != null && decision.approved();
 
                 if (toolRegistry.requiresApproval(name) && !approved) {
                     // 拒绝不是错误：把理由作为工具结果回给模型，让它换个方向重写或者收手。
-                    String reason = state.approvalsInteractive()
-                            ? orDefaultReason(decision == null ? "" : decision.reason())
-                            : NON_INTERACTIVE_REASON;
-                    log.info("拒绝工具调用 {} id={} interactive={} reason={}", name, toolCallId,
-                            state.approvalsInteractive(), reason);
-                    toolMsg.put("content", rejectionPayload(reason));
+                    String reasonCode = !state.approvalsInteractive() ? "APPROVAL_UNAVAILABLE"
+                            : decision == null ? "NO_DECISION" : "USER_DECLINED";
+                    toolRegistry.rejectApproval(name, context.forCall(config.threadId().orElseThrow(), toolCallId), reasonCode);
+                    log.info("工具未执行 id={} reasonCode={} reasonLength={}", toolCallId, reasonCode,
+                            decision == null || decision.reason() == null ? 0 : decision.reason().length());
+                    toolMsg.put("content", rejectionPayload(reasonCode,
+                            decision == null ? "" : decision.reason()));
+                    receipts.put(toolCallId, toolReceipt(name, arguments, toolMsg.get("content")));
                     messages.add(toolMsg);
                     continue;
                 }
@@ -391,14 +445,23 @@ public class ChatAgentLoop {
                 log.info("Agent Loop 执行工具调用: {} id={} argsLen={} model={}", name, toolCallId,
                         arguments == null ? 0 : arguments.length(), options.modelLabel());
                 try {
-                    Object result = toolRegistry.execute(name, arguments, context);
+                    ToolExecutionContext callContext = context.forCall(config.threadId().orElseThrow(), toolCallId);
+                    Object result = decision != null && decision.editedValue() != null
+                            ? toolRegistry.executeEdited(name, arguments, callContext, decision.editedValue())
+                            : toolRegistry.execute(name, arguments, callContext);
+                    checkCancellation(config, sink);
                     toolMsg.put("content", objectMapper.writeValueAsString(result));
                     outcome.recordToolCalls(1, toolRegistry.emit(name, result, context.sseSink()));
+                } catch (CancellationException e) {
+                    throw e;
                 } catch (Exception e) {
                     // DeepSeek 期望每个 tool_call_id 都有对应的 tool 消息；缺失会导致模型卡住或重复调用。
-                    log.error("工具调用执行失败: {} model={}", e.getMessage(), options.modelLabel());
-                    toolMsg.put("content", errorPayload(e));
+                    log.error("工具调用执行失败 id={} errorType={} model={}", toolCallId,
+                            e.getClass().getSimpleName(), options.modelLabel());
+                    toolMsg.put("content", errorPayload());
                 }
+                // Remember failures too: a tool may have changed data before throwing.
+                receipts.put(toolCallId, toolReceipt(name, arguments, toolMsg.get("content")));
                 messages.add(toolMsg);
             }
 
@@ -406,6 +469,7 @@ public class ChatAgentLoop {
             Map<String, Object> update = new LinkedHashMap<>();
             update.put(ChatLoopState.MESSAGES, messages);
             update.put(ChatLoopState.PENDING_TOOL_CALLS, List.of());
+            update.put(ChatLoopState.TOOL_RESULTS, receipts);
             // 置 null 会把键从 state 里摘掉（图自己的空值约定）：决定只用一次，
             // 不然下一轮再遇到要批准的工具时会被当成「已经批过了」
             update.put(ChatLoopState.APPROVAL_DECISION, null);
@@ -414,27 +478,39 @@ public class ChatAgentLoop {
         }
 
         /** 只把需要批准的那几个挑出来给前端；不需要批准的工具照常静默执行。 */
-        private List<Map<String, Object>> approvalItems(ChatLoopState state) {
+        private List<Map<String, Object>> approvalItems(ChatLoopState state, String runId) {
             List<Map<String, Object>> items = new ArrayList<>();
             for (Map<String, Object> call : state.pendingToolCalls()) {
+                if (state.toolResults().containsKey((String) call.get("id"))) {
+                    continue;
+                }
                 String name = (String) call.get("name");
                 if (!toolRegistry.requiresApproval(name)) {
                     continue;
                 }
+                if (previousDecline(state.toolResults(), name, (String) call.get("arguments")) != null) continue;
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("toolCallId", call.get("id"));
                 item.put("toolName", toolRegistry.displayName(name));
-                item.putAll(toolRegistry.approvalPreview(name, (String) call.get("arguments"), context));
+                item.putAll(toolRegistry.approvalPreview(name, (String) call.get("arguments"),
+                        context.forCall(runId, (String) call.get("id"))));
                 items.add(item);
             }
             return items;
         }
 
-        private String rejectionPayload(String reason) {
+        private String rejectionPayload(String reasonCode, String userReason) {
             try {
-                return objectMapper.writeValueAsString(Map.of("rejected", true, "reason", reason));
+                String fixedReason = switch (reasonCode) {
+                    case "USER_DECLINED" -> "用户已看到修改建议并拒绝，本次未执行。不要再尝试这次改动。";
+                    case "NO_DECISION" -> "未收到这条调用的有效批准，本次未执行。不要再尝试这次改动。";
+                    default -> NON_INTERACTIVE_REASON;
+                };
+                return objectMapper.writeValueAsString(Map.of("rejected", true, "executed", false,
+                        "reasonCode", reasonCode, "reason", fixedReason,
+                        "userReason", userReason == null ? "" : userReason));
             } catch (Exception e) {
-                return "{\"rejected\":true}";
+                return "{\"rejected\":true,\"executed\":false,\"reasonCode\":\"NO_DECISION\"}";
             }
         }
     }
@@ -443,15 +519,9 @@ public class ChatAgentLoop {
     private static final String NON_INTERACTIVE_REASON =
             "当前通道无法请你确认这条改动。请直接告诉用户你打算记住什么，并请他在 App 里确认。";
 
-    /**
-     * 用户点了拒绝但没写理由。留空的话模型只看到一个空字符串，很容易原样再调一次同样的工具，
-     * 于是又弹一次框 —— 那句话得说清楚「别再试了」。
-     */
-    private static final String UNSPECIFIED_REJECTION_REASON =
-            "用户拒绝了这次改动，没有说明原因。不要再尝试写入这条，可以问问他为什么、或者换个方向继续。";
-
-    private static String orDefaultReason(String reason) {
-        return reason == null || reason.isBlank() ? UNSPECIFIED_REJECTION_REASON : reason;
+    private void checkCancellation(RunnableConfig config, FluxSink<String> sink) {
+        if (sink.isCancelled()) throw new CancellationException("生成订阅已取消");
+        cancellation.check(config.threadId().orElseThrow());
     }
 
     private static Map<String, Object> initialData(List<Map<String, Object>> messages, boolean approvalsInteractive) {
@@ -459,6 +529,7 @@ public class ChatAgentLoop {
         data.put(ChatLoopState.MESSAGES, messages);
         data.put(ChatLoopState.PENDING_TOOL_CALLS, List.of());
         data.put(ChatLoopState.LOOP_COUNT, 0);
+        data.put(ChatLoopState.TOOL_RESULTS, Map.of());
         // 记在 state 上而不是预置一条「已拒绝」：决定用一次就摘掉了，
         // 模型下一轮再调要批准的工具时会重新悬住，而标记不会。
         data.put(ChatLoopState.APPROVALS_INTERACTIVE, approvalsInteractive);
@@ -499,17 +570,43 @@ public class ChatAgentLoop {
         return pending;
     }
 
-    /** 只回传已脱敏的短消息，不带堆栈或 SQL。 */
-    private String errorPayload(Exception e) {
-        String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
-        message = message.replaceAll("\\s+", " ").trim();
-        if (message.length() > MAX_ERROR_MESSAGE_CHARS) {
-            message = message.substring(0, MAX_ERROR_MESSAGE_CHARS);
+    private static Map<String, Object> toolReceipt(String name, String arguments, Object content) {
+        Map<String, Object> receipt = new LinkedHashMap<>();
+        receipt.put("name", name);
+        receipt.put("arguments", arguments);
+        receipt.put("content", content);
+        return receipt;
+    }
+
+    private static void requireSameCall(Map<String, Object> receipt, String name, String arguments) {
+        if (!java.util.Objects.equals(receipt.get("name"), name)
+                || !java.util.Objects.equals(receipt.get("arguments"), arguments)) {
+            throw new IllegalStateException("Conflicting tool call ID");
         }
-        try {
-            return objectMapper.writeValueAsString(Map.of("error", message));
-        } catch (Exception serializationFailure) {
-            return "{\"error\":\"tool execution failed\"}";
+    }
+
+    private Object previousDecline(Map<String, Map<String, Object>> receipts, String name, String arguments) {
+        if (!toolRegistry.requiresApproval(name)) return null;
+        for (Map<String, Object> receipt : receipts.values()) {
+            if (!java.util.Objects.equals(name, receipt.get("name"))) continue;
+            try {
+                var result = objectMapper.readTree((String) receipt.get("content"));
+                if (!"USER_DECLINED".equals(result.path("reasonCode").asText())) continue;
+                var oldArgs = objectMapper.readTree((String) receipt.get("arguments"));
+                var newArgs = objectMapper.readTree(arguments);
+                // Changing the quoted evidence cannot bypass a decision about the same write.
+                if (oldArgs.isObject()) ((com.fasterxml.jackson.databind.node.ObjectNode) oldArgs).remove("evidence");
+                if (newArgs.isObject()) ((com.fasterxml.jackson.databind.node.ObjectNode) newArgs).remove("evidence");
+                if (oldArgs.equals(newArgs)) return receipt.get("content");
+            } catch (Exception ignored) {
+                // Malformed calls remain subject to normal approval and parsing.
+            }
         }
+        return null;
+    }
+
+    /** Exceptions may contain credentials, SQL or user text; return a fixed failure only. */
+    private String errorPayload() {
+        return "{\"error\":\"TOOL_EXECUTION_FAILED\",\"status\":\"FAILED\",\"success\":false}";
     }
 }

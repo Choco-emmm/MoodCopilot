@@ -73,8 +73,8 @@ public class DeepSeekReasoningClient {
             Map<String, Object> request = Map.of(
                     "model", model,
                     "messages", List.of(
-                            Map.of("role", "system", "content", systemPrompt),
-                            Map.of("role", "user", "content", userPrompt)),
+                            Map.of("role", "system", "content", ModelRequestSanitizer.text(systemPrompt)),
+                            Map.of("role", "user", "content", ModelRequestSanitizer.text(userPrompt))),
                     "temperature", 0.6,
                     "max_tokens", maxTokens,
                     "stream", false);

@@ -49,6 +49,9 @@ public class ChatGenerationService {
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
     private final Executor aiExecutor;
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private MemoryOrchestrator memoryOrchestrator;
 
     public ChatGenerationService(ChatService chatService, MemoryExtractionService memoryExtractionService,
             StringRedisTemplate redis, ObjectMapper objectMapper,
@@ -176,8 +179,8 @@ public class ChatGenerationService {
                 writeEvent(runId, event("error", Map.of("message", message)));
             }
         } catch (Exception e) {
-            log.warn("聊天生成任务失败 runId={} userId={} conversationId={} reason={}",
-                    runId, request.userId(), request.conversationId(), e.getMessage());
+            log.warn("聊天生成任务失败 runId={} userId={} conversationId={} errorType={}",
+                    runId, request.userId(), request.conversationId(), e.getClass().getSimpleName());
             boolean markedFailed = transitionStatus(runId, "FINALIZING", "FAILED")
                     || transitionStatus(runId, "RUNNING", "FAILED");
             if (markedFailed) {
@@ -241,21 +244,41 @@ public class ChatGenerationService {
         aiExecutor.execute(() -> {
             long startedAt = System.nanoTime();
             try {
-                memoryExtractionService.extractAndSyncMemoryFromChat(userId, conversationId, message, evidence, reply);
+                java.util.Set<String> excluded = approvalAttributes(runId);
+                if (excluded.isEmpty()) memoryExtractionService.extractAndSyncMemoryFromChat(userId, conversationId, message, evidence, reply);
+                else memoryExtractionService.extractAndSyncMemoryFromChat(userId, conversationId, message, evidence, reply, excluded);
                 log.info("聊天画像异步更新完成 runId={} userId={} conversationId={} durationMs={}", runId, userId,
                         conversationId, elapsedMillis(startedAt));
             } catch (Exception e) {
-                log.warn("聊天结果已保存，但画像异步更新失败 runId={} userId={} conversationId={} durationMs={} reason={}",
-                        runId, userId, conversationId, elapsedMillis(startedAt), e.getMessage());
+                log.warn("聊天结果已保存，但画像异步更新失败 runId={} userId={} conversationId={} durationMs={} errorType={}",
+                        runId, userId, conversationId, elapsedMillis(startedAt), e.getClass().getSimpleName());
             }
         });
+    }
+
+    private java.util.Set<String> approvalAttributes(String runId) {
+        var result = new java.util.HashSet<String>();
+        List<String> events = redis.opsForList().range(eventsKey(runId), 0, -1);
+        if (events == null) return java.util.Set.of();
+        for (String raw : events) {
+            try {
+                var frame = objectMapper.readTree(raw);
+                if (!"approval_required".equals(frame.path("type").asText())) continue;
+                for (var item : frame.path("items")) {
+                    String key = item.path("attributeKey").asText("");
+                    if (!key.isBlank()) result.add(key);
+                    for (var source : item.path("sources")) if (source.hasNonNull("attributeKey")) result.add(source.path("attributeKey").asText());
+                }
+            } catch (Exception e) { throw new IllegalStateException("审批来源不可读取，跳过本轮自动记忆抽取"); }
+        }
+        return java.util.Set.copyOf(result);
     }
 
     /** 证据只取用户自己的内容：引用到的原文优先，没有就用裸引用串。 */
     private static List<String> evidenceOf(StartRequest request) {
         return request.resolvedReferences() == null
                 ? (request.references() == null ? List.of() : List.copyOf(request.references()))
-                : request.resolvedReferences().stream().map(UserReference::content).toList();
+                : MemoryEvidenceSource.references(request.resolvedReferences(), request.userId());
     }
 
     public RunSnapshot snapshot(String runId, long userId, long conversationId) {
@@ -296,6 +319,7 @@ public class ChatGenerationService {
     public RunSnapshot approve(String runId, long userId, long conversationId, Authentication authentication,
             List<ApprovalChoice> decisions) {
         assertOwner(runId, userId, conversationId);
+        validateApprovalEdits(runId, userId, decisions);
         // 先占住状态再起异步任务：连点两下确认时，第二下在这儿就被挡住，
         // 不会让同一份检查点被恢复两遍 —— 那会把工具执行两次，记忆也被写两遍。
         if (!transitionStatus(runId, "AWAITING_APPROVAL", "RUNNING")) {
@@ -306,6 +330,41 @@ public class ChatGenerationService {
         long lastSequence = longValue(redis.opsForHash().get(metaKey(runId), "lastSequence"));
         aiExecutor.execute(() -> resumeRun(runId, userId, conversationId, resume, authentication, decisions));
         return new RunSnapshot(runId, "RUNNING", lastSequence);
+    }
+
+    private void validateApprovalEdits(String runId, long userId, List<ApprovalChoice> decisions) {
+        var latest = latestApprovalItems(runId);
+        for (ApprovalChoice choice : decisions) {
+            var item = latest.stream().filter(value -> choice.toolCallId().equals(value.path("toolCallId").asText()))
+                    .findFirst().orElse(null);
+            if (!latest.isEmpty() && item == null)
+                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "批准项不属于当前确认批次");
+            boolean update = item != null && "updateMemory".equals(item.path("toolName").asText());
+            if (choice.editedValue() != null && !update)
+                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "此操作不支持编辑内容");
+            if (choice.approved() && item != null && item.path("canApprove").isBoolean() && !item.path("canApprove").asBoolean())
+                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "修改预览不可用，请暂不修改后重试");
+            if (choice.approved() && update) {
+                if (memoryOrchestrator == null) throw new IllegalStateException("记忆审批校验不可用");
+                memoryOrchestrator.validateUpdateDecision(userId, runId, choice.toolCallId(), choice.editedValue());
+            }
+        }
+    }
+
+    private List<com.fasterxml.jackson.databind.JsonNode> latestApprovalItems(String runId) {
+        List<String> events = redis.opsForList().range(eventsKey(runId), 0, -1);
+        if (events == null) return List.of();
+        for (int i = events.size() - 1; i >= 0; i--) {
+            try {
+                var value = objectMapper.readTree(events.get(i));
+                if ("approval_required".equals(value.path("type").asText())) {
+                    List<com.fasterxml.jackson.databind.JsonNode> items = new ArrayList<>();
+                    value.path("items").forEach(items::add);
+                    return items;
+                }
+            } catch (Exception e) { throw new IllegalStateException("审批事件无法读取"); }
+        }
+        return List.of();
     }
 
     private void resumeRun(String runId, long userId, long conversationId, ResumeContext resume,
@@ -350,8 +409,8 @@ public class ChatGenerationService {
                 writeEvent(runId, event("error", Map.of("message", message)));
             }
         } catch (Exception e) {
-            log.warn("恢复聊天生成失败 runId={} userId={} conversationId={} reason={}", runId, userId, conversationId,
-                    e.getMessage());
+            log.warn("恢复聊天生成失败 runId={} userId={} conversationId={} errorType={}", runId, userId, conversationId,
+                    e.getClass().getSimpleName());
             boolean markedFailed = transitionStatus(runId, "FINALIZING", "FAILED")
                     || transitionStatus(runId, "RUNNING", "FAILED");
             if (markedFailed) {
@@ -381,7 +440,7 @@ public class ChatGenerationService {
             List<String> parsed = objectMapper.readValue(String.valueOf(value), new TypeReference<>() {});
             return parsed == null ? List.of() : List.copyOf(parsed);
         } catch (Exception e) {
-            log.warn("解析生成任务元数据失败 reason={}", e.getMessage());
+            log.warn("解析生成任务元数据失败 errorType={}", e.getClass().getSimpleName());
             return List.of();
         }
     }
@@ -422,7 +481,7 @@ public class ChatGenerationService {
             expire(runId);
             return true;
         } catch (Exception e) {
-            log.warn("保存聊天生成事件失败 runId={} reason={}", runId, e.getMessage());
+            log.warn("保存聊天生成事件失败 runId={} errorType={}", runId, e.getClass().getSimpleName());
             return false;
         }
     }

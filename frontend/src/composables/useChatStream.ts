@@ -53,7 +53,7 @@ export function useChatStream(
   const useReasoning = ref(false)
   const references = ref<ChatReference[]>([])
   const lastReplyError = ref<string | null>(null)
-  const lastReplyRequest = ref<{ convId: number; content: string; refContents: string[]; referenceItems: Array<{ sourceType: string; sourceId: number }>; useReasoning: boolean; eventId?: number } | null>(null)
+  const lastReplyRequest = ref<{ convId: number; content: string; refContents: string[]; referenceItems: Array<{ sourceType: string; sourceId: number }>; imageUrls: string[]; useReasoning: boolean; eventId?: number } | null>(null)
   const streamingRefs = ref<RagRef[]>([])
   const showStreamingRefs = ref(false)
   // 这一轮停在工具执行前，等用户点头。内容为空表示没有在等。
@@ -62,6 +62,8 @@ export function useChatStream(
   const approvalSubmitting = ref(false)
   const approvalError = ref<string | null>(null)
   let approvalRunId: string | null = null
+  let approvalSequence: number | null = null
+  let approvalValidationVersion = 0
 
   let pendingStreamText = ''
   let streamRafId: number | null = null
@@ -73,10 +75,45 @@ export function useChatStream(
   // ── Approval ──
 
   /** 后端停在工具执行前等用户点头；`runId` 是批准时要回传的那一个。 */
-  function receiveApproval(items: PendingApprovalItem[], runId: string) {
-    // 断线重连会重放同一帧，直接覆盖即可 —— 该显示的就是最新那批
-    pendingApprovals.value = items
-    approvalRunId = runId
+  function receiveApproval(items: PendingApprovalItem[], runId: string, sequence: number) {
+    const convId = activeConvId.value
+    const ctrl = streamAbortCtrl
+    if (!convId || !ctrl || !items.length || !Number.isFinite(sequence)) return
+    const version = ++approvalValidationVersion
+    const current = () => version === approvalValidationVersion && streamAbortCtrl === ctrl
+      && !ctrl.signal.aborted && activeConvId.value === convId
+
+    // 重放旧帧和接收新帧都核对当前批次。帧先落库、状态后迁移，短暂 RUNNING 不能丢弃审批。
+    void (async () => {
+      let retryDelay = 250
+      while (current()) {
+        try {
+          const response = await chatApi.getRunStatus(convId, runId)
+          if (!current()) return
+          const snapshot = response.data?.data ?? response.data
+          const lastSequence = Number(snapshot?.lastSequence)
+          if (snapshot?.status === 'AWAITING_APPROVAL' && lastSequence === sequence) {
+            pendingApprovals.value = items
+            approvalRunId = runId
+            approvalSequence = sequence
+            approvalError.value = null
+            return
+          }
+          if (lastSequence > sequence || ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(snapshot?.status)) return
+        } catch (error: any) {
+          if (error?.response?.status === 404 || error?.status === 404) return
+        }
+        await new Promise(resolve => setTimeout(resolve, retryDelay))
+        retryDelay = Math.min(retryDelay * 2, 2000)
+      }
+    })()
+  }
+
+  function clearApproval() {
+    approvalValidationVersion++
+    pendingApprovals.value = []
+    approvalRunId = null
+    approvalSequence = null
     approvalError.value = null
   }
 
@@ -91,6 +128,10 @@ export function useChatStream(
   async function resolveApproval(decisions: ApprovalDecision[]) {
     const convId = activeConvId.value
     const runId = approvalRunId
+    const sequence = approvalSequence
+    const version = approvalValidationVersion
+    const sameBatch = () => approvalRunId === runId && approvalSequence === sequence
+      && approvalValidationVersion === version
     if (!convId || !runId || approvalSubmitting.value) return
     approvalSubmitting.value = true
     approvalError.value = null
@@ -99,18 +140,17 @@ export function useChatStream(
         toolCallId: decision.toolCallId,
         approved: decision.approved,
         ...(decision.reason?.trim() ? { reason: decision.reason.trim() } : {}),
+        ...(decision.editedValue !== undefined ? { editedValue: decision.editedValue } : {}),
       })))
-      pendingApprovals.value = []
-      approvalRunId = null
+      if (sameBatch()) clearApproval()
     } catch (e: any) {
       // 409 表示这条 run 已经不在等确认了（多半是别处已经表过态）：静默收掉弹框，
       // 后面的分片会自己接上来，没必要让用户对着一个已经解决的确认框报错。
       if (e?.response?.status === 409) {
-        pendingApprovals.value = []
-        approvalRunId = null
+        if (sameBatch()) clearApproval()
         return
       }
-      approvalError.value = e?.response?.data?.message || '没能提交这次确认，请检查网络后重试。'
+      if (sameBatch()) approvalError.value = e?.response?.data?.message || '没能提交这次确认，请检查网络后重试。'
     } finally {
       approvalSubmitting.value = false
     }
@@ -190,7 +230,7 @@ export function useChatStream(
 
   async function retryLastReply() {
     if (!lastReplyRequest.value || streaming.value) return
-    const { convId, content, refContents, referenceItems, useReasoning: requestedUseReasoning, eventId } = lastReplyRequest.value
+    const { convId, content, refContents, referenceItems, imageUrls, useReasoning: requestedUseReasoning, eventId } = lastReplyRequest.value
     if (activeConvId.value !== convId) {
       lastReplyError.value = '会话已切换，请在当前会话重新发送。'
       return
@@ -206,7 +246,7 @@ export function useChatStream(
     streamingText.value = ''
     streamingReasoning.value = ''
     isThinking.value = true
-    await sendReply(convId, content, refContents, referenceItems, requestedUseReasoning, true, eventId)
+    await sendReply(convId, content, refContents, referenceItems, requestedUseReasoning, true, eventId, false, imageUrls)
   }
 
   // ── Refresh recovery ──
@@ -219,12 +259,8 @@ export function useChatStream(
       chatApi.clearActiveRun(convId, runId)
       return
     }
-    // 事件是从 0 号重放的，「待批准」那一帧还在里面。只有当前状态确实停在等确认时，
-    // 它才该弹出来 —— 否则用户批准后每刷新一次，都会看到一个早就解决了的确认框。
-    let awaitingApproval = false
     try {
-      const status = await chatApi.getRunStatus(convId, runId)
-      awaitingApproval = (status.data?.data ?? status.data)?.status === 'AWAITING_APPROVAL'
+      await chatApi.getRunStatus(convId, runId)
     } catch (error: any) {
       if (error?.response?.status === 404 || error?.status === 404) {
         chatApi.clearActiveRun(convId, runId)
@@ -232,6 +268,7 @@ export function useChatStream(
       }
       // 状态查询的临时失败不应丢弃 runId，后续 SSE 仍可自行重试。
     }
+    if (activeConvId.value !== convId || streaming.value || resumePromise) return
 
     const ctrl = new AbortController()
     streamAbortCtrl = ctrl
@@ -281,9 +318,7 @@ export function useChatStream(
             streamingRefs.value = currentRefs
           },
           applyStatus,
-          (items: PendingApprovalItem[], approvalRun: string) => {
-            if (awaitingApproval) receiveApproval(items, approvalRun)
-          },
+          receiveApproval,
         )
 
         if (activeConvId.value === convId && !messages.value.some(message => message.id === `${runId}:assistant`)) {
@@ -425,7 +460,10 @@ export function useChatStream(
       const errorText = chatErrorMessage(e?.status, bizMessage, requestedUseReasoning)
       if (activeConvId.value === convId) {
         lastReplyError.value = errorText
-        lastReplyRequest.value = { convId, content, refContents, referenceItems, useReasoning: requestedUseReasoning, eventId }
+        lastReplyRequest.value = {
+          convId, content, refContents: [...refContents], referenceItems: referenceItems.map(item => ({ ...item })),
+          imageUrls: [...imageUrls], useReasoning: requestedUseReasoning, eventId,
+        }
         if (!isRetry) {
           messages.value.push({ id: nextMsgId(), role: 'ai', content: errorText })
         }
@@ -453,9 +491,7 @@ export function useChatStream(
     isThinking.value = false
     references.value = []
     // 这一轮已经收尾（生成完、失败或取消），不再有悬着的确认
-    pendingApprovals.value = []
-    approvalRunId = null
-    approvalError.value = null
+    clearApproval()
     scrollManager.scrollBottom()
     if (activeConvId.value === convId) {
       void saveToBackend(convId).catch((e) => {
@@ -468,6 +504,7 @@ export function useChatStream(
   }
 
   function abortStream() {
+    clearApproval()
     isCompressing.value = false
     lastReplyError.value = null
     lastReplyRequest.value = null

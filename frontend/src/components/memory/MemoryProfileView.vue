@@ -7,11 +7,12 @@
       <n-button size="small" secondary type="primary" :loading="store.consolidatingMemory" @click="store.consolidateMemories()">
         ✨ 智能整理记忆
       </n-button>
-      <n-button size="small" secondary :loading="memoriesLoading" @click="loadMemories">
+      <n-button size="small" secondary :loading="memoriesLoading" :disabled="savingMemoryId !== null" @click="loadMemories">
          刷新
       </n-button>
     </div>
     <p class="memory-desc">这里保存 MoodCopilot 从日记和聊天中整理出的个人记忆。近期状态仅用于当前关怀参考，不会作为核心长期画像。</p>
+    <p v-if="memoryError" class="memory-action-error" role="alert">{{ memoryError }}</p>
     <section v-if="candidates.length" class="candidate-section" aria-label="待确认记忆">
       <div class="candidate-head">
         <div class="candidate-head-main">
@@ -22,26 +23,7 @@
           <small>这些内容还没有进入正式画像，请确认哪些值得长期保留。 如果 AI 再次观察到相同的记忆规律，也会自动转正。</small>
         </div>
         <span class="candidate-summary">
-          {{ candidateGroups.length }} 个属性<template v-if="candidateConflictGroupCount"> · {{ candidateConflictGroupCount }} 个属性有不同候选
-    <!-- Approve Candidate Modal -->
-    <n-modal v-model:show="showApproveModal" preset="dialog" title="确认候选记忆" :show-icon="false"
-      positive-text="确认并保存" negative-text="取消" @positive-click="doApproveCandidate" @negative-click="showApproveModal = false">
-      <div style="margin-top: 16px;">
-        <p style="margin-bottom: 8px; color: var(--color-text-secondary);">你可以直接确认，也可以在这里修改后再确认：</p>
-        <n-input v-model:value="approveEditedValue" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" placeholder="请输入最终的记忆内容" />
-      </div>
-    </n-modal>
-
-    <!-- Reject Candidate Modal -->
-    <n-modal v-model:show="showRejectModal" preset="dialog" title="拒绝候选记忆" :show-icon="false"
-      positive-text="确认拒绝" negative-text="取消" :positive-button-props="{ type: 'warning' }" @positive-click="doRejectCandidate" @negative-click="showRejectModal = false">
-      <div style="margin-top: 16px;">
-        <p style="margin-bottom: 8px; color: var(--color-text-secondary);">拒绝后，这条内容不会进入正式画像。你可以写下拒绝原因，AI 会根据你的原因重新思考并提取正确的记忆：</p>
-        <n-input v-model:value="rejectReason" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" placeholder="（可选）例如：这只是一时冲动，并不是我的习惯..." />
-      </div>
-    </n-modal>
-
-</template>
+          {{ candidateGroups.length }} 个属性<template v-if="candidateConflictGroupCount"> · {{ candidateConflictGroupCount }} 个属性有不同候选</template>
         </span>
       </div>
       <div v-for="group in candidateGroups" :key="group.key" class="candidate-group">
@@ -115,14 +97,8 @@
           <n-tag v-if="isRecentlyUpdated(m)" size="small" type="success" style="margin-left: 8px; vertical-align: text-bottom;">✨ 近期变动</n-tag>
           <template v-if="editingMemoryId === m.id">
             <div style="display: flex; flex-direction: column; gap: 8px;">
-              <n-input
-                v-model:value="editingMemoryValue"
-                size="small"
-                type="textarea"
-                :autosize="{ minRows: 2, maxRows: 6 }"
-                class="memory-edit-input"
-                :maxlength="500"
-              />
+              <textarea v-model="editingMemoryValue" class="memory-textarea" rows="3" maxlength="500"
+                aria-label="编辑记忆内容" :disabled="savingMemoryId !== null" />
               <n-checkbox v-if="!isSafetyStateByValue(editingMemoryValue, editingMemoryId)" v-model:checked="editingMemoryIsCore">设为核心属性</n-checkbox>
               <small v-else class="memory-safety-note">近期状态不可设为核心长期画像。</small>
             </div>
@@ -151,9 +127,9 @@
             <n-button size="small" secondary @click="cancelEditMemory">取消</n-button>
           </template>
           <template v-else>
-            <n-button size="small" secondary @click="toggleDetails(m.id)">{{ expandedMemoryIds.has(m.id) ? '收起形成依据' : '查看形成依据' }}</n-button>
-            <n-button size="small" secondary @click="startEditMemory(m)">编辑</n-button>
-            <n-button size="small" secondary type="error" :disabled="deletingMemoryId === m.id" @click="forgetMemory(m.id)">
+            <n-button size="small" secondary :disabled="memoryRefreshRequired" @click="toggleDetails(m.id)">{{ expandedMemoryIds.has(m.id) ? '收起形成依据' : '查看形成依据' }}</n-button>
+            <n-button size="small" secondary :disabled="memoryRefreshRequired || savingMemoryId !== null" @click="startEditMemory(m)">编辑</n-button>
+            <n-button size="small" secondary type="error" :disabled="memoryRefreshRequired || savingMemoryId !== null || deletingMemoryId === m.id" @click="forgetMemory(m.id)">
               {{ deletingMemoryId === m.id ? '...' : '删除' }}
             </n-button>
           </template>
@@ -206,13 +182,31 @@
         </div>
       </div>
     </div>
+    <n-modal v-model:show="showApproveModal" preset="dialog" title="确认候选记忆" :show-icon="false"
+      positive-text="确认并保存" negative-text="取消" @positive-click="doApproveCandidate" @negative-click="showApproveModal = false">
+      <div class="candidate-dialog-body">
+        <p>你可以直接确认，也可以在这里修改后再确认：</p>
+        <textarea v-model="approveEditedValue" class="memory-textarea" rows="3" maxlength="500"
+          aria-label="确认后的候选记忆" placeholder="请输入最终的记忆内容" />
+        <p v-if="memoryError" class="memory-action-error" role="alert">{{ memoryError }}</p>
+      </div>
+    </n-modal>
+    <n-modal v-model:show="showRejectModal" preset="dialog" title="拒绝候选记忆" :show-icon="false"
+      positive-text="确认拒绝" negative-text="取消" :positive-button-props="{ type: 'warning' }" @positive-click="doRejectCandidate" @negative-click="showRejectModal = false">
+      <div class="candidate-dialog-body">
+        <p>拒绝后，这条内容不会进入正式画像。你可以写下拒绝原因，帮助 AI 核对原始记录：</p>
+        <textarea v-model="rejectReason" class="memory-textarea" rows="3" aria-label="拒绝候选的原因"
+          placeholder="（可选）例如：这只是一时冲动，并不是我的习惯..." />
+        <p v-if="memoryError" class="memory-action-error" role="alert">{{ memoryError }}</p>
+      </div>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton, NSpin, NInput, NTag, NCheckbox, NPopover, useDialog, NModal } from 'naive-ui'
+import { NButton, NSpin, NTag, NCheckbox, NPopover, useDialog, NModal } from 'naive-ui'
 import { memoryApi } from '../../api'
 import { logWarn } from '../../utils/logger'
 import { useConsolidationStore } from '../../stores/consolidation'
@@ -240,6 +234,8 @@ const activeCandidateId = ref<number | null>(null)
 const rejectReason = ref('')
 const approveEditedValue = ref('')
 const savingMemoryId = ref<number | null>(null)
+const memoryError = ref('')
+const memoryRefreshRequired = ref(false)
 const candidates = ref<any[]>([])
 const candidateDetailsId = ref<number | null>(null)
 const candidateDetailsLoading = ref(false)
@@ -271,8 +267,19 @@ onMounted(() => {
 
 async function loadMemories() {
   memoriesLoading.value = true
-  await Promise.all([store.loadMemories(), loadCandidates()])
-  memoriesLoading.value = false
+  try {
+    const [response] = await Promise.all([memoryApi.getAll(), loadCandidates()])
+    store.memories = response.data.data || []
+    memoryRefreshRequired.value = false
+    memoryError.value = ''
+    resetMemoryDetails()
+    return true
+  } catch {
+    memoryError.value = '记忆暂时无法刷新，请重试。'
+    return false
+  } finally {
+    memoriesLoading.value = false
+  }
 }
 
 async function loadCandidates() {
@@ -341,6 +348,7 @@ function formatMemoryTime(value: string | null | undefined): string {
 async function approveCandidate(id: number) {
   const candidate = candidates.value.find(c => c.id === id)
   if (candidate) {
+    memoryError.value = ''
     approveEditedValue.value = candidate.attributeValue
     activeCandidateId.value = id
     showApproveModal.value = true
@@ -350,14 +358,18 @@ async function approveCandidate(id: number) {
 async function doApproveCandidate() {
   if (activeCandidateId.value === null) return
   const id = activeCandidateId.value
-  await memoryApi.approveCandidate(id, { editedValue: approveEditedValue.value })
-  await loadMemories()
-  resetMemoryDetails()
-  window.$message?.success('记忆已确认')
-  showApproveModal.value = false
+  try {
+    await memoryApi.approveCandidate(id, { editedValue: approveEditedValue.value })
+    await loadMemories()
+    window.$message?.success('记忆已确认')
+    showApproveModal.value = false
+  } catch (e) {
+    return candidateDecisionFailed(e)
+  }
 }
 
 function confirmRejectCandidate(candidate: any) {
+  memoryError.value = ''
   activeCandidateId.value = candidate.id
   rejectReason.value = ''
   showRejectModal.value = true
@@ -378,10 +390,27 @@ async function doRejectCandidate() {
     window.$message?.success('已拒绝，这条内容近期不会再被自动加入')
     showRejectModal.value = false
   } catch (e) {
-    logWarn('memory', '拒绝候选记忆失败', id, e)
+    return candidateDecisionFailed(e)
   } finally {
     rejectingCandidateId.value = null
   }
+}
+
+async function candidateDecisionFailed(error: any) {
+  if (error?.response?.status === 409) {
+    showApproveModal.value = false
+    showRejectModal.value = false
+    const refreshed = await loadMemories()
+    memoryError.value = refreshed
+      ? '这条候选记忆已经处理，已刷新当前记录。'
+      : '这条候选记忆已经处理，但当前记录暂时无法刷新，请重试。'
+  } else {
+    memoryError.value = String(error?.response?.data?.message || '').includes('触发受限资料规则')
+      ? '触发受限资料规则，请移除受限资料。'
+      : '操作未完成，请保留内容并稍后重试。'
+  }
+  logWarn('memory', '候选决定未完成', { status: error?.response?.status })
+  return false
 }
 
 
@@ -521,26 +550,35 @@ function memoryStatusLabel(status: string) {
 
 async function saveMemory(id: number) {
   const value = editingMemoryValue.value.trim()
-  if (!value) return
+  if (!value || savingMemoryId.value !== null || memoryRefreshRequired.value) return
 
   savingMemoryId.value = id
+  memoryError.value = ''
+  let saved = false
   try {
     await memoryApi.update(id, { 
       attributeValue: value,
       isCore: isSafetyStateByValue(value, id) ? false : editingMemoryIsCore.value
     })
-    const idx = store.memories.findIndex((m: any) => m.id === id)
-    if (idx !== -1) {
-      store.memories[idx] = { 
-        ...store.memories[idx], 
-        attributeValue: value,
-        isCore: isSafetyStateByValue(value, id) ? false : editingMemoryIsCore.value
-      }
-    }
+    saved = true
+    // Editing creates a new formal version. Reload its ID and metadata before
+    // allowing another edit, delete or detail request against this row.
+    const response = await memoryApi.getAll()
+    store.memories = response.data.data || []
+    resetMemoryDetails()
     editingMemoryId.value = null
     editingMemoryValue.value = ''
-  } catch (e) {
-    logWarn('memory', '保存记忆失败', id, e)
+  } catch (e: any) {
+    if (saved) {
+      memoryRefreshRequired.value = true
+      editingMemoryId.value = null
+      memoryError.value = '修改已经保存，但最新记录暂时无法加载。请刷新后再编辑。'
+    } else {
+      memoryError.value = String(e?.response?.data?.message || '').includes('触发受限资料规则')
+        ? '触发受限资料规则，请移除受限资料。'
+        : '保存未完成，记忆可能已经变化。请保留草稿并刷新后重新核对。'
+    }
+    logWarn('memory', '保存记忆未完成', id, { saved, status: e?.response?.status })
   } finally {
     savingMemoryId.value = null
   }
@@ -563,6 +601,26 @@ function cancelEditMemory() {
   margin: 0 0 16px 0;
   line-height: 1.5;
 }
+.memory-action-error { color: var(--color-error); font-size: 13px; line-height: 1.6; }
+.memory-textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  font: inherit;
+  line-height: 1.6;
+  resize: none;
+  overflow-y: auto;
+}
+.memory-textarea:focus { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+.memory-textarea:disabled { color: var(--color-text-muted); background: var(--color-surface-soft); }
+.candidate-dialog-body { margin-top: 16px; }
+.candidate-dialog-body > p { margin: 0 0 8px; color: var(--color-text-secondary); }
+.candidate-dialog-body > .memory-action-error { color: var(--color-error); }
 .candidate-section { margin: 18px 0 22px; padding: 16px; border: 1px solid var(--color-border); border-left: 3px solid var(--color-primary); background: color-mix(in srgb, var(--color-primary) 4%, transparent); }
 .candidate-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 14px; color: var(--color-text); }
 .candidate-head-main { min-width: 0; }

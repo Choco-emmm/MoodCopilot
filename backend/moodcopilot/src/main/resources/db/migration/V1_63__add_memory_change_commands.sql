@@ -1,0 +1,21 @@
+CREATE TABLE memory_change_commands (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  run_id VARCHAR(64) NOT NULL,
+  tool_call_id VARCHAR(128) NOT NULL,
+  attribute_key VARCHAR(64) NULL,
+  target_memory_id BIGINT UNSIGNED NULL,
+  expected_value_hash VARCHAR(64) NULL,
+  proposed_value_hash VARCHAR(64) NULL,
+  approved_value_hash VARCHAR(64) NULL,
+  status VARCHAR(24) NOT NULL,
+  reason_code VARCHAR(48) NULL,
+  result_memory_id BIGINT UNSIGNED NULL,
+  index_pending BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_memory_change_call (user_id, run_id, tool_call_id),
+  KEY idx_memory_change_attribute (user_id, attribute_key),
+  KEY idx_memory_change_index (index_pending, user_id),
+  CONSTRAINT fk_memory_change_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

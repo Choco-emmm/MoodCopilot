@@ -1,0 +1,17 @@
+{
+  "name": "health-c32",
+  "path": "/api/health",
+  "concurrency": 32,
+  "scheduledSeconds": 20,
+  "elapsedSeconds": 20.000503700000003,
+  "requests": 263196,
+  "successes": 263196,
+  "throughputRps": 13159.46857878384,
+  "successfulRps": 13159.46857878384,
+  "p95Ms": 3.506,
+  "successP95Ms": 3.506,
+  "errorRate": 0,
+  "statusCounts": {
+    "200": 263196
+  }
+}

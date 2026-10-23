@@ -14,7 +14,11 @@ final class MemoryCandidateMergePolicy {
     }
 
     static String normalizeValue(String value) {
-        return (value == null ? "" : value.replaceAll("\\s+", "").trim().toLowerCase(Locale.ROOT))
-                .replaceAll("[\\p{P}\\p{S}]", "");
+        return MemoryWritePolicy.text(value).replace(" ", "").toLowerCase(Locale.ROOT);
+    }
+
+    /** Versioned storage fingerprint avoids collisions with legacy punctuation-stripped values. */
+    static String fingerprint(String value) {
+        return "v2:" + MemoryWritePolicy.hash(normalizeValue(value));
     }
 }

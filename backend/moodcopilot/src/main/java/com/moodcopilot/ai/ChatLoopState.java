@@ -21,11 +21,12 @@ class ChatLoopState extends AgentState {
     static final String MESSAGES = "messages";
     static final String PENDING_TOOL_CALLS = "pendingToolCalls";
     static final String LOOP_COUNT = "loopCount";
+    static final String TOOL_RESULTS = "toolResults";
 
     /**
      * 用户对「待批准工具调用」的决定，恢复时由 {@code GraphInput.resume(...)} 回填进来。
      * 形如 {@code {"decisions": [{"toolCallId": "call_1", "approved": true, "reason": ""}]}}；
-     * 不带 {@code toolCallId} 的那条是通配。用完置 null 从 state 里摘掉。
+     * 每条必须点名 {@code toolCallId}。用完置 null 从 state 里摘掉。
      */
     static final String APPROVAL_DECISION = "approvalDecision";
 
@@ -53,6 +54,13 @@ class ChatLoopState extends AgentState {
         return value instanceof List ? (List<Map<String, Object>>) value : List.of();
     }
 
+    /** Per-run receipts survive approval pauses; unrelated conversations never share them. */
+    @SuppressWarnings("unchecked")
+    Map<String, Map<String, Object>> toolResults() {
+        Object value = data().get(TOOL_RESULTS);
+        return value instanceof Map ? (Map<String, Map<String, Object>>) value : Map.of();
+    }
+
     /** 已经调用过几次模型，深度守卫看的就是它。 */
     int loopCount() {
         Object value = data().get(LOOP_COUNT);
@@ -72,28 +80,26 @@ class ChatLoopState extends AgentState {
     }
 
     /**
-     * 取某一次调用的决定。逐条点名优先，其次落到不带 {@code toolCallId} 的通配决定。
+     * 只接受对本次调用明确点名的决定，不允许缺失 ID 扩大批准范围。
      * <p>
-     * 两条都没有就是**用户没表态**，由调用方按拒绝处理 —— 逐条审批下用户完全可能只批了其中几条，
+     * 没有就是**用户没表态**，由调用方按拒绝处理 —— 逐条审批下用户完全可能只批了其中几条，
      * 没点头的事不该做。多组工具调用混在一批里时，这个区别就是「批了第一组、漏了第二组」的全部含义。
      */
     Optional<ApprovalChoice> decisionFor(String toolCallId) {
-        ApprovalChoice wildcard = null;
         for (Map<String, Object> entry : decisions()) {
             Object rawId = entry.get("toolCallId");
-            String id = rawId == null ? null : String.valueOf(rawId);
-            ApprovalChoice choice = new ApprovalChoice(id,
-                    Boolean.TRUE.equals(entry.get("approved")),
-                    entry.get("reason") == null ? "" : String.valueOf(entry.get("reason")));
-            if (id == null) {
-                wildcard = choice;
+            if (!(rawId instanceof String id) || id.isBlank()) {
                 continue;
             }
+            ApprovalChoice choice = new ApprovalChoice(id,
+                    Boolean.TRUE.equals(entry.get("approved")),
+                    entry.get("reason") == null ? "" : String.valueOf(entry.get("reason")),
+                    entry.get("editedValue") instanceof String edited ? edited : null);
             if (id.equals(toolCallId)) {
                 return Optional.of(choice);
             }
         }
-        return Optional.ofNullable(wildcard);
+        return Optional.empty();
     }
 
     @SuppressWarnings("unchecked")

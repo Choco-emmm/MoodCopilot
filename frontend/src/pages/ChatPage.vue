@@ -258,11 +258,20 @@
               <span v-if="approvalItem.newValue" class="chat-approval-change">
                 <span class="chat-approval-new">
                   <span class="chat-approval-sign" aria-hidden="true">+</span>
-                  <span class="chat-approval-text">{{ approvalItem.newValue }}</span>
+                  <textarea v-if="approvalItem.editableNewValue" v-model="approvalDrafts[approvalItem.toolCallId]"
+                    class="chat-approval-input chat-approval-editor" rows="3" aria-label="修改后的记忆内容"
+                    :disabled="approvalSubmitting" />
+                  <span v-else class="chat-approval-text">{{ approvalItem.newValue }}</span>
                 </span>
               </span>
             </li>
           </ul>
+          <details v-if="approvalItem.evidence" class="chat-approval-evidence">
+            <summary>查看依据</summary><blockquote>{{ approvalItem.evidence }}</blockquote>
+          </details>
+          <p v-if="approvalItem.previewError || approvalEditError" class="chat-approval-error">
+            {{ approvalItem.previewError || approvalEditError }}
+          </p>
 
           <div v-if="approvalPageCount > 1" class="chat-approval-pager">
             <button type="button" class="chat-approval-pager-btn" :disabled="approvalPageIndex === 0"
@@ -284,7 +293,8 @@
           <p v-if="approvalError" class="chat-approval-error">{{ approvalError }}</p>
 
           <div class="chat-approval-actions">
-            <button type="button" class="chat-approval-confirm" :disabled="approvalSubmitting"
+            <button type="button" class="chat-approval-confirm"
+              :disabled="approvalSubmitting || approvalItem.canApprove === false || !!approvalEditError"
               @click="decideApproval(true)">
               {{ approvalSubmitting ? '提交中' : approvalConfirmText }}
             </button>
@@ -380,11 +390,20 @@ const {
  */
 const approvalPageIndex = ref(0)
 const approvalReason = ref('')
+const approvalReasons = ref<Record<string, string>>({})
+const approvalDrafts = ref<Record<string, string>>({})
 /** 已经表过态的项，键是 toolCallId。没表态的不在里面。 */
-const approvalChoices = ref<Record<string, { approved: boolean; reason: string }>>({})
+const approvalChoices = ref<Record<string, { approved: boolean; reason: string; editedValue?: string }>>({})
 
 const approvalItem = computed(() => pendingApprovals.value[approvalPageIndex.value] ?? null)
 const approvalPageCount = computed(() => pendingApprovals.value.length)
+const approvalEditError = computed(() => {
+  const item = approvalItem.value
+  if (!item?.editableNewValue) return ''
+  const value = approvalDrafts.value[item.toolCallId] ?? item.newValue ?? ''
+  if (!value.trim()) return '记忆内容不能为空。'
+  return Array.from(value).length > 500 ? '记忆内容最多 500 字。' : ''
+})
 const approvalDecidedCount = computed(
   () => pendingApprovals.value.filter((item) => item.toolCallId in approvalChoices.value).length)
 
@@ -392,8 +411,10 @@ const approvalDecidedCount = computed(
 watch(pendingApprovals, () => {
   approvalPageIndex.value = 0
   approvalReason.value = ''
+  approvalReasons.value = {}
   approvalChoices.value = {}
-})
+  approvalDrafts.value = Object.fromEntries(pendingApprovals.value.map(item => [item.toolCallId, item.newValue ?? '']))
+}, { immediate: true })
 
 /** 只显示用户看得懂的属性名；工具叫什么对用户没有意义，不往外露。 */
 const approvalTitle = (item: PendingApprovalItem) => item.attributeKey?.trim() || '这条记忆'
@@ -408,6 +429,11 @@ const APPROVAL_COPY: Record<string, {
   title: string; hint: string; confirm: string; reject: string
   reasonLabel: string; reasonPlaceholder: string
 }> = {
+  updateMemory: {
+    title: '修改这条记忆', hint: '核对前后内容，也可以直接修正新内容。确认后才会保存。',
+    confirm: '确认保存', reject: '暂不修改', reasonLabel: '暂不修改的原因',
+    reasonPlaceholder: '可选：说明为什么暂不修改',
+  },
   // hint 一律压到一行：面板每高一行，用户就少看一行对话，而「不可逆」这层意思不能省
       createEvent: {
         title: '要创建一条新事件',
@@ -465,9 +491,10 @@ const approvalReasonPlaceholder = computed(() => approvalCopy.value.reasonPlaceh
 
 function goToApprovalPage(index: number) {
   if (index < 0 || index >= approvalPageCount.value) return
+  if (approvalItem.value) approvalReasons.value[approvalItem.value.toolCallId] = approvalReason.value
   approvalPageIndex.value = index
   const target = pendingApprovals.value[index]
-  approvalReason.value = approvalChoices.value[target.toolCallId]?.reason ?? ''
+  approvalReason.value = approvalReasons.value[target.toolCallId] ?? approvalChoices.value[target.toolCallId]?.reason ?? ''
 }
 
 /**
@@ -478,7 +505,10 @@ function goToApprovalPage(index: number) {
 async function decideApproval(approved: boolean) {
   const item = approvalItem.value
   if (!item) return
-  const next = { ...approvalChoices.value, [item.toolCallId]: { approved, reason: approvalReason.value } }
+  if (approved && (item.canApprove === false || approvalEditError.value)) return
+  const next = { ...approvalChoices.value, [item.toolCallId]: { approved, reason: approvalReason.value,
+    ...(approved && item.editableNewValue ? { editedValue: approvalDrafts.value[item.toolCallId] ?? item.newValue ?? '' } : {}),
+  } }
   approvalChoices.value = next
 
   const undecided = pendingApprovals.value.findIndex((candidate) => !(candidate.toolCallId in next))
@@ -493,8 +523,10 @@ async function decideApproval(approved: boolean) {
       toolCallId: candidate.toolCallId,
       approved: next[candidate.toolCallId].approved,
       reason: next[candidate.toolCallId].reason,
+      ...(next[candidate.toolCallId].approved && candidate.editableNewValue
+        ? { editedValue: approvalDrafts.value[candidate.toolCallId] ?? candidate.newValue ?? '' } : {}),
     })))
-  approvalReason.value = ''
+  // Keep the submitted draft and reason visible when validation or transport fails.
 }
 
 const showScrollToBottom = ref(false)
@@ -1072,6 +1104,21 @@ function handleQuote(data: { text: string; role: 'user' | 'ai' }) {
 .chat-approval-input:focus {
   outline: 2px solid color-mix(in oklab, var(--color-primary) 24%, transparent);
   border-color: var(--color-primary);
+}
+.chat-approval-editor {
+  padding: 8px;
+  line-height: 1.6;
+  resize: none;
+}
+.chat-approval-evidence {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.chat-approval-evidence blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 1px solid var(--color-border);
+  white-space: pre-wrap;
 }
 .chat-approval-error {
   margin: 0;

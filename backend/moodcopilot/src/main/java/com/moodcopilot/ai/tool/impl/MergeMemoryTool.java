@@ -72,7 +72,7 @@ public class MergeMemoryTool extends ChatTool<MergeMemoryTool.MergeMemoryRequest
         props.put("targetValue", Map.of("type", "string",
                 "description", "合并后的记忆值，应当涵盖所有源记忆里仍然成立的内容"));
         props.put("memoryType", Map.of("type", "string",
-                "enum", List.of("preference", "habit", "goal", "trait", "relation", "short_term_state", "other"),
+                "enum", com.moodcopilot.ai.MemorySafetyPolicy.MEMORY_TYPES,
                 "description", "合并后这条记忆的类别"));
         props.put("evidence", Map.of("type", "string",
                 "description", "用户本轮原话中支持这次合并的逐字片段"));

@@ -27,18 +27,21 @@
     />
 
     <div class="ds-input-container">
-      <n-input
-        type="textarea"
+      <div class="ds-textarea-grid">
+        <div class="ds-textarea-mirror" aria-hidden="true">{{ draft + '\u200b' }}</div>
+        <textarea
         class="ds-textarea"
-        :autosize="{ minRows: 1, maxRows: 6 }"
+        rows="1"
+        aria-label="聊天消息"
         :value="draft"
-        @update:value="$emit('update:draft', $event)"
+        @input="$emit('update:draft', ($event.target as HTMLTextAreaElement).value)"
         :placeholder="isCompressing ? '正在优化对话上下文，请稍候...' : '发消息或按住说话'"
         :disabled="streaming || isCompressing || disabled"
         :maxlength="1000"
         @focus="$emit('focus')"
-        @keydown.enter.prevent="!isCompressing && !streaming && $emit('send-enter', $event)"
+        @keydown.enter="handleEnter"
       />
+      </div>
       
       <div class="ds-action-row">
         <div class="ds-action-left">
@@ -104,7 +107,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { NButton, NInput, useMessage } from 'naive-ui'
+import { NButton, useMessage } from 'naive-ui'
 import ReferenceBar from '../ReferenceBar.vue'
 import { imageApi } from '../../api/system'
 import { compressForChat } from '../../utils/imageCompression'
@@ -113,7 +116,7 @@ const message = useMessage()
 const referenceBarRef = ref<InstanceType<typeof ReferenceBar> | null>(null)
 const showPlusPanel = ref(false)
 
-defineProps<{
+const props = defineProps<{
   draft: string
   streaming: boolean
   disabled: boolean
@@ -130,6 +133,12 @@ defineProps<{
   recentDiariesError: string | null
   recentEventsError: string | null
 }>()
+
+function handleEnter(event: KeyboardEvent) {
+  if (event.isComposing || props.streaming || props.isCompressing || props.disabled) return
+  event.preventDefault()
+  emit('send-enter', event)
+}
 
 const emit = defineEmits<{
   (e: 'update:draft', val: string): void
@@ -208,10 +217,45 @@ function handleImageUpload() {
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary) 15%, transparent);
 }
 
-.ds-textarea :deep(.n-input__textarea-el) {
-  padding: 8px 4px !important;
+.ds-textarea-grid {
+  display: grid;
+  position: relative;
+  min-width: 0;
+}
+.ds-textarea, .ds-textarea-mirror {
+  grid-area: 1 / 1;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  max-height: 160px;
+  padding: 8px 4px;
+  border: 0;
+  font-family: inherit;
   font-size: 15px;
   line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.ds-textarea-mirror {
+  visibility: hidden;
+  pointer-events: none;
+  overflow: hidden;
+}
+.ds-textarea {
+  height: 100%;
+  resize: none;
+  overflow-y: auto;
+  outline: none;
+  background: transparent;
+  color: var(--color-text);
+  caret-color: var(--color-primary);
+}
+.ds-textarea::placeholder { color: var(--color-text-muted); }
+.ds-textarea:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
 }
 
 .ds-action-row {

@@ -1,0 +1,17 @@
+{
+  "name": "health-c8",
+  "path": "/api/health",
+  "concurrency": 8,
+  "scheduledSeconds": 20,
+  "elapsedSeconds": 20.0002279,
+  "requests": 262875,
+  "successes": 262875,
+  "throughputRps": 13143.600228675396,
+  "successfulRps": 13143.600228675396,
+  "p95Ms": 0.951,
+  "successP95Ms": 0.951,
+  "errorRate": 0,
+  "statusCounts": {
+    "200": 262875
+  }
+}

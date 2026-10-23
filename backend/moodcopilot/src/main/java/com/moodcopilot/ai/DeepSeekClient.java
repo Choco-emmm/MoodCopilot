@@ -45,7 +45,7 @@ public class DeepSeekClient {
                                             AgentLoopOptions options) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", options.model());
-        body.put("messages", messages);
+        body.put("messages", ModelRequestSanitizer.messages(messages));
         body.put("stream", true);
         if (options.reasoningEffort() != null && !options.reasoningEffort().isBlank()) {
             body.put("reasoning_effort", options.reasoningEffort());

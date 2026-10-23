@@ -3,6 +3,7 @@ package com.moodcopilot.ai;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.tool.ChatToolRegistry;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
@@ -21,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,8 +40,9 @@ class ChatAgentLoopTest {
     private final ChatToolRegistry toolRegistry = mock(ChatToolRegistry.class);
     private final com.moodcopilot.langgraph.InMemoryCheckpointSaver checkpointSaver =
             new com.moodcopilot.langgraph.InMemoryCheckpointSaver();
+    private final ChatRunCancellation cancellation = new ChatRunCancellation(mock(StringRedisTemplate.class, RETURNS_DEEP_STUBS));
     private final ChatAgentLoop loop = new ChatAgentLoop(deepSeekClient, toolRegistry, checkpointSaver,
-            new ObjectMapper());
+            new ObjectMapper(), cancellation);
 
     private List<Map<String, Object>> newMessages() {
         List<Map<String, Object>> messages = new ArrayList<>();
@@ -152,7 +155,8 @@ class ChatAgentLoopTest {
         assertEquals("tool", toolMsg.get("role"));
         assertEquals("call-9", toolMsg.get("tool_call_id"));
         assertTrue(String.valueOf(toolMsg.get("content")).contains("error"));
-        assertTrue(String.valueOf(toolMsg.get("content")).contains("事件不存在"));
+        assertTrue(String.valueOf(toolMsg.get("content")).contains("TOOL_EXECUTION_FAILED"));
+        org.junit.jupiter.api.Assertions.assertFalse(String.valueOf(toolMsg.get("content")).contains("事件不存在"));
 
         assertEquals(List.of("recovered"), chunks);
         assertEquals("recovered", outcome.reply());

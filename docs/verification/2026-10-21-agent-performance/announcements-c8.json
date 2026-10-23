@@ -1,0 +1,18 @@
+{
+  "name": "announcements-c8",
+  "path": "/api/announcements/active",
+  "concurrency": 8,
+  "scheduledSeconds": 20,
+  "elapsedSeconds": 20.002471099999994,
+  "requests": 49195,
+  "successes": 296,
+  "throughputRps": 2459.446123134257,
+  "successfulRps": 14.798171611906495,
+  "p95Ms": 3.911,
+  "successP95Ms": 6.774,
+  "errorRate": 0.9939831283667039,
+  "statusCounts": {
+    "200": 296,
+    "429": 48899
+  }
+}

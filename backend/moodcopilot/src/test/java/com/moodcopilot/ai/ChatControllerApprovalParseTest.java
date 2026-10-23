@@ -16,6 +16,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ChatControllerApprovalParseTest {
 
+    @Test void editedTextCannotChangeTheApprovalTargetOrExpandTheBatch() {
+        var valid = ChatController.approvalDecisions(Map.of("decisions", List.of(Map.of(
+                "toolCallId", "edit-a", "approved", true, "editedValue", "用户编辑后的正文"))));
+        assertEquals("用户编辑后的正文", valid.get(0).editedValue());
+        for (Map<String, Object> invalid : List.<Map<String,Object>>of(
+                Map.of("toolCallId", "edit-a", "approved", true, "editedValue", 42),
+                Map.of("toolCallId", "edit-a", "approved", true, "memoryId", 999))) {
+            assertTrue(ChatController.approvalDecisions(Map.of("decisions", List.of(invalid))).isEmpty());
+        }
+    }
+
     @Test
     void parsesOneDecisionPerCall() {
         List<ApprovalChoice> decisions = ChatController.approvalDecisions(Map.of("decisions", List.of(
@@ -39,22 +50,34 @@ class ChatControllerApprovalParseTest {
     @Test
     void onlyTheLiteralTrueIsTreatedAsApproval() {
         // 客户端传字符串 "true"、或者漏字段，都不该被当成点头
-        List<ApprovalChoice> decisions = ChatController.approvalDecisions(Map.of("decisions", List.of(
-                Map.of("toolCallId", "call-a", "approved", "true"),
-                Map.of("toolCallId", "call-b"))));
-
-        assertEquals(2, decisions.size());
-        assertEquals(false, decisions.get(0).approved());
-        assertEquals(false, decisions.get(1).approved());
+        assertTrue(ChatController.approvalDecisions(Map.of("decisions", List.of(
+                Map.of("toolCallId", "call-a", "approved", "true")))).isEmpty());
+        assertTrue(ChatController.approvalDecisions(Map.of("decisions", List.of(
+                Map.of("toolCallId", "call-b")))).isEmpty());
     }
 
     @Test
-    void anEntryWithoutAToolCallIdBecomesAWildcardInsteadOfAWronglyNarrowOne() {
-        List<ApprovalChoice> decisions = ChatController.approvalDecisions(Map.of("decisions",
-                List.of(Map.of("approved", true))));
+    void missingBlankOrWrongTypeIdsNeverBecomeWildcardApprovals() {
+        for (Map<String, Object> entry : List.<Map<String, Object>>of(
+                Map.of("approved", true),
+                Map.of("toolCallId", " ", "approved", true),
+                Map.of("toolCallId", 123, "approved", true))) {
+            var parsed = ChatController.approvalDecisions(Map.of("decisions", List.of(entry)));
+            assertTrue(parsed.isEmpty(), entry.toString());
+            var state = new ChatLoopState(ChatAgentLoop.approvalDecision(parsed));
+            assertTrue(state.decisionFor("unmentioned-call").isEmpty());
+        }
+    }
 
-        assertEquals(1, decisions.size());
-        assertEquals(null, decisions.get(0).toolCallId());
-        assertTrue(decisions.get(0).approved());
+    @Test
+    void malformedOrConflictingEntriesFailTheWholeBatchClosed() {
+        for (Object malformed : List.of("not-an-object", Map.of("approved", true),
+                Map.of("toolCallId", "call-b", "approved", true, "reason", 123))) {
+            assertTrue(ChatController.approvalDecisions(Map.of("decisions", List.of(
+                    Map.of("toolCallId", "call-a", "approved", true), malformed))).isEmpty());
+        }
+        assertTrue(ChatController.approvalDecisions(Map.of("decisions", List.of(
+                Map.of("toolCallId", "call-a", "approved", true),
+                Map.of("toolCallId", "call-a", "approved", false)))).isEmpty());
     }
 }

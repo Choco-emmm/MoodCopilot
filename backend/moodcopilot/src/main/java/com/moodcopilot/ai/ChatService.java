@@ -398,7 +398,7 @@ public class ChatService {
         long aiStartedAt = AiCallTiming.start();
         int aiInputLength = augmentedMessage == null ? 0 : augmentedMessage.length();
         AgentLoopOutcome outcome = agentLoop.run(msgs, auth, sseSink, options,
-                chatTurn(conversationId, message, imageUrls, resolvedReferences), runId, approvalsInteractive);
+                chatTurn(exec.user().getId(), conversationId, message, imageUrls, resolvedReferences), runId, approvalsInteractive);
 
         Flux<String> stream = outcome.chunks()
                 .doOnComplete(sseSink::tryEmitComplete)
@@ -507,7 +507,7 @@ public class ChatService {
             // 非流式通道没人能点确认，approvalsInteractive=false：需要批准的工具会被直接拒绝，
             // 并把「请到 App 里确认」作为理由回给模型，而不是把这一轮挂在这里等一个不会来的点击。
             AgentLoopOutcome outcome = agentLoop.run(msgs, auth, null, options,
-                    chatTurn(conversationId, message, imageUrls, resolvedReferences),
+                    chatTurn(exec.user().getId(), conversationId, message, imageUrls, resolvedReferences),
                     java.util.UUID.randomUUID().toString(), false);
             // 非流式：先驱动 flux 走完，再读 outcome —— 累加在流结束后才完整
             outcome.chunks().reduce(String::concat).block();
@@ -527,11 +527,10 @@ public class ChatService {
      * 本轮交给工具层的上下文。用户原话与引用是记忆类工具落库时的证据来源 ——
      * 只认用户自己的内容，助手的转述不能当事实。
      */
-    private static ChatTurn chatTurn(Long conversationId, String message, List<String> imageUrls,
+    private static ChatTurn chatTurn(long userId, Long conversationId, String message, List<String> imageUrls,
             List<UserReference> resolvedReferences) {
         return new ChatTurn(imageUrls, message, conversationId,
-                resolvedReferences == null ? List.of()
-                        : resolvedReferences.stream().map(UserReference::content).toList());
+                MemoryEvidenceSource.references(resolvedReferences, userId));
     }
 
     private ChatExecutionResult prepareChatExecution(Long conversationId, String message, List<String> refs,
@@ -1190,6 +1189,25 @@ public class ChatService {
         } catch (Exception e) {
             log.warn("读取聊天历史失败，userId={}，conversationId={}，reason={}", user.getId(), conversationId, e.getMessage());
             return List.of();
+        }
+    }
+
+    /** Background extraction has no request SecurityContext and may only read owned user messages. */
+    public String loadUserEvidenceForMemory(long userId, long conversationId) {
+        ChatConversationEntity conversation = conversationMapper.selectById(conversationId);
+        if (conversation == null || !Long.valueOf(userId).equals(conversation.getUserId())) return "";
+        try {
+            String json = redisTemplate.opsForValue().get(MSG_PREFIX + conversationId);
+            if (json == null) return "";
+            var history = objectMapper.readTree(json);
+            if (!history.isArray()) return "";
+            List<String> content = new ArrayList<>();
+            for (var message : history) if ("user".equals(message.path("role").asText()) && message.path("content").isTextual())
+                content.add(message.path("content").asText());
+            return String.join("\n", content);
+        } catch (Exception e) {
+            log.warn("记忆抽取读取聊天来源失败 userId={} conversationId={} errorType={}", userId, conversationId, e.getClass().getSimpleName());
+            return "";
         }
     }
 

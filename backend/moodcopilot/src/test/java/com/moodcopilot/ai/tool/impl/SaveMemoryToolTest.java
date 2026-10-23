@@ -81,37 +81,33 @@ class SaveMemoryToolTest {
 
         assertEquals("香菜", preview.get("oldValue"));
         assertEquals("番茄", preview.get("newValue"));
-        assertEquals("updated", preview.get("kind"));
+        assertFalse((Boolean) preview.get("canApprove"));
+        assertEquals("已有这项记忆，请重新提出修改建议。", preview.get("previewError"));
     }
 
     @Test
-    void approvalWritesAFormalMemoryThroughTheExplicitPath() {
-        when(memoryExtractionService.buildChatUserEvidence(anyString(), any())).thenReturn("用户消息：帮我记一下：我讨厌吃番茄");
-
-        Object result = tool.execute(request(), context(7L));
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<MemoryAttribute>> attributes = ArgumentCaptor.forClass(List.class);
-        verify(orchestrator).processExtractedMemories(eq(7L), attributes.capture(), eq("explicit"), isNull(),
-                eq(32L), eq("用户消息：帮我记一下：我讨厌吃番茄"), isNull());
-
-        assertEquals(1, attributes.getValue().size());
-        MemoryAttribute attribute = attributes.getValue().get(0);
-        assertEquals("讨厌的食物", attribute.attributeKey());
-        assertEquals("番茄", attribute.attributeValue());
-        // 用户的确认动作本身就是明确声明，不走候选区
-        assertEquals("explicit", attribute.assertionType());
-        assertEquals("我讨厌吃番茄", attribute.evidence());
-
-        assertTrue(((SaveMemoryTool.SaveMemoryResult) result).success());
+    void approvalReportsTheActualOrchestratorResult() {
+        when(orchestrator.createConfirmed(eq(7L), eq("讨厌的食物"), eq("番茄"), eq("preference"),
+                eq("我讨厌吃番茄"), anyString(), eq(32L)))
+                .thenReturn(com.moodcopilot.ai.MemoryWriteResult.applied(22L));
+        var result = (SaveMemoryTool.SaveMemoryResult) tool.execute(request(), context(7L));
+        assertTrue(result.success());
+        assertEquals(22L, result.memoryId());
+        assertEquals("APPLIED", result.status());
+        verify(orchestrator).createConfirmed(7L, "讨厌的食物", "番茄", "preference", "我讨厌吃番茄",
+                "帮我记一下：我讨厌吃番茄\n日记节选", 32L);
     }
 
     @Test
-    void theEvidenceFallsBackToTheUsersOwnWordsThisTurn() {
-        // 模型给的 evidence 可能落空甚至瞎编，兜底必须只取用户自己的内容
-        tool.execute(request(), context(7L));
-
-        verify(memoryExtractionService).buildChatUserEvidence("帮我记一下：我讨厌吃番茄", List.of("日记节选"));
+    void aRejectedWriteNeverReportsSuccess() {
+        when(orchestrator.createConfirmed(anyLong(), anyString(), anyString(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(com.moodcopilot.ai.MemoryWriteResult.rejected("RESTRICTED_CONTENT"));
+        var result = (SaveMemoryTool.SaveMemoryResult) tool.execute(request(), context(7L));
+        assertFalse(result.success());
+        assertFalse(result.executed());
+        assertEquals("REJECTED", result.status());
+        assertEquals("RESTRICTED_CONTENT", result.note());
+        assertNull(result.attributeValue());
     }
 
     @Test
@@ -154,6 +150,7 @@ class SaveMemoryToolTest {
         assertEquals("讨厌的食物", preview.get("attributeKey"));
         assertEquals("added", preview.get("kind"));
         assertNull(preview.get("newValue"));
+        assertFalse((Boolean) preview.get("canApprove"));
     }
 
     private static SaveMemoryTool.SaveMemoryRequest request() {

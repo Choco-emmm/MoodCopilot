@@ -9,6 +9,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RagQueryBuilderTest {
 
+    @Test void credentialOnlyTextCannotBecomeAMeaningfulEmbeddingQuery() {
+        assertEquals("", RagQueryBuilder.embeddingText("password=synthetic-secret"));
+        assertEquals("", RagQueryBuilder.diaryQueryText("密码是synthetic-secret", null));
+        assertTrue(RagQueryBuilder.embeddingText("今天散步 password=synthetic-secret").contains("今天散步"));
+    }
+
     @Test
     void diaryQueryUsesUserWrittenContentAndSelectedLyricsOnly() {
         MusicMeta music = new MusicMeta();
@@ -55,7 +61,8 @@ class RagQueryBuilderTest {
         String query = RagQueryBuilder.keyword("api_key=sk-test_1234567890，今天工作很累");
 
         assertFalse(query.contains("sk-test_1234567890"));
-        assertTrue(query.contains("已隐藏敏感信息"));
+        assertTrue(query.contains("今天工作很累"));
+        assertFalse(query.contains("已隐藏敏感信息"));
         assertTrue(RagQueryBuilder.lexicalTerms(query).stream()
                 .noneMatch(term -> term.contains("sk-test_1234567890")));
     }

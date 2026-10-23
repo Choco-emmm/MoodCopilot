@@ -2,3 +2,7 @@
 **/Dockerfile text eol=lf
 .github/workflows/*.yml text eol=lf
 **/package-lock.json text eol=lf
+
+# Captured Maven/Surefire evidence preserves the original diagnostic spacing.
+docs/verification/2026-10-21-agent-performance/*.txt whitespace=-blank-at-eol
+docs/verification/2026-10-21-agent-performance/*.xml whitespace=-blank-at-eol

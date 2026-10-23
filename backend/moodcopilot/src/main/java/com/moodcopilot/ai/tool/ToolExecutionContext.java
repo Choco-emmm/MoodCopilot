@@ -16,7 +16,7 @@ import java.util.List;
  * 记忆时，证据得取自用户自己的话，来源得挂到这次对话上。
  */
 public record ToolExecutionContext(Authentication auth, Sinks.Many<String> sseSink, List<String> imageUrls,
-        String userMessage, Long conversationId, List<String> userReferences) {
+        String userMessage, Long conversationId, List<String> userReferences, String runId, String toolCallId) {
 
     public ToolExecutionContext {
         imageUrls = imageUrls == null ? List.of() : List.copyOf(imageUrls);
@@ -26,7 +26,16 @@ public record ToolExecutionContext(Authentication auth, Sinks.Many<String> sseSi
 
     /** 只要认证与附件时的简写。 */
     public ToolExecutionContext(Authentication auth, Sinks.Many<String> sseSink, List<String> imageUrls) {
-        this(auth, sseSink, imageUrls, "", null, List.of());
+        this(auth, sseSink, imageUrls, "", null, List.of(), null, null);
+    }
+
+    public ToolExecutionContext(Authentication auth, Sinks.Many<String> sink, List<String> images,
+            String message, Long conversation, List<String> references) {
+        this(auth, sink, images, message, conversation, references, null, null);
+    }
+
+    public ToolExecutionContext forCall(String run, String call) {
+        return new ToolExecutionContext(auth, sseSink, imageUrls, userMessage, conversationId, userReferences, run, call);
     }
 
     public static ToolExecutionContext of(Authentication auth) {

@@ -15,7 +15,7 @@ public record ChatTurn(List<String> imageUrls, String userMessage, Long conversa
 
     public ChatTurn {
         imageUrls = imageUrls == null ? List.of() : List.copyOf(imageUrls);
-        userMessage = userMessage == null ? "" : userMessage;
+        userMessage = MemoryEvidenceSource.currentMessage(userMessage);
         userReferences = userReferences == null ? List.of() : List.copyOf(userReferences);
     }
 

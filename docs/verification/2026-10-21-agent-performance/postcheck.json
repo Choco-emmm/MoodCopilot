@@ -1,0 +1,12 @@
+{
+  "checkedAt": "2026-10-21T08:50:35.3601260+08:00",
+  "status": 200,
+  "body": {
+    "code": 0,
+    "message": "ok",
+    "data": {
+      "status": "UP",
+      "app": "MoodCopilot"
+    }
+  }
+}
