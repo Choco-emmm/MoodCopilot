@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: bash scripts/deploy-images.sh /absolute/path/MoodCopilot owner commit-sha
+# Usage: bash scripts/deploy-images.sh /absolute/path/MoodCopilot owner commit-sha [registry|preloaded]
 # Also runs via SSH stdin; never reads or transfers the server's .env contents.
 set -euo pipefail
 umask 077
@@ -7,9 +7,11 @@ umask 077
 project_dir=${1:?Missing project directory}
 owner=${2:?Missing registry owner}
 revision=${3:?Missing commit SHA}
+image_source=${4:-registry}
 [[ "$project_dir" == /* && -d "$project_dir" ]] || { echo 'Invalid project directory' >&2; exit 1; }
 [[ "$owner" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo 'Invalid registry owner' >&2; exit 1; }
 [[ "$revision" =~ ^[a-f0-9]{40}$ ]] || { echo 'Expected a full commit SHA' >&2; exit 1; }
+[[ "$image_source" == registry || "$image_source" == preloaded ]] || { echo 'Invalid image source' >&2; exit 1; }
 cd "$project_dir"
 [[ -f docker-compose.yml ]] || { echo 'docker-compose.yml is missing' >&2; exit 1; }
 command -v flock >/dev/null
@@ -27,7 +29,7 @@ trap cleanup EXIT
 
 # Use the workflow's short-lived token for private GHCR images. Credentials live
 # only in a private temporary directory, not the server's persistent Docker config.
-if [[ -n "${GHCR_TOKEN:-}" ]]; then
+if [[ "$image_source" == registry && -n "${GHCR_TOKEN:-}" ]]; then
   registry_dir=$(mktemp -d "$PWD/.deploy/auth.XXXXXX")
   export DOCKER_CONFIG="$registry_dir"
   printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "${GHCR_USER:?Missing registry user}" --password-stdin
@@ -62,8 +64,18 @@ services:
     image: $old_web
 EOF
 
-# Pull both images before changing either container. A pull failure leaves services alone.
-"${compose[@]}" -f "$work_dir/next.yml" pull backend web
+# Both image sources must be complete before changing either container. Preloaded
+# images arrive over the workflow's verified SSH connection; validate their SHA
+# labels under the same deployment lock instead of returning to a slow registry.
+if [[ "$image_source" == registry ]]; then
+  "${compose[@]}" -f "$work_dir/next.yml" pull backend web
+else
+  for service in backend frontend; do
+    image="ghcr.io/$owner/moodcopilot-$service:$revision"
+    image_revision=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image")
+    [[ "$image_revision" == "$revision" ]] || { echo 'Preloaded image revision mismatch' >&2; exit 1; }
+  done
+fi
 
 start_pair() {
   "${compose[@]}" -f "$1" up -d --no-deps --no-build --pull never --force-recreate \
