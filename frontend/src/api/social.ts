@@ -64,6 +64,11 @@ export interface PendingApprovalItem {
   newValue?: string
   kind?: string
   sources?: PendingApprovalSource[]
+  memoryId?: number
+  editableNewValue?: boolean
+  canApprove?: boolean
+  previewError?: string
+  evidence?: string
 }
 
 /** 对某一次工具调用的表态。 */
@@ -71,6 +76,7 @@ export interface ApprovalDecision {
   toolCallId: string
   approved: boolean
   reason?: string
+  editedValue?: string
 }
 
 export const chatApi = {
@@ -127,7 +133,7 @@ export const chatApi = {
     onStatus?: (status: { stage: string; message: string }) => void,
     referencePurpose?: string,
     referenceItems?: Array<{ sourceType: string; sourceId: number; referencePurpose?: string }>,
-    onApproval?: (items: PendingApprovalItem[], runId: string) => void,
+    onApproval?: (items: PendingApprovalItem[], runId: string, sequence: number) => void,
   ): Promise<void> => {
     const clientRequestId = typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -166,7 +172,7 @@ export const chatApi = {
     onReferences?: (items: Array<{ type: string; diaryId: string; date: string; snippet: string }>) => void,
     onToolReferences?: (items: Array<{ type: string; diaryId?: string; date: string; snippet: string; toolName: string }>) => void,
     onStatus?: (status: { stage: string; message: string }) => void,
-    onApproval?: (items: PendingApprovalItem[], runId: string) => void,
+    onApproval?: (items: PendingApprovalItem[], runId: string, sequence: number) => void,
   ): Promise<void> => {
     const storedRunId = sessionStorage.getItem(chatRunStorageKey(id))
     if (storedRunId !== runId) return
@@ -188,8 +194,8 @@ type ChatRunCallbacks = {
   onReferences?: (items: Array<{ type: string; diaryId: string; date: string; snippet: string }>) => void
   onToolReferences?: (items: Array<{ type: string; diaryId?: string; date: string; snippet: string; toolName: string }>) => void
   onStatus?: (status: { stage: string; message: string }) => void
-  /** 带上 runId：批准这条请求要用它，而调用方（发起本轮的那处）并不知道自己拿到的是哪个 run。 */
-  onApproval?: (items: PendingApprovalItem[], runId: string) => void
+  /** runId 标识任务，sequence 标识审批批次，重放时须核对当前状态。 */
+  onApproval?: (items: PendingApprovalItem[], runId: string, sequence: number) => void
   ctrl: AbortController
 }
 
@@ -237,7 +243,7 @@ async function consumeChatRunStream(
             } else if (msg.type === 'approval_required') {
               // 不是终态：后端只是停在工具执行前等用户点头，连接会一直挂着，
               // 用户决定之后的分片仍从这条流下来。所以这里既不能结束消费、也不能清 run 键。
-              onApproval?.(Array.isArray(msg.items) ? msg.items : [], runId)
+              onApproval?.(Array.isArray(msg.items) ? msg.items : [], runId, nextSequence)
             } else if (msg.type === 'done') {
               doneReceived = true
             } else if (msg.type === 'error') {
