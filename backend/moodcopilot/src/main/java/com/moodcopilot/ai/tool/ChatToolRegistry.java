@@ -63,6 +63,28 @@ public class ChatToolRegistry {
         return inSecurityContext(context, () -> tool.run(objectMapper, argumentsJson, context));
     }
 
+    public Object executeEdited(String name, String argumentsJson, ToolExecutionContext context, String editedValue) throws Exception {
+        if (!com.moodcopilot.ai.tool.impl.UpdateMemoryTool.NAME.equals(name))
+            throw new IllegalArgumentException("此操作不支持编辑内容");
+        var request = objectMapper.readValue(argumentsJson, com.moodcopilot.ai.tool.impl.UpdateMemoryTool.UpdateMemoryRequest.class);
+        Object result = executeParsed(name, new com.moodcopilot.ai.tool.impl.UpdateMemoryTool.UpdateMemoryRequest(
+                request.memoryId(), request.expectedValue(), editedValue, request.evidence()), context);
+        if (result instanceof Map<?, ?> raw) {
+            Map<String, Object> response = new LinkedHashMap<>();
+            raw.forEach((key, value) -> response.put(String.valueOf(key), value));
+            boolean userEdited = !com.moodcopilot.ai.MemoryWritePolicy.text(request.newValue())
+                    .equals(com.moodcopilot.ai.MemoryWritePolicy.text(editedValue));
+            response.put("userEdited", userEdited);
+            response.put("approvalSource", userEdited ? "USER_APPROVAL_EDIT" : "AI_PROPOSAL_CONFIRMED");
+            return response;
+        }
+        return result;
+    }
+
+    public void rejectApproval(String name, ToolExecutionContext context, String reasonCode) {
+        if (byName.get(name) instanceof com.moodcopilot.ai.tool.impl.UpdateMemoryTool update) update.reject(context, reasonCode);
+    }
+
     public Object executeParsed(String name, Object parsedRequest, ToolExecutionContext context) throws Exception {
         ChatTool<?> tool = require(name);
         return inSecurityContext(context, () -> tool.runParsed(parsedRequest, context));
@@ -84,15 +106,14 @@ public class ChatToolRegistry {
     }
 
     /**
-     * 审批弹框要展示的内容。预览失败不能挡住中断 —— 宁可退成「只说工具名」，
-     * 也不能因为一个取旧值的查询出错就把整轮对话卡死。
+     * 预览失败仍可展示明确的暂不修改操作，但必须禁止确认，不能以缺失预览批准写入。
      */
     public Map<String, Object> approvalPreview(String name, String argumentsJson, ToolExecutionContext context) {
         try {
             return require(name).approvalPreview(objectMapper, argumentsJson, context);
         } catch (Exception e) {
-            log.warn("构建审批预览失败 {}: {}", name, e.getMessage());
-            return Map.of();
+            log.warn("构建审批预览失败 tool={} errorType={}", name, e.getClass().getSimpleName());
+            return Map.of("canApprove", false, "previewError", "无法读取完整修改内容，请暂不修改后重试。");
         }
     }
 
@@ -108,7 +129,7 @@ public class ChatToolRegistry {
         try {
             items = references(name, result);
         } catch (Exception e) {
-            log.warn("构建工具引用条目失败 {}: {}", name, e.getMessage());
+            log.warn("构建工具引用条目失败 tool={} errorType={}", name, e.getClass().getSimpleName());
             return List.of();
         }
         if (items == null || items.isEmpty()) {
@@ -119,7 +140,7 @@ public class ChatToolRegistry {
                 Map<String, Object> event = Map.of("type", "tool_references", "items", items);
                 sink.tryEmitNext("[[TOOL_EVENT]]" + objectMapper.writeValueAsString(event));
             } catch (Exception e) {
-                log.warn("推送工具引用事件失败 {}: {}", name, e.getMessage());
+                log.warn("推送工具引用事件失败 tool={} errorType={}", name, e.getClass().getSimpleName());
             }
         }
         return items;

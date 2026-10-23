@@ -19,7 +19,7 @@ import java.util.Map;
  * 回给模型，让它换个方向重写或者收手。
  * <p>
  * 批准即写正式记忆（{@code sourceType = "explicit"}）—— 用户的确认动作本身就是明确声明。
- * 敏感数据拦截与类型归一仍由 {@link MemoryOrchestrator#processExtractedMemories} 把关，
+ * 写入校验与“只能新增”由 {@link MemoryOrchestrator#createConfirmed} 把关，
  * 本类不重复实现那套策略。
  */
 public class SaveMemoryTool extends ChatTool<SaveMemoryTool.SaveMemoryRequest> {
@@ -45,6 +45,7 @@ public class SaveMemoryTool extends ChatTool<SaveMemoryTool.SaveMemoryRequest> {
                 + "只在用户主动要求时调用（例如「帮我记一下我不吃香菜」）。"
                 + "【绝对禁止】：如果用户要求记录的是带有【具体时间点】、【行程】或【待办】性质的事情（例如“记下我下周去日本”、“明天要开会”），哪怕用户用了“记住”这个词，也【绝对禁止】使用本工具！必须使用 createEventFunction 工具！本工具只能用于不受时间限制的长期属性（如性格、喜好、病史等）。"
                 + "注意：系统会自动让用户确认，若返回成功说明已落库，无需再口头告诉用户“去点击确认”。"
+                + "本工具只新增属性；已有属性返回 TARGET_EXISTS，必须使用 updateMemoryFunction 重新申请修改。"
                 + "evidence 必须逐字摘录用户本轮的原话片段，不要自己改写或总结。";
     }
 
@@ -66,7 +67,7 @@ public class SaveMemoryTool extends ChatTool<SaveMemoryTool.SaveMemoryRequest> {
         props.put("attributeValue", Map.of("type", "string",
                 "description", "记忆的值，例如「番茄」"));
         props.put("memoryType", Map.of("type", "string",
-                "enum", List.of("preference", "habit", "goal", "trait", "relation", "short_term_state", "other"),
+                "enum", com.moodcopilot.ai.MemorySafetyPolicy.MEMORY_TYPES,
                 "description", "记忆类别"));
         props.put("evidence", Map.of("type", "string",
                 "description", "用户本轮原话中支持这条记忆的逐字片段"));
@@ -79,10 +80,9 @@ public class SaveMemoryTool extends ChatTool<SaveMemoryTool.SaveMemoryRequest> {
     }
 
     /**
-     * 弹框内容：这条记忆会覆盖掉什么。
+     * 新增预览：目标已存在或校验失败时禁用确认。
      * <p>
-     * 旧值取自当前生效的记忆；取不到就是新增。查询失败不该挡住中断流程 ——
-     * 由 {@code ChatToolRegistry.approvalPreview} 兜住异常，退成「只说工具名」。
+     * 查询失败交给注册表生成不可批准的预览，不能显示成可确认的新增。
      */
     @Override
     public Map<String, Object> approvalPreview(ObjectMapper mapper, String argumentsJson,
@@ -90,12 +90,22 @@ public class SaveMemoryTool extends ChatTool<SaveMemoryTool.SaveMemoryRequest> {
         SaveMemoryRequest request = mapper.readValue(
                 argumentsJson == null || argumentsJson.isBlank() ? "{}" : argumentsJson, requestType());
         String oldValue = currentValue(context.userId(), request.attributeKey());
+        String violation = com.moodcopilot.ai.MemoryWritePolicy.violation(request.attributeKey(),
+                request.attributeValue(), request.memoryType(), null);
+        if (violation == null && !com.moodcopilot.ai.MemoryWritePolicy.evidence(request.evidence(), UpdateMemoryTool.source(context))) {
+            violation = "INVALID_EVIDENCE";
+        }
+        if (oldValue != null) violation = "TARGET_EXISTS";
 
         Map<String, Object> preview = new LinkedHashMap<>();
         preview.put("attributeKey", request.attributeKey());
         preview.put("oldValue", oldValue == null ? "" : oldValue);
         preview.put("newValue", request.attributeValue());
-        preview.put("kind", oldValue == null ? "added" : "updated");
+        preview.put("kind", "added");
+        preview.put("canApprove", violation == null);
+        if (violation != null) preview.put("previewError", "TARGET_EXISTS".equals(violation)
+                ? "已有这项记忆，请重新提出修改建议。" : "RESTRICTED_CONTENT".equals(violation)
+                        ? "触发受限资料规则，这项内容不能进入记忆。" : "这项建议未通过写入校验，请重新提出。");
         return preview;
     }
 
@@ -111,16 +121,10 @@ public class SaveMemoryTool extends ChatTool<SaveMemoryTool.SaveMemoryRequest> {
                     "记忆的键和值都不能为空");
         }
 
-        orchestrator.processExtractedMemories(userId,
-                List.of(new MemoryExtractionService.MemoryAttribute(
-                        request.attributeKey(), request.attributeValue(), Boolean.FALSE,
-                        request.memoryType(), "explicit", 1.0, request.evidence(), null, null)),
-                "explicit", null, context.conversationId(),
-                // 证据只认用户本轮的原话与引用；模型给的 evidence 若落空，这里兜底
-                memoryExtractionService.buildChatUserEvidence(context.userMessage(), context.userReferences()),
-                null);
-
-        return new SaveMemoryResult(true, request.attributeKey(), request.attributeValue(), null);
+        var result = orchestrator.createConfirmed(userId, request.attributeKey(), request.attributeValue(), request.memoryType(),
+                request.evidence(), UpdateMemoryTool.source(context), context.conversationId());
+        return new SaveMemoryResult(result.success(), request.attributeKey(), result.success() ? request.attributeValue() : null,
+                result.reasonCode(), result.status(), result.memoryId(), result.executed());
     }
 
     private String currentValue(Long userId, String attributeKey) {
@@ -142,6 +146,10 @@ public class SaveMemoryTool extends ChatTool<SaveMemoryTool.SaveMemoryRequest> {
     public record SaveMemoryRequest(String attributeKey, String attributeValue, String memoryType, String evidence) {
     }
 
-    public record SaveMemoryResult(boolean success, String attributeKey, String attributeValue, String note) {
+    public record SaveMemoryResult(boolean success, String attributeKey, String attributeValue, String note,
+            String status, Long memoryId, boolean executed) {
+        public SaveMemoryResult(boolean success, String key, String value, String note) {
+            this(success, key, value, note, success ? "APPLIED" : "REJECTED", null, success);
+        }
     }
 }

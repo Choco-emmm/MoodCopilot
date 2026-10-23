@@ -195,7 +195,7 @@ public class MemoryExtractionService {
                             (left, right) -> left, java.util.LinkedHashMap::new));
             ragMemoryService.migrateLegacyProfileIndex(grouped);
         } catch (Exception e) {
-            log.error("RAG 画像旧索引迁移准备失败，下次启动将重试: {}", e.getMessage(), e);
+            log.error("RAG 画像旧索引迁移准备失败，下次启动将重试 errorType={}", e.getClass().getSimpleName());
         }
     }
 
@@ -212,8 +212,6 @@ public class MemoryExtractionService {
      * 在日记分析完成后异步抽取长期画像。
      * 这一步故意放在异步线程里，避免阻塞用户写日记后的主请求；失败只记日志，不回滚主流程。
      */
-    @Async("aiExecutor")
-    
     public List<MemoryAttribute> extractMemoryFromContext(String contextContent, String sourceType, Long userId, Long sourceId, String hint) {
         if (contextContent == null || contextContent.isBlank()) {
             return List.of();
@@ -240,7 +238,7 @@ public class MemoryExtractionService {
                 return sanitizeAttributes(response.attributes());
             }
         } catch (Exception e) {
-            log.error("Failed to re-extract memory for source " + sourceId + " with hint", e);
+            log.error("记忆重提取失败 sourceId={} errorType={}", sourceId, e.getClass().getSimpleName());
         }
         return List.of();
     }
@@ -284,6 +282,11 @@ public class MemoryExtractionService {
 
     private void extractAndSyncMemory(UserIdSource source, String diaryContent, MusicMeta musicMeta,
             String imageDescriptions) {
+        extractAndSyncMemory(source, diaryContent, musicMeta, imageDescriptions, Set.of());
+    }
+
+    private void extractAndSyncMemory(UserIdSource source, String diaryContent, MusicMeta musicMeta,
+            String imageDescriptions, Set<String> excludedKeys) {
         Long userId = source.userId();
         long totalStartedAt = System.nanoTime();
         try {
@@ -340,6 +343,7 @@ public class MemoryExtractionService {
             List<MemoryAttribute> sanitizedAttributes = retainUserGroundedAttributes(
                     sanitizeAttributes(response.attributes(), legacyAttributeKeys),
                     buildUserEvidence(safeDiaryContent, safeMusicMeta), source.sourceType());
+            sanitizedAttributes = sanitizedAttributes.stream().filter(attribute -> !excludedKeys.contains(attribute.attributeKey())).toList();
             memoryOrchestrator.processExtractedMemories(userId, sanitizedAttributes, source.sourceType(),
                     source.diaryId(), source.conversationId(), buildUserEvidence(safeDiaryContent, safeMusicMeta),
                     source.evidenceDate());
@@ -349,8 +353,8 @@ public class MemoryExtractionService {
                     modelDurationMs,
                     elapsedMillis(totalStartedAt), prompt.length(), json == null ? 0 : json.length());
         } catch (Exception e) {
-            log.warn("长记忆提取失败，userId={}，diaryId={}，totalDurationMs={}，error={}", userId, source.diaryId(),
-                    elapsedMillis(totalStartedAt), e.getMessage(), e);
+            log.warn("长记忆提取失败，userId={}，diaryId={}，totalDurationMs={}，errorType={}", userId, source.diaryId(),
+                    elapsedMillis(totalStartedAt), e.getClass().getSimpleName());
             throw new IllegalStateException("长期记忆提取失败", e);
         }
     }
@@ -395,22 +399,19 @@ public class MemoryExtractionService {
                     String evidence = normalizeForEvidence(attribute.evidence());
                     boolean grounded = isUserEvidenceGrounded(attribute.evidence(), userEvidence);
                     if (!grounded) {
-                        log.info("跳过无法回溯到用户内容的记忆信号，attributeKey={}，sourceEvidenceLength={}",
-                                attribute.attributeKey(), evidence.length());
+                        log.info("跳过无法回溯到用户内容的记忆信号，sourceEvidenceLength={}", evidence.length());
                     }
                     if (!grounded)
                         return false;
                     if (MemorySafetyPolicy.isTransientScheduleFact(attribute.memoryType(),
                             attribute.attributeKey(), attribute.attributeValue())) {
-                        log.info("跳过短期日程记忆信号，交由重要事件流程处理，attributeKey={}，sourceType={}",
-                                attribute.attributeKey(), sourceType);
+                        log.info("跳过短期日程记忆信号，交由重要事件流程处理，sourceType={}", sourceType);
                         return false;
                     }
                     if (MemorySafetyPolicy.isTechnicalKnowledgeClaim(attribute.attributeKey(),
                             attribute.attributeValue())
                             && !MemorySafetyPolicy.hasExplicitTechnicalBackground(attribute.evidence())) {
-                        log.info("跳过未经用户明确声明的技术背景记忆，attributeKey={}，sourceType={}",
-                                attribute.attributeKey(), sourceType);
+                        log.info("跳过未经用户明确声明的技术背景记忆，sourceType={}", sourceType);
                         return false;
                     }
                     return true;
@@ -419,10 +420,7 @@ public class MemoryExtractionService {
     }
 
     static boolean isUserEvidenceGrounded(String evidence, String source) {
-        String normalizedEvidence = normalizeForEvidence(evidence);
-        String normalizedSource = normalizeForEvidence(source);
-        return !normalizedEvidence.isBlank() && !normalizedSource.isBlank()
-                && normalizedSource.contains(normalizedEvidence);
+        return MemoryWritePolicy.evidence(evidence, source);
     }
 
     private static String normalizeForEvidence(String value) {
@@ -503,7 +501,12 @@ public class MemoryExtractionService {
 
     private void extractAndSyncMemoryFromChatInternal(Long userId, Long conversationId, String userMessage,
             List<String> refs, String aiReply) {
-        String normalizedUserMessage = userMessage == null ? "" : normalizeWhitespace(userMessage);
+        extractAndSyncMemoryFromChat(userId, conversationId, userMessage, refs, aiReply, Set.of());
+    }
+
+    public void extractAndSyncMemoryFromChat(Long userId, Long conversationId, String userMessage,
+            List<String> refs, String aiReply, Set<String> excludedKeys) {
+        String normalizedUserMessage = normalizeWhitespace(MemoryEvidenceSource.currentMessage(userMessage));
         String normalizedAiReply = aiReply == null ? "" : normalizeWhitespace(aiReply);
         List<String> normalizedRefs = normalizeRefs(refs);
 
@@ -529,7 +532,7 @@ public class MemoryExtractionService {
                 "memory-chat | pass | userId={} | userLength={} | replyLength={} | refCount={} | evidenceLength={}",
                 userId, normalizedUserMessage.length(), normalizedAiReply.length(), normalizedRefs.size(),
                 evidence.length());
-        extractAndSyncMemory(UserIdSource.chat(userId, conversationId), evidence, null, null);
+        extractAndSyncMemory(UserIdSource.chat(userId, conversationId), evidence, null, null, Set.copyOf(excludedKeys));
     }
 
     /**
@@ -658,7 +661,7 @@ public class MemoryExtractionService {
      * 记忆工具落库时的兜底证据与画像抽取共用这一份，避免两处口径漂移。
      */
     public String buildChatUserEvidence(String userMessage, List<String> references) {
-        String message = normalizeWhitespace(userMessage == null ? "" : userMessage);
+        String message = normalizeWhitespace(MemoryEvidenceSource.currentMessage(userMessage));
         StringBuilder sb = new StringBuilder();
         if (!message.isBlank()) {
             sb.append("用户消息：").append(truncate(message, 800)).append("\n");
@@ -747,33 +750,35 @@ public class MemoryExtractionService {
             if (attribute == null || attribute.attributeKey() == null || attribute.attributeValue() == null) {
                 continue;
             }
+            if (MemoryWritePolicy.length(attribute.attributeKey()) > 64 || MemoryWritePolicy.length(attribute.attributeValue()) > 500)
+                continue;
             String key = sanitizeAttributeKey(attribute.attributeKey());
             String value = sanitizeAttributeValue(attribute.attributeValue());
             if (key.isEmpty() || value.isEmpty()) {
                 continue;
             }
             if (!MemorySafetyPolicy.isChineseAttributeKey(key) && !allowedLegacyKeys.contains(key)) {
-                log.warn("忽略新生成的非中文属性键，attributeKey={}", key);
+                log.warn("忽略新生成的非中文属性键，keyLength={}", key.length());
                 continue;
             }
             if (!allowedLegacyKeys.contains(key) && isLikelyConcreteObjectKey(key)) {
-                log.warn("忽略过于具体的对象型属性键，attributeKey={}", key);
+                log.warn("忽略过于具体的对象型属性键，keyLength={}", key.length());
                 continue;
             }
             if (!SensitiveDataDetector.allowedForMemory(key, value, attribute.evidence())) {
-                log.warn("忽略包含敏感数据的记忆信号，attributeKey={}", key);
+                log.warn("忽略包含敏感数据的记忆信号，keyLength={}", key.length());
                 continue;
             }
             String requestedType = attribute.memoryType() == null
                     ? ""
                     : attribute.memoryType().trim().toLowerCase(java.util.Locale.ROOT);
             if (!MemorySafetyPolicy.isSupportedType(requestedType)) {
-                log.warn("忽略非法记忆类型，attributeKey={}，memoryType={}", key, attribute.memoryType());
+                log.warn("忽略非法记忆类型，keyLength={}", key.length());
                 continue;
             }
             String type = MemorySafetyPolicy.normalizeType(requestedType, key, value);
             Boolean isCore = MemorySafetyPolicy.allowCore(type, key, value) ? attribute.isCore() : Boolean.FALSE;
-            deduped.put(key, new MemoryAttribute(key, value, isCore, type,
+            deduped.put(key + "\u0000" + type + "\u0000" + MemoryCandidateMergePolicy.normalizeValue(value), new MemoryAttribute(key, value, isCore, type,
                     attribute.assertionType(), attribute.confidence(), attribute.evidence(),
                     attribute.validFrom(), attribute.validUntil()));
         }
@@ -901,7 +906,7 @@ public class MemoryExtractionService {
                     "attributeKey", sanitizeAttributeKey(memory.getAttributeKey()),
                     "attributeValue", sanitizeAttributeValue(memory.getAttributeValue())));
         } catch (Exception e) {
-            log.debug("长记忆序列化失败，使用兜底格式: {}", e.getMessage());
+            log.debug("长记忆序列化失败，使用兜底格式 errorType={}", e.getClass().getSimpleName());
             return "{\"attributeKey\":\"%s\",\"attributeValue\":\"%s\"}".formatted(
                     escapeJson(sanitizeAttributeKey(memory.getAttributeKey())),
                     escapeJson(sanitizeAttributeValue(memory.getAttributeValue())));

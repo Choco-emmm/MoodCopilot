@@ -148,13 +148,20 @@ public class ChatController {
             return List.of();
         }
         List<ApprovalChoice> decisions = new ArrayList<>();
+        java.util.Set<String> ids = new java.util.HashSet<>();
         for (Object entry : raw) {
-            if (!(entry instanceof Map<?, ?> map))
-                continue;
-            Object id = map.get("toolCallId");
-            decisions.add(new ApprovalChoice(id == null ? null : String.valueOf(id),
-                    Boolean.TRUE.equals(map.get("approved")),
-                    map.get("reason") == null ? "" : String.valueOf(map.get("reason"))));
+            if (!(entry instanceof Map<?, ?> map)
+                    || !java.util.Set.of("toolCallId", "approved", "reason", "editedValue").containsAll(map.keySet())
+                    || !(map.get("toolCallId") instanceof String id) || id.isBlank()
+                    || !(map.get("approved") instanceof Boolean approved)
+                    || (map.get("reason") != null && !(map.get("reason") instanceof String))
+                    || (map.containsKey("editedValue") && !(map.get("editedValue") instanceof String))
+                    || !ids.add(id)) {
+                return List.of();
+            }
+            decisions.add(new ApprovalChoice(id, approved,
+                    map.get("reason") == null ? "" : (String) map.get("reason"),
+                    map.get("editedValue") instanceof String edited ? edited : null));
         }
         return decisions;
     }

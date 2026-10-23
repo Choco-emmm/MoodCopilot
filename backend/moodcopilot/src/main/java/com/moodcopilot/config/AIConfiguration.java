@@ -177,12 +177,13 @@ public class AIConfiguration {
                                     byte[] bytes = new byte[dataBuffer.readableByteCount()];
                                     dataBuffer.read(bytes);
                                     org.springframework.core.io.buffer.DataBufferUtils.release(dataBuffer);
+                                    if (bytes.length == 0) return next.exchange(request);
 
                                     String bodyStr = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
 
                                     try {
                                         // 4. 面向对象的高级修改：利用 Jackson 语法树精准清洗历史消息
-                                        com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(bodyStr);
+                                        com.fasterxml.jackson.databind.JsonNode root = com.moodcopilot.ai.ModelRequestSanitizer.payload(objectMapper.readTree(bodyStr));
                                         if (root.has("messages") && root.get("messages").isArray()) {
                                             com.fasterxml.jackson.databind.node.ArrayNode messages = (com.fasterxml.jackson.databind.node.ArrayNode) root
                                                     .get("messages");
@@ -208,7 +209,7 @@ public class AIConfiguration {
                                             bodyStr = objectMapper.writeValueAsString(root);
                                         }
                                     } catch (Exception e) {
-                                        log.error("DeepSeek 拦截器解析修改 JSON 异常，执行原样降级抛出", e);
+                                        return reactor.core.publisher.Mono.error(new IllegalStateException("模型请求无法安全处理"));
                                     }
 
                                     byte[] modifiedBytes = bodyStr.getBytes(java.nio.charset.StandardCharsets.UTF_8);

@@ -6,6 +6,7 @@ import com.moodcopilot.langgraph.InMemoryCheckpointSaver;
 import org.bsc.langgraph4j.RunnableConfig;
 import org.bsc.langgraph4j.checkpoint.Checkpoint;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
@@ -20,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -41,8 +43,9 @@ class ChatAgentApprovalTest {
     private final DeepSeekClient deepSeekClient = mock(DeepSeekClient.class);
     private final ChatToolRegistry toolRegistry = mock(ChatToolRegistry.class);
     private final InMemoryCheckpointSaver checkpointSaver = new InMemoryCheckpointSaver();
+    private final ChatRunCancellation cancellation = new ChatRunCancellation(mock(StringRedisTemplate.class, RETURNS_DEEP_STUBS));
     private final ChatAgentLoop loop = new ChatAgentLoop(deepSeekClient, toolRegistry, checkpointSaver,
-            new ObjectMapper());
+            new ObjectMapper(), cancellation);
 
     private static DeepSeekStreamEvent.TextChunk text(String value) {
         return new DeepSeekStreamEvent.TextChunk(value);
@@ -119,7 +122,7 @@ class ChatAgentApprovalTest {
         // chunks() 是惰性的：不消费就根本没跑图，也就没有检查点可供恢复
         drain(loop.run(newMessages(), null, null, FLASH, ChatTurn.of(List.of()), THREAD));
         AgentLoopOutcome resumed = loop.resume(null, null, FLASH, ChatTurn.of(List.of()), THREAD,
-                ChatAgentLoop.approvalDecision(true, null));
+                ChatAgentLoop.approvalDecision(List.of(new ApprovalChoice("call-1", true, null))));
 
         assertEquals(List.of("记好了"), drain(resumed));
         assertFalse(resumed.paused());
@@ -138,7 +141,7 @@ class ChatAgentApprovalTest {
 
         drain(loop.run(newMessages(), null, null, FLASH, ChatTurn.of(List.of()), THREAD));
         AgentLoopOutcome resumed = loop.resume(null, null, FLASH, ChatTurn.of(List.of()), THREAD,
-                ChatAgentLoop.approvalDecision(false, "这条我不想记"));
+                ChatAgentLoop.approvalDecision(List.of(new ApprovalChoice("call-1", false, "这条我不想记"))));
 
         assertEquals(List.of("那就不记了"), drain(resumed));
         verify(toolRegistry, never()).execute(anyString(), any(), any());
@@ -148,6 +151,25 @@ class ChatAgentApprovalTest {
         assertEquals("call-1", toolMessage.get("tool_call_id"));
         assertTrue(String.valueOf(toolMessage.get("content")).contains("这条我不想记"),
                 "拒绝理由要原样回给模型：" + toolMessage.get("content"));
+    }
+
+    @Test
+    void aNewCallIdCannotRepeatTheSameDeclinedWrite() throws Exception {
+        toolNeedsApproval();
+        when(deepSeekClient.stream(any(), any(), any()))
+                .thenReturn(reactor.core.publisher.Flux.just(saveMemoryCall()))
+                .thenReturn(reactor.core.publisher.Flux.just(new DeepSeekStreamEvent.ToolCallReady(
+                        "call-retry", SAVE, saveMemoryCall().argumentsJson())))
+                .thenReturn(reactor.core.publisher.Flux.just(text("已取消，不保存")));
+        drain(loop.run(newMessages(), null, null, FLASH, ChatTurn.of(List.of()), THREAD));
+        var resumed = loop.resume(null, null, FLASH, ChatTurn.of(List.of()), THREAD,
+                ChatAgentLoop.approvalDecision(List.of(new ApprovalChoice("call-1", false, ""))));
+        drain(resumed);
+        assertFalse(resumed.paused());
+        verify(toolRegistry, never()).execute(anyString(), any(), any());
+        verify(toolRegistry, times(1)).approvalPreview(eq(SAVE), any(), any());
+        assertTrue(stateMessages().stream().anyMatch(m -> "call-retry".equals(m.get("tool_call_id"))
+                && String.valueOf(m.get("content")).contains("USER_DECLINED")));
     }
 
     @Test
@@ -161,7 +183,7 @@ class ChatAgentApprovalTest {
         drain(loop.run(newMessages(), null, null, FLASH, ChatTurn.of(List.of()), THREAD));
         // chunks() 惰性：不消费就根本没跑图，state 里也就看不到工具结果
         drain(loop.resume(null, null, FLASH, ChatTurn.of(List.of()), THREAD,
-                ChatAgentLoop.approvalDecision(false, "")));
+                ChatAgentLoop.approvalDecision(List.of(new ApprovalChoice("call-1", false, "")))));
 
         Map<String, Object> toolMessage = stateMessages().get(stateMessages().size() - 1);
         String content = String.valueOf(toolMessage.get("content"));
@@ -209,7 +231,9 @@ class ChatAgentApprovalTest {
         // 那就等于一次确认顺手把后面所有写入都放行了。
         toolNeedsApproval();
         when(deepSeekClient.stream(any(), any(), any()))
-                .thenReturn(reactor.core.publisher.Flux.just(saveMemoryCall()));
+                .thenReturn(reactor.core.publisher.Flux.just(saveMemoryCall()),
+                        reactor.core.publisher.Flux.just(new DeepSeekStreamEvent.ToolCallReady(
+                                "call-2", SAVE, "{\"attributeKey\":\"喜欢的食物\",\"attributeValue\":\"苹果\"}")));
         when(toolRegistry.execute(eq(SAVE), any(), any())).thenReturn(Map.of("success", true));
         when(toolRegistry.emit(eq(SAVE), any(), any())).thenReturn(List.of());
 
@@ -218,7 +242,7 @@ class ChatAgentApprovalTest {
         assertTrue(first.paused());
 
         AgentLoopOutcome afterApproval = loop.resume(null, null, FLASH, ChatTurn.of(List.of()), THREAD,
-                ChatAgentLoop.approvalDecision(true, null));
+                ChatAgentLoop.approvalDecision(List.of(new ApprovalChoice("call-1", true, null))));
         drain(afterApproval);
 
         verify(toolRegistry).execute(eq(SAVE), any(), any());
@@ -313,15 +337,25 @@ class ChatAgentApprovalTest {
     }
 
     @Test
-    void theBatchDecisionStillCoversEveryCall() throws Exception {
-        // 不带 toolCallId 的那条是通配，整批共用 —— 只有一条待批准时走的就是它
+    void bothGroupsRunOnlyWhenBothAreExplicitlyApproved() throws Exception {
         pauseWithTwoMergeGroups();
         when(deepSeekClient.stream(any(), any(), any()))
                 .thenReturn(reactor.core.publisher.Flux.just(text("都合并好了")));
 
         drain(loop.resume(null, null, FLASH, ChatTurn.of(List.of()), THREAD,
-                ChatAgentLoop.approvalDecision(true, null)));
+                ChatAgentLoop.approvalDecision(List.of(new ApprovalChoice("call-a", true, null),
+                        new ApprovalChoice("call-b", true, null)))));
 
         verify(toolRegistry, times(2)).execute(eq(MERGE), any(), any());
+    }
+
+    @Test
+    void aLegacyWildcardStateNeverAuthorizesUnmentionedCalls() throws Exception {
+        pauseWithTwoMergeGroups();
+        when(deepSeekClient.stream(any(), any(), any()))
+                .thenReturn(reactor.core.publisher.Flux.just(text("没有改动")));
+        drain(loop.resume(null, null, FLASH, ChatTurn.of(List.of()), THREAD,
+                Map.of(ChatLoopState.APPROVAL_DECISION, Map.of("decisions", List.of(Map.of("approved", true))))));
+        verify(toolRegistry, never()).execute(eq(MERGE), any(), any());
     }
 }

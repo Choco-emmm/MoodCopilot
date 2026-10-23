@@ -70,6 +70,7 @@ public class ChatToolConfiguration {
                 new CreateEventTool(lifeEventService),
                 // 写类工具排在读类之后：模型先查清楚再决定改什么
                 new SaveMemoryTool(memoryOrchestrator, memoryExtractionService),
+                new com.moodcopilot.ai.tool.impl.UpdateMemoryTool(memoryOrchestrator),
                 new DeleteMemoryTool(memoryOrchestrator),
                 new MergeMemoryTool(memoryOrchestrator, memoryExtractionService));
         return new ChatToolRegistry(objectMapper, tools);

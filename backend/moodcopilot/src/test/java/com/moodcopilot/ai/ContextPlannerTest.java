@@ -55,6 +55,8 @@ class ContextPlannerTest {
         UserProfileMemoryEntity first = memory(1L, "工作方式", "偏好独立完成");
         UserProfileMemoryEntity second = memory(2L, "工作方式", "偏好团队协作");
         when(orchestrator.current(7L)).thenReturn(List.of(first, second));
+        when(orchestrator.detail(7L, 1L)).thenReturn(first);
+        when(orchestrator.detail(7L, 2L)).thenReturn(second);
 
         String context = new ContextPlanner(orchestrator).planEnvelope(
                 7L, null, "", List.of(), List.of(), ContextPurpose.DIARY_ANALYSIS).context();
@@ -71,6 +73,7 @@ class ContextPlannerTest {
         core.setIsCore(true);
         UserProfileMemoryEntity ordinary = memory(2L, "沟通方式", "偏好委婉表达");
         when(orchestrator.current(7L)).thenReturn(List.of(core, ordinary));
+        when(orchestrator.detail(7L, 2L)).thenReturn(ordinary);
 
         String context = new ContextPlanner(orchestrator).planEnvelope(
                 7L, null, "", List.of(), List.of(), ContextPurpose.DIARY_ANALYSIS).context();
@@ -177,6 +180,39 @@ class ContextPlannerTest {
                 7L, null, "", List.of(), List.of(), ContextPurpose.CHAT);
 
         assertTrue(plan.envelope().shortTermState().isEmpty());
+    }
+
+    @Test
+    void staleProfileVectorsCannotRestoreSupersededMemoryBeforeIndexRecovery() {
+        MemoryOrchestrator orchestrator = mock(MemoryOrchestrator.class);
+        when(orchestrator.current(7L)).thenReturn(List.of());
+        UserProfileMemoryEntity old = memory(1L, "饮品偏好", "咖啡");
+        old.setStatus("superseded");
+        when(orchestrator.detail(7L, 1L)).thenReturn(old);
+        when(orchestrator.detail(7L, 2L)).thenReturn(memory(2L, "饮品偏好", "茶"));
+        var items = java.util.stream.LongStream.of(1, 2).mapToObj(id -> new ContextItem(
+                id == 1 ? "饮品偏好：咖啡" : "饮品偏好：茶", new ContextSource("FORMAL_MEMORY", Long.toString(id),
+                "user", "memory", null, null, ContextSource.TrustLevel.SUPPORTING, 7L), 1D, 30, false)).toList();
+        String context = new ContextPlanner(orchestrator).planEnvelope(
+                7L, null, "", List.of(), items, ContextPurpose.CHAT).context();
+        assertTrue(!context.contains("咖啡"));
+        assertTrue(context.contains("饮品偏好：茶"));
+        var prefixed = new ContextItem("饮品偏好：茶", new ContextSource("FORMAL_MEMORY", "profile:7:2", "user", "memory",
+                null, null, ContextSource.TrustLevel.SUPPORTING, 7L), 1D, 30, false);
+        assertTrue(new ContextPlanner(orchestrator).selectRetrievedContext(7L, List.of(prefixed)).size() == 1);
+        assertTrue(MemorySourceId.parse("profile:8:2", 7L) == null);
+    }
+
+    @Test void restrictedHistoricalStatesAndEvidenceStayOutOfNewContext() {
+        MemoryOrchestrator orchestrator = mock(MemoryOrchestrator.class);
+        var state = memory(1L, "当前状态", "联系 someone@example.com"); state.setMemoryType("short_term_state");
+        var safe = memory(2L, "饮品偏好", "喜欢茶"); safe.setIsCore(true);
+        var evidence = new com.moodcopilot.entity.UserMemoryEvidenceEntity(); evidence.setEvidenceText("someone@example.com");
+        when(orchestrator.current(7L)).thenReturn(List.of(state, safe));
+        when(orchestrator.evidence(7L, 2L)).thenReturn(List.of(evidence));
+        String context = new ContextPlanner(orchestrator).planEnvelope(7L, null, "", List.of(), List.of(), ContextPurpose.CHAT).context();
+        assertTrue(context.contains("喜欢茶"));
+        assertTrue(!context.contains("someone@example.com"));
     }
 
     private UserProfileMemoryEntity memory(Long id, String key, String value) {

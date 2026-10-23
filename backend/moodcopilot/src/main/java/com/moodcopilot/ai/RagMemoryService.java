@@ -580,6 +580,11 @@ public class RagMemoryService {
         indexUserProfile(userId, memories);
     }
 
+    @Async("aiExecutor")
+    public void indexUserProfileAsync(long userId, List<UserProfileMemoryEntity> memories, long snapshotAt) {
+        indexUserProfile(userId, memories, snapshotAt);
+    }
+
     private boolean indexUserProfileLocked(long userId, List<UserProfileMemoryEntity> memories, long snapshotAt,
                                            String lockKey, String lockToken, AtomicBoolean ownershipLost) {
         List<String> existingKeys = listProfileKeys(userId);

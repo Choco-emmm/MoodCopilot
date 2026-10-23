@@ -24,6 +24,8 @@ class MemoryCandidateMergePolicyTest {
 
     @Test
     void keepsDifferentOrOppositeValuesSeparate() {
+        assertFalse(MemoryCandidateMergePolicy.compatible("C++", "C#"));
+        assertFalse(MemoryCandidateMergePolicy.compatible("a+b", "ab"));
         assertFalse(MemoryCandidateMergePolicy.compatible("喜欢猫", "喜欢狗"));
         assertFalse(MemoryCandidateMergePolicy.compatible("喜欢咖啡", "不喜欢咖啡"));
     }

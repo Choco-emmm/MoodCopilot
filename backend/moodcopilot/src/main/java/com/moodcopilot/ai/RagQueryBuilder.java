@@ -78,7 +78,7 @@ public final class RagQueryBuilder {
 
     private static String normalize(String value) {
         if (value == null) return "";
-        return Normalizer.normalize(value, Normalizer.Form.NFKC)
+        return Normalizer.normalize(value.replace("[已隐藏敏感信息]", ""), Normalizer.Form.NFKC)
                 .replaceAll("[\\p{Cntrl}&&[^\\n]]", "")
                 .replaceAll("[ \\t\\r\\n]+", " ").trim();
     }

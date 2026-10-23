@@ -223,8 +223,8 @@ public class AiAnalysisService {
                     json = reasoningClient.generate(analysisSystemPrompt, userPrompt);
                 } else {
                     ChatClient.CallResponseSpec responseSpec = analysisChatClient.prompt()
-                            .system(analysisSystemPrompt)
-                            .user(userPrompt)
+                            .system(ModelRequestSanitizer.text(analysisSystemPrompt))
+                            .user(ModelRequestSanitizer.text(userPrompt))
                             .call();
                     ChatResponse response = responseSpec.chatResponse();
                     json = responseSpec.content();
@@ -294,9 +294,7 @@ public class AiAnalysisService {
     }
 
     private String safeErrorMessage(Throwable error) {
-        String message = error.getMessage();
-        if (message == null || message.isBlank()) return "(empty)";
-        return message.length() > 300 ? message.substring(0, 300) : message;
+        return error.getClass().getSimpleName();
     }
 
     /**
@@ -508,24 +506,28 @@ public class AiAnalysisService {
             if (key.isBlank() || attributeValue.isBlank()) {
                 continue;
             }
+            if (MemoryWritePolicy.length(key) > 64 || MemoryWritePolicy.length(attributeValue) > 500) {
+                log.warn("忽略超长主分析记忆信号，reasonCode=CONTENT_TOO_LONG");
+                continue;
+            }
             if (!MemorySafetyPolicy.isChineseAttributeKey(key)) {
-                log.warn("忽略非中文属性键的主分析记忆信号，attributeKey={}", key);
+                log.warn("忽略非中文属性键的主分析记忆信号，keyLength={}", key.length());
                 continue;
             }
             String memoryType = signalString(item.get("memoryType")).toLowerCase(java.util.Locale.ROOT);
             if (!MemorySafetyPolicy.isSupportedType(memoryType)) {
-                log.warn("忽略主分析返回的非法记忆类型，memoryType={}，attributeKey={}", memoryType, key);
+                log.warn("忽略主分析返回的非法记忆类型，keyLength={}", key.length());
                 continue;
             }
             String assertionType = signalString(item.get("assertionType"));
             String evidence = signalString(item.get("evidence"));
             if (!SensitiveDataDetector.allowedForMemory(key, attributeValue, evidence)) {
-                log.warn("忽略包含敏感数据的主分析记忆信号，attributeKey={}", key);
+                log.warn("忽略包含敏感数据的主分析记忆信号，keyLength={}", key.length());
                 continue;
             }
             Double confidence = signalDouble(item.get("confidence"));
             if (hasDateValue(item.get("confidence")) && confidence == null) {
-                log.warn("忽略置信度格式不合法的主分析记忆信号，attributeKey={}", key);
+                log.warn("忽略置信度格式不合法的主分析记忆信号，keyLength={}", key.length());
                 continue;
             }
             Boolean isCore = item.get("isCore") instanceof Boolean b ? b : Boolean.FALSE;
@@ -534,15 +536,15 @@ public class AiAnalysisService {
             if (hasDateValue(item.get("validFrom")) && validFrom == null
                     || hasDateValue(item.get("validUntil")) && validUntil == null
                     || validFrom != null && validUntil != null && validUntil.isBefore(validFrom)) {
-                log.warn("忽略日期不合法的主分析记忆信号，attributeKey={}", key);
+                log.warn("忽略日期不合法的主分析记忆信号，keyLength={}", key.length());
                 continue;
             }
             if (confidence != null && (!Double.isFinite(confidence) || confidence < 0D || confidence > 1D)) {
-                log.warn("忽略置信度不合法的主分析记忆信号，attributeKey={}", key);
+                log.warn("忽略置信度不合法的主分析记忆信号，keyLength={}", key.length());
                 continue;
             }
-            signals.add(new MemorySignal(limitSignal(key, 64), limitSignal(attributeValue, 500), memoryType,
-                    assertionType, confidence, limitSignal(evidence, 2000), validFrom, validUntil, isCore));
+            signals.add(new MemorySignal(key, attributeValue, memoryType,
+                    assertionType, confidence, evidence, validFrom, validUntil, isCore));
             if (signals.size() >= 8) {
                 break;
             }
@@ -569,13 +571,13 @@ public class AiAnalysisService {
                     : signal.assertionType().trim().toLowerCase(java.util.Locale.ROOT);
             if (!Set.of("explicit", "inferred", "negated").contains(assertion)) continue;
             if (!MemoryExtractionService.isUserEvidenceGrounded(signal.evidence(), source.toString())) {
-                log.info("跳过无法回溯到用户正文或主动歌词的主分析记忆信号，attributeKey={}", signal.attributeKey());
+                log.info("跳过无法回溯到用户正文或主动歌词的主分析记忆信号，reasonCode=INVALID_EVIDENCE");
                 continue;
             }
             String type = signal.memoryType() == null ? "" : signal.memoryType().toLowerCase(java.util.Locale.ROOT);
             if (!MemorySafetyPolicy.isSupportedType(type)) continue;
             if (MemorySafetyPolicy.isTransientScheduleFact(type, signal.attributeKey(), signal.attributeValue())) {
-                log.info("跳过短期日程记忆信号，交由重要事件流程处理，attributeKey={}", signal.attributeKey());
+                log.info("跳过短期日程记忆信号，交由重要事件流程处理，reasonCode=TRANSIENT_SCHEDULE");
                 continue;
             }
             boolean core = Boolean.TRUE.equals(signal.isCore())

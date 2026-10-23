@@ -257,17 +257,18 @@ public class ContextPlanner {
                 .map(item -> {
                     if ("FORMAL_MEMORY".equals(item.source().sourceType()) && !item.content().contains("[依据:")) {
                         try {
-                            long memoryId = Long.parseLong(item.source().sourceId());
+                            long memoryId = MemorySourceId.parse(item.source().sourceId(), userId);
                             List<UserMemoryEvidenceEntity> evidences = memoryOrchestrator.evidence(userId, memoryId);
                             if (evidences != null && !evidences.isEmpty()) {
                                 String evidenceText = evidences.stream()
+                                        .filter(this::safeEvidence).limit(3)
                                         .map(e -> limit(e.getEvidenceText(), 200) + (e.getSourceDiaryId() != null ? " (日记ID: " + e.getSourceDiaryId() + ")" : ""))
                                         .collect(java.util.stream.Collectors.joining(" | "));
                                 String newContent = item.content() + "\n[依据: " + evidenceText + "]";
                                 return new ContextItem(newContent, item.source(), item.relevanceScore(), item.priority(), item.conflict());
                             }
                         } catch (Exception e) {
-                            log.warn("无法为 RAG 命中的记忆 {} 加载依据", item.source().sourceId(), e);
+                            log.warn("无法为 RAG 记忆加载依据 memoryId={} errorType={}", item.source().sourceId(), e.getClass().getSimpleName());
                         }
                     }
                     return item;
@@ -288,6 +289,17 @@ public class ContextPlanner {
         if (source == null || source.sourceId() == null || source.sourceId().isBlank()) return false;
         String sourceType = source.sourceType().toLowerCase(java.util.Locale.ROOT);
         String authorType = source.authorType().toLowerCase(java.util.Locale.ROOT);
+        if ("formal_memory".equals(sourceType)) {
+            try {
+                Long id = MemorySourceId.parse(source.sourceId(), source.userId());
+                if (id == null) return false;
+                UserProfileMemoryEntity current = memoryOrchestrator.detail(source.userId(), id);
+                if (current == null || !source.userId().equals(current.getUserId()) || !isEligibleFormal(current)) return false;
+            } catch (Exception ignored) {
+                // A stale vector or a failed ownership lookup must never restore an old fact.
+                return false;
+            }
+        }
         return !sourceType.contains("assistant") && !authorType.contains("assistant");
     }
 
@@ -347,6 +359,7 @@ public class ContextPlanner {
     private boolean isEligibleShortTerm(UserProfileMemoryEntity memory) {
         if (memory == null || !"short_term_state".equals(memory.getMemoryType())) return false;
         if (!"active".equalsIgnoreCase(memory.getStatus())) return false;
+        if (!SensitiveDataDetector.allowedForMemory(memory.getAttributeKey(), memory.getAttributeValue(), null)) return false;
         LocalDate today = LocalDate.now(businessTimeZone);
         return (memory.getValidFrom() == null || !today.isBefore(memory.getValidFrom()))
                 && (memory.getValidUntil() == null || today.isBefore(memory.getValidUntil()));
@@ -369,12 +382,13 @@ public class ContextPlanner {
             List<UserMemoryEvidenceEntity> evidences = memoryOrchestrator.evidence(userId, memory.getId());
             if (evidences != null && !evidences.isEmpty()) {
                 String evidenceText = evidences.stream()
+                        .filter(this::safeEvidence).limit(3)
                         .map(e -> limit(e.getEvidenceText(), 200) + (e.getSourceDiaryId() != null ? " (日记ID: " + e.getSourceDiaryId() + ")" : ""))
                         .collect(java.util.stream.Collectors.joining(" | "));
                 content += "\n[依据: " + evidenceText + "]";
             }
         } catch (Exception e) {
-            log.warn("无法为记忆{} 加载依据", memory.getId(), e);
+            log.warn("无法为记忆加载依据 memoryId={} errorType={}", memory.getId(), e.getClass().getSimpleName());
         }
         LocalDateTime updated = updatedAt(memory);
         Instant eventTime = updated == null ? null : updated.atZone(businessTimeZone).toInstant();
@@ -384,6 +398,12 @@ public class ContextPlanner {
                 eventTime, null, ContextSource.TrustLevel.AUTHORITATIVE, userId),
                 memory.getConfidence() == null ? 0.5D : memory.getConfidence(),
                 core ? 50 : ("short_term_state".equalsIgnoreCase(memory.getMemoryType()) ? 30 : 35), false);
+    }
+
+    private boolean safeEvidence(UserMemoryEvidenceEntity evidence) {
+        return evidence != null && evidence.getEvidenceText() != null
+                && !MemoryWritePolicy.containsPlaceholder(evidence.getEvidenceText())
+                && SensitiveDataDetector.allowedForMemory(null, null, evidence.getEvidenceText());
     }
 
     private String extractEventContext(String value) {

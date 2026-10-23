@@ -17,8 +17,6 @@ import java.util.Map;
 
 public class MemoryQueryTool extends ChatTool<MemoryQueryRequest> {
 
-    private static final String PROFILE_PREFIX = "用户长期画像 - ";
-
     private final MemoryExtractionService memoryExtractionService;
     private final RagMemoryService ragMemoryService;
 
@@ -62,7 +60,7 @@ public class MemoryQueryTool extends ChatTool<MemoryQueryRequest> {
         String keyword = request.keyword() != null ? request.keyword().trim() : "";
 
         List<MemoryQueryResult.MemoryItem> items = keyword.isBlank()
-                ? listRecentMemories(limit)
+                ? listRecentMemories(userId, limit)
                 : searchMemories(userId, keyword, limit);
 
         return new MemoryQueryResult(items.size(), items,
@@ -71,35 +69,21 @@ public class MemoryQueryTool extends ChatTool<MemoryQueryRequest> {
 
     private List<MemoryQueryResult.MemoryItem> searchMemories(long userId, String keyword, int limit) {
         List<MemoryQueryResult.MemoryItem> items = new ArrayList<>();
+        var current = listRecentMemories(userId, Integer.MAX_VALUE).stream().filter(item -> item.id() != null)
+                .collect(java.util.stream.Collectors.toMap(MemoryQueryResult.MemoryItem::id, item -> item, (first, second) -> first));
+        var seen = new java.util.HashSet<Long>();
         for (var hit : ragMemoryService.search(userId, keyword, limit, RagMemoryService.SOURCE_PROFILE)) {
-            if (hit.content() == null) {
-                continue;
-            }
-            String content = hit.content();
-            String key = "画像片段";
-            String value = content;
-            if (content.startsWith(PROFILE_PREFIX)) {
-                content = content.substring(PROFILE_PREFIX.length());
-                String[] parts = content.split(":", 2);
-                if (parts.length == 2) {
-                    key = parts[0].trim();
-                    value = parts[1].trim();
-                }
-            }
-            Long id = null;
-            if (hit.sourceId() != null && hit.sourceId().startsWith("profile:")) {
-                try {
-                    id = Long.parseLong(hit.sourceId().substring(8));
-                } catch (Exception e) {}
-            }
-            items.add(new MemoryQueryResult.MemoryItem(id, key, value, null));
+            Long id = com.moodcopilot.ai.MemorySourceId.parse(hit.sourceId(), userId);
+            // Vector text is only a retrieval hint. The owned active database row is authoritative.
+            if (id != null && seen.add(id) && current.containsKey(id)) items.add(current.get(id));
         }
         return items;
     }
 
-    private List<MemoryQueryResult.MemoryItem> listRecentMemories(int limit) {
+    private List<MemoryQueryResult.MemoryItem> listRecentMemories(long userId, int limit) {
         return memoryExtractionService.listCurrentUserMemories().stream()
-                .filter(m -> m != null && SensitiveDataDetector.allowedForMemory(
+                .filter(m -> m != null && Long.valueOf(userId).equals(m.getUserId()) && "active".equals(m.getStatus())
+                        && SensitiveDataDetector.allowedForMemory(
                         m.getAttributeKey(), m.getAttributeValue(), null))
                 .sorted(Comparator.comparing(
                         m -> m.getUpdateTime(),

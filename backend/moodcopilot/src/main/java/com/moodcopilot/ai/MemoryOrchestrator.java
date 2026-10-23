@@ -37,6 +37,7 @@ import java.util.Set;
 import java.util.LinkedHashSet;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
 
 @Service
 public class MemoryOrchestrator {
@@ -55,8 +56,6 @@ public class MemoryOrchestrator {
     private static final String PENDING = "PENDING";
     private static final String APPROVED = "APPROVED";
     private static final String MERGED = "MERGED";
-    private static final String[] MEMORY_TYPES = { "preference", "relationship", "habit", "event", "short_term_state",
-            "pattern" };
     private static final String[] SOURCE_TYPES = { "explicit", "diary_inferred", "chat_candidate", "system" };
 
     private final UserProfileMemoryMapper memoryMapper;
@@ -69,6 +68,10 @@ public class MemoryOrchestrator {
     private final DiaryMapper diaryMapper;
     private final ZoneId businessTimeZone;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    private com.moodcopilot.mapper.MemoryChangeCommandMapper commandMapper;
+
+    @Autowired
+    void setCommandMapper(com.moodcopilot.mapper.MemoryChangeCommandMapper mapper) { this.commandMapper = mapper; }
 
     @Autowired
     public MemoryOrchestrator(UserProfileMemoryMapper memoryMapper,
@@ -122,26 +125,31 @@ public class MemoryOrchestrator {
         if (userId == null || attributes == null || attributes.isEmpty())
             return;
         String safeSource = normalizeSource(sourceType);
+        memoryMapper.lockOwner(userId);
         LocalDate date = evidenceDate == null ? businessDate() : evidenceDate;
         for (MemoryExtractionService.MemoryAttribute attr : attributes) {
             if (attr == null)
                 continue;
-            String key = clean(attr.attributeKey(), 64);
-            String value = clean(attr.attributeValue(), 500);
-            if (key.isBlank() || value.isBlank())
+            String key = MemoryWritePolicy.text(attr.attributeKey());
+            String value = MemoryWritePolicy.text(attr.attributeValue());
+            UserProfileMemoryEntity current = activeForKey(userId, key);
+            String violation = MemoryWritePolicy.violation(key, value, attr.memoryType(), current);
+            if (violation != null) {
+                log.warn("记忆信号未通过写入校验 userId={} reasonCode={}", userId, violation);
                 continue;
+            }
             if (!SensitiveDataDetector.allowedForMemory(key, value, attr.evidence())) {
-                log.warn("记忆编排最终拦截敏感数据，userId={}，attributeKey={}", userId, key);
+                log.warn("记忆信号未通过写入校验 userId={} reasonCode=RESTRICTED_CONTENT", userId);
                 continue;
             }
             if (!"explicit".equals(safeSource)
                     && MemorySafetyPolicy.isTechnicalKnowledgeClaim(key, value)
                     && !MemorySafetyPolicy.hasExplicitTechnicalBackground(defaultEvidence)) {
-                log.info("记忆编排跳过未经明确声明的技术背景，userId={}，attributeKey={}，sourceType={}",
-                        userId, key, safeSource);
+                log.info("记忆编排跳过未经明确声明的技术背景，userId={}，keyLength={}，sourceType={}",
+                        userId, key.length(), safeSource);
                 continue;
             }
-            String type = MemorySafetyPolicy.normalizeType(normalizeType(attr.memoryType()), attr.attributeKey(),
+            String type = MemorySafetyPolicy.normalizeType(attr.memoryType(), attr.attributeKey(),
                     attr.attributeValue());
             boolean allowCore = MemorySafetyPolicy.allowCore(type, attr.attributeKey(), attr.attributeValue());
             Boolean requestedIsCore = allowCore ? attr.isCore() : Boolean.FALSE;
@@ -149,14 +157,14 @@ public class MemoryOrchestrator {
                     : attr.assertionType().toLowerCase(Locale.ROOT);
             if (!Set.of("explicit", "inferred", "negated").contains(assertion))
                 assertion = "inferred";
-            String modelEvidence = clean(attr.evidence(), 2000);
+            String modelEvidence = MemoryWritePolicy.text(attr.evidence());
             boolean evidenceGrounded = isEvidenceGrounded(safeSource, modelEvidence, defaultEvidence);
             String evidence = modelEvidence;
             evidence = groundEvidence(safeSource, evidence, defaultEvidence);
             if (("diary_inferred".equals(safeSource) || "chat_candidate".equals(safeSource))
                     && (!evidenceGrounded || evidence.isBlank())) {
-                log.info("跳过证据无法定位到用户原文的记忆，userId={}，attributeKey={}，sourceType={}",
-                        userId, key, safeSource);
+                log.info("跳过证据无法定位到用户原文的记忆，userId={}，keyLength={}，sourceType={}",
+                        userId, key.length(), safeSource);
                 continue;
             }
             String actualSource = "explicit".equals(safeSource)
@@ -174,47 +182,35 @@ public class MemoryOrchestrator {
                 actualSource = safeSource;
             }
 
-            if ("DELETE_MARKER".equals(value)) {
-                rejectActive(userId, key, type, "MODEL_NEGATION");
+            if (!"explicit".equals(safeSource) && (isKeySealed(userId, key) || isRejected(userId, type, key, value))) {
                 continue;
             }
-            if ("negated".equals(assertion)) {
-                rejectActive(userId, key, type, "MODEL_NEGATION");
-                addRejection(userId, type, key, value, "MODEL_NEGATION");
+            if ("DELETE_MARKER".equals(value) || "negated".equals(assertion)) {
                 continue;
             }
-            if ("explicit".equals(actualSource)) {
-                UserProfileMemoryEntity memory = saveFormal(userId, key, value, type, actualSource,
+            if ("explicit".equals(actualSource) && ("explicit".equals(safeSource) || current == null)) {
+                UserProfileMemoryEntity memory = saveFormal(userId, key, value, type, safeSource,
                         sourceDiaryId, sourceConversationId, scoreConfidence(attr.confidence()), date,
-                        "explicit evidence", requestedIsCore);
-                addEvidence(userId, memory.getId(), null, actualSource, sourceDiaryId, sourceConversationId,
+                        "explicit".equals(safeSource) ? "USER_CONFIRMED" : "AUTO_NEW_STATEMENT", requestedIsCore);
+                addEvidence(userId, memory.getId(), null, safeSource, sourceDiaryId, sourceConversationId,
                         evidence, date, attr.confidence(), 1.0);
-                notifyFormalized(userId, key, value, "用户明确确认");
+                notifyFormalized(userId, key, value, "explicit".equals(safeSource) ? "用户明确确认" : "从用户原文新增记忆");
                 continue;
             }
             if (isRejected(userId, type, key, value))
                 continue;
             // 封印排在 explicit 分支之后：用户明确表达要记的，在上面那条 continue 之前就已经写完了
             if (isKeySealed(userId, key)) {
-                log.info("记忆键已被彻底删除并封印，跳过自动推导，userId={}，attributeKey={}", userId, key);
+                log.info("记忆键已被彻底删除并封印，跳过自动推导，userId={}，keyLength={}", userId, key.length());
                 continue;
             }
 
             // [FIX] 拦截重复提取：在创建/更新草稿之前，先去查一下正式记忆里有没有一样的内容
-            UserProfileMemoryEntity existingActive = memoryMapper
-                    .selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserProfileMemoryEntity>()
-                            .eq(UserProfileMemoryEntity::getUserId, userId)
-                            .eq(UserProfileMemoryEntity::getAttributeKey, key)
-                            .eq(UserProfileMemoryEntity::getStatus, "ACTIVE")
-                            .orderByDesc(UserProfileMemoryEntity::getUpdatedAt)
-                            .orderByDesc(UserProfileMemoryEntity::getId))
-                    .stream()
-                    .filter(m -> candidateValuesCompatible(m.getAttributeValue(), value))
-                    .findFirst()
-                    .orElse(null);
+            UserProfileMemoryEntity existingActive = current != null && java.util.Objects.equals(type, current.getMemoryType())
+                    && candidateValuesCompatible(current.getAttributeValue(), value) ? current : null;
 
             if (existingActive != null) {
-                log.info("发现匹配的已有正式记忆，将候选提取转为证据追加，userId={}，attributeKey={}", userId, key);
+                log.info("发现匹配的已有正式记忆，将候选提取转为证据追加，userId={}，keyLength={}", userId, key.length());
                 addEvidence(userId, existingActive.getId(), null, safeSource, sourceDiaryId, sourceConversationId,
                         evidence, date, attr.confidence(), evidenceQuality(attr));
                 touchFormalMemory(existingActive.getId(), scoreConfidence(attr.confidence()));
@@ -226,7 +222,7 @@ public class MemoryOrchestrator {
                 candidate = new UserMemoryCandidateEntity();
                 candidate.setUserId(userId);
                 candidate.setAttributeKey(key);
-                candidate.setNormalizedValue(MemoryCandidateMergePolicy.normalizeValue(value));
+                candidate.setNormalizedValue(MemoryCandidateMergePolicy.fingerprint(value));
                 candidate.setAttributeValue(value);
                 candidate.setMemoryType(type);
                 candidate.setSourceType(safeSource);
@@ -287,11 +283,16 @@ public class MemoryOrchestrator {
 
     @Transactional
     public void approveCandidate(long userId, long candidateId, String editedValue) {
+        memoryMapper.lockOwner(userId);
         UserMemoryCandidateEntity candidate = ownedCandidate(userId, candidateId);
-        if (!PENDING.equals(candidate.getStatus()))
+        if (APPROVED.equals(candidate.getStatus()))
             return;
+        if (!PENDING.equals(candidate.getStatus()))
+            throw new ResponseStatusException(CONFLICT, "这条候选记忆已经处理，请刷新后查看");
         
-        String finalValue = (editedValue != null && !editedValue.isBlank()) ? editedValue.trim() : candidate.getAttributeValue();
+        String finalValue = MemoryWritePolicy.text(editedValue != null ? editedValue : candidate.getAttributeValue());
+        MemoryWritePolicy.require(candidate.getAttributeKey(), finalValue, candidate.getMemoryType(),
+                activeForKey(userId, candidate.getAttributeKey()));
 
         UserProfileMemoryEntity memory = saveFormal(userId, candidate.getAttributeKey(), finalValue,
                 candidate.getMemoryType(), "explicit", candidate.getSourceDiaryId(),
@@ -314,12 +315,21 @@ public class MemoryOrchestrator {
 
     @Transactional
     public void rejectCandidate(long userId, long candidateId, String reason) {
+        memoryMapper.lockOwner(userId);
         UserMemoryCandidateEntity candidate = ownedCandidate(userId, candidateId);
-        candidate.setStatus("REJECTED");
-        candidateMapper.updateById(candidate);
-        String finalReason = (reason != null && !reason.isBlank()) ? reason.trim() : "USER_REJECTED";
+        if ("REJECTED".equals(candidate.getStatus())) return;
+        if (!PENDING.equals(candidate.getStatus()))
+            throw new ResponseStatusException(CONFLICT, "这条候选记忆已经处理，请刷新后查看");
+        int changed = candidateMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserMemoryCandidateEntity>()
+                        .eq(UserMemoryCandidateEntity::getUserId, userId)
+                        .eq(UserMemoryCandidateEntity::getId, candidateId)
+                        .eq(UserMemoryCandidateEntity::getStatus, PENDING)
+                        .set(UserMemoryCandidateEntity::getStatus, "REJECTED"));
+        if (changed != 1)
+            throw new ResponseStatusException(CONFLICT, "这条候选记忆已经处理，请刷新后查看");
         addRejection(userId, candidate.getMemoryType(), candidate.getAttributeKey(), candidate.getAttributeValue(),
-                finalReason);
+                "USER_REJECTED");
                 
         if (reason != null && !reason.isBlank() && eventPublisher != null) {
             String originalText = candidate.getAttributeValue();
@@ -340,6 +350,7 @@ public class MemoryOrchestrator {
      */
     @Transactional
     public int purgeMemory(long userId, long memoryId) {
+        memoryMapper.lockOwner(userId);
         UserProfileMemoryEntity memory = ownedFormal(userId, memoryId);
         return purgeByKey(userId, memory.getAttributeKey());
     }
@@ -357,6 +368,11 @@ public class MemoryOrchestrator {
      */
     @Transactional
     public int purgeByKey(long userId, String attributeKey) {
+        return purgeByKey(userId, attributeKey, true);
+    }
+
+    private int purgeByKey(long userId, String attributeKey, boolean updateIndex) {
+        memoryMapper.lockOwner(userId);
         String key = clean(attributeKey, 64);
         if (key.isBlank())
             return 0;
@@ -365,21 +381,36 @@ public class MemoryOrchestrator {
                 .eq(UserProfileMemoryEntity::getAttributeKey, key));
         if (rows.isEmpty())
             return 0;
+        if (commandMapper != null) {
+            var tombstone = new com.moodcopilot.entity.MemoryChangeCommandEntity();
+            tombstone.setStatus("REJECTED"); tombstone.setReasonCode("TARGET_PURGED"); tombstone.setIndexPending(false);
+            commandMapper.update(tombstone, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<com.moodcopilot.entity.MemoryChangeCommandEntity>()
+                    .eq(com.moodcopilot.entity.MemoryChangeCommandEntity::getUserId, userId)
+                    .eq(com.moodcopilot.entity.MemoryChangeCommandEntity::getAttributeKey, key)
+                    .set(com.moodcopilot.entity.MemoryChangeCommandEntity::getAttributeKey, null)
+                    .set(com.moodcopilot.entity.MemoryChangeCommandEntity::getTargetMemoryId, null)
+                    .set(com.moodcopilot.entity.MemoryChangeCommandEntity::getResultMemoryId, null)
+                    .set(com.moodcopilot.entity.MemoryChangeCommandEntity::getExpectedValueHash, null)
+                    .set(com.moodcopilot.entity.MemoryChangeCommandEntity::getProposedValueHash, null)
+                    .set(com.moodcopilot.entity.MemoryChangeCommandEntity::getApprovedValueHash, null));
+        }
         String memoryType = rows.get(0).getMemoryType();
         // 外键不会挡：evidence 是 ON DELETE CASCADE，previous_memory_id 是 ON DELETE SET NULL
         memoryMapper.delete(new LambdaQueryWrapper<UserProfileMemoryEntity>()
                 .eq(UserProfileMemoryEntity::getUserId, userId)
                 .eq(UserProfileMemoryEntity::getAttributeKey, key));
         sealKey(userId, key, memoryType);
-        reindex(userId);
-        log.info("按 key 彻底清除长期记忆，userId={}，attributeKey={}，清除行数={}", userId, key, rows.size());
+        if (updateIndex) reindex(userId);
+        log.info("彻底清除长期记忆，userId={}，keyLength={}，清除行数={}", userId, key.length(), rows.size());
         return rows.size();
     }
 
     @Transactional
     public void updateFormal(long userId, long memoryId, String newValue, Boolean isCore) {
+        memoryMapper.lockOwner(userId);
         UserProfileMemoryEntity old = ownedFormal(userId, memoryId);
-        String value = clean(newValue == null ? old.getAttributeValue() : newValue, 500);
+        String value = MemoryWritePolicy.text(newValue == null ? old.getAttributeValue() : newValue);
+        MemoryWritePolicy.require(old.getAttributeKey(), value, old.getMemoryType(), old);
         if (value.isBlank())
             throw new ResponseStatusException(BAD_REQUEST, "记忆内容不能为空");
         if (isCore == null)
@@ -395,6 +426,137 @@ public class MemoryOrchestrator {
         addEvidence(userId, next.getId(), null, "USER_ACTION", null, null,
                 "用户编辑长期记忆", businessDate(), 1.0, 1.0);
         reindex(userId);
+    }
+
+    @Transactional
+    public MemoryWriteResult createConfirmed(long userId, String key, String value, String type,
+            String quote, String source, Long conversationId) {
+        memoryMapper.lockOwner(userId);
+        key = MemoryWritePolicy.text(key);
+        value = MemoryWritePolicy.text(value);
+        String violation = MemoryWritePolicy.violation(key, value, type, null);
+        if (violation != null) return MemoryWriteResult.rejected(violation);
+        if (!MemoryWritePolicy.evidence(quote, source)) return MemoryWriteResult.rejected("INVALID_EVIDENCE");
+        if (activeForKey(userId, key) != null) return MemoryWriteResult.rejected("TARGET_EXISTS");
+        UserProfileMemoryEntity saved = saveFormal(userId, key, value, type, "explicit", null,
+                conversationId, 1D, businessDate(), "USER_CONFIRMED_CHAT", false);
+        addEvidence(userId, saved.getId(), null, "explicit", null, conversationId,
+                MemoryWritePolicy.text(quote), businessDate(), 1D, 1D);
+        reindex(userId);
+        return MemoryWriteResult.applied(saved.getId());
+    }
+
+    @Transactional
+    public Map<String, Object> prepareUpdate(long userId, String runId, String callId, long memoryId,
+            String expectedValue, String newValue, String quote, String source) {
+        requireCommandIdentity(runId, callId);
+        memoryMapper.lockOwner(userId);
+        UserProfileMemoryEntity old = ownedFormal(userId, memoryId);
+        if (!isEffective(old) || !MemoryWritePolicy.text(old.getAttributeValue()).equals(MemoryWritePolicy.text(expectedValue)))
+            throw new ResponseStatusException(BAD_REQUEST, "记忆已变化，请重新提出修改");
+        MemoryWritePolicy.require(old.getAttributeKey(), MemoryWritePolicy.text(newValue), old.getMemoryType(), old);
+        if (!MemoryWritePolicy.evidence(quote, source)) throw new ResponseStatusException(BAD_REQUEST, "缺少有效的用户原文依据");
+        var command = command(userId, runId, callId);
+        if (command == null) {
+            command = new com.moodcopilot.entity.MemoryChangeCommandEntity();
+            command.setUserId(userId); command.setRunId(runId); command.setToolCallId(callId);
+            command.setAttributeKey(old.getAttributeKey()); command.setTargetMemoryId(memoryId);
+            command.setExpectedValueHash(MemoryWritePolicy.hash(old.getAttributeValue()));
+            command.setProposedValueHash(MemoryWritePolicy.hash(newValue));
+            command.setStatus("PREPARED"); command.setIndexPending(false);
+            commandMapper.insert(command);
+        } else if (!"PREPARED".equals(command.getStatus()) || !java.util.Objects.equals(memoryId, command.getTargetMemoryId())
+                || !MemoryWritePolicy.hash(newValue).equals(command.getProposedValueHash())
+                || !MemoryWritePolicy.hash(expectedValue).equals(command.getExpectedValueHash())) {
+            throw new ResponseStatusException(BAD_REQUEST, "此修改建议已经处理或内容发生变化");
+        }
+        return Map.of("attributeKey", old.getAttributeKey(), "oldValue", old.getAttributeValue(), "newValue", newValue,
+                "memoryId", memoryId, "kind", "updated", "editableNewValue", true, "canApprove", true, "evidence", quote);
+    }
+
+    /** Called before consuming the run's approval state; a bad edit leaves the dialog retryable. */
+    public void validateUpdateDecision(long userId, String runId, String callId, String editedValue) {
+        var command = command(userId, runId, callId);
+        if (command == null || !"PREPARED".equals(command.getStatus()))
+            throw new ResponseStatusException(BAD_REQUEST, "修改预览不可用，请重新提出修改");
+        if (editedValue != null) {
+            UserProfileMemoryEntity old = memoryMapper.selectById(command.getTargetMemoryId());
+            if (old == null || !Long.valueOf(userId).equals(old.getUserId()))
+                throw new ResponseStatusException(BAD_REQUEST, "记忆记录不可用");
+            MemoryWritePolicy.require(old.getAttributeKey(), MemoryWritePolicy.text(editedValue), old.getMemoryType(), old);
+        }
+    }
+
+    @Transactional
+    public void rejectUpdate(long userId, String runId, String callId, String reasonCode) {
+        requireCommandIdentity(runId, callId);
+        memoryMapper.lockOwner(userId);
+        var command = command(userId, runId, callId);
+        if (command == null || !"PREPARED".equals(command.getStatus())) return;
+        command.setStatus("REJECTED");
+        command.setReasonCode(Set.of("USER_DECLINED", "NO_DECISION", "APPROVAL_UNAVAILABLE").contains(reasonCode)
+                ? reasonCode : "NO_DECISION");
+        commandMapper.updateById(command);
+    }
+
+    @Transactional
+    public MemoryWriteResult applyUpdate(long userId, String runId, String callId, long memoryId, String newValue,
+            Long conversationId) {
+        requireCommandIdentity(runId, callId);
+        memoryMapper.lockOwner(userId);
+        var command = command(userId, runId, callId);
+        if (command == null) return MemoryWriteResult.rejected("PREVIEW_UNAVAILABLE");
+        String value = MemoryWritePolicy.text(newValue);
+        String approvedHash = MemoryWritePolicy.hash(value);
+        if (!"PREPARED".equals(command.getStatus())) {
+            if (!approvedHash.equals(command.getApprovedValueHash())) return MemoryWriteResult.rejected("CALL_CONTENT_CHANGED");
+            return commandResult(command);
+        }
+        UserProfileMemoryEntity old = memoryMapper.selectById(memoryId);
+        MemoryWriteResult result;
+        if (!java.util.Objects.equals(memoryId, command.getTargetMemoryId()) || old == null
+                || !Long.valueOf(userId).equals(old.getUserId()) || !isEffective(old)
+                || !MemoryWritePolicy.hash(old.getAttributeValue()).equals(command.getExpectedValueHash())) {
+            result = MemoryWriteResult.stale();
+        } else {
+            MemoryWritePolicy.require(old.getAttributeKey(), value, old.getMemoryType(), old);
+            if (value.equals(MemoryWritePolicy.text(old.getAttributeValue()))) result = MemoryWriteResult.unchanged(old.getId());
+            else {
+                var next = saveFormal(userId, old.getAttributeKey(), value, old.getMemoryType(), "explicit", null,
+                        conversationId, 1D, businessDate(), "USER_CONFIRMED_CHAT_EDIT", old.getIsCore());
+                addEvidence(userId, next.getId(), null, "USER_ACTION", null, conversationId,
+                        "用户在聊天中确认修改记忆", businessDate(), 1D, 1D);
+                result = MemoryWriteResult.applied(next.getId());
+            }
+        }
+        command.setApprovedValueHash(approvedHash); command.setStatus(result.status()); command.setReasonCode(result.reasonCode());
+        command.setResultMemoryId(result.memoryId()); command.setIndexPending(result.executed());
+        commandMapper.updateById(command);
+        if (result.executed()) reindex(userId);
+        return result;
+    }
+
+    private com.moodcopilot.entity.MemoryChangeCommandEntity command(long userId, String runId, String callId) {
+        if (commandMapper == null) throw new IllegalStateException("记忆修改回执存储未配置");
+        return commandMapper.selectOne(new LambdaQueryWrapper<com.moodcopilot.entity.MemoryChangeCommandEntity>()
+                .eq(com.moodcopilot.entity.MemoryChangeCommandEntity::getUserId, userId)
+                .eq(com.moodcopilot.entity.MemoryChangeCommandEntity::getRunId, runId)
+                .eq(com.moodcopilot.entity.MemoryChangeCommandEntity::getToolCallId, callId).last("FOR UPDATE"));
+    }
+
+    private void requireCommandIdentity(String runId, String callId) {
+        if (runId == null || runId.isBlank() || runId.length() > 64 || callId == null || callId.isBlank() || callId.length() > 128)
+            throw new ResponseStatusException(BAD_REQUEST, "修改请求缺少有效的调用标识");
+    }
+
+    private MemoryWriteResult commandResult(com.moodcopilot.entity.MemoryChangeCommandEntity command) {
+        return new MemoryWriteResult(command.getStatus(), command.getReasonCode(), command.getResultMemoryId(),
+                "APPLIED".equals(command.getStatus()), Set.of("APPLIED", "UNCHANGED").contains(command.getStatus()));
+    }
+
+    private boolean isEffective(UserProfileMemoryEntity memory) {
+        return ACTIVE.equalsIgnoreCase(memory.getStatus()) && (memory.getValidUntil() == null || !memory.getValidUntil().isBefore(businessDate()))
+                && (memory.getValidFrom() == null || !memory.getValidFrom().isAfter(businessDate())) && !isShortTermExpired(memory);
     }
 
     public List<UserMemoryCandidateEntity> listCandidates(long userId, String status) {
@@ -480,74 +642,66 @@ public class MemoryOrchestrator {
 
     @Transactional
     public void replaceWithUserAction(long userId, List<MemoryExtractionService.MemoryAttribute> attributes) {
+        memoryMapper.lockOwner(userId);
+        if (attributes == null) throw new ResponseStatusException(BAD_REQUEST, "缺少确认后的记忆列表");
+        for (var attribute : attributes) MemoryWritePolicy.require(attribute.attributeKey(), attribute.attributeValue(),
+                attribute.memoryType(), activeForKey(userId, attribute.attributeKey()));
         List<UserProfileMemoryEntity> existing = current(userId);
+        Set<String> retainedKeys = new LinkedHashSet<>();
+        for (var attribute : attributes) {
+            if (!retainedKeys.add(attribute.attributeKey()))
+                throw new ResponseStatusException(BAD_REQUEST, "同一属性存在多个修改，请逐条确认");
+        }
+        for (var attribute : attributes) {
+            var saved = saveFormal(userId, attribute.attributeKey(), attribute.attributeValue(), attribute.memoryType(),
+                    "explicit", null, null, 1D, businessDate(), "USER_CONFIRMED_REPLACEMENT", attribute.isCore());
+            addEvidence(userId, saved.getId(), null, "USER_ACTION", null, null, "用户确认重写记忆", businessDate(), 1D, 1D);
+        }
         for (UserProfileMemoryEntity old : existing) {
+            if (retainedKeys.contains(old.getAttributeKey())) continue;
             old.setStatus("superseded");
-            old.setValidUntil(LocalDate.now());
-            old.setSupersededAt(LocalDateTime.now());
+            old.setValidUntil(businessDate());
+            old.setSupersededAt(businessNow());
             old.setSupersededReason("USER_CONSOLIDATED");
             memoryMapper.updateById(old);
         }
-        processExtractedMemories(userId, attributes, "explicit", null, null, "用户确认重写", businessDate());
+        reindex(userId);
     }
 
 
     @Transactional
     public UserProfileMemoryEntity mergeMemoriesByIds(long userId, List<Long> sourceIds, String targetKey, String targetValue,
                                                  String memoryType, Boolean isCore, String evidence, Long conversationId) {
-        String cleanTargetKey = clean(targetKey, 64);
-        String cleanTargetValue = clean(targetValue, 500);
+        memoryMapper.lockOwner(userId);
+        String cleanTargetKey = MemoryWritePolicy.text(targetKey);
+        String cleanTargetValue = MemoryWritePolicy.text(targetValue);
+        MemoryWritePolicy.require(cleanTargetKey, cleanTargetValue, memoryType, activeForKey(userId, cleanTargetKey));
+        if (!SensitiveDataDetector.allowedForMemory(null, null, evidence))
+            throw new ResponseStatusException(BAD_REQUEST, "合并依据触发受限资料规则");
 
-        List<UserProfileMemoryEntity> existingTarget = memoryMapper.selectList(new LambdaQueryWrapper<UserProfileMemoryEntity>()
-                .eq(UserProfileMemoryEntity::getUserId, userId)
-                .eq(UserProfileMemoryEntity::getAttributeKey, cleanTargetKey)
-                .eq(UserProfileMemoryEntity::getStatus, ACTIVE));
-
-        List<Long> allSourceIds = new ArrayList<>();
-        if (sourceIds != null) {
-            allSourceIds.addAll(sourceIds);
-        }
-        for (UserProfileMemoryEntity ext : existingTarget) {
-            if (!allSourceIds.contains(ext.getId())) {
-                allSourceIds.add(ext.getId());
-            }
-        }
-
-        if (!allSourceIds.isEmpty()) {
-            List<UserProfileMemoryEntity> sources = memoryMapper.selectList(new LambdaQueryWrapper<UserProfileMemoryEntity>()
+        List<UserProfileMemoryEntity> sources = sourceIds == null || sourceIds.isEmpty() ? List.of()
+                : memoryMapper.selectList(new LambdaQueryWrapper<UserProfileMemoryEntity>()
                     .eq(UserProfileMemoryEntity::getUserId, userId)
-                    .in(UserProfileMemoryEntity::getId, allSourceIds)
+                    .in(UserProfileMemoryEntity::getId, sourceIds)
                     .eq(UserProfileMemoryEntity::getStatus, ACTIVE));
+        if (sourceIds != null && sources.stream().map(UserProfileMemoryEntity::getId).distinct().count()
+                != sourceIds.stream().distinct().count())
+            throw new ResponseStatusException(BAD_REQUEST, "合并来源已变化或不可访问");
+        UserProfileMemoryEntity target = saveFormal(userId, cleanTargetKey, cleanTargetValue, memoryType,
+                "explicit", null, conversationId, 1D, businessDate(), "USER_CONSOLIDATED", isCore);
 
-            for (UserProfileMemoryEntity source : sources) {
-                source.setStatus("superseded");
-                source.setValidUntil(businessDate());
-                source.setSupersededAt(businessNow());
-                source.setSupersededReason("USER_CONSOLIDATED");
-                memoryMapper.updateById(source);
-            }
-        }
-
-        UserProfileMemoryEntity target = new UserProfileMemoryEntity();
-        target.setUserId(userId);
-        target.setMemoryType(memoryType == null ? "other" : memoryType);
-        target.setAttributeKey(cleanTargetKey);
-        target.setAttributeValue(cleanTargetValue);
-        target.setStatus(ACTIVE);
-        target.setValidFrom(businessDate());
-        target.setConfidence(1.0);
-        target.setIsCore(isCore != null ? isCore : false);
-        memoryMapper.insert(target);
-
-        addEvidence(userId, target.getId(), null, "USER_ACTION", conversationId, null,
+        addEvidence(userId, target.getId(), null, "USER_ACTION", null, conversationId,
                 evidence == null ? "确认合并" : evidence, businessDate(), 1.0, 1.0);
 
-        if (!allSourceIds.isEmpty()) {
+        if (!sources.isEmpty()) {
             evidenceMapper.update(null,
                     new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserMemoryEvidenceEntity>()
                             .eq(UserMemoryEvidenceEntity::getUserId, userId)
-                            .in(UserMemoryEvidenceEntity::getMemoryId, allSourceIds)
+                            .in(UserMemoryEvidenceEntity::getMemoryId, sources.stream().map(UserProfileMemoryEntity::getId).toList())
                             .set(UserMemoryEvidenceEntity::getMemoryId, target.getId()));
+            // Target history is an edit; other source attributes are explicitly deleted.
+            for (String sourceKey : sources.stream().map(UserProfileMemoryEntity::getAttributeKey).distinct().toList())
+                if (!cleanTargetKey.equals(sourceKey)) purgeByKey(userId, sourceKey, false);
         }
         reindex(userId);
         return target;
@@ -560,6 +714,9 @@ public class MemoryOrchestrator {
     public int applyConsolidation(long userId, List<MemoryConsolidationService.ConsolidationItem> items) {
         if (items == null || items.isEmpty())
             return 0;
+        memoryMapper.lockOwner(userId);
+        for (var item : items) if (item != null && !"EXPIRE".equalsIgnoreCase(item.operation()))
+            MemoryWritePolicy.require(item.attributeKey(), item.attributeValue(), item.memoryType(), activeForKey(userId, item.attributeKey()));
         int changed = 0;
         for (MemoryConsolidationService.ConsolidationItem item : items) {
             if (item == null || item.sourceMemoryIds() == null || item.sourceMemoryIds().isEmpty())
@@ -841,6 +998,12 @@ public class MemoryOrchestrator {
     private void maybePromote(UserMemoryCandidateEntity candidate) {
         if (candidate == null || !PENDING.equals(candidate.getStatus()))
             return;
+        if (MemoryWritePolicy.violation(candidate.getAttributeKey(), candidate.getAttributeValue(), candidate.getMemoryType(), null) != null)
+            return;
+        if (activeForKey(candidate.getUserId(), candidate.getAttributeKey()) != null
+                || isKeySealed(candidate.getUserId(), candidate.getAttributeKey())
+                || isRejected(candidate.getUserId(), candidate.getMemoryType(), candidate.getAttributeKey(), candidate.getAttributeValue()))
+            return;
 
         // A historical APPROVED candidate may have the same normalized value. In that
         // case
@@ -1071,10 +1234,16 @@ public class MemoryOrchestrator {
     private UserProfileMemoryEntity saveFormal(Long userId, String key, String value, String type, String source,
             Long diaryId, Long conversationId, double confidence, LocalDate validFrom,
             String reason, Boolean requestedIsCore) {
+        memoryMapper.lockOwner(userId);
         LocalDateTime now = businessNow();
         UserProfileMemoryEntity old = memoryMapper.selectOne(new LambdaQueryWrapper<UserProfileMemoryEntity>()
                 .eq(UserProfileMemoryEntity::getUserId, userId).eq(UserProfileMemoryEntity::getAttributeKey, key)
                 .eq(UserProfileMemoryEntity::getStatus, ACTIVE).last("LIMIT 1"));
+        if (old != null) {
+            type = old.getMemoryType();
+            requestedIsCore = old.getIsCore();
+        }
+        MemoryWritePolicy.require(key, value, type, old);
         if (old != null && old.getValidUntil() != null && old.getValidUntil().isBefore(businessDate())) {
             old.setStatus("expired");
             old.setSupersededAt(now);
@@ -1196,7 +1365,7 @@ public class MemoryOrchestrator {
                 .eq(UserMemoryRejectionEntity::getUserId, userId)
                 .eq(UserMemoryRejectionEntity::getNormalizedKey, normalize(key))
                 .eq(UserMemoryRejectionEntity::getMemoryType, type)
-                .eq(UserMemoryRejectionEntity::getNormalizedValue, normalize(value))
+                .in(UserMemoryRejectionEntity::getNormalizedValue, normalize(value), MemoryCandidateMergePolicy.fingerprint(value))
                 .gt(UserMemoryRejectionEntity::getExpiresAt, businessNow())) > 0;
     }
 
@@ -1220,7 +1389,7 @@ public class MemoryOrchestrator {
         rejection.setUserId(userId);
         rejection.setMemoryType(type);
         rejection.setNormalizedKey(normalize(key));
-        rejection.setNormalizedValue(normalize(value));
+        rejection.setNormalizedValue(MemoryCandidateMergePolicy.fingerprint(value));
         rejection.setRejectionType(reason);
         rejection.setCreatedAt(businessNow());
         rejection.setExpiresAt(businessNow().plusDays(REJECTION_DAYS));
@@ -1386,7 +1555,33 @@ public class MemoryOrchestrator {
     }
 
     private void reindex(long userId) {
-        ragMemoryService.indexUserProfileAsync(userId, current(userId));
+        var snapshot = current(userId);
+        long snapshotAt = System.currentTimeMillis();
+        Runnable index = () -> {
+            try { ragMemoryService.indexUserProfileAsync(userId, snapshot, snapshotAt); }
+            catch (Exception e) { log.warn("记忆已保存，索引等待重试 userId={} errorType={}", userId, e.getClass().getSimpleName()); }
+        };
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) index.run();
+        else TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { index.run(); }
+        });
+    }
+
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelayString = "${moodcopilot.memory-index.retry-delay-ms:30000}")
+    public void retryPendingChangeIndexes() {
+        if (commandMapper == null) return;
+        var pending = commandMapper.selectList(new LambdaQueryWrapper<com.moodcopilot.entity.MemoryChangeCommandEntity>()
+                .eq(com.moodcopilot.entity.MemoryChangeCommandEntity::getIndexPending, true).last("LIMIT 50"));
+        for (Long userId : pending.stream().map(com.moodcopilot.entity.MemoryChangeCommandEntity::getUserId).distinct().toList()) {
+            try {
+                long snapshotAt = System.currentTimeMillis();
+                ragMemoryService.indexUserProfile(userId, current(userId), snapshotAt);
+                var ids = pending.stream().filter(command -> userId.equals(command.getUserId())).map(com.moodcopilot.entity.MemoryChangeCommandEntity::getId).toList();
+                commandMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<com.moodcopilot.entity.MemoryChangeCommandEntity>()
+                        .in(com.moodcopilot.entity.MemoryChangeCommandEntity::getId, ids)
+                        .set(com.moodcopilot.entity.MemoryChangeCommandEntity::getIndexPending, false));
+            } catch (Exception e) { log.warn("记忆索引重试未完成 userId={} errorType={}", userId, e.getClass().getSimpleName()); }
+        }
     }
 
     private boolean verifiedExplicitEvidence(String source, String evidence, String sourceText) {
@@ -1422,9 +1617,16 @@ public class MemoryOrchestrator {
             return false;
         if (!("diary_inferred".equals(source) || "chat_candidate".equals(source)))
             return true;
-        String normalizedEvidence = normalize(evidence);
-        String normalizedSource = normalize(sourceText);
-        return !normalizedEvidence.isBlank() && normalizedSource.contains(normalizedEvidence);
+        return MemoryWritePolicy.evidence(evidence, sourceText);
+    }
+
+    public UserProfileMemoryEntity activeForKey(long userId, String key) {
+        UserProfileMemoryEntity value = memoryMapper.selectOne(new LambdaQueryWrapper<UserProfileMemoryEntity>()
+                .eq(UserProfileMemoryEntity::getUserId, userId).eq(UserProfileMemoryEntity::getAttributeKey, key)
+                .eq(UserProfileMemoryEntity::getStatus, ACTIVE).last("LIMIT 1"));
+        return value != null && (value.getValidUntil() == null || !value.getValidUntil().isBefore(businessDate()))
+                && (value.getValidFrom() == null || !value.getValidFrom().isAfter(businessDate()))
+                && !isShortTermExpired(value) ? value : null;
     }
 
     private boolean containsExplicitUserMarker(String source) {
@@ -1453,13 +1655,6 @@ public class MemoryOrchestrator {
             if (allowed.equals(value))
                 return value;
         throw new IllegalArgumentException("不支持的记忆来源类型");
-    }
-
-    private String normalizeType(String value) {
-        for (String allowed : MEMORY_TYPES)
-            if (allowed.equals(value))
-                return value;
-        throw new IllegalArgumentException("不支持的记忆类型");
     }
 
     private String normalize(String value) {
