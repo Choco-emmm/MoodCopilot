@@ -5,6 +5,8 @@ umask 077
 project_dir=${1:?Missing project directory}
 owner=${2:?Missing registry owner}
 revision=${3:?Missing revision}
+transfer_timeout=${TRANSFER_TIMEOUT_SECONDS:-4500}
+[[ "$transfer_timeout" =~ ^[0-9]{2,4}$ ]] && (( 10#$transfer_timeout >= 60 && 10#$transfer_timeout <= 7200 )) || { echo 'Invalid transfer timeout (60-7200 seconds)' >&2; exit 1; }
 [[ "$owner" =~ ^[a-z0-9][a-z0-9-]*$ && "$revision" =~ ^[a-f0-9]{40}$ ]]
 [[ "${SSH_HOST:?}" =~ ^[a-zA-Z0-9.-]+$ && "${SSH_USER:?}" =~ ^[a-zA-Z0-9_-]+$ && "${SSH_PORT:-22}" =~ ^[0-9]+$ ]]
 script_dir=$(cd "$(dirname "$0")" && pwd)
@@ -13,7 +15,7 @@ trap 'rm -rf -- "$archive_dir"' EXIT
 ssh_command=(ssh -i "${SSH_KEY_FILE:?}" -p "${SSH_PORT:-22}" -o BatchMode=yes
   -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
   -o UserKnownHostsFile="${SSH_KNOWN_HOSTS_FILE:?}" -o ConnectTimeout=20
-  -o ServerAliveInterval=15 -o ServerAliveCountMax=3 "$SSH_USER@$SSH_HOST")
+  -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o IPQoS=none "$SSH_USER@$SSH_HOST")
 timeout 45 "${ssh_command[@]}" true </dev/null
 for service in backend frontend; do
   image="ghcr.io/$owner/moodcopilot-$service:$revision"
@@ -38,7 +40,7 @@ for service in backend frontend; do
     "$script_dir/load-image-archive.sh" "$project_dir" "$image" "$revision" "${archive_hash%% *}" "$archive_size")
   echo "[transfer] upload started $(date -u +%FT%TZ), $archive_size bytes"
   python3 -u "$script_dir/stream-archive.py" "$archive_dir/image.tar.gz" |
-    timeout 900 "${ssh_command[@]}" "$remote_command"
+    timeout "$transfer_timeout" "${ssh_command[@]}" "$remote_command"
   echo "[transfer] upload/load complete $(date -u +%FT%TZ)"
   rm -- "$archive_dir/image.tar.gz"
 done

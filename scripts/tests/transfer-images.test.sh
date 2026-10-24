@@ -96,3 +96,6 @@ cat "$script_dir/check-server.sh" | bash -s -- "$fixture_dir/frontend-failure" >
 grep -qx 'Disk space:' "$fixture_dir/check-output"
 grep -qx SERVER_CHECK_COMPLETE "$fixture_dir/check-output"
 echo 'PASS server check preserves script stdin'
+export TRANSFER_TIMEOUT_SECONDS=invalid
+run_case invalid-timeout 1
+unset TRANSFER_TIMEOUT_SECONDS
