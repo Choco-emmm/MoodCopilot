@@ -118,8 +118,10 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - run: bash -n deploy.sh scripts/deploy-images.sh scripts/tests/deploy-images.test.sh
+      - run: bash -n deploy.sh scripts/deploy-images.sh scripts/check-server.sh scripts/transfer-images.sh scripts/load-image-archive.sh scripts/tests/deploy-images.test.sh scripts/tests/transfer-images.test.sh
       - run: bash scripts/tests/deploy-images.test.sh
+      - run: bash scripts/tests/transfer-images.test.sh
+      - run: bash scripts/tests/transfer-images-docker.test.sh
       - name: Validate Compose without production credentials
         run: docker compose config --quiet
 
@@ -195,7 +197,7 @@ jobs:
     name: Deploy production
     needs: images
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     environment: production
     permissions:
       contents: read
@@ -237,19 +239,14 @@ jobs:
           ssh_command=(ssh -i "$ssh_dir/key" -p "$SSH_PORT" -o BatchMode=yes \
             -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$ssh_dir/known_hosts" -o ConnectTimeout=20 \
+            -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
             "$SSH_USER@$SSH_HOST")
           if [[ "$IMAGE_TRANSPORT" == ssh ]]; then
             export DOCKER_CONFIG="$ssh_dir/registry"
             mkdir -p "$DOCKER_CONFIG"
             printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            backend_image="ghcr.io/$OWNER/moodcopilot-backend:$GITHUB_SHA"
-            frontend_image="ghcr.io/$OWNER/moodcopilot-frontend:$GITHUB_SHA"
-            docker pull "$backend_image"
-            docker pull "$frontend_image"
-            # Stream images directly: no release archive or registry credentials
-            # are persisted on the server, and running containers stay untouched.
-            docker image save "$backend_image" "$frontend_image" | gzip -1 | \
-              "${ssh_command[@]}" "bash -o pipefail -c 'gzip -d | docker image load'"
+            export SSH_KEY_FILE="$ssh_dir/key" SSH_KNOWN_HOSTS_FILE="$ssh_dir/known_hosts"
+            bash scripts/transfer-images.sh "$PROJECT_DIR" "$OWNER" "$GITHUB_SHA"
             printf -v args '%q ' "$PROJECT_DIR" "$OWNER" "$GITHUB_SHA" preloaded
             cat scripts/deploy-images.sh | "${ssh_command[@]}" "bash -s -- $args"
           elif [[ "$IMAGE_TRANSPORT" == registry ]]; then

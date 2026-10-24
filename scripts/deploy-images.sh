@@ -37,6 +37,43 @@ if [[ "$image_source" == registry && -n "${GHCR_TOKEN:-}" ]]; then
 fi
 
 compose=(docker compose --project-directory "$PWD" -f "$PWD/docker-compose.yml")
+start_pair() {
+  "${compose[@]}" -f "$1" up -d --no-deps --no-build --pull never --force-recreate \
+    --wait --wait-timeout 180 backend web || return 1
+  # Never let container exec consume the script supplied over SSH stdin.
+  "${compose[@]}" exec -T web wget -q -O /dev/null http://127.0.0.1:3000/ </dev/null || return 1
+  "${compose[@]}" exec -T web wget -q -O /dev/null http://127.0.0.1:3000/api/health </dev/null || return 1
+  if [[ -n "$("${compose[@]}" ps -q frontend)" ]]; then
+    "${compose[@]}" exec -T frontend nginx -t </dev/null || return 1
+    "${compose[@]}" exec -T frontend nginx -s reload </dev/null || return 1
+  fi
+}
+recover_pending() {
+  [[ -f .deploy/pending-images.yml ]] || return 0
+  echo 'Restoring images from an interrupted deployment.' >&2
+  if start_pair "$PWD/.deploy/pending-images.yml"; then
+    cp .deploy/pending-images.yml .deploy/current-images.yml
+    # The interrupted run may have published new metadata. Image IDs are the
+    # recovery authority; do not retain a SHA which could describe another pair.
+    rm -f -- .deploy/current-revision
+    rm -- .deploy/pending-images.yml
+  else
+    echo 'ROLLBACK FAILED: pending recovery retained; inspect backend/web.' >&2
+    return 1
+  fi
+}
+on_signal() {
+  local signal_status=$1
+  trap '' HUP INT TERM
+  recover_pending || true
+  exit "$signal_status"
+}
+trap 'on_signal 129' HUP
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+# A previous SIGKILL cannot run traps. Restore its durable snapshot before
+# capturing rollback images or attempting another application replacement.
+recover_pending
 # Require an existing installation, and capture the actual local image IDs for rollback.
 backend_id=$("${compose[@]}" ps -q backend)
 web_id=$("${compose[@]}" ps -q web)
@@ -77,27 +114,18 @@ else
   done
 fi
 
-start_pair() {
-  "${compose[@]}" -f "$1" up -d --no-deps --no-build --pull never --force-recreate \
-    --wait --wait-timeout 180 backend web || return 1
-  # Verify static content AND the nginx -> backend path, not just a running container.
-  "${compose[@]}" exec -T web wget -q -O /dev/null http://127.0.0.1:3000/ || return 1
-  "${compose[@]}" exec -T web wget -q -O /dev/null http://127.0.0.1:3000/api/health || return 1
-  # The public nginx keeps upstream addresses in memory; refresh them after recreation.
-  if [[ -n "$("${compose[@]}" ps -q frontend)" ]]; then
-    "${compose[@]}" exec -T frontend nginx -t || return 1
-    "${compose[@]}" exec -T frontend nginx -s reload || return 1
-  fi
-}
-
+# Publish the rollback snapshot atomically before the first container change.
+cp "$work_dir/previous.yml" .deploy/pending-images.tmp
+mv -- .deploy/pending-images.tmp .deploy/pending-images.yml
 if start_pair "$work_dir/next.yml"; then
   cp "$work_dir/previous.yml" .deploy/previous-images.yml
   cp "$work_dir/next.yml" .deploy/current-images.yml
   printf '%s\n' "$revision" > .deploy/current-revision
+  rm -- .deploy/pending-images.yml
   echo "Deployment healthy: $revision"
 else
   echo 'Deployment failed; restoring the previous local images.' >&2
-  if start_pair "$work_dir/previous.yml"; then
+  if recover_pending; then
     echo 'Previous services restored. Deployment remains failed.' >&2
   else
     echo 'ROLLBACK FAILED: inspect backend/web on the server immediately.' >&2
