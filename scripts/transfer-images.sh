@@ -14,7 +14,6 @@ ssh_command=(ssh -i "${SSH_KEY_FILE:?}" -p "${SSH_PORT:-22}" -o BatchMode=yes
   -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
   -o UserKnownHostsFile="${SSH_KNOWN_HOSTS_FILE:?}" -o ConnectTimeout=20
   -o ServerAliveInterval=15 -o ServerAliveCountMax=3 "$SSH_USER@$SSH_HOST")
-receiver=$(cat "$script_dir/load-image-archive.sh")
 timeout 45 "${ssh_command[@]}" true </dev/null
 for service in backend frontend; do
   image="ghcr.io/$owner/moodcopilot-$service:$revision"
@@ -33,7 +32,10 @@ for service in backend frontend; do
   rm -- "$archive_dir/image.tar"
   archive_size=$(wc -c < "$archive_dir/image.tar.gz")
   archive_hash=$(sha256sum "$archive_dir/image.tar.gz")
-  printf -v remote_command 'bash -c %q -- %q %q %q %q %q' "$receiver" "$project_dir" "$image" "$revision" "${archive_hash%% *}" "$archive_size"
+  # SSH first invokes the account's login shell, which can be POSIX sh. Bash
+  # printf %q may emit $'...' quoting, so quote the complete command portably.
+  remote_command=$(python3 -c 'import pathlib, shlex, sys; print(shlex.join(["bash", "-c", pathlib.Path(sys.argv[1]).read_text(), "--", *sys.argv[2:]]))' \
+    "$script_dir/load-image-archive.sh" "$project_dir" "$image" "$revision" "${archive_hash%% *}" "$archive_size")
   echo "[transfer] upload started $(date -u +%FT%TZ), $archive_size bytes"
   python3 -u "$script_dir/stream-archive.py" "$archive_dir/image.tar.gz" |
     timeout 900 "${ssh_command[@]}" "$remote_command"

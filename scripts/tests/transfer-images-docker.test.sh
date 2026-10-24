@@ -35,7 +35,7 @@ command="${!#}"
 case "$command" in
   true) exit 0 ;;
   'docker image inspect '*) exit 1 ;;
-  'bash -c '*) exec bash -c "$command" ;;
+  'bash -c '*) exec sh -c "$command" ;;
   *) exit 1 ;;
 esac
 MOCK

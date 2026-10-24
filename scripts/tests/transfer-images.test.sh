@@ -43,12 +43,12 @@ if [[ "$command" == 'bash -c '* ]]; then
   echo RECEIVE >> "$MOCK_LOG"
   [[ "$SCENARIO" != network-failure ]] || exit 1
   if [[ "$SCENARIO" == corrupt-archive ]]; then
-    python3 -c 'import sys; b=sys.stdin.buffer.read(); sys.stdout.buffer.write(b[:-1]+bytes([b[-1]^1]))' | bash -c "$command"
+    python3 -c 'import sys; b=sys.stdin.buffer.read(); sys.stdout.buffer.write(b[:-1]+bytes([b[-1]^1]))' | sh -c "$command"
   else
-    bash -c "$command"
+    sh -c "$command"
   fi
 else
-  bash -c "$command"
+  sh -c "$command"
 fi
 MOCK
 printf '#!/usr/bin/env bash\necho source-fixture\n' > "$fixture_dir/bin/git"
@@ -59,7 +59,7 @@ export MOCK_REVISION=0123456789abcdef0123456789abcdef01234567
 run_case() {
   export SCENARIO=$1
   local expected=$2
-  local project="$fixture_dir/$SCENARIO"
+  local project="$fixture_dir/${3:-$SCENARIO}"
   mkdir -p "$project/images"
   export MOCK_IMAGES="$project/images" MOCK_LOG="$project/docker.log"
   : > "$MOCK_LOG"
@@ -76,7 +76,7 @@ run_case() {
   ! find "$project/.deploy" -name 'incoming.*' -print 2>/dev/null | grep -q .
   echo "PASS transfer $SCENARIO"
 }
-run_case healthy 0
+run_case healthy 0 "path with 'quote'"
 run_case export-failure 1
 run_case network-failure 1
 run_case corrupt-archive 1
