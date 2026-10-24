@@ -30,6 +30,11 @@ elif [[ "$*" == *'ps -q frontend'* ]]; then
 elif [[ "$*" == *'pull backend web'* ]]; then
   [[ "$SCENARIO" != *pull-failure ]]
 elif [[ "$*" == *' up '* ]]; then
+  if [[ "$*" == *next.yml* && "$SCENARIO" == signal-* ]]; then
+    [[ "$(tr '\0' ' ' < "/proc/$PPID/cmdline")" == *"$MOCK_SCRIPT_PATH"* ]] || exit 99
+    kill -"$MOCK_SIGNAL" "$PPID"
+    exit 0
+  fi
   if [[ "$SCENARIO" == rollback-failure ]]; then exit 1; fi
   if [[ "$SCENARIO" == *unhealthy && "$*" == *next.yml* ]]; then exit 1; fi
 elif [[ "$*" == *'exec -T web wget'* && "$SCENARIO" == *web-failure ]]; then
@@ -48,6 +53,7 @@ run_case() {
   mkdir -p "$project"
   printf 'services: {}\n' > "$project/docker-compose.yml"
   export MOCK_LOG="$project/docker.log"
+  export MOCK_SCRIPT_PATH="$script_dir/deploy-images.sh"
   export MOCK_PROBE_FAILED="$project/probe.failed"
   : > "$MOCK_LOG"
   if [[ "$SCENARIO" == auth-* ]]; then
@@ -70,7 +76,8 @@ run_case() {
   fi
   case "$SCENARIO" in
     pull-failure|auth-pull-failure|missing|auth-failure|preloaded-missing|preloaded-wrong-revision) ! grep -q ' up ' "$MOCK_LOG" ;;
-    unhealthy|web-failure|rollback-failure|preloaded-unhealthy|preloaded-web-failure) grep -q 'previous.yml up' "$MOCK_LOG" ;;
+    unhealthy|web-failure|rollback-failure|preloaded-unhealthy|preloaded-web-failure) grep -q 'pending-images.yml up' "$MOCK_LOG" ;;
+    signal-term|signal-hup) grep -q 'pending-images.yml up' "$MOCK_LOG"; [[ ! -f "$project/.deploy/pending-images.yml" ]] ;;
   esac
   if [[ "$image_source" == preloaded ]]; then
     ! grep -q 'pull backend web' "$MOCK_LOG"
@@ -101,6 +108,18 @@ run_case preloaded-missing 1
 run_case preloaded-wrong-revision 1
 run_case preloaded-unhealthy 1
 run_case preloaded-web-failure 1
+export MOCK_SIGNAL=TERM
+run_case signal-term 143
+export MOCK_SIGNAL=HUP
+run_case signal-hup 129
+export MOCK_SIGNAL=KILL
+run_case signal-kill 137
+[[ -f "$test_dir/signal-kill/.deploy/pending-images.yml" ]]
+export SCENARIO=healthy
+bash "$script_dir/deploy-images.sh" "$test_dir/signal-kill" choco-emmm "$revision" > "$test_dir/signal-kill/retry-output" 2>&1
+grep -q 'pending-images.yml up' "$MOCK_LOG"
+[[ ! -f "$test_dir/signal-kill/.deploy/pending-images.yml" ]]
+echo 'PASS forced interruption recovery'
 unset GHCR_TOKEN GHCR_USER
 export MOCK_LOG="$test_dir/invalid.log"
 : > "$MOCK_LOG"

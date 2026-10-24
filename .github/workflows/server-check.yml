@@ -14,6 +14,9 @@ jobs:
     timeout-minutes: 3
     environment: production
     steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - name: Check SSH, installation and application health
         env:
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -35,28 +38,8 @@ jobs:
           printf '%s\n' "${SSH_KEY//$'\r'/}" > "$ssh_dir/key"
           printf '%s\n' "${SSH_KNOWN_HOSTS//$'\r'/}" > "$ssh_dir/known_hosts"
           printf -v args '%q ' "$PROJECT_DIR"
-          ssh -i "$ssh_dir/key" -p "$SSH_PORT" -o BatchMode=yes \
+          cat scripts/check-server.sh | ssh -i "$ssh_dir/key" -p "$SSH_PORT" -o BatchMode=yes \
             -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$ssh_dir/known_hosts" -o ConnectTimeout=20 \
-            "$SSH_USER@$SSH_HOST" "bash -s -- $args" <<'REMOTE'
-          set -euo pipefail
-          cd "$1"
-          echo 'Project directory:'
-          pwd
-          echo 'Architecture:'
-          uname -m
-          echo 'Source version:'
-          git branch --show-current
-          git log -1 --oneline
-          git status --short
-          echo 'Deployment prerequisites:'
-          command -v flock
-          docker compose version --short
-          echo 'Services:'
-          docker compose ps --format '{{.Service}} {{.State}} {{.Health}}'
-          echo 'Backend health:'
-          docker compose exec -T backend curl --fail --silent --show-error http://localhost:18080/api/health
-          echo
-          echo 'Disk space:'
-          df -h .
-          REMOTE
+            "$SSH_USER@$SSH_HOST" "bash -s -- $args" | tee "$ssh_dir/report"
+          grep -qx SERVER_CHECK_COMPLETE "$ssh_dir/report"

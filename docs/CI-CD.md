@@ -7,7 +7,7 @@
 - 任意目标分支的 PR：自动检查 Web 浏览器交互回归与构建、小程序类型/单测/微信构建、后端测试与打包、部署脚本回归。
 - 推送 `develop` / `master` / `codex/**`：自动检查。文档改动也运行，避免必需检查一直处于等待状态。
 - **Actions → CI → Run workflow**：选择部署分支并勾选“检查通过后发布镜像并部署到服务器”。检查全部通过后，发布两份以完整提交 SHA 命名的 GHCR 镜像，再通过 SSH 更新现有服务。
-- 镜像传输默认使用 `registry`（服务器从 GHCR 拉取）。服务器到 GHCR 下载较慢时，可在手动发布选择 `image_transport=ssh`：Runner 拉取同一 SHA 镜像，通过已核验主机指纹的 SSH 流式压缩传输并加载，服务器在部署锁内核验镜像 revision 标签后切换；缺少镜像或 SHA 不匹配时不更换容器。SSH 模式不向服务器传递仓库凭证，健康检查与旧镜像恢复规则相同。
+- 镜像传输默认使用 `registry`（服务器从 GHCR 拉取）。服务器到 GHCR 下载较慢时，可在手动发布选择 `image_transport=ssh`：Runner 拉取同一 SHA 镜像，逐份导出、压缩，再通过已核验主机指纹的 SSH 上传。日志分别显示导出、压缩、交给 SSH 的字节数/平均速率、服务器接收校验和加载阶段；交给 SSH 不代表服务器已经收到。服务器临时归档校验长度和 SHA-256 后才加载，归档使用私有目录并在退出时清理。第二份失败后重试可跳过已加载且 revision 匹配的第一份。切换仍在部署锁内核验两份镜像的 revision 标签，缺失或不符时不更换容器。SSH 模式不向服务器传递仓库凭证。
 - 默认不自动上线。仓库变量 `AUTO_DEPLOY=true` 可开启部署分支 push 后自动上线；`DEPLOY_BRANCH` 默认 `develop`（目前包含较新的应用代码），可在正式发布流程改为 `master` 后调整。
 
 普通 PR 不执行镜像推送、SSH 或 production 环境任务。CI 不需要生产数据库、AI Key 或生产 SSH 密钥；真实 AI 推理测试沿用项目的显式 opt-in 开关，CI 固定关闭。小程序构建包可在运行页 Artifacts 下载，仍需微信开发者工具/真机验收，不会自动发布到微信。
@@ -36,6 +36,8 @@
 
 需要单独排查服务器时，使用 **Actions → Server connectivity → Run workflow**（选择 `develop`）。该工作流只验证 SSH、安装目录、Compose、当前容器和健康接口，不更新代码或重启服务，也不输出生产环境变量或应用日志。
 
+诊断脚本同时输出磁盘、记录的发布 SHA 和实际应用镜像的 revision 标签；服务器源码 checkout 的 SHA 不代表运行镜像版本。工作流必须收到末尾 `SERVER_CHECK_COMPLETE` 才判成功，容器 exec 的 stdin 单独关闭，避免吞掉 SSH 传入的剩余脚本。
+
 `DEPLOY_BRANCH` / `AUTO_DEPLOY` 必须是 **仓库级 Variables**，因为发布镜像的 job 在 production 环境外运行。
 
 不要把 `.env` 或私钥提交到仓库。服务器继续使用原有 `.env`、证书和数据卷。SSH 强制核验 known_hosts，不接受关闭主机校验的捷径。部署账号需要 Bash、`flock`、Docker Engine 和支持 `up --wait` 的 Compose v2，以及拉取 GHCR 的网络条件。
@@ -59,6 +61,8 @@ GHCR 首次发布的 package 可能默认私有。Actions 发布和部署分别�
 部署脚本先捕获现有两个容器的真实镜像 ID，再拉取新镜像。两份镜像拉取成功后才替换应用容器；MySQL、Redis、RabbitMQ、Tunnel、数据卷都不重建。随后等待后端健康检查，验证 Web 静态内容和 `/api/health` 反代，再重新加载公共 Nginx 的上游地址。
 
 启动或探测失败时，用捕获的本地镜像 ID 恢复两个应用服务并再做检查；即便恢复成功，Actions 仍显示部署失败。恢复失败会明确输出 `ROLLBACK FAILED`。部署日志不打印生产应用正文或 `.env`。
+
+切换前原子保存 `.deploy/pending-images.yml`。TERM/HUP/INT 会尝试有界恢复；SIGKILL 或机器掉电无法运行 trap，因此下一次部署必须先恢复遗留快照，再捕获当前镜像或切换新版。恢复失败保留快照并停止。恢复以实际旧镜像 ID 为准，清除可能与实际镜像不一致的提交标记；成功发布才重新写入 SHA。传输/加载完成不等于应用部署完成，必须等 `Deployment healthy` 与公网验证。
 
 `.deploy/` 保存最近成功的提交和前后镜像配置；不要在发布期间清理 Docker 镜像。自动回退只恢复应用镜像，不能逆转数据库迁移。涉及不兼容 Schema 的版本必须另行安排备份和迁移；这不是零停机发布，切换期间存在短暂中断。
 
@@ -86,6 +90,8 @@ cd frontend && npm ci && npx playwright install chromium && npm run test:interac
 cd ../frontend-uniapp && npm ci && npm run type-check && npm test && npm run build:mp-weixin
 cd ../backend/moodcopilot && mvn --batch-mode --no-transfer-progress clean verify
 cd ../.. && bash scripts/tests/deploy-images.test.sh
+bash scripts/tests/transfer-images.test.sh
+bash scripts/tests/transfer-images-docker.test.sh
 git diff --check
 ```
 
