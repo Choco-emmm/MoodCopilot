@@ -197,7 +197,7 @@ jobs:
     name: Deploy production
     needs: images
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 110
     environment: production
     permissions:
       contents: read
@@ -221,6 +221,7 @@ jobs:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMAGE_TRANSPORT: ${{ inputs.image_transport || 'registry' }}
+          TRANSFER_TIMEOUT_SECONDS: ${{ vars.IMAGE_TRANSFER_TIMEOUT_SECONDS || '4500' }}
         run: |
           set -euo pipefail
           for name in SSH_HOST SSH_USER SSH_KEY SSH_KNOWN_HOSTS PROJECT_DIR; do

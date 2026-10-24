@@ -38,6 +38,8 @@
 
 诊断脚本同时输出磁盘、记录的发布 SHA 和实际应用镜像的 revision 标签；服务器源码 checkout 的 SHA 不代表运行镜像版本。工作流必须收到末尾 `SERVER_CHECK_COMPLETE` 才判成功，容器 exec 的 stdin 单独关闭，避免吞掉 SSH 传入的剩余脚本。
 
+实测跨网 SSH 速率约 70 KB/s 时，193 MB 后端归档需要四十多分钟。单份上传/加载上限默认为 4500 秒（75 分钟），可用仓库变量 `IMAGE_TRANSFER_TIMEOUT_SECONDS` 调整为 60–7200 秒；整个部署任务上限为 110 分钟。导出、压缩和 Runner 拉取各自仍限制 180 秒。SSH 使用 keepalive 检测断连，传输连接不设置低优先级 QoS 标记；不改变加密、主机校验或权限。判断进度以日志字节数和服务器校验/加载回执为准，任务仍可能因实际网络条件失败。
+
 `DEPLOY_BRANCH` / `AUTO_DEPLOY` 必须是 **仓库级 Variables**，因为发布镜像的 job 在 production 环境外运行。
 
 不要把 `.env` 或私钥提交到仓库。服务器继续使用原有 `.env`、证书和数据卷。SSH 强制核验 known_hosts，不接受关闭主机校验的捷径。部署账号需要 Bash、`flock`、Docker Engine 和支持 `up --wait` 的 Compose v2，以及拉取 GHCR 的网络条件。
