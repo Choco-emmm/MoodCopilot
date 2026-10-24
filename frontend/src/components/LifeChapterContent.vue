@@ -53,7 +53,7 @@ import type { LifeChapter, LifeChapterVersion } from '../api/life'
 import { useDialog } from 'naive-ui'
 const props = defineProps<{ chapter: LifeChapter; expandedId: number | null; versionsId: number | null; versions: Record<number, LifeChapterVersion[]>; refreshingId: number | null }>()
 const emit = defineEmits<{ (event: 'toggle-sources', id: number): void; (event: 'toggle-versions', id: number): void; (event: 'refresh', chapter: LifeChapter): void; (event: 'open-diary', id: number): void; (event: 'open-events'): void }>()
-const sourceCount = (props.chapter.diarySources?.length || 0) + (props.chapter.eventSources?.length || 0)
+const sourceCount = computed(() => (props.chapter.diarySources?.length || 0) + (props.chapter.eventSources?.length || 0))
 // 章节正文展示的就是当前这一版，历史列表再列一遍是重复。当前版本号在章节头部已有标注。
 const historyVersions = computed(() => (props.versions[props.chapter.id] || [])
   .filter((version) => version.version !== props.chapter.currentVersion))
@@ -73,7 +73,7 @@ const dialog = useDialog()
 function confirmRefresh() {
   dialog.info({
     title: '重新整理这一章？',
-    content: `系统会根据当前关联的 ${sourceCount} 条记录，重新生成这一章的标题、主题摘要和成长回顾。之前的版本会保留在历史记录中；你的日记和重要事件不会被修改或删除。`,
+    content: `系统会根据当前关联的 ${sourceCount.value} 条记录，重新生成这一章的标题、主题摘要和成长回顾。之前的版本会保留在历史记录中；你的日记和重要事件不会被修改或删除。`,
     positiveText: '开始整理',
     negativeText: '取消',
     onPositiveClick: () => emit('refresh', props.chapter),

@@ -44,6 +44,77 @@ async function check(name, test) {
   finally { await page.close() }
 }
 try {
+  await check('a single memory candidate opens confirmation and submits the edited value through the real API', async () => {
+    const { createApp, h, createPinia, setActivePinia, createRouter, createMemoryHistory } = f
+    const { NDialogProvider } = await import('/node_modules/.vite/deps/naive-ui.js')
+    const { api } = await import('/src/api/core.ts')
+    const { default: MemoryProfileView } = await import('/src/components/memory/MemoryProfileView.vue')
+    const pinia = createPinia(); setActivePinia(pinia)
+    let pending = true
+    const approvals = []
+    api.defaults.adapter = async config => {
+      let data = []
+      if (config.url === '/memory/candidates' && pending) data = [{ id: 21, attributeKey: '运动偏好', attributeValue: '喜欢跑步', memoryType: 'preference', hasConflict: false }]
+      if (config.url === '/memory/candidates/21/approve') {
+        approvals.push({ method: config.method, data: JSON.parse(config.data) })
+        pending = false
+      }
+      return { data: { code: 200, data }, status: 200, statusText: 'OK', headers: {}, config }
+    }
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
+    await router.push('/')
+    const app = createApp({ render: () => h(NDialogProvider, null, { default: () => h(MemoryProfileView) }) })
+    app.use(pinia).use(router).mount('#app'); await flush()
+    const button = (scope, label) => [...document.querySelectorAll(`${scope} button`)].find(el => el.textContent.trim() === label)
+    button('.candidate-actions', '确认').click(); await flush()
+    assert(document.querySelector('[aria-label="确认后的候选记忆"]'), 'list confirmation did not open the edit dialog')
+    assert(approvals.length === 0, 'candidate was saved before dialog confirmation')
+    const editor = document.querySelector('[aria-label="确认后的候选记忆"]')
+    editor.value = '喜欢晨跑'; editor.dispatchEvent(new Event('input', { bubbles: true })); await flush()
+    button('.n-dialog', '确认并保存').click(); await flush()
+    assert(approvals.length === 1 && approvals[0].method === 'post' && approvals[0].data.editedValue === '喜欢晨跑', 'confirmation did not submit the edited candidate once')
+    assert(!document.querySelector('.candidate-item'), 'confirmed candidate remained in pending list')
+    app.unmount()
+  })
+  await check('accepting a new life stage keeps source counts aligned with the replaced current chapter', async () => {
+    const { createApp, h, createPinia, setActivePinia, createRouter, createMemoryHistory } = f
+    const { NDialogProvider } = await import('/node_modules/.vite/deps/naive-ui.js')
+    const { lifeChapterApi } = await import('/src/api/life.ts')
+    const { useNotificationStore } = await import('/src/stores/notification.ts')
+    const { default: LifeChaptersPage } = await import('/src/pages/LifeChaptersPage.vue')
+    const pinia = createPinia(); setActivePinia(pinia)
+    const notifications = useNotificationStore()
+    notifications.connectRealtime = () => {}
+    notifications.disconnectRealtime = () => {}
+    notifications.fetchUnreadCount = async () => {}
+    const diaries = Array.from({ length: 89 }, (_, i) => ({ id: i + 1, date: '2026-10-01', excerpt: `记录 ${i + 1}` }))
+    const events = [{ id: 101, title: '阶段转折', startDate: '2026-10-20' }]
+    const chapter = { id: 1, title: '原阶段', startDate: '2026-01-01', isOpen: true, diarySources: diaries, eventSources: events }
+    let accepted = false
+    lifeChapterApi.timeline = async () => ok({ stages: accepted ? [
+      { ...chapter, id: 2, title: '新阶段', startDate: '2026-10-20', diarySources: diaries.slice(-2) },
+      { ...chapter, isOpen: false, endDate: '2026-10-19', diarySources: diaries.slice(0, -2), eventSources: [] },
+    ] : [chapter], gaps: [], nextCursor: null })
+    lifeChapterApi.candidates = async () => ok(accepted ? [] : [{ id: 7, suggestedStartDate: '2026-10-20', reason: '阶段变化', sourceDiaryIds: [88, 89], sourceEventIds: [101] }])
+    lifeChapterApi.acceptCandidate = async id => { assert(id === 7, 'wrong candidate accepted'); accepted = true; return ok(null) }
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
+    await router.push('/')
+    const app = createApp({ render: () => h(NDialogProvider, null, { default: () => h(LifeChaptersPage) }) })
+    app.use(pinia).use(router).mount('#app'); await flush()
+    const current = () => document.querySelector('.chapter-group .chapter')
+    const sourceButton = () => current().querySelector('.chapter-actions button')
+    assert(sourceButton().textContent === '查看来源（90）', 'initial source count is wrong')
+    document.querySelector('.candidate-actions .primary-button').click(); await flush()
+    assert(current().querySelector('.chapter-title').textContent === '新阶段', 'new current stage did not load')
+    sourceButton().click(); await flush()
+    assert(current().querySelectorAll('.source-item').length === 3, 'new stage should contain two diaries and one event')
+    sourceButton().click(); await flush()
+    assert(sourceButton().textContent === '查看来源（3）', `expected 3 sources after accepting, got ${sourceButton().textContent}`)
+    assert(current().querySelector('.chapter-meta').textContent.includes('3 条记录'), 'chapter metadata retained the old count')
+    const previous = document.querySelectorAll('.chapter-group .chapter')[1]
+    assert(previous.querySelector('.chapter-actions button').textContent === '查看来源（87）', 'previous stage count is wrong')
+    app.unmount()
+  })
   await check('memory center uses the current version for consecutive edits and preserves failed drafts', async () => {
     const { createApp, h, createPinia, setActivePinia, createRouter, createMemoryHistory } = f
     const { NDialogProvider } = await import('/node_modules/.vite/deps/naive-ui.js')
