@@ -8,6 +8,7 @@
 - 推送 `develop` / `master` / `codex/**`：自动检查。文档改动也运行，避免必需检查一直处于等待状态。
 - **Actions → CI → Run workflow**：选择部署分支并勾选“检查通过后发布镜像并部署到服务器”。检查全部通过后，发布两份以完整提交 SHA 命名的 GHCR 镜像，再通过 SSH 更新现有服务。
 - 镜像传输默认使用 `registry`（服务器从 GHCR 拉取）。服务器到 GHCR 下载较慢时，可在手动发布选择 `image_transport=ssh`：Runner 拉取同一 SHA 镜像，逐份导出、压缩，再通过已核验主机指纹的 SSH 上传。日志分别显示导出、压缩、交给 SSH 的字节数/平均速率、服务器接收校验和加载阶段；交给 SSH 不代表服务器已经收到。服务器临时归档校验长度和 SHA-256 后才加载，归档使用私有目录并在退出时清理。第二份失败后重试可跳过已加载且 revision 匹配的第一份。切换仍在部署锁内核验两份镜像的 revision 标签，缺失或不符时不更换容器。SSH 模式不向服务器传递仓库凭证。
+- 两种大镜像传输都慢时，可选择 `image_transport=source`：完整 CI 和镜像发布仍先执行，随后只把该固定提交的已跟踪应用源码归档通过已核验的 SSH 连接发送到服务器。服务器校验长度和 SHA-256，在 `.deploy/` 下的临时隔离目录构建同一 SHA 的应用镜像，复用 Docker 层和 `$HOME/.m2` 依赖缓存；已有且 revision 匹配的镜像直接复用。构建成功后仍由 `deploy-images.sh` 执行并发互斥、健康检查和失败回退，不运行或覆盖服务器已修改的 `deploy.sh`，不改动服务器源码 checkout、`.env`、证书或数据卷。失败只清理临时源码，旧服务继续运行。服务器需要能使用已有或可拉取的 Maven、Node、Nginx 与 JRE 基础镜像，并能补齐缺失的构建依赖；源码模式的构建与镜像仓库内的构建环境可以不同，但源码提交固定且镜像 revision 必须一致。
 - 默认不自动上线。仓库变量 `AUTO_DEPLOY=true` 可开启部署分支 push 后自动上线；`DEPLOY_BRANCH` 默认 `develop`（目前包含较新的应用代码），可在正式发布流程改为 `master` 后调整。
 
 普通 PR 不执行镜像推送、SSH 或 production 环境任务。CI 不需要生产数据库、AI Key 或生产 SSH 密钥；真实 AI 推理测试沿用项目的显式 opt-in 开关，CI 固定关闭。小程序构建包可在运行页 Artifacts 下载，仍需微信开发者工具/真机验收，不会自动发布到微信。
@@ -93,6 +94,7 @@ cd ../frontend-uniapp && npm ci && npm run type-check && npm test && npm run bui
 cd ../backend/moodcopilot && mvn --batch-mode --no-transfer-progress clean verify
 cd ../.. && bash scripts/tests/deploy-images.test.sh
 bash scripts/tests/transfer-images.test.sh
+bash scripts/tests/build-source-images.test.sh
 bash scripts/tests/transfer-images-docker.test.sh
 git diff --check
 ```
