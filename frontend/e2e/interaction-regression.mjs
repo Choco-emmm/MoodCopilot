@@ -44,6 +44,57 @@ async function check(name, test) {
   finally { await page.close() }
 }
 try {
+  await check('memory groups bound the first view and separate original evidence from activity', async () => {
+    const { createApp, h, createPinia, setActivePinia, createRouter, createMemoryHistory } = f
+    const { NDialogProvider } = await import('/node_modules/.vite/deps/naive-ui.js')
+    const { memoryApi } = await import('/src/api/index.ts')
+    const { default: MemoryProfileView } = await import('/src/components/memory/MemoryProfileView.vue')
+    const pinia = createPinia(); setActivePinia(pinia)
+    memoryApi.getAll = async () => ok(Array.from({ length: 20 }, (_, i) => ({ id: i + 1, attributeKey: `属性${i}`, attributeValue: `记忆${i}` })))
+    memoryApi.getCandidates = async () => ok(Array.from({ length: 20 }, (_, i) => ({ id: i + 101, attributeKey: `候选属性${i}`, attributeValue: `候选内容${i}` })))
+    memoryApi.getEvidence = async () => ok([
+      { id: 1, sourceType: 'chat_candidate', sourceConversationId: 5, evidenceText: '我喜欢晨跑' },
+      { id: 2, sourceType: 'USER_ACTION', sourceConversationId: 5, evidenceText: 'USER_CONFIRMED_CHAT_EDIT' },
+    ])
+    memoryApi.getHistory = async () => ok([])
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] }); await router.push('/')
+    const app = createApp({ render: () => h(NDialogProvider, null, { default: () => h(MemoryProfileView) }) }); app.use(pinia).use(router).mount('#app'); await flush()
+    assert(document.querySelector('.memory-overview').textContent.includes('20 条正式记忆'), 'formal memory count is missing')
+    assert(!document.querySelector('.candidate-item'), 'candidate queue is not initially collapsed')
+    assert(document.querySelectorAll('.memory-item').length === 2, 'formal groups do not bound initial content')
+    document.querySelector('.memory-actions button').click(); await flush()
+    const evidence = document.querySelector('.memory-evidence-section').textContent
+    assert(evidence.includes('我喜欢晨跑') && !evidence.includes('USER_CONFIRMED_CHAT_EDIT'), 'activity is mixed with original evidence')
+    assert(document.querySelector('.memory-activity').textContent.includes('确认修改记忆'), 'activity does not have a readable label')
+    document.querySelector('.candidate-toggle').click(); await flush()
+    assert(document.querySelectorAll('.candidate-item').length === 1, 'candidate group defaults are unbounded')
+    assert(document.documentElement.scrollWidth <= innerWidth, 'mobile memory groups overflow')
+    app.unmount()
+  })
+  await check('candidate refresh failure preserves content and evidence retry ignores stale responses', async () => {
+    const { createApp, h, createPinia, setActivePinia, createRouter, createMemoryHistory } = f
+    const { NDialogProvider } = await import('/node_modules/.vite/deps/naive-ui.js')
+    const { memoryApi } = await import('/src/api/index.ts')
+    const { default: MemoryProfileView } = await import('/src/components/memory/MemoryProfileView.vue')
+    const pinia = createPinia(); setActivePinia(pinia)
+    let fail = false, evidenceFail = true
+    const slow = deferred()
+    memoryApi.getAll = async () => ok([{ id: 1, attributeKey: '运动', attributeValue: '喜欢跑步' }])
+    memoryApi.getCandidates = async () => { if (fail) throw new Error('offline'); return ok([101, 102].map(id => ({ id, attributeKey: '运动', attributeValue: `候选${id}` }))) }
+    memoryApi.getCandidateEvidence = async id => { if (evidenceFail) throw new Error('offline'); return id === 101 ? slow.promise : ok([{ id: 9, sourceType: 'chat_candidate', evidenceText: '新的依据' }]) }
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] }); await router.push('/')
+    const app = createApp({ render: () => h(NDialogProvider, null, { default: () => h(MemoryProfileView) }) }); app.use(pinia).use(router).mount('#app'); await flush()
+    document.querySelector('.candidate-toggle').click(); await flush()
+    fail = true; [...document.querySelectorAll('.section-head button')].find(b => b.textContent.trim() === '刷新').click(); await flush()
+    assert(document.querySelectorAll('.candidate-item').length === 2 && document.querySelector('.candidate-load-error'), 'failed candidate refresh cleared content or has no error')
+    document.querySelector('.candidate-actions button').click(); await flush()
+    assert(document.querySelector('.candidate-details [role="alert"]'), 'evidence failure is shown as empty')
+    evidenceFail = false; document.querySelector('.candidate-details [role="alert"] button').click(); await flush()
+    document.querySelectorAll('.candidate-actions')[1].querySelector('button').click(); await flush()
+    slow.resolve(ok([{ id: 8, sourceType: 'chat_candidate', evidenceText: '过时的依据' }])); await flush()
+    assert(document.querySelector('.candidate-details').textContent.includes('新的依据') && !document.querySelector('.candidate-details').textContent.includes('过时的依据'), 'stale candidate response replaced current evidence')
+    app.unmount()
+  })
   await check('a single memory candidate opens confirmation and submits the edited value through the real API', async () => {
     const { createApp, h, createPinia, setActivePinia, createRouter, createMemoryHistory } = f
     const { NDialogProvider } = await import('/node_modules/.vite/deps/naive-ui.js')
@@ -66,7 +117,9 @@ try {
     const app = createApp({ render: () => h(NDialogProvider, null, { default: () => h(MemoryProfileView) }) })
     app.use(pinia).use(router).mount('#app'); await flush()
     const button = (scope, label) => [...document.querySelectorAll(`${scope} button`)].find(el => el.textContent.trim() === label)
-    button('.candidate-actions', '确认').click(); await flush()
+    document.querySelector('.candidate-toggle')?.click(); await flush()
+    document.querySelector('.candidate-actions button').click(); await flush()
+    button('.candidate-decisions', '确认').click(); await flush()
     assert(document.querySelector('[aria-label="确认后的候选记忆"]'), 'list confirmation did not open the edit dialog')
     assert(approvals.length === 0, 'candidate was saved before dialog confirmation')
     const editor = document.querySelector('[aria-label="确认后的候选记忆"]')
@@ -126,6 +179,8 @@ try {
     const updates = []
     memoryApi.getAll = async () => { if (refreshFail) throw new Error('fixture refresh offline'); return ok([{ ...current }]) }
     memoryApi.getCandidates = async () => ok([])
+    memoryApi.getEvidence = async () => ok([])
+    memoryApi.getHistory = async () => ok([])
     memoryApi.update = async (id, data) => {
       updates.push(id)
       if (fail) throw { response: { status: 400, data: { message: '触发受限资料规则，请移除受限资料。' } } }
@@ -139,6 +194,7 @@ try {
     app.use(pinia).use(router).mount('#app'); await flush()
     const button = text => [...document.querySelectorAll('.memory-actions button')].find(el => el.textContent.trim() === text)
     const edit = async value => {
+      if (!button('编辑')) { button('查看详情与依据').click(); await flush() }
       button('编辑').click(); await flush()
       const input = document.querySelector('.memory-item textarea'); input.value = value
       input.dispatchEvent(new Event('input', { bubbles: true })); await flush()
@@ -155,7 +211,7 @@ try {
     assert(document.body.textContent.includes('修改已经保存') && button('编辑').disabled, 'post-save refresh failure permits a stale second edit')
     refreshFail = false
     ;[...document.querySelectorAll('.section-head button')].find(el => el.textContent.trim() === '刷新').click(); await flush()
-    assert(useConsolidationStore().memories[0].id === 14 && !button('编辑').disabled, 'manual refresh did not restore latest-version actions')
+    assert(useConsolidationStore().memories[0].id === 14 && !button('查看详情与依据').disabled, 'manual refresh did not restore latest-version actions')
     app.unmount()
   })
   await check('ResizeObserver diagnostics are counted and limited without hiding other errors or source positions', async () => {
@@ -189,12 +245,15 @@ try {
     const app = createApp({ render: () => h(NDialogProvider, null, { default: () => h(MemoryProfileView) }) })
     app.use(pinia).use(router).mount('#app'); await frame()
     const button = (scope, text) => [...document.querySelectorAll(`${scope} button`)].find(el => el.textContent.trim() === text)
+    button('.memory-actions', '查看详情与依据')?.click(); await frame()
     button('.memory-actions', '编辑').click(); await frame()
     const editor = document.querySelector('.memory-item textarea'), initial = editor.getBoundingClientRect().height
     editor.value = '长文本\n'.repeat(20); editor.dispatchEvent(new Event('input', { bubbles: true })); await frame()
     assert(editor.getBoundingClientRect().height === initial && editor.scrollHeight > editor.clientHeight, 'memory editor height still depends on observed content size')
     button('.memory-actions', '取消').click(); await frame()
-    button('.candidate-actions', '拒绝').click(); await frame()
+    document.querySelector('.candidate-toggle')?.click(); await frame()
+    document.querySelector('.candidate-actions button').click(); await frame()
+    button('.candidate-decisions', '拒绝').click(); await frame()
     assert(document.body.textContent.includes('确认拒绝'), 'a single nonconflicting candidate cannot open its dialog')
     button('.n-dialog', '确认拒绝').click(); await frame()
     assert(document.body.textContent.includes('已经处理') && !document.querySelector('.candidate-item'), 'stale candidate decision did not refresh or explain conflict')

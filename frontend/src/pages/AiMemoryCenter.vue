@@ -3,10 +3,10 @@
     <AppHeader />
 
     <section class="panel memory-center-panel">
-      <button class="page-back-link" @click="router.back()">←</button>
+      <button class="page-back-link" aria-label="返回上一页" @click="router.back()">←</button>
       <div class="panel-header">
-        <h2>我的记忆中心</h2>
-        <p class="panel-desc">这是 MoodCopilot 从你的日常记录中提取的长期画像。不再是冰冷的表格，而是由点滴细节拼凑出的、一个更懂你的数字记忆库。</p>
+        <h1>我的记忆中心</h1>
+        <p class="panel-desc">记住了什么，依据是什么，都可以在这里核对。</p>
       </div>
 
       <n-tabs v-model:value="activeTab" type="line" justify-content="center" size="large" style="margin-top: 20px;" display-directive="show">
@@ -68,15 +68,17 @@ watch(activeTab, (tab) => {
   background: transparent;
   box-shadow: none;
 }
+.page-back-link { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+.page-back-link:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
 .panel-header {
-  margin-bottom: 40px;
+  margin-bottom: 20px;
   text-align: center;
 }
-.panel-header h2 {
+.panel-header h1 {
   margin: 0 0 12px;
   color: var(--color-primary);
   font-family: var(--font-serif);
-  font-size: 2.5rem;
+  font-size: clamp(1.7rem, 4vw, 2rem);
   font-weight: 600;
 }
 .panel-desc {
