@@ -1,431 +1,378 @@
 <template>
-  <div>
-    <div class="section-head graph-header-controls">
-      <div class="flex-center-gap-8 shrink-0">
-        <p class="settings-label graph-header-title">因果关联网络</p>
+  <section class="memory-graph" aria-label="因果关联网络">
+    <header class="section-head graph-header-controls">
+      <div>
+        <h3 class="graph-header-title">因果关联网络</h3>
+        <p class="memory-desc">从日记中提取的事件与感受，留下可回看的关系线索。</p>
       </div>
-      <div class="flex-gap-8-wrap">
-        <n-button size="small" secondary @click="isGraphListView = !isGraphListView">
-          {{ isGraphListView ? '🕸️ 切换图谱视图' : '📝 切换列表视图' }}
-        </n-button>
-        <n-button size="small" secondary type="primary" :loading="store.consolidatingGraph" @click="store.consolidateGraph()">
-          ✨ 智能整理图谱
-        </n-button>
-        <n-button size="small" secondary :loading="graphLoading" @click="loadGraphAndTriples">
-           刷新
-        </n-button>
+      <div class="graph-actions">
+        <button type="button" :disabled="navigationBusy" @click="isGraphListView = !isGraphListView">{{ isGraphListView ? '切换图谱视图' : '切换列表视图' }}</button>
+        <button type="button" :disabled="graphLoading || navigationBusy || store.consolidatingGraph" @click="store.consolidateGraph()">
+          {{ store.consolidatingGraph ? '正在整理图谱…' : '智能整理图谱' }}
+        </button>
+        <button type="button" :disabled="graphLoading || navigationBusy || store.consolidatingGraph" @click="loadTriples">{{ graphLoading ? '正在刷新…' : '刷新' }}</button>
       </div>
+    </header>
+
+    <div class="graph-filters">
+      <label class="graph-search">搜索关系
+        <input v-model="search" type="search" placeholder="搜索起点、关系或终点" :disabled="navigationBusy" />
+      </label>
+      <label>感受极性
+        <select v-model="polarity" aria-label="感受极性" :disabled="navigationBusy">
+          <option value="all">全部极性</option><option value="1">积极</option><option value="0">中性</option><option value="-1">消极</option>
+        </select>
+      </label>
     </div>
-    
-    <div class="tab-content graph-tab-content">
-      <p class="memory-desc mb-12">从你的日记中提取的事件因果关系与概念网络。图谱上的“关联数”代表该事件与其他事件的联系程度，你可以在列表视图中手动调整不准确的关联。</p>
-      
-      <div v-if="graphLoading" class="flex-center-full">
-        <n-spin size="small" />
-      </div>
-      <div v-else-if="!graphOptions && !isGraphListView" class="flex-center-full text-light">
-        暂无图谱数据，写些有深度关联的日记吧。
-      </div>
-      
-      <!-- Graph View -->
-      <div v-else-if="!isGraphListView" class="chart-container">
-        <VChart ref="chartRef" class="chart chart-canvas" :option="graphOptions" autoresize />
-        <div class="chart-overlay-controls">
-          <n-button size="small" secondary @click="resetGraph">
-            🧭 恢复视角
-          </n-button>
+    <p class="graph-counts" role="status">关系总数 {{ store.triples.length }} · 筛选匹配 {{ filteredTriples.length }} · 当前显示 {{ visibleTriples.length }}</p>
+    <div v-if="selectedNode" class="graph-selection">
+      <span>节点邻域：{{ selectedNode }}</span>
+      <button type="button" :disabled="navigationBusy" @click="selectedNode = null">清除节点</button>
+    </div>
+    <div v-if="loadError" class="graph-load-error" role="alert">
+      <span>{{ loadError }}</span>
+      <button type="button" :disabled="graphLoading || navigationBusy || store.consolidatingGraph" @click="loadTriples">重试加载</button>
+    </div>
+    <div v-if="graphLoading && !hasLoaded && !store.triples.length" class="graph-state" role="status">正在加载关系…</div>
+    <template v-else-if="hasLoaded || store.triples.length">
+      <p v-if="!store.triples.length" class="graph-empty">暂无关系。写下日记后，关联线索会逐渐出现。</p>
+      <p v-else-if="!filteredTriples.length" class="graph-empty">没有匹配的关系，请调整搜索、极性或清除节点。</p>
+      <template v-else>
+        <div v-if="!isGraphListView" class="graph-visual">
+          <div class="graph-chart-toolbar">
+            <p id="graph-help" class="memory-desc">点击节点查看一跳邻域；拖动或缩放探索。键盘操作请切换列表视图。</p>
+            <button type="button" @click="resetGraph">恢复视角</button>
+          </div>
+          <div class="chart-container" role="img" aria-label="当前显示关系的关联图" aria-describedby="graph-help">
+            <VChart ref="chartRef" class="chart" :option="graphOptions" :update-options="{ notMerge: true }" autoresize @click="selectGraphNode" />
+          </div>
         </div>
-      </div>
-
-      <!-- List View -->
-      <div v-else class="memory-list">
-         <div
-            v-for="(t, index) in store.triples"
-            :key="t.id"
-            class="memory-item"
-            v-motion
-            :initial="{ opacity: 0, y: 30 }"
-            :enter="{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 250, damping: 25, delay: index * 50 } }"
-          >
-            <div class="memory-content flex-row-wrap-center">
-              <template v-if="editingTripleId === t.id">
-                <div class="flex-col-gap-8-full">
-                  <div class="flex-gap-8-wrap">
-                    <n-input v-model:value="editingTriple.headEntity" size="small" placeholder="起点" class="flex-1-min-90" />
-                    <n-input v-model:value="editingTriple.relation" size="small" placeholder="关系" class="flex-1-min-60" />
-                    <n-input v-model:value="editingTriple.tailEntity" size="small" placeholder="终点" class="flex-1-min-90" />
-                  </div>
-                  <n-radio-group v-model:value="editingTriple.tailPolarity" size="small" class="flex-wrap-gap-8-mt-4">
-                    <n-radio :value="1">😃 积极</n-radio>
-                    <n-radio :value="0">😐 中性</n-radio>
-                    <n-radio :value="-1">😔 消极</n-radio>
-                  </n-radio-group>
+        <div v-else class="memory-list" aria-label="关系列表">
+          <article v-for="t in visibleTriples" :key="t.id" class="memory-item">
+            <div class="triple-summary">
+              <p><strong>{{ t.headEntity }}</strong><span class="triple-relation"> {{ t.relation }} → </span><strong>{{ t.tailEntity }}</strong></p>
+              <span class="triple-polarity">{{ polarityLabel(t.tailPolarity) }}</span>
+              <button type="button" :aria-expanded="detailId === t.id" :aria-controls="`triple-detail-${t.id}`" :disabled="navigationBusy" @click="toggleDetails(t.id)">{{ detailId === t.id ? '收起详情' : '查看详情' }}</button>
+            </div>
+            <div v-if="detailId === t.id" :id="`triple-detail-${t.id}`" class="triple-details">
+              <section class="triple-sources" aria-label="来源日记">
+                <h4>来源日记</h4>
+                <div v-if="sourceDiaryIds(t).length" class="graph-actions">
+                  <RouterLink v-for="id in sourceDiaryIds(t)" :key="id" :to="{ name: 'diary-detail', params: { id } }">打开日记 {{ id }}</RouterLink>
                 </div>
-              </template>
-              <template v-else>
-                <span class="triple-entity">{{ t.headEntity }}</span>
-                <span class="triple-relation">--({{ t.relation }})--></span>
-                <span class="triple-entity">{{ t.tailEntity }}</span>
-                <n-tag v-if="isRecentlyUpdated(t)" size="small" type="success" class="ml-8">✨ 近期新增</n-tag>
-              </template>
+                <p v-else class="memory-desc">暂无可用的来源日记。</p>
+              </section>
+              <form v-if="editingTripleId === t.id" class="triple-editor" @submit.prevent="saveTriple(t.id)">
+                <label>起点事件<input v-model="editingTriple.headEntity" :disabled="savingTripleId !== null" required /></label>
+                <label>关系描述<input v-model="editingTriple.relation" :disabled="savingTripleId !== null" required /></label>
+                <label>终点感受<input v-model="editingTriple.tailEntity" :disabled="savingTripleId !== null" required /></label>
+                <label>编辑感受极性
+                  <select v-model.number="editingTriple.tailPolarity" aria-label="编辑感受极性" :disabled="savingTripleId !== null">
+                    <option :value="1">积极</option><option :value="0">中性</option><option :value="-1">消极</option>
+                  </select>
+                </label>
+                <p v-if="editError" class="graph-local-error" role="alert">{{ editError }}</p>
+                <div class="graph-actions">
+                  <button type="submit" :disabled="savingTripleId !== null">{{ savingTripleId !== null ? '正在保存…' : '保存关系' }}</button>
+                  <button type="button" :disabled="savingTripleId !== null" @click="cancelEditTriple">取消编辑</button>
+                </div>
+              </form>
+              <div v-else class="graph-actions detail-actions">
+                <button type="button" :disabled="navigationBusy || graphLoading || store.consolidatingGraph" @click="startEditTriple(t)">编辑关系</button>
+                <button type="button" class="danger-action" :disabled="navigationBusy || graphLoading || store.consolidatingGraph" @click="confirmDeleteTriple(t)">删除此关系</button>
+              </div>
             </div>
-            <div class="memory-actions">
-              <template v-if="editingTripleId === t.id">
-                <n-button class="memory-action-btn save-btn" size="small" :disabled="savingTripleId === t.id" @click="saveTriple(t.id)">保存</n-button>
-                <n-button class="memory-action-btn cancel-btn" size="small" @click="cancelEditTriple">取消</n-button>
-              </template>
-              <template v-else>
-                <n-button class="memory-action-btn edit-btn" size="small" @click="startEditTriple(t)">编辑</n-button>
-                <n-button class="memory-action-btn delete-btn" size="small" :disabled="deletingTripleId === t.id" @click="deleteTriple(t.id)">删除</n-button>
-              </template>
-            </div>
-         </div>
-         <div v-if="store.triples.length === 0" class="empty-triples">
-           暂无图谱数据
-         </div>
-      </div>
-    </div>
-
-  </div>
+          </article>
+        </div>
+        <footer v-if="filteredTriples.length > PAGE_SIZE" class="graph-pagination">
+          <span>{{ visibleTriples.length < filteredTriples.length ? '先看一小部分，再按需展开。' : '已显示全部匹配关系。' }}</span>
+          <div class="graph-actions">
+            <button v-if="visibleTriples.length < filteredTriples.length" type="button" :disabled="navigationBusy" @click="visibleLimit += PAGE_SIZE">显示更多</button>
+            <button v-if="visibleTriples.length < filteredTriples.length" type="button" :disabled="navigationBusy" @click="visibleLimit = Infinity">展开全部</button>
+            <button v-if="visibleLimit > PAGE_SIZE" type="button" :disabled="navigationBusy" @click="visibleLimit = PAGE_SIZE">恢复有限显示</button>
+          </div>
+        </footer>
+      </template>
+    </template>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { NButton, NSpin, NInput, NTag, NRadioGroup, NRadio } from 'naive-ui'
+import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
+import { useDialog } from 'naive-ui'
 import { graphApi } from '../../api'
 import { logWarn } from '../../utils/logger'
 import { useConsolidationStore } from '../../stores/consolidation'
-
-// ECharts
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { GraphChart } from 'echarts/charts'
-import { TitleComponent, TooltipComponent, LegendComponent, ToolboxComponent } from 'echarts/components'
+import { TooltipComponent, ToolboxComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 
-use([CanvasRenderer, GraphChart, TitleComponent, TooltipComponent, LegendComponent, ToolboxComponent])
-
-// Graph state
-const chartRef = ref<any>(null)
-const graphLoading = ref(false)
-const graphOptions = ref<any>(null)
-const isGraphListView = ref(false)
-const store = useConsolidationStore()
-
-function resetGraph() {
-  if (chartRef.value) {
-    chartRef.value.dispatchAction({ type: 'restore' })
-  }
-}
+use([CanvasRenderer, GraphChart, TooltipComponent, ToolboxComponent])
 
 interface TripleItem {
   id: number
   headEntity: string
   relation: string
   tailEntity: string
-  tailPolarity: number
-  diaryId: number
+  tailPolarity?: number
+  diaryId?: unknown
+  sourceDiaryIds?: unknown
 }
-const triplesLoading = ref(false)
-const deletingTripleId = ref<number | null>(null)
+const PAGE_SIZE = 20
+const store = useConsolidationStore()
+const dialog = useDialog()
+const chartRef = ref<InstanceType<typeof VChart> | null>(null)
+const isGraphListView = ref(false)
+const graphLoading = ref(false)
+const hasLoaded = ref(store.triples.length > 0)
+const loadError = ref('')
+const search = ref('')
+const polarity = ref('all')
+const selectedNode = ref<string | null>(null)
+const visibleLimit = ref(PAGE_SIZE)
+const detailId = ref<number | null>(null)
 const editingTripleId = ref<number | null>(null)
 const editingTriple = ref({ headEntity: '', relation: '', tailEntity: '', tailPolarity: 0 })
 const savingTripleId = ref<number | null>(null)
-
-onMounted(() => {
-  loadGraphAndTriples()
+const deletingTripleId = ref<number | null>(null)
+const deleteDialogOpen = ref(false)
+const editError = ref('')
+const mutationBusy = computed(() => savingTripleId.value !== null || deletingTripleId.value !== null || deleteDialogOpen.value)
+const navigationBusy = computed(() => mutationBusy.value || editingTripleId.value !== null)
+const filteredTriples = computed<TripleItem[]>(() => {
+  const query = search.value.trim().toLocaleLowerCase()
+  return store.triples.filter((t: TripleItem) => (
+    (!query || [t.headEntity, t.relation, t.tailEntity].some(text => text.toLocaleLowerCase().includes(query)))
+    && (polarity.value === 'all' || (t.tailPolarity ?? 0) === Number(polarity.value))
+    && (!selectedNode.value || t.headEntity === selectedNode.value || t.tailEntity === selectedNode.value)
+  ))
 })
-
-async function loadGraph() {
-  graphLoading.value = true
-  try {
-    const res = await graphApi.getUserGraph()
-    const data = res.data.data
-    if (!data || !data.nodes || data.nodes.length === 0) {
-      graphOptions.value = null
-      return
-    }
-
-    const style = getComputedStyle(document.documentElement)
-    const primaryColor = style.getPropertyValue('--color-primary').trim() || '#e4509a'
-    const textColor = style.getPropertyValue('--color-text').trim() || '#333'
-    const textSecColor = style.getPropertyValue('--color-text-secondary').trim() || '#666'
-    const lineColor = style.getPropertyValue('--color-border-strong').trim() || '#ccc'
-
-    // Some themes set --color-success and --color-info to the primary color for a monochrome UI aesthetic.
-    // However, for the knowledge graph, we MUST have distinguishable semantic colors.
-    let successColor = style.getPropertyValue('--color-success').trim() || '#18a058'
-    let errorColor = style.getPropertyValue('--color-error').trim() || '#d03050'
-    let infoColor = style.getPropertyValue('--color-info').trim() || '#8a8e99'
-
-    if (successColor === primaryColor) successColor = '#18a058'
-    if (errorColor === primaryColor) errorColor = '#d03050'
-    if (infoColor === primaryColor) infoColor = '#8a8e99'
-
-    graphOptions.value = {
-      toolbox: {
-        show: false,
-        feature: {
-          restore: {} // required for dispatchAction({type: 'restore'})
-        }
-      },
-      legend: {
-        show: true,
-        bottom: 10,
-        textStyle: { color: textSecColor }
-      },
-      tooltip: {
-        trigger: 'item',
-        formatter: (params: any) => {
-          if (params.dataType === 'node') {
-            return `节点：${params.data.name}<br/>关联数：${params.data.value}`
-          } else {
-            return `${params.data.source} <br/> --(${params.data.label})--&gt; <br/> ${params.data.target}`
-          }
-        }
-      },
-      series: [
-        {
-          type: 'graph',
-          layout: 'force',
-          roam: true,
-          scaleLimit: { min: 0.2, max: 4 }, // Limit zoom on mobile
-          draggable: true,
-          label: {
-            show: true,
-            position: 'right',
-            formatter: '{b}',
-            color: textColor
-          },
-          force: {
-            repulsion: 300,
-            edgeLength: 100
-          },
-          lineStyle: {
-            color: lineColor,
-            curveness: 0.2,
-            width: 2
-          },
-          edgeLabel: {
-            show: true,
-            fontSize: 10,
-            formatter: (params: any) => params.data.label,
-            color: textSecColor
-          },
-          categories: [
-            { name: '触发源 (事件/环境)', itemStyle: { color: primaryColor } },
-            { name: '正向感受', itemStyle: { color: successColor } },
-            { name: '负向与压力', itemStyle: { color: errorColor } },
-            { name: '中性/平和', itemStyle: { color: infoColor } }
-          ],
-          data: data.nodes.map((n: any) => {
-            const edgeAsTarget = data.edges.find((e: any) => e.target === n.name);
-            let categoryIndex = 0;
-            if (edgeAsTarget) {
-              const p = edgeAsTarget.tailPolarity;
-              if (p === 1) categoryIndex = 1;
-              else if (p === -1) categoryIndex = 2;
-              else categoryIndex = 3;
-            }
-            return {
-              name: n.name,
-              value: n.value,
-              category: categoryIndex,
-              // 加大节点的基础大小和生长率，提升视觉显著度
-              symbolSize: Math.max(15, Math.min(45, n.value * 8))
-            };
-          }),
-          links: data.edges.map((e: any) => ({
-            source: e.source,
-            target: e.target,
-            label: e.label
-          }))
-        }
-      ]
-    }
-  } catch (err) {
-    logWarn('memory', '加载图谱失败', err)
-    graphOptions.value = null
-  } finally {
-    graphLoading.value = false
+const visibleTriples = computed(() => filteredTriples.value.slice(0, visibleLimit.value))
+watch([search, polarity, selectedNode], () => { visibleLimit.value = PAGE_SIZE })
+// Computed graph/list projections also react to consolidation's replacement or in-place edits.
+watch(() => store.triples, (triples: TripleItem[]) => {
+  if (selectedNode.value && !triples.some(t => t.headEntity === selectedNode.value || t.tailEntity === selectedNode.value)) selectedNode.value = null
+  if (detailId.value !== null && !triples.some(t => t.id === detailId.value)) {
+    detailId.value = null
+    cancelEditTriple()
   }
+}, { deep: true })
+
+async function loadTriples() {
+  if (graphLoading.value || navigationBusy.value || store.consolidatingGraph) return
+  graphLoading.value = true
+  loadError.value = ''
+  try {
+    // Do not use store.loadTriples: it swallows errors and clears the last successful result.
+    const response = await graphApi.getTriples()
+    const triples = response.data.data
+    if (!Array.isArray(triples)) throw new Error('Invalid triples response')
+    store.triples = triples
+    hasLoaded.value = true
+  } catch (error) {
+    loadError.value = hasLoaded.value || store.triples.length
+      ? '刷新失败，已保留上次加载的关系。请稍后重试。'
+      : '关系加载失败，暂时无法获取数据。请重试。'
+    logWarn('graph', '加载关系失败', error)
+  } finally { graphLoading.value = false }
 }
-
-async function loadGraphAndTriples() {
-  await loadGraph()
-  await store.loadTriples()
+function polarityLabel(value?: number) { return value === 1 ? '积极' : value === -1 ? '消极' : '中性' }
+function sourceDiaryIds(t: TripleItem): number[] {
+  let sources = t.sourceDiaryIds
+  if (typeof sources === 'string') {
+    try { sources = JSON.parse(sources) } catch { sources = [] }
+  }
+  const ids = [t.diaryId, ...(Array.isArray(sources) ? sources : [])]
+  return [...new Set(ids.flatMap(value => {
+    if (typeof value !== 'number' && !(typeof value === 'string' && /^\d+$/.test(value))) return []
+    const id = Number(value)
+    return Number.isSafeInteger(id) && id > 0 ? [id] : []
+  }))]
 }
-
-
-function isRecentlyUpdated(t: any) {
-  if (!t.createdAt) return false
-  const ut = new Date(t.createdAt).getTime()
-  // within 5 minutes
-  return Date.now() - ut < 5 * 60 * 1000
+function toggleDetails(id: number) {
+  if (navigationBusy.value) return
+  detailId.value = detailId.value === id ? null : id
+  cancelEditTriple()
 }
-
 function startEditTriple(t: TripleItem) {
+  if (navigationBusy.value || graphLoading.value || store.consolidatingGraph) return
   editingTripleId.value = t.id
   editingTriple.value = { headEntity: t.headEntity, relation: t.relation, tailEntity: t.tailEntity, tailPolarity: t.tailPolarity ?? 0 }
+  editError.value = ''
 }
-
 function cancelEditTriple() {
+  if (savingTripleId.value !== null) return
   editingTripleId.value = null
-  editingTriple.value = { headEntity: '', relation: '', tailEntity: '', tailPolarity: 0 }
+  editError.value = ''
 }
-
 async function saveTriple(id: number) {
-  if (!editingTriple.value.headEntity || !editingTriple.value.tailEntity || !editingTriple.value.relation) {
-    window.$message?.warning('起点、关系、终点不能为空')
-    return
-  }
+  if (mutationBusy.value || graphLoading.value || store.consolidatingGraph || editingTripleId.value !== id) return
+  const draft = { ...editingTriple.value, headEntity: editingTriple.value.headEntity.trim(), relation: editingTriple.value.relation.trim(), tailEntity: editingTriple.value.tailEntity.trim() }
+  if (!draft.headEntity || !draft.relation || !draft.tailEntity) { editError.value = '起点、关系与终点不能为空。'; return }
   savingTripleId.value = id
+  editError.value = ''
   try {
-    await graphApi.updateTriple(id, editingTriple.value)
-    const idx = store.triples.findIndex((t: any) => t.id === id)
-    if (idx !== -1) {
-      store.triples[idx] = { ...store.triples[idx], ...editingTriple.value }
-    }
+    await graphApi.updateTriple(id, draft)
+    const index = store.triples.findIndex((t: TripleItem) => t.id === id)
+    if (index !== -1) store.triples[index] = { ...store.triples[index], ...draft }
     editingTripleId.value = null
-    window.$message?.success('关系已更新')
-    loadGraph() // 重新渲染图谱
-  } catch (err) {
-    logWarn('graph', '更新失败', err)
-  } finally {
-    savingTripleId.value = null
-  }
+  } catch (error) {
+    editError.value = '保存失败，已保留你的修改，请重试。'
+    logWarn('graph', '更新关系失败', error)
+  } finally { savingTripleId.value = null }
+}
+function confirmDeleteTriple(t: TripleItem) {
+  if (navigationBusy.value || graphLoading.value || store.consolidatingGraph) return
+  deleteDialogOpen.value = true
+  const error = ref('')
+  const confirmation = dialog.warning({
+    title: '确认删除关系',
+    closable: false,
+    contentStyle: { overflowWrap: 'anywhere' },
+    content: () => h('div', [
+      h('p', `${t.headEntity} — ${t.relation} → ${t.tailEntity}`),
+      h('p', '仅删除此关系，不删除原日记。此操作无法撤销。'),
+      error.value ? h('p', { role: 'alert', style: { color: 'var(--color-error)' } }, error.value) : null,
+    ]),
+    positiveText: '确认删除', negativeText: '取消',
+    positiveButtonProps: { themeOverrides: { heightSmall: '44px', heightMedium: '44px', heightLarge: '44px' } },
+    negativeButtonProps: { themeOverrides: { heightSmall: '44px', heightMedium: '44px', heightLarge: '44px' } },
+    onClose: () => deletingTripleId.value === null,
+    onMaskClick: () => deletingTripleId.value === null,
+    onAfterLeave: () => { deleteDialogOpen.value = false },
+    onPositiveClick: async () => {
+      if (deletingTripleId.value !== null) return false
+      // Do not delete a different relationship if consolidation changed this row meanwhile.
+      const current = store.triples.find((item: TripleItem) => item.id === t.id)
+      if (!current || current.headEntity !== t.headEntity || current.relation !== t.relation || current.tailEntity !== t.tailEntity) {
+        error.value = '此关系已变化，请取消并重新查看。'
+        return false
+      }
+      deletingTripleId.value = t.id
+      confirmation.loading = true
+      confirmation.closable = false
+      confirmation.maskClosable = false
+      confirmation.closeOnEsc = false
+      confirmation.negativeButtonProps = { disabled: true, themeOverrides: { heightSmall: '44px', heightMedium: '44px', heightLarge: '44px' } }
+      error.value = ''
+      try {
+        await graphApi.deleteTriple(t.id)
+        store.triples = store.triples.filter((item: TripleItem) => item.id !== t.id)
+        return true
+      } catch (cause) {
+        error.value = '删除失败，此关系仍保留，请重试。'
+        logWarn('graph', '删除关系失败', cause)
+        return false
+      } finally {
+        deletingTripleId.value = null
+        confirmation.loading = false
+        confirmation.closable = false
+        confirmation.maskClosable = true
+        confirmation.closeOnEsc = true
+        confirmation.negativeButtonProps = { disabled: false, themeOverrides: { heightSmall: '44px', heightMedium: '44px', heightLarge: '44px' } }
+      }
+    },
+  })
 }
 
-async function deleteTriple(id: number) {
-  deletingTripleId.value = id
-  try {
-    await graphApi.deleteTriple(id)
-    store.triples = store.triples.filter((t: any) => t.id !== id)
-    window.$message?.success('关系已删除')
-    loadGraph() // 重新渲染图谱
-  } catch (err) {
-    logWarn('graph', '删除失败', err)
-  } finally {
-    deletingTripleId.value = null
-  }
+// ECharts canvas needs resolved colors. Refresh when the app changes its global theme.
+const colors = ref<Record<string, string>>({})
+function readColors() {
+  const style = getComputedStyle(document.documentElement)
+  colors.value = Object.fromEntries(['primary', 'text', 'text-secondary', 'border-strong', 'success', 'error', 'info', 'surface'].map(name => [name, style.getPropertyValue(`--color-${name}`).trim()]))
 }
-
+let themeObserver: MutationObserver | undefined
+const darkMode = window.matchMedia('(prefers-color-scheme: dark)')
+onMounted(() => {
+  readColors()
+  themeObserver = new MutationObserver(readColors)
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class', 'data-theme'] })
+  darkMode.addEventListener('change', readColors)
+  void loadTriples()
+})
+onUnmounted(() => { themeObserver?.disconnect(); darkMode.removeEventListener('change', readColors) })
+function selectGraphNode(params: { dataType?: string; name?: string }) {
+  if (!navigationBusy.value && params.dataType === 'node' && params.name) selectedNode.value = params.name
+}
+function resetGraph() { chartRef.value?.dispatchAction({ type: 'restore' }) }
+const graphOptions = computed(() => {
+  const nodes = new Map<string, { name: string; value: number; itemStyle: { color: string } }>()
+  const c = colors.value
+  for (const t of visibleTriples.value) {
+    for (const [name, color] of [[t.headEntity, c.primary], [t.tailEntity, t.tailPolarity === 1 ? c.success : t.tailPolarity === -1 ? c.error : c.info]] as const) {
+      const node = nodes.get(name)
+      if (node) node.value++
+      else nodes.set(name, { name, value: 1, itemStyle: { color } })
+    }
+  }
+  return {
+    animation: false,
+    toolbox: { show: false, feature: { restore: {} } },
+    tooltip: {
+      trigger: 'item', renderMode: 'richText', confine: true,
+      backgroundColor: c.surface, borderColor: c['border-strong'], textStyle: { color: c.text },
+      formatter: (params: { dataType: string; data: { name: string; value: number; source: string; target: string; relation: string } }) => params.dataType === 'node'
+        ? `节点：${params.data.name}\n当前显示关联数：${params.data.value}`
+        : `${params.data.source}\n${params.data.relation}\n${params.data.target}`,
+    },
+    series: [{
+      type: 'graph', layout: 'circular', roam: true, draggable: true,
+      left: 56, right: 80, top: 56, bottom: 56, containLabel: true,
+      scaleLimit: { min: 0.4, max: 3 },
+      circular: { rotateLabel: false },
+      label: { show: true, position: 'right', color: c.text, width: 100, overflow: 'truncate', formatter: '{b}' },
+      labelLayout: { hideOverlap: true },
+      edgeLabel: { show: false },
+      emphasis: { focus: 'adjacency', label: { show: true } },
+      lineStyle: { color: c['border-strong'], width: 1.5, curveness: 0.12 },
+      data: [...nodes.values()].map(node => ({ ...node, symbolSize: Math.min(34, 14 + node.value * 3) })),
+      links: visibleTriples.value.map(t => ({ source: t.headEntity, target: t.tailEntity, relation: t.relation })),
+    }],
+  }
+})
 </script>
 
 <style scoped>
-.tab-content {
-  padding: 16px 0;
-  min-height: 400px;
+.memory-graph { color: var(--color-text); min-width: 0; }
+.graph-header-controls, .graph-actions, .graph-chart-toolbar, .graph-pagination, .graph-selection, .graph-load-error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.graph-header-controls { justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.graph-header-title { font: 600 20px/1.5 var(--font-display); margin: 0 0 6px; }
+.memory-desc { color: var(--color-text-secondary); font-size: 13px; line-height: 1.7; margin: 0; }
+.graph-filters { display: flex; flex-wrap: wrap; gap: 16px; }
+.memory-graph label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--color-text-secondary); }
+.graph-search { flex: 1 1 220px; }
+.memory-graph input, .memory-graph select { box-sizing: border-box; width: 100%; min-width: 44px; min-height: 44px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 16px; }
+.memory-graph button, .triple-sources a { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 10px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 13px; line-height: 1.5; cursor: pointer; text-decoration: none; transition: background-color 150ms, border-color 150ms; }
+.memory-graph button:hover:not(:disabled), .triple-sources a:hover { background: var(--color-surface-hover); border-color: var(--color-border-strong); }
+.memory-graph :is(button, input, select, a):focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.memory-graph :disabled { opacity: 0.55; cursor: not-allowed; }
+.graph-counts, .graph-pagination { color: var(--color-text-secondary); font-size: 13px; line-height: 1.7; margin: 16px 0; }
+.graph-selection { justify-content: space-between; background: var(--color-surface-soft); padding: 8px 12px; margin-bottom: 16px; border-radius: var(--radius-sm); overflow-wrap: anywhere; }
+.graph-load-error { padding: 12px; border: 1px solid var(--color-error); border-radius: var(--radius-sm); margin: 12px 0; color: var(--color-error); }
+.graph-local-error, .memory-graph .danger-action { color: var(--color-error); }
+.graph-state, .graph-empty { padding: 48px 16px; text-align: center; color: var(--color-text-secondary); line-height: 1.7; }
+.graph-chart-toolbar { justify-content: space-between; margin: 12px 0; }
+.graph-chart-toolbar .memory-desc { flex: 1 1 220px; }
+.chart-container { border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-soft); overflow: hidden; }
+.chart { width: 100%; height: 460px; }
+.memory-list { border-top: 1px solid var(--color-border); }
+.memory-item { border-bottom: 1px solid var(--color-border); padding: 20px 0; }
+.triple-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.triple-summary > p { flex: 1 1 240px; margin: 0; font-size: 15px; line-height: 1.8; overflow-wrap: anywhere; }
+.triple-summary strong { font-weight: 500; }
+.triple-relation, .triple-polarity { color: var(--color-text-secondary); font-size: 13px; }
+.triple-details { padding: 20px; margin-top: 16px; background: var(--color-surface-soft); border-radius: var(--radius-sm); }
+.triple-sources h4 { margin: 0 0 12px; font: 500 15px/1.5 var(--font-display); }
+.triple-editor { display: grid; gap: 16px; margin-top: 24px; }
+.detail-actions { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-border); }
+.graph-pagination { justify-content: space-between; gap: 16px; }
+@media (max-width: 480px) {
+  .graph-header-controls > .graph-actions { width: 100%; }
+  .triple-details { padding: 16px; }
+  .chart { height: 400px; }
 }
-.memory-desc {
-  font-size: 13px;
-  color: var(--color-text-secondary);
-  margin: 0 0 16px 0;
-  line-height: 1.5;
-}
-.memory-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--space-4);
-  padding: 10px 0;
-}
-.memory-item {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 24px;
-  background: var(--color-surface);
-  border: none;
-  border-radius: var(--radius-xl);
-  box-shadow: 0 10px 30px -10px rgba(0,0,0,0.03);
-  transition: color var(--duration-normal) var(--ease-out), background-color var(--duration-normal) var(--ease-out), border-color var(--duration-normal) var(--ease-out), opacity var(--duration-normal) var(--ease-out), transform var(--duration-normal) var(--ease-out);
-}
-.memory-item:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 40px -10px rgba(0,0,0,0.06);
-}
-@media (prefers-color-scheme: dark) {
-  .memory-item:hover {
-    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.2);
-  }
-}
-.memory-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.memory-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-shrink: 0;
-  justify-content: flex-end;
-  border-top: 1px dashed color-mix(in oklab, var(--color-border) 40%, transparent);
-  padding-top: 12px;
-}
-.memory-action-btn {
-  font-size: 12px !important;
-  padding: 0 12px !important;
-  background: transparent !important;
-  border: none !important;
-  transition: all 0.2s ease !important;
-  border-radius: var(--radius-full) !important;
-}
-.memory-action-btn.edit-btn,
-.memory-action-btn.save-btn {
-  color: var(--color-primary) !important;
-}
-.memory-action-btn.edit-btn:hover,
-.memory-action-btn.save-btn:hover {
-  color: var(--color-primary-hover) !important;
-}
-.memory-action-btn.delete-btn {
-  color: var(--color-error) !important;
-}
-.memory-action-btn.delete-btn:hover {
-  color: #ff6666 !important;
-}
-.memory-action-btn.cancel-btn {
-  color: var(--color-text-secondary) !important;
-}
-.memory-action-btn.cancel-btn:hover {
-  color: var(--color-text) !important;
-}
-.chart {
-  width: 100%;
-  height: 100%;
-}
-
-.graph-header-controls { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
-.flex-center-gap-8 { display: flex; align-items: center; gap: 8px; }
-.shrink-0 { flex-shrink: 0; }
-.graph-header-title { margin: 0; font-weight: bold; white-space: nowrap; }
-.flex-gap-8-wrap { display: flex; gap: 8px; flex-wrap: wrap; }
-.graph-tab-content { position: relative; min-height: 500px; display: flex; flex-direction: column; }
-.mb-12 { margin-bottom: 12px; }
-.flex-center-full { flex: 1; display: flex; justify-content: center; align-items: center; }
-.text-light { color: var(--color-text-light); }
-.chart-container { flex: 1; min-height: 500px; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; background: var(--color-surface-soft); position: relative; touch-action: none; }
-.chart-canvas { height: 100%; min-height: 500px; }
-.chart-overlay-controls { position: absolute; right: 16px; top: 16px; z-index: 10; }
-.flex-row-wrap-center { flex-direction: row; align-items: center; flex-wrap: wrap; }
-.flex-col-gap-8-full { display: flex; flex-direction: column; gap: 8px; flex: 1; width: 100%; }
-.flex-1-min-90 { flex: 1; min-width: 90px; }
-.flex-1-min-60 { flex: 1; min-width: 60px; }
-.flex-wrap-gap-8-mt-4 { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-.triple-entity { font-weight: bold; color: var(--color-primary); }
-.triple-relation { color: var(--color-text-light); margin: 0 6px; }
-.ml-8 { margin-left: 8px; }
-.empty-triples { text-align: center; color: var(--color-text-light); padding: 20px; }
-.graph-preview-modal { width: 600px; max-width: 90vw; }
-.preview-desc { margin-top: 0; color: var(--color-text-secondary); font-size: 13px; }
-.deleted-triples-panel { background: var(--color-surface-hover); border-left: 3px solid var(--color-border); padding: 8px 12px; margin-bottom: 16px; font-size: 12px; color: var(--color-text-secondary); border-radius: 4px; max-height: 15vh; overflow-y: auto; }
-.mb-4 { margin-bottom: 4px; }
-.preview-list-panel { max-height: 35vh; overflow-y: auto; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 6px; padding: 12px; margin-bottom: 16px; }
-.preview-item { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); font-size: 13px; color: var(--color-text); }
-.flex-end-gap-12 { display: flex; gap: 12px; justify-content: flex-end; }
-
+@media (prefers-reduced-motion: reduce) { .memory-graph button, .triple-sources a { transition: none; } }
 </style>
-
