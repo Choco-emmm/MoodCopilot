@@ -115,6 +115,7 @@ public class DiaryController {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity user = (auth != null && auth.getPrincipal() instanceof UserEntity u) ? u : null;
         if (user != null) {
+            rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REPORT);
             diaryService.generateWeeklyAiSummaryAsync(user.getId(), weekOffset);
             return ApiResponse.ok(diaryService.loadWeeklyReportForUser(user.getId(), weekOffset));
         }
@@ -133,6 +134,7 @@ public class DiaryController {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         UserEntity user = (auth != null && auth.getPrincipal() instanceof UserEntity u) ? u : null;
         if (user != null) {
+            rateLimitService.tryAcquire(user, RateLimitService.AiApiType.REPORT);
             diaryService.generateMonthlyAiSummaryAsync(user.getId(), monthOffset);
             return ApiResponse.ok(diaryService.loadMonthlyReportForUser(user.getId(), monthOffset));
         }

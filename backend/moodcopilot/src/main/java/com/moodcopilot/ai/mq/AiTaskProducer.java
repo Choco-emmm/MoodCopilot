@@ -6,7 +6,6 @@ import com.moodcopilot.mapper.DiaryMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.time.LocalDate;
 
@@ -29,10 +28,25 @@ public class AiTaskProducer {
                 .eq(DiaryEntity::getId, diaryId).eq(DiaryEntity::getAuthorUserId, userId));
         String content = diary == null || diary.getContent() == null ? "" : diary.getContent();
         String requestedModel = useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash";
-        String contentHash = DigestUtils.md5DigestAsHex(content.getBytes(StandardCharsets.UTF_8));
-        String operationKey = forceRetry
-                ? "diary:" + diaryId + ":analysis:" + contentHash + ":" + requestedModel + ":retry:" + java.util.UUID.randomUUID()
-                : "diary:" + diaryId + ":analysis:" + contentHash + ":" + requestedModel;
+        if (diary == null || Boolean.TRUE.equals(diary.getIsDeleted())) {
+            throw new IllegalArgumentException("Diary not available");
+        }
+        String contentHash;
+        try {
+            var music = diary.getMusicMeta();
+            // Only user input belongs in this fingerprint; derived music metadata can arrive later.
+            byte[] input = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsBytes(
+                    java.util.Arrays.asList(content, diary.getImages(), diary.getImageMeta(),
+                            music == null ? null : java.util.Arrays.asList(music.getSongUrl(), music.getTitle(),
+                                    music.getArtist(), music.getUserLyric())));
+            contentHash = DigestUtils.md5DigestAsHex(input);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+            throw new IllegalArgumentException("Invalid analysis input");
+        }
+        // These callers are user submissions, not MQ redeliveries. Returning to a previous
+        // input must not reuse a completed/cancelled task. Broker retries retain this task ID.
+        String operationKey = "diary:" + diaryId + ":analysis:" + contentHash + ":" + requestedModel
+                + (forceRetry ? ":retry:" : ":request:") + java.util.UUID.randomUUID();
         return taskService.enqueue(userId, AiTaskMessage.TYPE_DIARY_ANALYSIS, String.valueOf(diaryId), contentHash,
                 requestedModel, operationKey,
                 Map.of("useReasoning", useReasoning), null);

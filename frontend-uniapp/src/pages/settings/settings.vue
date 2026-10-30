@@ -91,6 +91,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { get, post, put } from '@/utils/request';
+import { clearQuote } from '@/stores/quote';
 import GlobalUI from '@/components/GlobalUI.vue';
 import { currentTheme, syncNavigationBarColor } from '@/stores/theme';
 
@@ -311,6 +312,7 @@ const submitBindEmail = async () => {
     const bindRes = await post('/api/auth/bind-email', { email: bindForm.value.email.trim(), code: bindForm.value.code.trim() });
     if (bindRes.code === 200) {
       if (bindRes.data) {
+        clearQuote();
         uni.setStorageSync('token', bindRes.data);
         uni.showToast({ title: '账号合并成功', icon: 'success' });
         // Emit event to refresh feed/profile

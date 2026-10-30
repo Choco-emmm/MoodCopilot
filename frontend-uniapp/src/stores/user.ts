@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { get, post } from '../utils/request';
 import { disconnectWebSocket } from '../utils/socket';
 import { setAnnouncementUserId } from '../stores/announcement';
+import { clearQuote } from './quote';
 
 export const currentUser = ref<any>(null);
 export const isLoggedIn = ref<boolean>(!!uni.getStorageSync('token'));
@@ -28,6 +29,7 @@ export const fetchCurrentUser = async () => {
 };
 
 export const logout = async () => {
+  clearQuote();
   // 1. Notify backend to invalidate the token (best-effort, don't block on failure)
   try {
     await post('/api/auth/logout');
