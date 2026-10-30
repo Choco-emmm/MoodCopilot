@@ -311,6 +311,7 @@ import { get, post, upload, getFullUrl } from '@/utils/request';
 import { connectWebSocket } from '@/utils/socket';
 import { showLoginWithoutContinuation } from '@/stores/login';
 import { logout as authLogout } from '@/stores/user';
+import { clearQuote } from '@/stores/quote';
 
 
 const showQuotaModal = ref(false);
@@ -503,6 +504,9 @@ const handleWechatLogin = () => {
         .then((result: any) => {
           uni.hideLoading();
           if (result.code === 200 && result.data && result.data.token) {
+            clearQuote();
+            if (result.data.userId) uni.setStorageSync('loginUserId', result.data.userId);
+            else uni.removeStorageSync('loginUserId');
             uni.setStorageSync('token', result.data.token);
             isLoggedIn.value = true;
             uni.showToast({ title: '登录成功', icon: 'success' });

@@ -1,3 +1,5 @@
+import { clearQuote } from '../stores/quote';
+
 export interface Result<T = any> {
   code: number;
   message: string;
@@ -54,6 +56,14 @@ const silentLogin = (): Promise<string> => {
           success: (res: any) => {
             if (res.statusCode === 200 && res.data?.code === 200 && res.data?.data?.token) {
               const newToken = res.data.data.token;
+              const nextUserId = res.data.data.userId;
+              if (!nextUserId || String(nextUserId) !== String(uni.getStorageSync('loginUserId'))) {
+                // Pending requests may already contain copied private text. Never replay
+                // that payload with another identity, even after clearing the quote store.
+                clearQuote();
+                reject(new Error('Login identity changed'));
+                return;
+              }
               uni.setStorageSync('token', newToken);
               resolve(newToken);
             } else {
@@ -89,6 +99,7 @@ const extractErrorMessage = (value: unknown): string => {
 
 const handleResponseError = (statusCode: number, dataMessage?: unknown, defaultMsg: string = '请求失败') => {
   if (statusCode === 401) {
+    clearQuote();
     uni.removeStorageSync('token');
     uni.showToast({ title: '请先登录', icon: 'none' });
     uni.$emit('unauthorized');

@@ -211,6 +211,10 @@ public class AiTaskService {
     /** 投递阶段没有 RUNNING 执行次数，单独推进 attempts，避免发布失败的任务永远重试。 */
     @Transactional
     public void markDispatchFailed(String taskId, Throwable error) {
+        markDispatchFailed(taskId, error, NODE_ID, null);
+    }
+
+    private void markDispatchFailed(String taskId, Throwable error, String expectedOwner, LocalDateTime expiredAt) {
         AiTaskEntity task = taskMapper.selectById(taskId);
         if (task == null) return;
         int attempts = task.getAttempts() == null ? 0 : task.getAttempts();
@@ -218,7 +222,8 @@ public class AiTaskService {
         String message = truncate(error == null ? "dispatch failed" : error.getMessage(), 2000);
         LambdaUpdateWrapper<AiTaskEntity> update = new LambdaUpdateWrapper<AiTaskEntity>()
                 .eq(AiTaskEntity::getTaskId, taskId).eq(AiTaskEntity::getStatus, "RUNNING")
-                .eq(AiTaskEntity::getLeaseOwner, NODE_ID)
+                .eq(AiTaskEntity::getLeaseOwner, expectedOwner)
+                .le(expiredAt != null, AiTaskEntity::getLeaseUntil, expiredAt)
                 .isNull(AiTaskEntity::getStartedAt)
                 .setSql("attempts = attempts + 1")
                 .set(AiTaskEntity::getLastError, message)
@@ -249,7 +254,8 @@ public class AiTaskService {
         for (AiTaskEntity task : expired) {
             if (task.getLeaseOwner() != null) {
                 if (task.getStartedAt() == null) {
-                    markDispatchFailed(task.getTaskId(), new IllegalStateException("任务投递租约超时"));
+                    markDispatchFailed(task.getTaskId(), new IllegalStateException("任务投递租约超时"),
+                            task.getLeaseOwner(), now);
                 } else if (markLeaseExpired(task, now) && "DEAD_LETTER".equals(task.getStatus())) {
                     markRelatedDiaryFailed(task, task.getLastError());
                 }

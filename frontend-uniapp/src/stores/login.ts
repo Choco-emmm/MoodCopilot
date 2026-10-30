@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { post } from '@/utils/request'
+import { clearQuote } from './quote'
 import { connectWebSocket } from '@/utils/socket'
 import { acknowledgeGuestAnnouncementForUser, setAnnouncementUserId } from '@/stores/announcement'
 
@@ -52,6 +53,7 @@ export function loginWithWechat() {
           return
         }
 
+        if (String(uni.getStorageSync('loginUserId')) !== String(response.data.userId)) clearQuote()
         uni.setStorageSync('token', response.data.token)
         uni.setStorageSync('loginUserId', response.data.userId)
         setAnnouncementUserId(response.data.userId)

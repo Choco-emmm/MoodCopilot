@@ -6,6 +6,7 @@ import { watch } from "vue";
 import { get } from '@/utils/request';
 import { loadActiveAnnouncement, setAnnouncementUserId } from '@/stores/announcement';
 import { restoreLoggedInUser, showLoginWithoutContinuation } from '@/stores/login';
+import { clearQuote } from '@/stores/quote';
 
 
 onLaunch(() => {
@@ -42,6 +43,7 @@ async function restoreAnnouncementUser() {
     const response = await get<{ userId?: number }>('/api/auth/me');
     const userId = response.data?.userId;
     if (response.code === 200 && userId) {
+      if (String(uni.getStorageSync('loginUserId')) !== String(userId)) clearQuote();
       uni.setStorageSync('loginUserId', userId);
       setAnnouncementUserId(userId);
     }
