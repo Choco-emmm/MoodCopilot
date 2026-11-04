@@ -293,11 +293,7 @@ public class VisionService {
             Map<String, Object> userMsg = Map.of("role", "user", "content", List.of(
                     Map.of("type", "text", "text", prompt),
                     Map.of("type", "image_url", "image_url", Map.of("url", finalUrl))));
-            Map<String, Object> body = Map.of(
-                    "model", ocrModel,
-                    "messages", List.of(userMsg),
-                    "max_tokens", ocrMaxTokens,
-                    "temperature", 0.01);
+            Map<String, Object> body = buildVisionRequest(ocrModel, userMsg, ocrMaxTokens, 0.01);
 
             String response = restClient.post()
                     .uri(apiUrl)
@@ -351,11 +347,7 @@ public class VisionService {
             Map<String, Object> userMsg = Map.of("role", "user", "content", List.of(
                     Map.of("type", "text", "text", prompt),
                     Map.of("type", "image_url", "image_url", Map.of("url", finalUrl))));
-            Map<String, Object> body = Map.of(
-                    "model", modelName,
-                    "messages", List.of(userMsg),
-                    "max_tokens", maxTokens,
-                    "temperature", temperature);
+            Map<String, Object> body = buildVisionRequest(modelName, userMsg, maxTokens, temperature);
 
             String response = restClient.post()
                     .uri(apiUrl)
@@ -434,11 +426,7 @@ public class VisionService {
             }
 
             Map<String, Object> userMsg = Map.of("role", "user", "content", contentList);
-            Map<String, Object> body = Map.of(
-                    "model", modelName,
-                    "messages", List.of(userMsg),
-                    "max_tokens", maxTokens,
-                    "temperature", temperature);
+            Map<String, Object> body = buildVisionRequest(modelName, userMsg, maxTokens, temperature);
 
             String response = restClient.post()
                     .uri(apiUrl)
@@ -466,6 +454,20 @@ public class VisionService {
             log.warn("VLM {} 失败: {}", logTag, e.getMessage());
             return "";
         }
+    }
+
+    private Map<String, Object> buildVisionRequest(String modelName, Map<String, Object> userMsg,
+            int maxTokens, double temperature) {
+        Map<String, Object> body = new java.util.LinkedHashMap<>(Map.of(
+                "model", modelName,
+                "messages", List.of(userMsg),
+                "max_tokens", maxTokens,
+                "temperature", temperature));
+        // Caption/OCR calls need text output; default reasoning can exhaust their short budget.
+        if (modelName.startsWith("deepseek-")) {
+            body.put("thinking", Map.of("type", "disabled"));
+        }
+        return body;
     }
 
     private String fetchImageAsBase64Uri(String imageUrl) {
