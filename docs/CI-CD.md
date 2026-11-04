@@ -45,6 +45,8 @@
 
 不要把 `.env` 或私钥提交到仓库。服务器继续使用原有 `.env`、证书和数据卷。SSH 强制核验 known_hosts，不接受关闭主机校验的捷径。部署账号需要 Bash、`flock`、Docker Engine 和支持 `up --wait` 的 Compose v2，以及拉取 GHCR 的网络条件。
 
+视觉服务通过 `VISION_API_KEY`、`VISION_API_URL`、`VISION_MODEL` 和 `VISION_OCR_MODEL` 配置。使用 DeepSeek 读图时，在服务器 `.env` 中设置 `VISION_API_KEY=${DEEPSEEK_API_KEY}`、`VISION_API_URL=https://api.deepseek.com/chat/completions`，并将两个视觉模型都设为 `deepseek-flash`；视觉请求会显式关闭思考，避免短输出预算被推理耗尽。聊天 Pro/Flash 选择不受影响。镜像部署不会更新服务器 Compose 文件，已有安装还需同步 `backend.environment` 中这四个变量的透传配置，并在配置变更前备份；单独修改 `.env` 或执行 `docker compose restart` 不会更新容器环境，需在部署时重建 backend 容器。
+
 GHCR 首次发布的 package 可能默认私有。Actions 发布和部署分别使用临时 `GITHUB_TOKEN` 的写入/读取权限；部署时经 SSH 加密传给服务器，只在私有临时目录中登录 GHCR，任务结束后删除认证文件，不覆盖服务器原有 Docker 配置，不需要自建 PAT。手动使用 `./deploy.sh --images` 时仍需服务器事先登录 GHCR，或使用可公开拉取的镜像。镜像是当前 GitHub Runner 的 amd64 架构，服务器需为 amd64。
 
 先在服务器用原来的 `./deploy.sh` 完成已有安装。CD 要求现有 `backend` 和 `web` 服务正在运行，拒绝隐式初始化数据库。部署使用服务器当前 Compose 文件；基础设施、反代、数据库迁移和配置变更仍需单独审核同步。此工作流更新应用镜像，不会自动把 Git 工作目录切换到另一个分支。
