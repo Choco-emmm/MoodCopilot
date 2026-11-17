@@ -15,6 +15,27 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DispatchRecoveryTest {
+    @Test void expiredAnalysisCannotReplaceTheUsersOptOutWithAFailure() {
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "test"), AiTaskEntity.class);
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "test"), com.moodcopilot.entity.DiaryEntity.class);
+        var tasks = mock(AiTaskMapper.class);
+        var diaries = mock(com.moodcopilot.mapper.DiaryMapper.class);
+        var task = new AiTaskEntity();
+        task.setTaskId("expired-analysis"); task.setLeaseOwner("old-worker");
+        task.setUserId(7L); task.setAggregateId("31"); task.setTaskType(AiTaskMessage.TYPE_DIARY_ANALYSIS);
+        task.setStatus("RUNNING"); task.setStartedAt(LocalDateTime.now().minusMinutes(30));
+        task.setLeaseUntil(LocalDateTime.now().minusMinutes(1)); task.setAttempts(2); task.setMaxAttempts(3);
+        when(tasks.selectList(any())).thenReturn(List.of(task));
+        when(tasks.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+        new AiTaskService(tasks, diaries, mock(RabbitTemplate.class), new ObjectMapper()).recoverExpiredTasks();
+        @SuppressWarnings("unchecked") var guard = org.mockito.ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
+        verify(diaries).update(any(com.moodcopilot.entity.DiaryEntity.class), guard.capture());
+        assertTrue(guard.getValue().getSqlSegment().contains("analysis_status <>"));
+        assertTrue(guard.getValue().getParamNameValuePairs().containsValue("skipped_user"));
+        assertTrue(guard.getValue().getParamNameValuePairs().containsValue(7L));
+        verify(diaries, never()).updateById(any(com.moodcopilot.entity.DiaryEntity.class));
+    }
+
     @Test void expiredForeignDispatchUsesObservedOwnerAndExpirationGuard() {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "test"), AiTaskEntity.class);
         var mapper = mock(AiTaskMapper.class);

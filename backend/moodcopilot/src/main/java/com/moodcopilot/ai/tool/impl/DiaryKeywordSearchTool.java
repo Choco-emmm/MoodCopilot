@@ -27,9 +27,11 @@ public class DiaryKeywordSearchTool extends ChatTool<DiarySearchRequest> {
 
     @Override
     public String description() {
-        return "数据库精确文本检索工具，专门用于查找日记中的人名、地名、具体物品、书名、电影名等**明确的名词或专有名词**。"
-                + "如果用户提到具体的实体名称（如'小星'、'三体'、'南京'），【必须】使用此工具。"
-                + "【强烈警告】：此工具只能进行字符级精确匹配。如果用户的提问是关于感觉、情绪或宽泛概念（如'关于工作压力的事'），【绝对禁止】使用此工具，请务必改用 diarySemanticSearchFunction。"
+        return "数据库精确文本检索工具，用于查找日记中的人名、地名、具体物品、书名、电影名等明确的名词或专有名词。"
+                + "用户提到具体实体名称（如'小星'、'三体'、'南京'）时用这个。"
+                + "它只做字符级精确匹配，不适用于感觉、情绪或宽泛概念，那类问题请改用 diarySemanticSearchFunction。"
+                + "如果用户没有给出任何检索词（例如'我最近写了什么'、'日记里都提到些什么'），"
+                + "请直接用 listRecentDiariesFunction 拿列表，不要用本工具猜关键词反复试探。"
                 + "返回的是日记摘要，不足以回答具体问题时，用返回的 id 调用 readDiaryFunction 取全文。";
     }
 

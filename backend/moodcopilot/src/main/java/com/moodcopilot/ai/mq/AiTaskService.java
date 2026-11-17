@@ -308,7 +308,11 @@ public class AiTaskService {
             diary.setId(Long.valueOf(task.getAggregateId()));
             diary.setAnalysisStatus("failed");
             diary.setAnalysisError(truncate(error == null ? task.getLastError() : error, 1000));
-            diaryMapper.updateById(diary);
+            diaryMapper.update(diary, new LambdaUpdateWrapper<DiaryEntity>()
+                    .eq(DiaryEntity::getId, diary.getId())
+                    .eq(DiaryEntity::getAuthorUserId, task.getUserId())
+                    .and(w -> w.isNull(DiaryEntity::getAnalysisStatus)
+                            .or().ne(DiaryEntity::getAnalysisStatus, "skipped_user")));
             log.warn("日记分析任务最终失败，已更新日记失败状态，diaryId={}，taskStatus={}",
                     task.getAggregateId(), task.getStatus());
         } catch (NumberFormatException e) {

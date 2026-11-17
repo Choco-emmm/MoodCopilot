@@ -404,9 +404,6 @@ const visibilityCopy = computed(() =>
 const plainText = computed(() => htmlContent.value.replace(/<[^>]*>/g, '').trim())
 const isOverLimit = computed(() => plainText.value.length > 3000)
 
-// 编辑模式下，内容未变化时不触发 AI 重新分析
-const contentChanged = computed(() => !isEditMode.value || htmlContent.value !== initialHtml)
-
 function handleEditorCreated(editor: IDomEditor) {
   editorRef.value = editor
 }
@@ -675,7 +672,7 @@ async function handleSave() {
 
     if (isEditMode.value) {
       diaryId = props.editId!
-      await store.updateDiary(diaryId, content, visibility.value, musicPayload, imagesPayload, analyze.value && contentChanged.value, imageMetaPayload, useReasoning.value)
+      await store.updateDiary(diaryId, content, visibility.value, musicPayload, imagesPayload, analyze.value, imageMetaPayload, useReasoning.value)
       router.push(`/diary/${diaryId}`)
     } else {
       const saved = await store.createDiary(content, visibility.value, musicPayload, analyze.value, imagesPayload, imageMetaPayload, useReasoning.value)

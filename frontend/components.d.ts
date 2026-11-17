@@ -29,6 +29,8 @@ declare module 'vue' {
     LifeChapterContent: typeof import('./src/components/LifeChapterContent.vue')['default']
     LoadingSkeleton: typeof import('./src/components/LoadingSkeleton.vue')['default']
     MemoryGraphView: typeof import('./src/components/memory/MemoryGraphView.vue')['default']
+    MemoryPagination: typeof import('./src/components/memory/MemoryPagination.vue')['default']
+    MemoryPreview: typeof import('./src/components/memory/MemoryPreview.vue')['default']
     MemoryProfileView: typeof import('./src/components/memory/MemoryProfileView.vue')['default']
     MusicCard: typeof import('./src/components/MusicCard.vue')['default']
     NButton: typeof import('naive-ui')['NButton']

@@ -61,11 +61,12 @@ try {
     const app = createApp({ render: () => h(NDialogProvider, null, { default: () => h(MemoryProfileView) }) }); app.use(pinia).use(router).mount('#app'); await flush()
     assert(document.querySelector('.memory-overview').textContent.includes('20 条正式记忆'), 'formal memory count is missing')
     assert(!document.querySelector('.candidate-item'), 'candidate queue is not initially collapsed')
-    assert(document.querySelectorAll('.memory-item').length === 2, 'formal groups do not bound initial content')
+    assert(document.querySelectorAll('.memory-item').length === 1, 'formal groups do not bound initial content')
     document.querySelector('.memory-actions button').click(); await flush()
     const evidence = document.querySelector('.memory-evidence-section').textContent
     assert(evidence.includes('我喜欢晨跑') && !evidence.includes('USER_CONFIRMED_CHAT_EDIT'), 'activity is mixed with original evidence')
     assert(document.querySelector('.memory-activity').textContent.includes('确认修改记忆'), 'activity does not have a readable label')
+    document.querySelector('#memory-details-return').click(); await flush()
     document.querySelector('.candidate-toggle').click(); await flush()
     assert(document.querySelectorAll('.candidate-item').length === 1, 'candidate group defaults are unbounded')
     assert(document.documentElement.scrollWidth <= innerWidth, 'mobile memory groups overflow')
@@ -90,6 +91,7 @@ try {
     document.querySelector('.candidate-actions button').click(); await flush()
     assert(document.querySelector('.candidate-details [role="alert"]'), 'evidence failure is shown as empty')
     evidenceFail = false; document.querySelector('.candidate-details [role="alert"] button').click(); await flush()
+    document.querySelector('#memory-details-return').click(); await flush()
     document.querySelectorAll('.candidate-actions')[1].querySelector('button').click(); await flush()
     slow.resolve(ok([{ id: 8, sourceType: 'chat_candidate', evidenceText: '过时的依据' }])); await flush()
     assert(document.querySelector('.candidate-details').textContent.includes('新的依据') && !document.querySelector('.candidate-details').textContent.includes('过时的依据'), 'stale candidate response replaced current evidence')
@@ -192,11 +194,11 @@ try {
     await router.push('/')
     const app = createApp({ render: () => h(NDialogProvider, null, { default: () => h(MemoryProfileView) }) })
     app.use(pinia).use(router).mount('#app'); await flush()
-    const button = text => [...document.querySelectorAll('.memory-actions button')].find(el => el.textContent.trim() === text)
+    const button = text => [...document.querySelectorAll('.memory-actions button')].find(el => el.textContent.replace('→', '').trim() === text)
     const edit = async value => {
-      if (!button('编辑')) { button('查看详情与依据').click(); await flush() }
-      button('编辑').click(); await flush()
-      const input = document.querySelector('.memory-item textarea'); input.value = value
+      if (!button('编辑记忆')) { button('查看全文与依据').click(); await flush() }
+      button('编辑记忆').click(); await flush()
+      const input = document.querySelector('.memory-details textarea'); input.value = value
       input.dispatchEvent(new Event('input', { bubbles: true })); await flush()
       button('保存').click(); await flush()
     }
@@ -205,13 +207,14 @@ try {
     await edit('喜欢香蕉')
     assert(JSON.stringify(updates) === '[11,12]' && document.body.textContent.includes('喜欢香蕉'), 'consecutive edits did not use latest version')
     fail = true; await edit('未保存的草稿')
-    assert(document.querySelector('.memory-item textarea').value === '未保存的草稿', 'failed save discarded draft')
+    assert(document.querySelector('.memory-details textarea').value === '未保存的草稿', 'failed save discarded draft')
     assert(document.body.textContent.includes('触发受限资料规则'), 'failed save has no visible error')
     fail = false; refreshFail = true; button('保存').click(); await flush()
-    assert(document.body.textContent.includes('修改已经保存') && button('编辑').disabled, 'post-save refresh failure permits a stale second edit')
+    assert(document.body.textContent.includes('修改已经保存') && button('编辑记忆').disabled, 'post-save refresh failure permits a stale second edit')
     refreshFail = false
+    document.querySelector('#memory-details-return').click(); await flush()
     ;[...document.querySelectorAll('.section-head button')].find(el => el.textContent.trim() === '刷新').click(); await flush()
-    assert(useConsolidationStore().memories[0].id === 14 && !button('查看详情与依据').disabled, 'manual refresh did not restore latest-version actions')
+    assert(useConsolidationStore().memories[0].id === 14 && !button('查看全文与依据').disabled, 'manual refresh did not restore latest-version actions')
     app.unmount()
   })
   await check('ResizeObserver diagnostics are counted and limited without hiding other errors or source positions', async () => {
@@ -244,13 +247,14 @@ try {
     await router.push('/')
     const app = createApp({ render: () => h(NDialogProvider, null, { default: () => h(MemoryProfileView) }) })
     app.use(pinia).use(router).mount('#app'); await frame()
-    const button = (scope, text) => [...document.querySelectorAll(`${scope} button`)].find(el => el.textContent.trim() === text)
-    button('.memory-actions', '查看详情与依据')?.click(); await frame()
-    button('.memory-actions', '编辑').click(); await frame()
-    const editor = document.querySelector('.memory-item textarea'), initial = editor.getBoundingClientRect().height
+    const button = (scope, text) => [...document.querySelectorAll(`${scope} button`)].find(el => el.textContent.replace('→', '').trim() === text)
+    button('.memory-actions', '查看全文与依据')?.click(); await frame()
+    button('.memory-actions', '编辑记忆').click(); await frame()
+    const editor = document.querySelector('.memory-details textarea'), initial = editor.getBoundingClientRect().height
     editor.value = '长文本\n'.repeat(20); editor.dispatchEvent(new Event('input', { bubbles: true })); await frame()
     assert(editor.getBoundingClientRect().height === initial && editor.scrollHeight > editor.clientHeight, 'memory editor height still depends on observed content size')
     button('.memory-actions', '取消').click(); await frame()
+    document.querySelector('#memory-details-return').click(); await frame()
     document.querySelector('.candidate-toggle')?.click(); await frame()
     document.querySelector('.candidate-actions button').click(); await frame()
     button('.candidate-decisions', '拒绝').click(); await frame()
@@ -370,6 +374,60 @@ try {
     await stream.resolveApproval([{ toolCallId: 'edit-a', approved: true, editedValue: '修正后的用户稿' }])
     assert(!stream.awaitingApproval.value && calls[1][0].editedValue === '修正后的用户稿', 'retry did not save latest edit')
     waiting.resolve(); await recovery
+  })
+  await check('community sharing preserves the explicit analysis opt-out through the real editor and API', async () => {
+    const { createApp, h, createPinia, createRouter, createMemoryHistory, diaryApi, collectionApi, useDiaryStore } = f
+    const { api } = await import('/src/api/core.ts')
+    const { default: DiaryComposer } = await import('/src/components/DiaryComposer.vue')
+    const submissions = []
+    api.defaults.adapter = async config => {
+      assert(config.url === '/diaries' && config.method === 'post', 'unexpected API call')
+      const payload = JSON.parse(config.data)
+      submissions.push(payload)
+      return { data: { data: { id: submissions.length, ...payload, analysis: null, analysisStatus: payload.analyze ? 'analyzing' : 'skipped_user' } }, status: 200, statusText: 'OK', headers: {}, config }
+    }
+    diaryApi.mine = diaryApi.public = async () => ok({ items: [] })
+    collectionApi.mine = async () => ok({ records: [] })
+    localStorage.setItem('moodcopilot:draft', '<p>explicitly disabled analysis</p>')
+    const pinia = createPinia()
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
+    await router.push('/')
+    const app = createApp({ render: () => h(DiaryComposer) })
+    app.use(pinia).use(router).mount('#app'); await flush()
+    document.querySelectorAll('.composer-vis-opt')[1].click(); await flush()
+    document.querySelector('.composer-ai-toggle input').click(); await flush()
+    assert(!document.querySelector('.composer-ai-toggle input').checked, 'analysis toggle is still checked')
+    document.querySelector('.composer-submit').click(); await flush()
+    assert(submissions.length === 1 && submissions[0].visibility === 'PUBLIC' && submissions[0].analyze === false, 'sharing replaced the explicit false in the submitted JSON')
+    assert(useDiaryStore(pinia).analysisStatus === 'skipped_user', 'disabled analysis is presented as running')
+    assert(document.querySelector('.composer-status').textContent.includes('AI 分析已关闭'), 'opt-out confirmation is missing')
+    app.unmount()
+  })
+  await check('sharing an existing diary sends the actual analysis switch even when its content is unchanged', async () => {
+    const { createApp, h, createPinia, createRouter, createMemoryHistory, diaryApi, collectionApi } = f
+    const { api } = await import('/src/api/core.ts')
+    const { default: DiaryComposer } = await import('/src/components/DiaryComposer.vue')
+    const submissions = []
+    api.defaults.adapter = async config => {
+      assert(config.url === '/diaries/42' && config.method === 'put', 'unexpected edit API call')
+      const payload = JSON.parse(config.data); submissions.push(payload)
+      return { data: { data: { id: 42, ...payload, analysis: null, analysisStatus: 'skipped_user' } }, status: 200, statusText: 'OK', headers: {}, config }
+    }
+    diaryApi.mine = diaryApi.public = async () => ok({ items: [] })
+    collectionApi.mine = async () => ok({ records: [] })
+    for (const enabled of [true, false]) {
+      const pinia = createPinia()
+      const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }, { path: '/diary/42', component: { render: () => null } }] })
+      await router.push('/')
+      const app = createApp({ render: () => h(DiaryComposer, { editId: 42, initialContent: '<p>unchanged original</p>', initialVisibility: 'PRIVATE' }) })
+      app.use(pinia).use(router).mount('#app'); await flush()
+      document.querySelectorAll('.composer-vis-opt')[1].click(); await flush()
+      if (!enabled) document.querySelector('.composer-ai-toggle input').click()
+      await flush(); document.querySelector('.composer-submit').click(); await flush()
+      assert(submissions.at(-1)?.analyze === enabled && submissions.at(-1)?.visibility === 'PUBLIC', 'unchanged content replaced the actual switch value')
+      app.unmount(); await flush()
+    }
+    assert(submissions.length === 2, 'edit was not submitted once per switch state')
   })
   await check('diary save settles before slow refresh/similar requests', async () => {
     const { diaryApi, createPinia, setActivePinia, useDiaryStore } = f

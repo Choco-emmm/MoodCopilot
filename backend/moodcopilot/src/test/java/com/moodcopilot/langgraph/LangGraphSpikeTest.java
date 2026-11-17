@@ -7,9 +7,9 @@ import org.bsc.langgraph4j.GraphInput;
 import org.bsc.langgraph4j.NodeOutput;
 import org.bsc.langgraph4j.RunnableConfig;
 import org.bsc.langgraph4j.StateGraph;
+import org.bsc.langgraph4j.action.AsyncNodeActionWithConfig;
 import org.bsc.langgraph4j.action.InterruptableAction;
 import org.bsc.langgraph4j.action.InterruptionMetadata;
-import org.bsc.langgraph4j.action.NodeActionWithConfig;
 import org.bsc.langgraph4j.state.AgentState;
 import org.bsc.langgraph4j.state.Channel;
 import org.bsc.langgraph4j.state.Channels;
@@ -22,12 +22,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.bsc.langgraph4j.StateGraph.END;
 import static org.bsc.langgraph4j.StateGraph.START;
 import static org.bsc.langgraph4j.action.AsyncEdgeAction.edge_async;
-import static org.bsc.langgraph4j.action.AsyncNodeActionWithConfig.node_async;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -153,8 +154,8 @@ class LangGraphSpikeTest {
         Map<String, Channel<?>> channels = Map.of("trace", Channels.<String>appenderWithDuplicate(ArrayList::new));
         StateGraph<SpikeState> graph = new StateGraph<>(channels, SpikeState::new);
 
-        graph.addNode(AGENT, node_async(agentAction()));
-        graph.addNode(TOOLS, node_async(new ToolsAction()));
+        graph.addNode(AGENT, agentAction());
+        graph.addNode(TOOLS, new ToolsAction());
 
         graph.addEdge(START, AGENT);
         graph.addConditionalEdges(AGENT, edge_async(state ->
@@ -165,19 +166,19 @@ class LangGraphSpikeTest {
         return graph.compile(CompileConfig.builder().checkpointSaver(saver).build());
     }
 
-    private NodeActionWithConfig<SpikeState> agentAction() {
+    private AsyncNodeActionWithConfig<SpikeState> agentAction() {
         return (state, config) -> {
             agentRuns.incrementAndGet();
             Map<String, Object> update = new HashMap<>();
             update.put("loopCount", state.loopCount() + 1);
             update.put("trace", List.of("agent"));
             update.put("needTool", true);
-            return update;
+            return completedFuture(update);
         };
     }
 
     /** 只在这一个节点上做「按次中断」—— 与我们要落在 toolsNode 上的东西同构。 */
-    private class ToolsAction implements NodeActionWithConfig<SpikeState>, InterruptableAction<SpikeState> {
+    private class ToolsAction implements AsyncNodeActionWithConfig<SpikeState>, InterruptableAction<SpikeState> {
 
         @Override
         public Optional<InterruptionMetadata<SpikeState>> interrupt(String nodeId, SpikeState state,
@@ -194,9 +195,9 @@ class LangGraphSpikeTest {
         }
 
         @Override
-        public Map<String, Object> apply(SpikeState state, RunnableConfig config) {
+        public CompletableFuture<Map<String, Object>> apply(SpikeState state, RunnableConfig config) {
             toolRuns.incrementAndGet();
-            return Map.of("trace", List.of("tool"), "pendingApproval", false);
+            return completedFuture(Map.of("trace", List.of("tool"), "pendingApproval", false));
         }
     }
 

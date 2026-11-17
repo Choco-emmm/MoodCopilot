@@ -71,6 +71,10 @@ public class DiaryService {
 
     private static final int MAX_DIARY_IMAGES = 6;
 
+    /** 摘要检索的默认与上限条数。上限只影响一次查询返回多少，不影响匹配总数。 */
+    private static final int DEFAULT_SUMMARY_LIMIT = 20;
+    private static final int MAX_SUMMARY_LIMIT = 100;
+
     private static final String Q_POS_HIGH = "正向高能量";
     private static final String Q_POS_LOW = "正向低能量";
     private static final String Q_NEG_HIGH = "负向高能量";
@@ -203,6 +207,9 @@ public class DiaryService {
         diary.setMusicMeta(request.musicMeta());
         diary.setImages(promoteImages(request.images()));
         diary.setImageMeta(normalizeImageMeta(request.imageMeta(), diary.getImages()));
+        if (!request.isAnalyze()) {
+            diary.setAnalysisStatus("skipped_user");
+        }
         diary.setResonanceCount(0);
         diary.setIsDeleted(false);
         diary.setCreatedAt(LocalDateTime.now());
@@ -257,10 +264,13 @@ public class DiaryService {
         boolean contentChanged = !oldContent.equals(normalizedContent);
         boolean visibilityChanged = !finalVisibility.equals(oldVisibility);
         
-        boolean[] dataChanged = { contentChanged || request.isAnalyze() };
+        boolean[] dataChanged = { contentChanged || (request.isAnalyze() && "skipped_user".equals(diary.getAnalysisStatus())) };
 
         // DB 写入放在编程式事务内，确保原子性且不扩散到 LLM 调用
         transactionTemplate.executeWithoutResult(status -> {
+            if (lockAnalysisDiary(diaryId, user.getId()) == null) {
+                throw new ResponseStatusException(NOT_FOUND, "日记不存在");
+            }
             diary.setContent(normalizedContent);
             diary.setVisibility(finalVisibility);
             diary.setUpdatedAt(LocalDateTime.now());
@@ -295,7 +305,16 @@ public class DiaryService {
             } else if (request.imageMeta() != null) {
                 diary.setImageMeta(normalizeImageMeta(request.imageMeta(), diary.getImages()));
             }
+            if (!request.isAnalyze()) {
+                diary.setAnalysisStatus("skipped_user");
+                diary.setAnalysisError(null);
+            }
             diaryMapper.updateById(diary);
+            if (!request.isAnalyze()) {
+                // 明确关闭分析时，旧结果与尚未执行的任务也一并失效。
+                diaryAnalysisMapper.deleteById(diaryId);
+                aiTaskProducer.cancelPendingDiaryAnalysisTasks(diaryId, user.getId());
+            }
         });
 
         String analysisStatus = null;
@@ -332,7 +351,7 @@ public class DiaryService {
         }
 
         boolean affectsPublicCache = "PUBLIC".equals(visibility.name()) || "PUBLIC".equals(oldVisibility);
-        if (visibilityChanged || contentChanged) {
+        if (visibilityChanged || contentChanged || !request.isAnalyze()) {
             markReportsStale(user.getId());
             if (affectsPublicCache) {
                 evictPublicDiaryCaches();
@@ -414,24 +433,24 @@ public class DiaryService {
 
     public void runAiAnalysisSync(long diaryId, long userId, boolean useReasoning, String parentTaskId) {
         DiaryEntity diary = diaryMapper.selectById(diaryId);
-        if (diary == null || diary.getIsDeleted()) {
-            log.warn("无法执行 AI 分析，日记不存在或已删除，diaryId={}", diaryId);
-            if (diary != null) {
-                DiaryEntity cancelled = new DiaryEntity();
-                cancelled.setId(diaryId);
-                cancelled.setAnalysisStatus("cancelled");
-                cancelled.setAnalysisError("日记已删除，跳过分析");
-                diaryMapper.updateById(cancelled);
-            }
+        if (diary == null || Boolean.TRUE.equals(diary.getIsDeleted()) || !java.util.Objects.equals(diary.getAuthorUserId(), userId)) {
+            log.warn("无法执行 AI 分析，日记不可用，diaryId={}", diaryId);
             return;
         }
-        DiaryEntity running = new DiaryEntity();
-        running.setId(diaryId);
-        running.setAnalysisStatus("analyzing");
-        running.setAnalysisError(null);
-        running.setActualModel(null);
-        running.setFallbackReason(null);
-        diaryMapper.updateById(running);
+        if ("skipped_user".equals(diary.getAnalysisStatus())) {
+            log.info("用户已关闭AI分析，忽略旧任务，diaryId={}", diaryId);
+            return;
+        }
+        String inputVersion = DiaryAnalysisInput.fingerprint(diary);
+        if (!writeCurrentAnalysis(diaryId, userId, inputVersion, () -> {
+            DiaryEntity running = new DiaryEntity();
+            running.setId(diaryId);
+            running.setAnalysisStatus("analyzing");
+            running.setAnalysisError(null);
+            running.setActualModel(null);
+            running.setFallbackReason(null);
+            diaryMapper.updateById(running);
+        })) return;
         String content = diary.getContent();
         MusicMeta musicMeta = diary.getMusicMeta();
         java.util.List<String> images = diary.getImages();
@@ -484,7 +503,7 @@ public class DiaryService {
             DiaryEntity updateEntity = new DiaryEntity();
             updateEntity.setId(diaryId);
             updateEntity.setMusicMeta(musicMeta);
-            diaryMapper.updateById(updateEntity);
+            if (!writeCurrentAnalysis(diaryId, userId, inputVersion, () -> diaryMapper.updateById(updateEntity))) return;
         }
 
         log.info("开始同步执行日记 AI 分析，diaryId={}，userId={}，contentLength={}，hasMusic={}，hasImages={}", diaryId, userId,
@@ -517,20 +536,23 @@ public class DiaryService {
             analysisEntity.setCreatedAt(LocalDateTime.now());
             analysisEntity.setUpdatedAt(LocalDateTime.now());
 
-            DiaryAnalysisEntity existing = diaryAnalysisMapper.selectById(diaryId);
-            if (existing != null) {
-                analysisEntity.setCreatedAt(existing.getCreatedAt());
-                diaryAnalysisMapper.updateById(analysisEntity);
-            } else {
-                diaryAnalysisMapper.insert(analysisEntity);
-            }
-            DiaryEntity completed = new DiaryEntity();
-            completed.setId(diaryId);
-            completed.setAnalysisStatus("complete");
-            completed.setAnalysisError(null);
-            completed.setActualModel(useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash");
-            completed.setFallbackReason(null);
-            diaryMapper.updateById(completed);
+            // 与用户关闭分析的写入使用同一行锁；旧结果不能覆盖已关闭或已编辑的日记。
+            if (!writeCurrentAnalysis(diaryId, userId, inputVersion, () -> {
+                DiaryAnalysisEntity existing = diaryAnalysisMapper.selectById(diaryId);
+                if (existing != null) {
+                    analysisEntity.setCreatedAt(existing.getCreatedAt());
+                    diaryAnalysisMapper.updateById(analysisEntity);
+                } else {
+                    diaryAnalysisMapper.insert(analysisEntity);
+                }
+                DiaryEntity completed = new DiaryEntity();
+                completed.setId(diaryId);
+                completed.setAnalysisStatus("complete");
+                completed.setAnalysisError(null);
+                completed.setActualModel(useReasoning ? "deepseek-v4-pro" : "deepseek-v4-flash");
+                completed.setFallbackReason(null);
+                diaryMapper.updateById(completed);
+            })) return;
             log.info("日记 AI 分析已落库，diaryId={}", diaryId);
 
             eventPublisher.publishEvent(new DiaryAnalysisCompletedEvent(
@@ -545,14 +567,36 @@ public class DiaryService {
             lifeChapterService.markDirtyForDiary(userId, diaryId);
             log.info("日记分析后处理任务已创建，diaryId={}，userId={}，analysisVersion={}", diaryId, userId, analysisVersion);
         } catch (Exception e) {
-            DiaryEntity failed = new DiaryEntity();
-            failed.setId(diaryId);
-            failed.setAnalysisStatus("failed");
-            failed.setAnalysisError(truncateAnalysisError(e.getMessage(), "AI 分析失败"));
-            diaryMapper.updateById(failed);
+            if (!writeCurrentAnalysis(diaryId, userId, inputVersion, () -> {
+                DiaryEntity failed = new DiaryEntity();
+                failed.setId(diaryId);
+                failed.setAnalysisStatus("failed");
+                failed.setAnalysisError(truncateAnalysisError(e.getMessage(), "AI 分析失败"));
+                diaryMapper.updateById(failed);
+            })) return;
             log.error("日记 AI 分析异步任务失败，diaryId={}，userId={}，错误信息={}", diaryId, userId, e.getMessage(), e);
             throw e;
         }
+    }
+
+    private DiaryEntity lockAnalysisDiary(long diaryId, long userId) {
+        return diaryMapper.selectOne(new LambdaQueryWrapper<DiaryEntity>()
+                .eq(DiaryEntity::getId, diaryId).eq(DiaryEntity::getAuthorUserId, userId).last("FOR UPDATE"));
+    }
+
+    private boolean writeCurrentAnalysis(long diaryId, long userId, String inputVersion, Runnable write) {
+        return Boolean.TRUE.equals(transactionTemplate.execute(status -> {
+            DiaryEntity current = lockAnalysisDiary(diaryId, userId);
+            if (current == null || Boolean.TRUE.equals(current.getIsDeleted())
+                    || !java.util.Objects.equals(current.getAuthorUserId(), userId)
+                    || "skipped_user".equals(current.getAnalysisStatus())
+                    || !inputVersion.equals(DiaryAnalysisInput.fingerprint(current))) {
+                log.info("忽略已关闭或输入已变化的日记分析结果，diaryId={}", diaryId);
+                return false;
+            }
+            write.run();
+            return true;
+        }));
     }
 
     public Page<DiaryView> myDiaries(int page, int size) {
@@ -628,6 +672,14 @@ public class DiaryService {
     }
 
     public DiarySearchResult searchOwnDiarySummaries(long userId, DiarySearchRequest request) {
+        return searchOwnDiarySummaries(userId, request, DEFAULT_SUMMARY_LIMIT);
+    }
+
+    /**
+     * @param limit 本次最多返回多少条摘要。匹配总数不受它影响 —— {@code total} 始终是数据库里的真实值，
+     *              调用方据此判断「是不是还有更早的记录没拿到」，而不是把返回值当全部。
+     */
+    public DiarySearchResult searchOwnDiarySummaries(long userId, DiarySearchRequest request, int limit) {
         String keyword = request != null && request.keyword() != null ? request.keyword().trim() : null;
         keyword = keyword != null && !keyword.isBlank() ? keyword : null;
         LocalDate startDate = request != null ? request.startDate() : null;
@@ -661,7 +713,10 @@ public class DiaryService {
             query.le(DiaryEntity::getCreatedAt, endDate.atTime(LocalTime.MAX));
         }
 
-        List<DiaryEntity> records = diaryMapper.selectPage(Page.of(1, 20), query).getRecords();
+        int pageSize = Math.min(MAX_SUMMARY_LIMIT, Math.max(1, limit));
+        var entityPage = diaryMapper.selectPage(Page.of(1, pageSize), query);
+        List<DiaryEntity> records = entityPage.getRecords();
+        long matched = entityPage.getTotal();
         Map<Long, DiaryAnalysisEntity> analyses = batchLoadAnalyses(
                 records.stream().map(DiaryEntity::getId).toList());
         List<DiarySearchResult.DiarySummary> diaries = records.stream()
@@ -676,13 +731,30 @@ public class DiaryService {
                 })
                 .toList();
 
-        String note = diaries.isEmpty()
-                ? "未找到符合条件的历史日记"
-                : "已返回最多 20 条按时间倒序排列的历史日记摘要";
+        String note = summaryNote(diaries.size(), matched);
 
-        log.info("历史日记检索完成，userId={}，resultCount={}", userId, diaries.size());
+        log.info("历史日记检索完成，userId={}，resultCount={}，matched={}", userId, diaries.size(), matched);
 
-        return new DiarySearchResult(keyword, startDate, endDate, diaries.size(), diaries, note);
+        return new DiarySearchResult(keyword, startDate, endDate,
+                (int) Math.min(matched, Integer.MAX_VALUE), diaries, note);
+    }
+
+    /**
+     * 摘要检索返回给模型的说明文案。
+     * <p>
+     * 关键在截断分支：必须让模型知道「还有更早的没返回」，否则它会把这一页当成全部，
+     * 回答时默默漏掉记录。提示写的是「缩小时间范围」而不是「翻页」—— 时间区间是模型
+     * 更容易正确执行的切分方式，也不会因为期间新增日记而错位。
+     */
+    static String summaryNote(int returned, long matched) {
+        if (returned == 0) {
+            return "未找到符合条件的历史日记";
+        }
+        if (matched > returned) {
+            return "匹配 " + matched + " 篇，本次返回最近 " + returned
+                    + " 篇（按时间倒序）。还有更早的记录未返回，如需完整回顾请缩小时间范围再查。";
+        }
+        return "已返回全部 " + returned + " 篇日记摘要，按时间倒序";
     }
 
     public UserStatsResult getOwnMoodStats(UserStatsRequest request) {

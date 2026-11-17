@@ -9,8 +9,8 @@ import java.util.Map;
  * 一个聊天工具的完整声明：元数据 + JSON schema + 执行体。
  * <p>
  * 实现类不接触 SecurityContextHolder —— 认证上下文的设置与清理统一由
- * {@link ChatToolRegistry#execute} 负责，因为工具运行在 Reactor/Netty 线程上，
- * thread-local 需要由调用方显式注入。
+ * {@link ChatToolRegistry#execute} 负责，因为工具可能切换到图执行线程，
+ * thread-local 需要由注册表显式注入。
  */
 public abstract class ChatTool<REQ> {
 

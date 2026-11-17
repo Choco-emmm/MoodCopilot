@@ -164,7 +164,8 @@ public record DiaryView(
                                 diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
                                 Boolean.TRUE.equals(diary.getIsPinned()), sanitizeMusicMeta(diary.getMusicMeta(), true),
                                 diary.getImages(),
-                                va != null ? "complete" : null, List.of(), commentCount, null);
+                                diary.getAnalysisStatus() != null ? diary.getAnalysisStatus()
+                                                : (va != null ? "complete" : null), List.of(), commentCount, diary.getAnalysisError());
         }
 
         /** Feed 模式个人视图：无评论列表、裁切内容、完整分析 */
@@ -179,7 +180,8 @@ public record DiaryView(
                                 diary.getCreatedAt(), diary.getResonanceCount(), likedByMe,
                                 Boolean.TRUE.equals(diary.getIsPinned()), sanitizeMusicMeta(diary.getMusicMeta(), true),
                                 diary.getImages(),
-                                va != null ? "complete" : null, List.of(), commentCount, null);
+                                diary.getAnalysisStatus() != null ? diary.getAnalysisStatus()
+                                                : (va != null ? "complete" : null), List.of(), commentCount, diary.getAnalysisError());
         }
 
         private static DiaryAnalysis buildAnalysisView(DiaryAnalysisEntity analysis, boolean includePrivateInsights) {

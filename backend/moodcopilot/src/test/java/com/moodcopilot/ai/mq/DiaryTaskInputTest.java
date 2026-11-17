@@ -10,6 +10,17 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DiaryTaskInputTest {
+    @Test void derivedMusicMetadataDoesNotInvalidateTheUserInputVersion() {
+        var diary = new DiaryEntity(); diary.setContent("用户正文");
+        var music = new MusicMeta(); music.setSongUrl("song"); music.setUserLyric("用户主动选择的歌词");
+        diary.setMusicMeta(music);
+        String version = com.moodcopilot.diary.DiaryAnalysisInput.fingerprint(diary);
+        music.setMoodTags("平静"); music.setThemeSummary("异步生成的歌曲摘要");
+        assertEquals(version, com.moodcopilot.diary.DiaryAnalysisInput.fingerprint(diary));
+        music.setUserLyric("用户修改了所选歌词");
+        assertNotEquals(version, com.moodcopilot.diary.DiaryAnalysisInput.fingerprint(diary));
+    }
+
     @Test void attachmentsAndRepeatedUserRequestsNeverReuseCompletedOperations() {
         var tasks = mock(AiTaskService.class);
         var mapper = mock(DiaryMapper.class);
