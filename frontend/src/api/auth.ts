@@ -47,10 +47,11 @@ export const adminApi = {
     api.get('/admin/users', { params: { keyword, sortBy, page, size } }),
   updateUserStatus: (id: number, status: number) =>
     api.post(`/admin/users/${id}/status`, { status }),
+  // 后端挂在 AdminConfigController 的 /api/admin/config 下，且保存是 PUT
   aiQuota: () =>
-    api.get('/admin/ai-quota'),
+    api.get('/admin/config/ai-quota'),
   updateAiQuota: (data: { quotaMatrix: number[][]; labels: Record<string, string> }) =>
-    api.post('/admin/ai-quota', data),
+    api.put('/admin/config/ai-quota', data),
 }
 
 export const reportApi = {
