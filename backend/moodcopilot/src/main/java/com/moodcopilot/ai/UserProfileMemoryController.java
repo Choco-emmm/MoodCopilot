@@ -73,10 +73,13 @@ public class UserProfileMemoryController {
     }
 
     @GetMapping
-    public ApiResponse<List<Map<String, Object>>> list() {
-        List<UserProfileMemoryEntity> memories = memoryExtractionService.listCurrentUserMemories();
+    public ApiResponse<List<Map<String, Object>>> list(@RequestParam(required = false) String lifecycle) {
         var user = (com.moodcopilot.entity.UserEntity) org.springframework.security.core.context.SecurityContextHolder
                 .getContext().getAuthentication().getPrincipal();
+        boolean archivedOnly = "archived".equalsIgnoreCase(lifecycle);
+        List<UserProfileMemoryEntity> memories = archivedOnly
+                ? memoryExtractionService.listArchivedUserMemories(user.getId())
+                : memoryExtractionService.listCurrentUserMemories();
         Map<Long, MemoryOrchestrator.SourceSummary> sources = memoryOrchestrator.sourceSummariesForMemories(
                 user.getId(), memories.stream().map(UserProfileMemoryEntity::getId).toList());
         Map<Long, MemoryOrchestrator.DiarySourcePreview> diaryPreviews = memoryOrchestrator.diarySourcePreviews(
@@ -97,6 +100,10 @@ public class UserProfileMemoryController {
                     map.put("validFrom", m.getValidFrom());
                     map.put("validUntil", m.getValidUntil());
                     map.put("status", m.getStatus());
+                    map.put("lifecycleState", m.getLifecycleState());
+                    map.put("freshness", m.getFreshness());
+                    map.put("lifecycleReason", m.getLifecycleReason());
+                    map.put("lifecycleUpdatedAt", m.getLifecycleUpdatedAt());
                     map.put("previousMemoryId", m.getPreviousMemoryId());
                     map.put("supersededAt", m.getSupersededAt());
                     map.put("supersededReason", m.getSupersededReason());
@@ -139,6 +146,21 @@ public class UserProfileMemoryController {
     @PatchMapping("/{id}")
     public ApiResponse<Void> patch(@PathVariable long id, @RequestBody Map<String, Object> body) {
         return update(id, body);
+    }
+
+    /**
+     * 恢复一条已归档的记忆。只接受 {@code {"state":"active"}}：
+     * 归档是系统按新鲜度自动推进的状态，用户只能撤销，不能手动把记忆推进到归档。
+     */
+    @PatchMapping("/{id}/lifecycle")
+    public ApiResponse<Void> restoreLifecycle(@PathVariable long id, @RequestBody(required = false) Map<String, Object> body) {
+        String state = body == null ? null : String.valueOf(body.get("state"));
+        if (!MemoryLifecyclePolicy.STATE_ACTIVE.equalsIgnoreCase(state == null ? "" : state.trim())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "只支持恢复为 active");
+        }
+        memoryExtractionService.restoreLifecycle(id);
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/{id}/history")
@@ -276,6 +298,10 @@ public class UserProfileMemoryController {
         item.put("validFrom", m.getValidFrom());
         item.put("validUntil", m.getValidUntil());
         item.put("status", m.getStatus());
+        item.put("lifecycleState", m.getLifecycleState());
+        item.put("freshness", m.getFreshness());
+        item.put("lifecycleReason", m.getLifecycleReason());
+        item.put("lifecycleUpdatedAt", m.getLifecycleUpdatedAt());
         item.put("isCore", m.getIsCore());
         item.put("previousMemoryId", m.getPreviousMemoryId());
         item.put("supersededAt", m.getSupersededAt());

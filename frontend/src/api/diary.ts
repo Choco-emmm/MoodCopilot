@@ -44,6 +44,8 @@ export const diaryApi = {
 
 export const memoryApi = {
   getAll: () => api.get('/memory'),
+  getArchived: () => api.get('/memory', { params: { lifecycle: 'archived' } }),
+  restore: (id: number) => api.patch(`/memory/${id}/lifecycle`, { state: 'active' }),
   getDetail: (id: number) => api.get(`/memory/${id}`),
   getCandidates: (status = 'PENDING', page = 1, size = 20, sort = 'updatedAt') => api.get('/memory/candidates', { params: { status, page, size, sort } }),
   getCandidateEvidence: (id: number) => api.get(`/memory/candidates/${id}/evidence`),

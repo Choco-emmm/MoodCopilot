@@ -344,6 +344,7 @@ public class ContextPlanner {
 
     private boolean isEligibleFormal(UserProfileMemoryEntity memory) {
         if (memory == null || !"active".equalsIgnoreCase(memory.getStatus())) return false;
+        if (!MemoryLifecyclePolicy.passLifecycle(memory)) return false;
         if (SensitiveDataDetector.containsSensitiveData(memory.getAttributeKey())
                 || SensitiveDataDetector.containsSensitiveData(memory.getAttributeValue())) return false;
         if ("short_term_state".equals(memory.getMemoryType())) return false;
@@ -359,6 +360,7 @@ public class ContextPlanner {
     private boolean isEligibleShortTerm(UserProfileMemoryEntity memory) {
         if (memory == null || !"short_term_state".equals(memory.getMemoryType())) return false;
         if (!"active".equalsIgnoreCase(memory.getStatus())) return false;
+        if (!MemoryLifecyclePolicy.passLifecycle(memory)) return false;
         if (!SensitiveDataDetector.allowedForMemory(memory.getAttributeKey(), memory.getAttributeValue(), null)) return false;
         LocalDate today = LocalDate.now(businessTimeZone);
         return (memory.getValidFrom() == null || !today.isBefore(memory.getValidFrom()))

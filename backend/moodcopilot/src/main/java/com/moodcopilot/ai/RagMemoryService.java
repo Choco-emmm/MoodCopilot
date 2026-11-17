@@ -659,6 +659,7 @@ public class RagMemoryService {
     private boolean isEligibleProfileMemory(UserProfileMemoryEntity memory, long userId, java.time.LocalDate today) {
         if (memory == null || memory.getId() == null || !Long.valueOf(userId).equals(memory.getUserId())) return false;
         if (!"active".equalsIgnoreCase(memory.getStatus())) return false;
+        if (!MemoryLifecyclePolicy.passLifecycle(memory)) return false;
         if ("short_term_state".equalsIgnoreCase(memory.getMemoryType())) return false;
         if (SensitiveDataDetector.containsSensitiveData(memory.getAttributeKey())
                 || SensitiveDataDetector.containsSensitiveData(memory.getAttributeValue())) return false;
@@ -1093,6 +1094,7 @@ public class RagMemoryService {
                 LambdaQueryWrapper<UserProfileMemoryEntity> wrapper = new LambdaQueryWrapper<UserProfileMemoryEntity>()
                         .eq(UserProfileMemoryEntity::getUserId, userId)
                         .eq(UserProfileMemoryEntity::getStatus, "active")
+                        .ne(UserProfileMemoryEntity::getLifecycleState, MemoryLifecyclePolicy.STATE_ARCHIVED)
                         .and(w -> w.isNull(UserProfileMemoryEntity::getValidFrom)
                                 .or().le(UserProfileMemoryEntity::getValidFrom, java.time.LocalDate.now(businessTimeZone)))
                         .and(w -> w.isNull(UserProfileMemoryEntity::getValidUntil)
