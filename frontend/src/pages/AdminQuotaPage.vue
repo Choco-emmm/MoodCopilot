@@ -82,9 +82,11 @@ async function loadConfig() {
   loading.value = true
   try {
     const res = await adminApi.aiQuota()
-    if (res.data) {
-      labels.value = res.data.labels || {}
-      quotaMatrix.value = res.data.quotaMatrix || []
+    // 拦截器返回完整 AxiosResponse，后端是 ApiResponse{code,message,data}
+    const payload = res.data?.data
+    if (payload) {
+      labels.value = payload.labels || {}
+      quotaMatrix.value = payload.quotaMatrix || []
     }
   } catch (err: any) {
     message.error('获取配置失败: ' + (err.message || '未知错误'))
