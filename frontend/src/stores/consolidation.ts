@@ -8,6 +8,7 @@ export const useConsolidationStore = defineStore('consolidation', () => {
   const aiPreviewStore = useAiPreviewStore()
   // Data State
   const memories = ref<any[]>([])
+  const archivedMemories = ref<any[]>([])
   const triples = ref<any[]>([])
 
   // Memory Consolidation State
@@ -33,6 +34,31 @@ export const useConsolidationStore = defineStore('consolidation', () => {
     } catch (e) {
       logWarn('memory', '加载记忆失败', e)
       memories.value = []
+    }
+  }
+
+  // 已归档列表按需加载：它是低频查看的降噪视图，不参与整理差异和上下文注入。
+  async function loadArchivedMemories() {
+    try {
+      const res = await memoryApi.getArchived()
+      archivedMemories.value = (res.data.data ?? []) as any[]
+    } catch (e) {
+      logWarn('memory', '加载已归档记忆失败', e)
+      archivedMemories.value = []
+    }
+  }
+
+  async function restoreArchivedMemory(id: number) {
+    try {
+      await memoryApi.restore(id)
+      archivedMemories.value = archivedMemories.value.filter((m: any) => m.id !== id)
+      await loadMemories()
+      window.$message?.success('已恢复到记忆中')
+      return true
+    } catch (e: any) {
+      logWarn('memory', '恢复记忆失败', id, { status: e?.response?.status })
+      window.$message?.error('恢复失败：' + (e.response?.data?.message || e.message))
+      return false
     }
   }
 
@@ -176,8 +202,11 @@ export const useConsolidationStore = defineStore('consolidation', () => {
 
   return {
     memories,
+    archivedMemories,
     triples,
     loadMemories,
+    loadArchivedMemories,
+    restoreArchivedMemory,
     loadTriples,
 
     consolidatingMemory,

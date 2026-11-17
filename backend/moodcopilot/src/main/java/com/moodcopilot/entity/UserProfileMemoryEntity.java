@@ -26,6 +26,10 @@ public class UserProfileMemoryEntity {
     private LocalDate validUntil;
     private LocalDateTime lastEvidenceAt;
     private String status = "active";
+    private String lifecycleState = "active";
+    private Double freshness = 1.0;
+    private String lifecycleReason;
+    private LocalDateTime lifecycleUpdatedAt;
     private Long previousMemoryId;
     private LocalDateTime supersededAt;
     private String supersededReason;
@@ -67,6 +71,14 @@ public class UserProfileMemoryEntity {
     public void setLastEvidenceAt(LocalDateTime lastEvidenceAt) { this.lastEvidenceAt = lastEvidenceAt; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getLifecycleState() { return lifecycleState; }
+    public void setLifecycleState(String lifecycleState) { this.lifecycleState = lifecycleState; }
+    public Double getFreshness() { return freshness; }
+    public void setFreshness(Double freshness) { this.freshness = freshness; }
+    public String getLifecycleReason() { return lifecycleReason; }
+    public void setLifecycleReason(String lifecycleReason) { this.lifecycleReason = lifecycleReason; }
+    public LocalDateTime getLifecycleUpdatedAt() { return lifecycleUpdatedAt; }
+    public void setLifecycleUpdatedAt(LocalDateTime lifecycleUpdatedAt) { this.lifecycleUpdatedAt = lifecycleUpdatedAt; }
     public Long getPreviousMemoryId() { return previousMemoryId; }
     public void setPreviousMemoryId(Long previousMemoryId) { this.previousMemoryId = previousMemoryId; }
     public LocalDateTime getSupersededAt() { return supersededAt; }

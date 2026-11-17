@@ -61,6 +61,7 @@
       <article v-for="m in groupItems(group.items, 'formal', group.key)" :key="m.id" class="memory-item">
         <div class="memory-content">
           <MemoryPreview :value="m.attributeValue" :status="isSafetyState(m) ? '近期状态' : m.isCore ? '核心' : undefined" />
+          <p v-if="m.lifecycleState === 'decaying'" class="memory-lifecycle-hint">较久没有再次提到，参考优先级已降低</p>
         </div>
         <div class="memory-actions memory-summary-actions">
           <button type="button" class="memory-evidence-open" aria-haspopup="dialog" :data-memory-id="m.id" data-memory-kind="formal" :disabled="memoryRefreshRequired || detailsBusy" @click="toggleDetails(m.id, $event)">查看全文与依据 <span aria-hidden="true">→</span></button>
@@ -71,6 +72,30 @@
       </div>
       </section>
     </div>
+    <section v-if="formalLoaded" class="archived-section" aria-label="已归档的记忆">
+      <button type="button" class="candidate-toggle" :aria-expanded="archivedExpanded" aria-controls="archived-list" @click="toggleArchived">
+        <span class="candidate-toggle-copy">
+          <span>已归档的记忆 · {{ archivedLoaded ? `${store.archivedMemories.length} 条` : '待加载' }}</span>
+          <small>长时间没有被再次提到的推断内容，已退出对话参考，但记录仍然保留。</small>
+        </span>
+        <span>{{ archivedExpanded ? '收起' : '查看' }}</span>
+      </button>
+      <div v-if="archivedExpanded" id="archived-list">
+        <p v-if="archivedLoading && !archivedLoaded" role="status">正在加载已归档的记忆…</p>
+        <p v-else-if="archivedLoaded && store.archivedMemories.length === 0" class="memory-desc">暂无已归档的记忆。</p>
+        <article v-for="m in store.archivedMemories" :key="`archived-${m.id}`" class="memory-item archived-item">
+          <div class="memory-content">
+            <MemoryPreview :value="m.attributeValue" />
+            <p class="memory-lifecycle-hint">
+              {{ m.attributeKey }} · {{ archivedReasonLabel(m.lifecycleReason) }}<template v-if="m.lifecycleUpdatedAt"> · {{ formatMemoryTime(m.lifecycleUpdatedAt) }}</template>
+            </p>
+          </div>
+          <div class="memory-actions">
+            <n-button size="small" secondary :loading="restoringMemoryId === m.id" :disabled="restoringMemoryId !== null" @click="restoreArchived(m.id)">恢复</n-button>
+          </div>
+        </article>
+      </div>
+    </section>
     <n-drawer :show="detailsOpen" width="min(640px, 100vw)" :mask-closable="!detailsBusy" :close-on-esc="!detailsBusy"
       content-style="font-family: var(--font-body)" :theme-overrides="drawerTheme" @update:show="updateDetailsOpen" @after-leave="restoreDetailsFocus">
       <n-drawer-content body-content-style="padding: 24px; padding-bottom: max(24px, env(safe-area-inset-bottom));">
@@ -272,6 +297,10 @@ interface MemoryItem {
   isCore?: boolean
   sourceDiaryId?: number | null
   sourceConversationId?: number | null
+  lifecycleState?: string | null
+  freshness?: number | null
+  lifecycleReason?: string | null
+  lifecycleUpdatedAt?: string | null
 }
 
 const store = useConsolidationStore()
@@ -429,6 +458,44 @@ const candidateConflictGroupCount = computed(() => candidateGroups.value.filter(
 onMounted(() => {
   loadMemories()
 })
+
+// 已归档是低频查看的降噪视图：收起时不发请求，展开时才懒加载。
+const archivedExpanded = ref(false)
+const archivedLoaded = ref(false)
+const archivedLoading = ref(false)
+const restoringMemoryId = ref<number | null>(null)
+
+async function toggleArchived() {
+  archivedExpanded.value = !archivedExpanded.value
+  if (archivedExpanded.value && !archivedLoaded.value) {
+    archivedLoading.value = true
+    try {
+      await store.loadArchivedMemories()
+      archivedLoaded.value = true
+    } finally {
+      archivedLoading.value = false
+    }
+  }
+}
+
+async function restoreArchived(id: number) {
+  if (restoringMemoryId.value !== null) return
+  restoringMemoryId.value = id
+  try {
+    await store.restoreArchivedMemory(id)
+  } finally {
+    restoringMemoryId.value = null
+  }
+}
+
+function archivedReasonLabel(reason?: string | null) {
+  const labels: Record<string, string> = {
+    STALE_INFERRED: '长期未再提及',
+    REVIVED_BY_EVIDENCE: '已由新内容恢复',
+    RESTORED_BY_USER: '你已手动恢复',
+  }
+  return labels[reason || ''] || '已归档'
+}
 
 async function loadMemories() {
   if (memoriesLoading.value || editingMemoryId.value !== null || savingMemoryId.value !== null) return false
@@ -946,6 +1013,11 @@ function cancelEditMemory() {
 .memory-evidence-open { font-size: 12px; }
 .memory-status-tag { display: inline-block; padding: 2px 8px; border: 1px solid color-mix(in oklab, var(--color-accent) 30%, var(--color-border)); border-radius: var(--radius-sm); color: color-mix(in oklab, var(--color-accent) 55%, var(--color-text)); background: var(--color-accent-bg); font-size: 12px; font-weight: 500; }
 .memory-status-recent { color: var(--color-text); border-color: color-mix(in oklab, var(--color-warning) 45%, var(--color-border)); background: color-mix(in oklab, var(--color-warning) 12%, var(--color-surface)); }
+.memory-lifecycle-hint { margin: var(--space-2) 0 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.6; }
+.archived-section { margin-top: var(--space-5); border-top: 1px solid var(--color-border); padding-top: var(--space-3); }
+.archived-item { border-bottom: 1px solid var(--color-border); }
+.archived-item:last-child { border-bottom: 0; }
+.archived-item .memory-actions { justify-content: flex-end; }
 .memory-drawer-header { display: block; }
 .memory-current-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
 .memory-current-heading h2 { min-width: 0; margin: 0; color: var(--color-text); font: 600 22px/1.5 var(--font-serif); overflow-wrap: anywhere; }

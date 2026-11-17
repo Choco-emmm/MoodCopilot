@@ -772,6 +772,45 @@ public class MemoryOrchestrator {
                 .toList();
     }
 
+    public List<UserProfileMemoryEntity> archived(long userId) {
+        return memoryMapper.selectList(new LambdaQueryWrapper<UserProfileMemoryEntity>()
+                .eq(UserProfileMemoryEntity::getUserId, userId)
+                .eq(UserProfileMemoryEntity::getStatus, ACTIVE)
+                .eq(UserProfileMemoryEntity::getLifecycleState, MemoryLifecyclePolicy.STATE_ARCHIVED)
+                .orderByDesc(UserProfileMemoryEntity::getLifecycleUpdatedAt));
+    }
+
+    /**
+     * 用户手动恢复一条已归档记忆。
+     *
+     * <p>恢复视为一次用户确认：重置衰减时钟（{@code lastEvidenceAt}）并写入 USER_ACTION 证据，
+     * 否则下一次生命周期任务会立刻用旧的参照时间把它重新归档。
+     */
+    @Transactional
+    public UserProfileMemoryEntity restoreLifecycle(long userId, long memoryId) {
+        memoryMapper.lockOwner(userId);
+        UserProfileMemoryEntity memory = ownedFormal(userId, memoryId);
+        if (!MemoryLifecyclePolicy.STATE_ARCHIVED.equals(MemoryLifecyclePolicy.stateOf(memory))) {
+            return memory;
+        }
+        LocalDateTime now = businessNow();
+        memoryMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserProfileMemoryEntity>()
+                .eq(UserProfileMemoryEntity::getId, memoryId)
+                .eq(UserProfileMemoryEntity::getUserId, userId)
+                .eq(UserProfileMemoryEntity::getLifecycleState, MemoryLifecyclePolicy.STATE_ARCHIVED)
+                .set(UserProfileMemoryEntity::getLifecycleState, MemoryLifecyclePolicy.STATE_ACTIVE)
+                .set(UserProfileMemoryEntity::getFreshness, 1.0)
+                .set(UserProfileMemoryEntity::getLifecycleReason, MemoryLifecyclePolicy.REASON_RESTORED_BY_USER)
+                .set(UserProfileMemoryEntity::getLifecycleUpdatedAt, now)
+                .set(UserProfileMemoryEntity::getLastEvidenceAt, now)
+                .set(UserProfileMemoryEntity::getUpdatedAt, now)
+                .set(UserProfileMemoryEntity::getUpdateTime, now));
+        addEvidence(userId, memoryId, null, "USER_ACTION", null, null, "用户恢复已归档记忆",
+                businessDate(), 1.0, 1.0);
+        reindex(userId);
+        return memoryMapper.selectById(memoryId);
+    }
+
     public List<UserProfileMemoryEntity> history(long userId, long memoryId) {
         UserProfileMemoryEntity selected = memoryMapper.selectOne(new LambdaQueryWrapper<UserProfileMemoryEntity>()
                 .eq(UserProfileMemoryEntity::getId, memoryId).eq(UserProfileMemoryEntity::getUserId, userId)
@@ -1226,6 +1265,12 @@ public class MemoryOrchestrator {
         memory.setConfidence(Math.max(memory.getConfidence() == null ? 0 : memory.getConfidence(),
                 confidence == null ? 0 : confidence));
         memory.setLastEvidenceAt(businessNow());
+        // 同值证据命中即视为「再次被用户提到」：无条件复活并刷新新鲜度。
+        // 归档只改 lifecycle_state 不改 status，因此抽取的按属性查找链路天然命中归档行，复活无需额外查询。
+        memory.setLifecycleState(MemoryLifecyclePolicy.STATE_ACTIVE);
+        memory.setFreshness(1.0);
+        memory.setLifecycleReason(MemoryLifecyclePolicy.REASON_REVIVED_BY_EVIDENCE);
+        memory.setLifecycleUpdatedAt(businessNow());
         memory.setUpdatedAt(businessNow());
         memory.setUpdateTime(businessNow());
         memoryMapper.updateById(memory);
@@ -1264,6 +1309,11 @@ public class MemoryOrchestrator {
                 old.setSourceType(source);
             old.setConfidence(Math.max(old.getConfidence() == null ? 0 : old.getConfidence(), confidence));
             old.setLastEvidenceAt(now);
+            // 同值再次确认同样是一次强化：已归档的版本必须复活，否则「用户又确认了一遍」留不下痕迹。
+            old.setLifecycleState(MemoryLifecyclePolicy.STATE_ACTIVE);
+            old.setFreshness(1.0);
+            old.setLifecycleReason(MemoryLifecyclePolicy.REASON_REVIVED_BY_EVIDENCE);
+            old.setLifecycleUpdatedAt(now);
             old.setUpdatedAt(now);
             old.setUpdateTime(now);
             memoryMapper.updateById(old);

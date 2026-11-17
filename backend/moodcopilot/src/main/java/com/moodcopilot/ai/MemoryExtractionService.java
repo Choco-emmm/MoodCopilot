@@ -590,8 +590,25 @@ public class MemoryExtractionService {
 
     // ---- 用户记忆管理（供 Controller 调用） ----
 
+    /**
+     * 当前生效的正式记忆。已归档（{@code lifecycle_state=archived}）的条目不在其中：
+     * 归档只表示「不该再占用上下文预算」，不表示记录被删除，取归档列表请用
+     * {@link #listArchivedUserMemories(Long)}。
+     */
     public List<UserProfileMemoryEntity> listUserMemories(Long userId) {
-        return memoryOrchestrator.current(userId);
+        return memoryOrchestrator.current(userId).stream()
+                .filter(MemoryLifecyclePolicy::passLifecycle)
+                .toList();
+    }
+
+    public List<UserProfileMemoryEntity> listArchivedUserMemories(Long userId) {
+        return memoryOrchestrator.archived(userId);
+    }
+
+    public void restoreLifecycle(long memoryId) {
+        UserEntity user = currentUser();
+        memoryOrchestrator.restoreLifecycle(user.getId(), memoryId);
+        log.info("用户恢复已归档记忆，userId={}，memoryId={}", user.getId(), memoryId);
     }
 
     private List<UserProfileMemoryEntity> listUserCoreMemories(Long userId) {
