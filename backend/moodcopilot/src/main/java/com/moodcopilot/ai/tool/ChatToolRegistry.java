@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import reactor.core.publisher.Sinks;
 
@@ -155,14 +156,14 @@ public class ChatToolRegistry {
     }
 
     /**
-     * 工具跑在 Reactor/Netty 线程上，DiaryService 等依赖 currentUser() 读 SecurityContextHolder，
-     * 因此认证上下文必须在这里注入并在结尾清理 —— 各工具实现不接触它。
+     * 工具可能切换到图执行线程，DiaryService 等依赖 currentUser() 读 SecurityContextHolder。
+     * 每次调用使用独立上下文，仅绑定本次认证并在结尾清理，不能沿用线程上的其他身份。
      */
     private Object inSecurityContext(ToolExecutionContext context, ToolInvocation invocation) throws Exception {
         Authentication auth = context == null ? null : context.auth();
-        if (auth != null) {
-            SecurityContextHolder.getContext().setAuthentication(auth);
-        }
+        SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
         try {
             return invocation.invoke();
         } finally {

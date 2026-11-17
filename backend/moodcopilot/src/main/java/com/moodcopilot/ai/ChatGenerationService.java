@@ -12,7 +12,6 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
-import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -21,7 +20,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
 import java.util.regex.Matcher;
@@ -36,8 +34,6 @@ public class ChatGenerationService {
     private static final String RUN_PREFIX = "chat:run:";
     private static final String IDEMPOTENCY_PREFIX = "chat:run:idempotency:";
     private static final Duration RUN_TTL = Duration.ofDays(1);
-    private static final Duration POLL_INTERVAL = Duration.ofMillis(250);
-    private static final Duration STREAM_TIMEOUT = Duration.ofMinutes(30);
     private static final DefaultRedisScript<Long> TRANSITION_SCRIPT = new DefaultRedisScript<>(
             "if redis.call('HGET', KEYS[1], 'status') == ARGV[1] then "
                     + "redis.call('HSET', KEYS[1], 'status', ARGV[2], 'updatedAt', ARGV[3]); "
@@ -49,18 +45,20 @@ public class ChatGenerationService {
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
     private final Executor aiExecutor;
+    private final ChatRunEvents runEvents;
     @org.springframework.beans.factory.annotation.Autowired
     @org.springframework.context.annotation.Lazy
     private MemoryOrchestrator memoryOrchestrator;
 
     public ChatGenerationService(ChatService chatService, MemoryExtractionService memoryExtractionService,
             StringRedisTemplate redis, ObjectMapper objectMapper,
-            @org.springframework.beans.factory.annotation.Qualifier("aiExecutor") Executor aiExecutor) {
+            @org.springframework.beans.factory.annotation.Qualifier("aiExecutor") Executor aiExecutor, ChatRunEvents runEvents) {
         this.chatService = chatService;
         this.memoryExtractionService = memoryExtractionService;
         this.redis = redis;
         this.objectMapper = objectMapper;
         this.aiExecutor = aiExecutor;
+        this.runEvents = runEvents;
     }
 
     public record StartRequest(
@@ -122,7 +120,6 @@ public class ChatGenerationService {
     }
 
     public void run(StartRequest request, String runId) {
-        SecurityContext previous = SecurityContextHolder.getContext();
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(request.authentication());
         SecurityContextHolder.setContext(context);
@@ -187,7 +184,7 @@ public class ChatGenerationService {
                 writeEvent(runId, event("error", Map.of("message", "AI 服务暂时无法完成本次回答")));
             }
         } finally {
-            SecurityContextHolder.setContext(previous);
+            SecurityContextHolder.clearContext();
         }
     }
 
@@ -217,15 +214,12 @@ public class ChatGenerationService {
     /**
      * 记下「停在工具执行前等用户批准」。
      * <p>
-     * 帧先发、状态后改：反过来的话，一旦事件写失败，用户看到的就是一条永远没有下文的
-     * AWAITING_APPROVAL，而前端会一直轮询到超时 —— 那比看不见弹框更难排查。
+     * Lua 内先保存帧，再设置 AWAITING_APPROVAL，最后发布通知；前端收到帧时即可核验状态。
+     * 不能在通知之后才迁移状态，也不能在事件保存成功前就设置等待批准。
      */
     private void awaitApproval(String runId, AgentLoopOutcome outcome) {
         if (!writeEvent(runId, event("approval_required", approvalPayload(outcome)))) {
             throw new IllegalStateException("保存待批准事件失败");
-        }
-        if (!transitionStatus(runId, "RUNNING", "AWAITING_APPROVAL")) {
-            log.warn("生成任务已不在运行中，待批准状态未生效 runId={}", runId);
         }
     }
 
@@ -290,18 +284,7 @@ public class ChatGenerationService {
 
     public Flux<String> stream(String runId, long userId, long conversationId, long afterSequence) {
         assertOwner(runId, userId, conversationId);
-        AtomicLong cursor = new AtomicLong(Math.max(0, afterSequence));
-        return Flux.interval(Duration.ZERO, POLL_INTERVAL)
-                .publishOn(Schedulers.boundedElastic())
-                .concatMap(tick -> {
-                    List<String> events = eventsAfter(runId, cursor.get());
-                    if (!events.isEmpty()) {
-                        cursor.set(sequenceOf(events.get(events.size() - 1), cursor.get()));
-                    }
-                    return Flux.fromIterable(events);
-                })
-                .takeUntil(event -> isTerminal(event))
-                .timeout(STREAM_TIMEOUT)
+        return runEvents.stream(runId, afterSequence)
                 .doFinally(signal -> log.debug("聊天事件订阅结束 runId={} signal={}", runId, signal));
     }
 
@@ -369,7 +352,6 @@ public class ChatGenerationService {
 
     private void resumeRun(String runId, long userId, long conversationId, ResumeContext resume,
             Authentication authentication, List<ApprovalChoice> decisions) {
-        SecurityContext previous = SecurityContextHolder.getContext();
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
@@ -417,7 +399,7 @@ public class ChatGenerationService {
                 writeEvent(runId, event("error", Map.of("message", "AI 服务暂时无法完成本次回答")));
             }
         } finally {
-            SecurityContextHolder.setContext(previous);
+            SecurityContextHolder.clearContext();
         }
     }
 
@@ -464,26 +446,8 @@ public class ChatGenerationService {
         }
     }
 
-    private List<String> eventsAfter(String runId, long afterSequence) {
-        List<String> values = redis.opsForList().range(eventsKey(runId), 0, -1);
-        if (values == null || values.isEmpty()) return List.of();
-        return values.stream().filter(value -> sequenceOf(value, 0) > afterSequence).toList();
-    }
-
-
     private boolean writeEvent(String runId, String json) {
-        String key = metaKey(runId);
-        Long sequence = redis.opsForHash().increment(key, "lastSequence", 1);
-        try {
-            Map<String, Object> payload = objectMapper.readValue(json, new TypeReference<>() {});
-            payload.put("seq", sequence == null ? 0 : sequence);
-            redis.opsForList().rightPush(eventsKey(runId), objectMapper.writeValueAsString(payload));
-            expire(runId);
-            return true;
-        } catch (Exception e) {
-            log.warn("保存聊天生成事件失败 runId={} errorType={}", runId, e.getClass().getSimpleName());
-            return false;
-        }
+        return runEvents.append(runId, json);
     }
 
     private String event(String type, Map<String, Object> values) {
@@ -528,18 +492,6 @@ public class ChatGenerationService {
             items.add(item);
         }
         return items;
-    }
-
-    private boolean isTerminal(String json) {
-        try {
-            String type = objectMapper.readTree(json).path("type").asText();
-            return "done".equals(type) || "error".equals(type);
-        } catch (Exception ignored) { return false; }
-    }
-
-    private long sequenceOf(String json, long fallback) {
-        try { return objectMapper.readTree(json).path("seq").asLong(fallback); }
-        catch (Exception ignored) { return fallback; }
     }
 
     private void setStatus(String runId, String status) {

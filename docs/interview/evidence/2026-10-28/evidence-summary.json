@@ -1,0 +1,861 @@
+{
+  "generatedAt": "2026-10-28T06:22:09.906Z",
+  "reportingTimeZone": "Asia/Shanghai",
+  "sourceCommit": "933ff4a1bed8ef0cad1056f9d8a576742ba4eb27",
+  "environment": {
+    "platform": "win32 10.0.26200",
+    "cpu": "AMD Ryzen 9 8945HX with Radeon Graphics        ",
+    "logicalCpus": 32,
+    "node": "v24.14.0",
+    "java": "Oracle JDK 25.0.1; project target release 21",
+    "maven": "3.9.12"
+  },
+  "currentRegression": {
+    "startedAt": "2026-10-28T13:47:29.4685084+08:00",
+    "exitCode": 0,
+    "finishedAt": "2026-10-28T13:47:44.7973899+08:00",
+    "totals": {
+      "tests": 119,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "suites": [
+      {
+        "name": "com.moodcopilot.ai.ChatAgentResilienceTest",
+        "tests": 16,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 0.373,
+        "sha256": "bce4deae37a576a006c0024e700a3adfcdf2a84cafa20c5fac5ee368390f7bfc",
+        "cases": [
+          {
+            "name": "distinctIdsAndDistinctRunsAreNotDeduplicated(boolean)[1]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.022
+          },
+          {
+            "name": "distinctIdsAndDistinctRunsAreNotDeduplicated(boolean)[2]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.011
+          },
+          {
+            "name": "receiptsSurviveAnApprovalCheckpointAndResume(boolean)[1]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.012
+          },
+          {
+            "name": "receiptsSurviveAnApprovalCheckpointAndResume(boolean)[2]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.013
+          },
+          {
+            "name": "silentModelTimesOutAndCancelsUpstreamWithoutRetry(boolean)[1]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.1
+          },
+          {
+            "name": "silentModelTimesOutAndCancelsUpstreamWithoutRetry(boolean)[2]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.088
+          },
+          {
+            "name": "reusedIdWithDifferentArgumentsFailsClosed(boolean)[1]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.007
+          },
+          {
+            "name": "reusedIdWithDifferentArgumentsFailsClosed(boolean)[2]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.008
+          },
+          {
+            "name": "toolExceptionProducesValidResultAndNextModelRound(boolean)[1]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.006
+          },
+          {
+            "name": "toolExceptionProducesValidResultAndNextModelRound(boolean)[2]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.007
+          },
+          {
+            "name": "repeatedCallIdAcrossRoundsReusesResultWithoutExecutingAgain(boolean)[1]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.009
+          },
+          {
+            "name": "repeatedCallIdAcrossRoundsReusesResultWithoutExecutingAgain(boolean)[2]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.009
+          },
+          {
+            "name": "duplicateInOneBatchHasOneProtocolEntryAndOneExecution(boolean)[1]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.008
+          },
+          {
+            "name": "duplicateInOneBatchHasOneProtocolEntryAndOneExecution(boolean)[2]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.005
+          },
+          {
+            "name": "failedToolIsNotRetriedByDuplicateDelivery(boolean)[1]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.01
+          },
+          {
+            "name": "failedToolIsNotRetriedByDuplicateDelivery(boolean)[2]",
+            "classname": "com.moodcopilot.ai.ChatAgentResilienceTest",
+            "seconds": 0.007
+          }
+        ]
+      },
+      {
+        "name": "com.moodcopilot.ai.ChatAgentLoopTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 0.061,
+        "sha256": "79a4fbe6eb1079da41689191a7132aeebd8e5074416e5c28d4f1022ea42b84ce",
+        "cases": [
+          {
+            "name": "exposeReasoningFalseSuppressesTheMarkerButStillAccumulatesIt",
+            "classname": "com.moodcopilot.ai.ChatAgentLoopTest",
+            "seconds": 0.005
+          },
+          {
+            "name": "plainTextStreamPassesThroughAndReplyMatches",
+            "classname": "com.moodcopilot.ai.ChatAgentLoopTest",
+            "seconds": 0.005
+          },
+          {
+            "name": "reasoningChunksReachTheClientButNeverTheReply",
+            "classname": "com.moodcopilot.ai.ChatAgentLoopTest",
+            "seconds": 0.005
+          },
+          {
+            "name": "aFailingToolStillProducesAToolMessageAndTheLoopContinues",
+            "classname": "com.moodcopilot.ai.ChatAgentLoopTest",
+            "seconds": 0.009
+          },
+          {
+            "name": "chunksArriveWhileTheModelCallIsStillRunning",
+            "classname": "com.moodcopilot.ai.ChatAgentLoopTest",
+            "seconds": 0.013
+          },
+          {
+            "name": "depthLimitTerminatesWithoutRecursing",
+            "classname": "com.moodcopilot.ai.ChatAgentLoopTest",
+            "seconds": 0.007
+          },
+          {
+            "name": "aToolCallRoundExecutesTheToolAndRecurses",
+            "classname": "com.moodcopilot.ai.ChatAgentLoopTest",
+            "seconds": 0.01
+          }
+        ]
+      },
+      {
+        "name": "com.moodcopilot.ai.ChatAgentApprovalTest",
+        "tests": 13,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 1.861,
+        "sha256": "0bbc5b1ae569dbf53e337d0ad101d690caa2f08ca874430bfed62402f5b14c4b",
+        "cases": [
+          {
+            "name": "aLegacyWildcardStateNeverAuthorizesUnmentionedCalls",
+            "classname": "com.moodcopilot.ai.ChatAgentApprovalTest",
+            "seconds": 0.51
+          },
+          {
+            "name": "rejectingFeedsTheReasonBackToTheModelWithoutRunningTheTool",
+            "classname": "com.moodcopilot.ai.ChatAgentApprovalTest",
+            "seconds": 0.033
+          },
+          {
+            "name": "eachGroupGetsItsOwnDecision",
+            "classname": "com.moodcopilot.ai.ChatAgentApprovalTest",
+            "seconds": 0.025
+          },
+          {
+            "name": "bothGroupsRunOnlyWhenBothAreExplicitlyApproved",
+            "classname": "com.moodcopilot.ai.ChatAgentApprovalTest",
+            "seconds": 0.017
+          },
+          {
+            "name": "approvingRunsTheToolAndKeepsTheReplyWrittenBeforeThePause",
+            "classname": "com.moodcopilot.ai.ChatAgentApprovalTest",
+            "seconds": 0.014
+          },
+          {
+            "name": "aGroupTheUserNeverMentionedIsTreatedAsRejected",
+            "classname": "com.moodcopilot.ai.ChatAgentApprovalTest",
+            "seconds": 0.014
+          },
+          {
+            "name": "aBatchWithSeveralGroupsPausesWithOneItemPerGroup",
+            "classname": "com.moodcopilot.ai.ChatAgentApprovalTest",
+            "seconds": 0.007
+          },
+          {
+            "name": "aChannelThatCannotAskRejectsInsteadOfHanging",
+            "classname": "com.moodcopilot.ai.ChatAgentApprovalTest",
+            "seconds": 0.01
+          },
+          {
+            "name": "toolsThatDoNotNeedApprovalStillRunSilently",
+            "classname": "com.moodcopilot.ai.ChatAgentApprovalTest",
+            "seconds": 0.01
+          },
+          {
+            "name": "rejectingWithoutAReasonStillTellsTheModelNotToRetry",
+            "classname": "com.moodcopilot.ai.ChatAgentApprovalTest",
+            "seconds": 0.017
+          },
+          {
+            "name": "aSecondApprovalInTheSameTurnAsksAgain",
+            "classname": "com.moodcopilot.ai.ChatAgentApprovalTest",
+            "seconds": 0.011
+          },
+          {
+            "name": "aToolThatNeedsApprovalPausesBeforeRunningAndLeavesACheckpoint",
+            "classname": "com.moodcopilot.ai.ChatAgentApprovalTest",
+            "seconds": 0.007
+          },
+          {
+            "name": "aNewCallIdCannotRepeatTheSameDeclinedWrite",
+            "classname": "com.moodcopilot.ai.ChatAgentApprovalTest",
+            "seconds": 0.013
+          }
+        ]
+      },
+      {
+        "name": "com.moodcopilot.ai.ChatGenerationServiceTest",
+        "tests": 18,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 0.99,
+        "sha256": "7ca8e7fcf0762111c3a435a1149d0cee74d552059e7a5fc7fa08d6737c4c1614",
+        "cases": [
+          {
+            "name": "theApprovalFrameCarriesWhatWillChange",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.125
+          },
+          {
+            "name": "cancellingAnotherRunDoesNotCancelThisRun(boolean)[1]",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.012
+          },
+          {
+            "name": "cancellingAnotherRunDoesNotCancelThisRun(boolean)[2]",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.007
+          },
+          {
+            "name": "approvingTwiceIsRejectedTheSecondTime",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.026
+          },
+          {
+            "name": "anOrdinaryRunFinishesExactlyLikeItAlwaysDid",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.004
+          },
+          {
+            "name": "aPausedRunAsksForApprovalInsteadOfFinishing",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.004
+          },
+          {
+            "name": "cancellationBetweenApprovedToolsStopsTheNextToolAndModelRound(boolean)[1]",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.01
+          },
+          {
+            "name": "cancellationBetweenApprovedToolsStopsTheNextToolAndModelRound(boolean)[2]",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.011
+          },
+          {
+            "name": "aSecondApprovalInTheSameTurnPausesAgainInsteadOfSneakingThrough",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.004
+          },
+          {
+            "name": "preservesWhitespaceChunksForMarkdownAndReplay",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.006
+          },
+          {
+            "name": "approvingResumesTheSameRunAndOnlyThenFinishes",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.005
+          },
+          {
+            "name": "cancellationStopsASilentModelWithoutWaitingForIdleTimeout(boolean)[1]",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.258
+          },
+          {
+            "name": "cancellationStopsASilentModelWithoutWaitingForIdleTimeout(boolean)[2]",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.26
+          },
+          {
+            "name": "theDecisionIsHandedToTheGraphUnchanged",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.006
+          },
+          {
+            "name": "aPausedRunKeepsEverythingTheResumeWillNeed",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.004
+          },
+          {
+            "name": "aClientThatCannotShowThePromptTellsTheGraphSo",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.004
+          },
+          {
+            "name": "aPausedRunCanStillBeCancelled",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.007
+          },
+          {
+            "name": "aRunThatIsNotWaitingCannotBeApproved",
+            "classname": "com.moodcopilot.ai.ChatGenerationServiceTest",
+            "seconds": 0.004
+          }
+        ]
+      },
+      {
+        "name": "com.moodcopilot.ai.ChatHistoryMergeTest",
+        "tests": 12,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 0.01,
+        "sha256": "7696c069f29ddeafa97aa8935981fca5f07f641c9e4c12c7f97d22c0dc6c1b04",
+        "cases": [
+          {
+            "name": "anUnmatchedAssistantRowIsDroppedRatherThanDuplicated",
+            "classname": "com.moodcopilot.ai.ChatHistoryMergeTest",
+            "seconds": 0.002
+          },
+          {
+            "name": "clientAiRoleMatchesServerAssistantRole",
+            "classname": "com.moodcopilot.ai.ChatHistoryMergeTest",
+            "seconds": 0
+          },
+          {
+            "name": "serverRowsMissingFromThePayloadSurvive",
+            "classname": "com.moodcopilot.ai.ChatHistoryMergeTest",
+            "seconds": 0
+          },
+          {
+            "name": "aNewOptimisticUserRowIsAppendedExactlyOnce",
+            "classname": "com.moodcopilot.ai.ChatHistoryMergeTest",
+            "seconds": 0.002
+          },
+          {
+            "name": "anUnmatchedUserRowIsStillAppended",
+            "classname": "com.moodcopilot.ai.ChatHistoryMergeTest",
+            "seconds": 0
+          },
+          {
+            "name": "matchingByIdTakesPrecedenceOverContent",
+            "classname": "com.moodcopilot.ai.ChatHistoryMergeTest",
+            "seconds": 0
+          },
+          {
+            "name": "emptyInputsAreSafe",
+            "classname": "com.moodcopilot.ai.ChatHistoryMergeTest",
+            "seconds": 0
+          },
+          {
+            "name": "replayingTheSamePayloadIsIdempotent",
+            "classname": "com.moodcopilot.ai.ChatHistoryMergeTest",
+            "seconds": 0
+          },
+          {
+            "name": "repeatedContentDoesNotCollapseOntoOneRow",
+            "classname": "com.moodcopilot.ai.ChatHistoryMergeTest",
+            "seconds": 0
+          },
+          {
+            "name": "aMatchingAssistantRowStillGetsAnnotated",
+            "classname": "com.moodcopilot.ai.ChatHistoryMergeTest",
+            "seconds": 0
+          },
+          {
+            "name": "mergingDoesNotMutateTheStoredRowsInPlace",
+            "classname": "com.moodcopilot.ai.ChatHistoryMergeTest",
+            "seconds": 0.002
+          },
+          {
+            "name": "matchingRowKeepsServerContentAndGainsClientFields",
+            "classname": "com.moodcopilot.ai.ChatHistoryMergeTest",
+            "seconds": 0
+          }
+        ]
+      },
+      {
+        "name": "com.moodcopilot.ai.ChatHistoryStoreTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 0.051,
+        "sha256": "944d13092d1383860a2e293d3055f3cc500df22263b47aee9fcd8b774e71f125",
+        "cases": [
+          {
+            "name": "delayedAnnotationCannotEraseACompletedTurn",
+            "classname": "com.moodcopilot.ai.ChatHistoryStoreTest",
+            "seconds": 0.03
+          },
+          {
+            "name": "appendPreservesAnnotationsAndDistinguishesRepeatedTurns",
+            "classname": "com.moodcopilot.ai.ChatHistoryStoreTest",
+            "seconds": 0.004
+          },
+          {
+            "name": "sustainedConflictsFailWithoutOverwritingHistory",
+            "classname": "com.moodcopilot.ai.ChatHistoryStoreTest",
+            "seconds": 0.014
+          },
+          {
+            "name": "invalidStoredHistoryIsNotReplacedWithAnEmptySnapshot",
+            "classname": "com.moodcopilot.ai.ChatHistoryStoreTest",
+            "seconds": 0.003
+          }
+        ]
+      },
+      {
+        "name": "com.moodcopilot.ai.ChatModelProfilesTest",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 0.003,
+        "sha256": "ce0fd5ea3ef5815a89d0e95ddc65fae3921393c029e763c6bcfd2c7780b336d0",
+        "cases": [
+          {
+            "name": "bothProfilesShareTheSameDepthLimit",
+            "classname": "com.moodcopilot.ai.ChatModelProfilesTest",
+            "seconds": 0.001
+          },
+          {
+            "name": "flashOmitsTemperatureAndReasoningEffortSoTheEndpointDefaultApplies",
+            "classname": "com.moodcopilot.ai.ChatModelProfilesTest",
+            "seconds": 0
+          },
+          {
+            "name": "blankModelFallsBackToTheDocumentedDefault",
+            "classname": "com.moodcopilot.ai.ChatModelProfilesTest",
+            "seconds": 0
+          },
+          {
+            "name": "proKeepsHighReasoningEffortAndExposesTheChainOfThought",
+            "classname": "com.moodcopilot.ai.ChatModelProfilesTest",
+            "seconds": 0
+          },
+          {
+            "name": "tinyMaxTokensIsRaisedToTheFloor",
+            "classname": "com.moodcopilot.ai.ChatModelProfilesTest",
+            "seconds": 0
+          }
+        ]
+      },
+      {
+        "name": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 0.368,
+        "sha256": "6ce06fda1b208752af4083d8c496272e5d058559a07dba971282fe93d2d8cec2",
+        "cases": [
+          {
+            "name": "emitIsSilentWithoutASink",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.216
+          },
+          {
+            "name": "executeParsesArgumentsAndDispatchesToTheMatchingTool",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.021
+          },
+          {
+            "name": "unknownToolNameIsRejected",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.002
+          },
+          {
+            "name": "blankArgumentsParseAsAnEmptyObjectInsteadOfFailing",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.003
+          },
+          {
+            "name": "graphReferencesAreCompactedAndNonBlank",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.007
+          },
+          {
+            "name": "displayNameDropsTheFunctionSuffix",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.002
+          },
+          {
+            "name": "toolsWithoutReferencesProduceNoEventItems",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.002
+          },
+          {
+            "name": "registryRejectsDuplicateToolNames",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.001
+          },
+          {
+            "name": "graphSearchUsesASingleWireName",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.001
+          },
+          {
+            "name": "onlyTheMemoryWritingToolsAskForApproval",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.001
+          },
+          {
+            "name": "schemasUseTheOpenAiFunctionEnvelope",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.001
+          },
+          {
+            "name": "toolsDeclareExpectedWireNamesInOrder",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.002
+          },
+          {
+            "name": "executeParsedSkipsJsonRoundTrip",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.002
+          },
+          {
+            "name": "schemasCarryTheExpectedRequiredLists",
+            "classname": "com.moodcopilot.ai.tool.ChatToolRegistryTest",
+            "seconds": 0.002
+          }
+        ]
+      },
+      {
+        "name": "com.moodcopilot.ai.ContextPlannerTest",
+        "tests": 11,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 0.168,
+        "sha256": "396d88b827d5dc1cadaea232c2796e4cacb5f5583698542d14c7e3489b55abb2",
+        "cases": [
+          {
+            "name": "excludesShortTermStateAtItsExclusiveValidUntilBoundary",
+            "classname": "com.moodcopilot.ai.ContextPlannerTest",
+            "seconds": 0.128
+          },
+          {
+            "name": "planKeepsSourcesSeparatedAndDoesNotLoadOrdinaryMemoryIntoChat",
+            "classname": "com.moodcopilot.ai.ContextPlannerTest",
+            "seconds": 0.009
+          },
+          {
+            "name": "keepsOrdinaryFormalMemoryAndMarksConflictingValuesOutsideChat",
+            "classname": "com.moodcopilot.ai.ContextPlannerTest",
+            "seconds": 0.005
+          },
+          {
+            "name": "carriesExplicitReferencePurposeIntoEnvelope",
+            "classname": "com.moodcopilot.ai.ContextPlannerTest",
+            "seconds": 0.001
+          },
+          {
+            "name": "doesNotInjectSensitiveExplicitReferences",
+            "classname": "com.moodcopilot.ai.ContextPlannerTest",
+            "seconds": 0.001
+          },
+          {
+            "name": "deduplicatesResolvedAndLegacyReferencesWithinTheReferenceBudget",
+            "classname": "com.moodcopilot.ai.ContextPlannerTest",
+            "seconds": 0.003
+          },
+          {
+            "name": "keepsServerResolvedDiaryReferenceAsAnAuthoritativeSource",
+            "classname": "com.moodcopilot.ai.ContextPlannerTest",
+            "seconds": 0.001
+          },
+          {
+            "name": "codingTaskDoesNotLoadImplicitPrivateContextButKeepsExplicitReference",
+            "classname": "com.moodcopilot.ai.ContextPlannerTest",
+            "seconds": 0.001
+          },
+          {
+            "name": "staleProfileVectorsCannotRestoreSupersededMemoryBeforeIndexRecovery",
+            "classname": "com.moodcopilot.ai.ContextPlannerTest",
+            "seconds": 0.004
+          },
+          {
+            "name": "marksConflictsWhenValuesCrossCoreAndOrdinaryBuckets",
+            "classname": "com.moodcopilot.ai.ContextPlannerTest",
+            "seconds": 0.003
+          },
+          {
+            "name": "restrictedHistoricalStatesAndEvidenceStayOutOfNewContext",
+            "classname": "com.moodcopilot.ai.ContextPlannerTest",
+            "seconds": 0.005
+          }
+        ]
+      },
+      {
+        "name": "com.moodcopilot.ai.PromptComposerTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 0.095,
+        "sha256": "f4a5863b399f08bc5a2c06c78672ac8889dc62f9c74f7cca399bde69515f30fd",
+        "cases": [
+          {
+            "name": "rendersStructuredEnvelopeOnlyAtTheComposerBoundary",
+            "classname": "com.moodcopilot.ai.PromptComposerTest",
+            "seconds": 0.037
+          },
+          {
+            "name": "expandsPersonaFlagsIntoExecutableGuidance",
+            "classname": "com.moodcopilot.ai.PromptComposerTest",
+            "seconds": 0.057
+          }
+        ]
+      },
+      {
+        "name": "com.moodcopilot.ai.XmlPromptRendererTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 0.005,
+        "sha256": "ca2b7bbd30912aa8a03a1c764934fbc87ca25d1cf1de050f5702365ae477c11c",
+        "cases": [
+          {
+            "name": "rendersPeerContextBlocksAndEscapesData",
+            "classname": "com.moodcopilot.ai.XmlPromptRendererTest",
+            "seconds": 0.003
+          },
+          {
+            "name": "rendersReferencePurposeAsStructuredMetadata",
+            "classname": "com.moodcopilot.ai.XmlPromptRendererTest",
+            "seconds": 0.001
+          },
+          {
+            "name": "itemBudgetDoesNotCutXmlTags",
+            "classname": "com.moodcopilot.ai.XmlPromptRendererTest",
+            "seconds": 0.001
+          }
+        ]
+      },
+      {
+        "name": "com.moodcopilot.ai.mq.AiTaskProducerTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 0.11,
+        "sha256": "55c49e76f05883c67186c2068bcaade4c7181b32db9d2bbb372c06099bdd7008",
+        "cases": [
+          {
+            "name": "forcedRefreshAlwaysGetsAFreshOperationKey",
+            "classname": "com.moodcopilot.ai.mq.AiTaskProducerTest",
+            "seconds": 0.004
+          },
+          {
+            "name": "automaticRefreshKeepsOneOperationKeyPerSnapshotSoRepeatedRecomputesCoalesce",
+            "classname": "com.moodcopilot.ai.mq.AiTaskProducerTest",
+            "seconds": 0.002
+          }
+        ]
+      },
+      {
+        "name": "com.moodcopilot.ai.MemoryWriteContractTest",
+        "tests": 12,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "seconds": 0.521,
+        "sha256": "c874d45e9168679781e0029718270cf5209f632d539fe509f1792377567cf03a",
+        "cases": [
+          {
+            "name": "allSixTypesShareStrictUnicodeLengthKeyAndPrivacyRules",
+            "classname": "com.moodcopilot.ai.MemoryWriteContractTest",
+            "seconds": 0.015
+          },
+          {
+            "name": "evidenceMustRemainShortAndCannotBeARedactionPlaceholder",
+            "classname": "com.moodcopilot.ai.MemoryWriteContractTest",
+            "seconds": 0.005
+          },
+          {
+            "name": "rejectingRestrictedSignalsLogsOnlyMetadata",
+            "classname": "com.moodcopilot.ai.MemoryWriteContractTest",
+            "seconds": 0.022
+          },
+          {
+            "name": "restrictedMergeAndOversizedExtractionHaveNoWriteEffects",
+            "classname": "com.moodcopilot.ai.MemoryWriteContractTest",
+            "seconds": 0.004
+          },
+          {
+            "name": "candidateEditsCannotBypassTheSamePolicy",
+            "classname": "com.moodcopilot.ai.MemoryWriteContractTest",
+            "seconds": 0.002
+          },
+          {
+            "name": "automaticNegationCannotInvalidateFormalMemory",
+            "classname": "com.moodcopilot.ai.MemoryWriteContractTest",
+            "seconds": 0.005
+          },
+          {
+            "name": "aNewEnglishKeyCannotEnterThroughTheExplicitPath",
+            "classname": "com.moodcopilot.ai.MemoryWriteContractTest",
+            "seconds": 0
+          },
+          {
+            "name": "distinctValuesSurviveExtractionSanitization",
+            "classname": "com.moodcopilot.ai.MemoryWriteContractTest",
+            "seconds": 0.001
+          },
+          {
+            "name": "chineseCredentialsAreDetectedWithoutBlockingDiscussion",
+            "classname": "com.moodcopilot.ai.MemoryWriteContractTest",
+            "seconds": 0.001
+          },
+          {
+            "name": "manualEditRejectsRestrictedContentBeforeAnyWrite",
+            "classname": "com.moodcopilot.ai.MemoryWriteContractTest",
+            "seconds": 0.002
+          },
+          {
+            "name": "quotedChineseCredentialsAreRejectedByEditsAndRemovedFromOutboundCopies",
+            "classname": "com.moodcopilot.ai.MemoryWriteContractTest",
+            "seconds": 0.009
+          },
+          {
+            "name": "explicitModelAssertionCannotOverwriteExistingMemory",
+            "classname": "com.moodcopilot.ai.MemoryWriteContractTest",
+            "seconds": 0.007
+          }
+        ]
+      }
+    ]
+  },
+  "historicalLoadRecalculation": [
+    {
+      "file": "health-c8.ndjson.gz",
+      "sha256": "8f521fa8f8ac8a7e7e06ad35013489a3f9ebf8bb255c6fbb94262a8372df6676",
+      "samples": 262875,
+      "successes": 262875,
+      "statusCounts": {
+        "200": 262875
+      },
+      "p95Ms": 0.951,
+      "successP95Ms": 0.951,
+      "historicalDate": "2026-10-21",
+      "concurrency": 8,
+      "elapsedSeconds": 20.0002279,
+      "successfulRps": 13143.600228675396,
+      "verifiedAgainstSummary": true
+    },
+    {
+      "file": "health-c32.ndjson.gz",
+      "sha256": "cdffcd47cadcceca9fc8c09d5c5f4c92d658ceb84c9b5ebf66e5ce26105f4c49",
+      "samples": 263196,
+      "successes": 263196,
+      "statusCounts": {
+        "200": 263196
+      },
+      "p95Ms": 3.506,
+      "successP95Ms": 3.506,
+      "historicalDate": "2026-10-21",
+      "concurrency": 32,
+      "elapsedSeconds": 20.000503700000003,
+      "successfulRps": 13159.46857878384,
+      "verifiedAgainstSummary": true
+    },
+    {
+      "file": "announcements-c8.ndjson.gz",
+      "sha256": "0aa149c21f0165c72b3d1e5138d7c16db9ba46f6129710ec4614e2394bc8a494",
+      "samples": 49195,
+      "successes": 296,
+      "statusCounts": {
+        "200": 296,
+        "429": 48899
+      },
+      "p95Ms": 3.911,
+      "successP95Ms": 6.774,
+      "historicalDate": "2026-10-21",
+      "concurrency": 8,
+      "elapsedSeconds": 20.002471099999994,
+      "successfulRps": 14.798171611906495,
+      "verifiedAgainstSummary": true
+    }
+  ],
+  "historicalFaultTests": [
+    {
+      "file": "before-fix.xml",
+      "suites": [
+        {
+          "name": "com.moodcopilot.ai.ChatAgentResilienceTest",
+          "tests": 6,
+          "failures": 4,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 4.905
+        }
+      ]
+    },
+    {
+      "file": "after-fix.xml",
+      "suites": [
+        {
+          "name": "com.moodcopilot.ai.ChatAgentResilienceTest",
+          "tests": 16,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "seconds": 0.344
+        }
+      ]
+    }
+  ],
+  "localProbes": [
+    {
+      "url": "http://127.0.0.1:18080/api/health",
+      "reachable": false,
+      "errorCode": "ECONNREFUSED"
+    },
+    {
+      "url": "http://127.0.0.1:5173",
+      "reachable": true,
+      "status": 200
+    }
+  ],
+  "limits": [
+    "Current regression uses mock external model/tool/Redis boundaries; not a live provider benchmark.",
+    "Historical load was measured on 2026-10-21, not rerun today; raw samples recalculated today.",
+    "Health endpoint throughput is not AI or database business throughput.",
+    "UI demo script has not been rehearsed against a running backend in this session."
+  ]
+}

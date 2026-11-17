@@ -27,9 +27,11 @@ public class DiarySemanticSearchTool extends ChatTool<DiarySearchRequest> {
 
     @Override
     public String description() {
-        return "向量语义检索工具，专门用于根据『概念、情感、抽象描述』查找历史日记。"
-                + "如果用户的提问是关于感觉、宽泛概念或意境（例如'关于工作压力的事'、'那张下雨天的图片'），【必须】使用此工具。"
-                + "【强烈警告】：由于底层采用向量检索，对专有名词或小众词汇的命中率极低！如果用户询问的是具体的人名、地名、实体名词（如'小星'、'南京'），【绝对禁止】使用此工具，请务必改用 diaryKeywordSearchFunction。"
+        return "向量语义检索工具，用于按概念、情感或抽象描述查找历史日记。"
+                + "用户的提问是关于感觉、宽泛概念或意境时（例如'关于工作压力的事'、'那张下雨天的图片'）用这个。"
+                + "向量检索对专有名词和小众词汇命中率低，具体的人名、地名、实体名词请改用 diaryKeywordSearchFunction。"
+                + "如果用户没有给出任何检索词（例如'我最近写了什么'、'日记里都提到些什么'），"
+                + "请直接用 listRecentDiariesFunction 拿列表，不要用本工具编一个查询反复试探。"
                 + "返回的是日记摘要，不足以回答具体问题时，用返回的 id 调用 readDiaryFunction 取全文。";
     }
 

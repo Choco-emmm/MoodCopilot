@@ -26,20 +26,30 @@ import com.moodcopilot.event.LifeEventService;
 import com.moodcopilot.mapper.DiaryKnowledgeGraphMapper;
 import com.moodcopilot.mapper.DiaryMapper;
 import com.moodcopilot.security.RateLimitService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.any;
 
 class ChatToolRegistryTest {
 
@@ -61,6 +71,11 @@ class ChatToolRegistryTest {
 
     private final DiaryService diaryService = mock(DiaryService.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
 
     private ChatToolRegistry registry() {
         return new ChatToolRegistry(objectMapper, List.of(
@@ -177,6 +192,52 @@ class ChatToolRegistryTest {
         ArgumentCaptor<UserStatsRequest> captor = ArgumentCaptor.forClass(UserStatsRequest.class);
         verify(diaryService).getOwnMoodStats(captor.capture());
         assertEquals(7, captor.getValue().days());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    void toolInvocationUsesAnIndependentContextAndClearsIt(boolean parsed, boolean fail) throws Exception {
+        var original = SecurityContextHolder.createEmptyContext();
+        SecurityContextHolder.setContext(original);
+        var auth = new UsernamePasswordAuthenticationToken("request-user", null, List.of());
+        var context = ToolExecutionContext.of(auth);
+        var failure = new IllegalStateException("tool failed");
+        doAnswer(call -> {
+            assertNotSame(original, SecurityContextHolder.getContext());
+            assertSame(auth, SecurityContextHolder.getContext().getAuthentication());
+            if (fail) throw failure;
+            return null;
+        }).when(diaryService).getOwnMoodStats(any(UserStatsRequest.class));
+
+        var registry = registry();
+        org.junit.jupiter.api.function.Executable invocation = () -> {
+            if (parsed) registry.executeParsed("userStatsFunction", new UserStatsRequest(7), context);
+            else registry.execute("userStatsFunction", "{\"days\":7}", context);
+        };
+        if (fail) assertSame(failure, assertThrows(IllegalStateException.class, invocation));
+        else assertDoesNotThrow(invocation);
+
+        assertNull(original.getAuthentication(), "the previous context object must not be mutated");
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    void missingToolAuthenticationNeverUsesAThreadIdentity(boolean parsed, boolean nullContext) throws Exception {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("unrelated-user", null, List.of()));
+        doAnswer(call -> {
+            assertNull(SecurityContextHolder.getContext().getAuthentication(),
+                    "a tool without authentication must not use an identity already on the thread");
+            return null;
+        }).when(diaryService).getOwnMoodStats(any(UserStatsRequest.class));
+        ToolExecutionContext context = nullContext ? null : ToolExecutionContext.of(null);
+
+        var registry = registry();
+        if (parsed) registry.executeParsed("userStatsFunction", new UserStatsRequest(7), context);
+        else registry.execute("userStatsFunction", "{\"days\":7}", context);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
     }
 
     @Test

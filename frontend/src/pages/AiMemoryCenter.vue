@@ -3,10 +3,11 @@
     <AppHeader />
 
     <section class="panel memory-center-panel">
-      <button class="page-back-link" aria-label="返回上一页" @click="router.back()">←</button>
-      <div class="panel-header">
-        <h1>我的记忆中心</h1>
-        <p class="panel-desc">记住了什么，依据是什么，都可以在这里核对。</p>
+      <div class="memory-page-heading">
+        <button class="page-back-link" aria-label="返回上一页" @click="router.back()">←</button>
+        <div class="panel-header">
+          <h1>我的记忆中心</h1>
+        </div>
       </div>
 
       <n-tabs v-model:value="activeTab" type="line" justify-content="center" size="large" style="margin-top: 20px;" display-directive="show">
@@ -62,21 +63,22 @@ watch(activeTab, (tab) => {
 <style scoped>
 .memory-center-panel {
   max-width: 900px;
-  margin: 40px auto;
-  padding: 0 20px;
+  margin: 16px auto;
+  padding: 0;
   border: none;
   background: transparent;
   box-shadow: none;
 }
 .page-back-link { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
 .page-back-link:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.memory-page-heading { display: flex; align-items: center; gap: var(--space-2); }
 .panel-header {
-  margin-bottom: 20px;
-  text-align: center;
+  margin: 0;
+  text-align: left;
 }
 .panel-header h1 {
-  margin: 0 0 12px;
-  color: var(--color-primary);
+  margin: 0;
+  color: var(--color-text);
   font-family: var(--font-serif);
   font-size: clamp(1.7rem, 4vw, 2rem);
   font-weight: 600;

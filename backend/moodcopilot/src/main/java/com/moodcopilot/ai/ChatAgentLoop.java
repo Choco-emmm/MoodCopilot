@@ -11,9 +11,9 @@ import org.bsc.langgraph4j.GraphInput;
 import org.bsc.langgraph4j.NodeOutput;
 import org.bsc.langgraph4j.RunnableConfig;
 import org.bsc.langgraph4j.StateGraph;
+import org.bsc.langgraph4j.action.AsyncNodeActionWithConfig;
 import org.bsc.langgraph4j.action.InterruptableAction;
 import org.bsc.langgraph4j.action.InterruptionMetadata;
-import org.bsc.langgraph4j.action.NodeActionWithConfig;
 import org.bsc.langgraph4j.checkpoint.BaseCheckpointSaver;
 import org.bsc.langgraph4j.checkpoint.Checkpoint;
 import org.slf4j.Logger;
@@ -32,12 +32,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.bsc.langgraph4j.StateGraph.END;
 import static org.bsc.langgraph4j.StateGraph.START;
 import static org.bsc.langgraph4j.action.AsyncEdgeAction.edge_async;
-import static org.bsc.langgraph4j.action.AsyncNodeActionWithConfig.node_async;
 
 /**
  * 唯一的 Agent Loop：flash 与 pro 都走这里，模型差异由 {@link AgentLoopOptions} 参数化。
@@ -238,11 +239,14 @@ public class ChatAgentLoop {
             throws Exception {
 
         StateGraph<ChatLoopState> graph = new StateGraph<>(ChatLoopState::new);
-        graph.addNode(AGENT_NODE, node_async(agentAction(context, options, outcome, sink,
-                firstTokenLogged, startedAt)));
+        // 两个节点都直接实现 AsyncNodeActionWithConfig，不再经过 node_async 的类型转换：
+        // 少了那一层，(a) 不必担心「忘了包 node_async 导致 InterruptableAction 身份丢失、
+        // 中断静默失效」，(b) 也不会有动态代理那层反射转发。
+        graph.addNode(AGENT_NODE, agentAction(context, options, outcome, sink,
+                firstTokenLogged, startedAt));
         // toolsNode 是 InterruptableAction：只有它自己能按「这次要跑哪些工具」决定停不停，
         // 而不是 CompileConfig.interruptBefore 那种「进这个节点就一律停」的节点级拦截。
-        graph.addNode(TOOLS_NODE, node_async(new ToolsAction(context, options, outcome, sink)));
+        graph.addNode(TOOLS_NODE, new ToolsAction(context, options, outcome, sink));
 
         graph.addEdge(START, AGENT_NODE);
         graph.addConditionalEdges(AGENT_NODE,
@@ -267,7 +271,7 @@ public class ChatAgentLoop {
     }
 
     /** 调一次模型，把分片推给客户端，并留下「这轮要不要用工具」。 */
-    private NodeActionWithConfig<ChatLoopState> agentAction(ToolExecutionContext context,
+    private AsyncNodeActionWithConfig<ChatLoopState> agentAction(ToolExecutionContext context,
             AgentLoopOptions options, AgentLoopOutcome outcome, FluxSink<String> sink,
             AtomicBoolean firstTokenLogged, long startedAt) {
 
@@ -345,7 +349,7 @@ public class ChatAgentLoop {
             // 累加结果也要落进 state：下一站若是 toolsNode，可能的暂停会把整份 state 存成检查点，
             // 恢复时正文得从这里拼回来
             update.putAll(outcome.snapshot());
-            return update;
+            return completedFuture(update);
         };
     }
 
@@ -357,7 +361,8 @@ public class ChatAgentLoop {
      * 用按次中断而不是 {@code CompileConfig.interruptBefore(toolsNode)} —— 后者是节点级的，
      * 会让每个工具都停，而只有记忆这类「会改用户东西」的工具才需要人过目。
      */
-    private final class ToolsAction implements NodeActionWithConfig<ChatLoopState>, InterruptableAction<ChatLoopState> {
+    private final class ToolsAction
+            implements AsyncNodeActionWithConfig<ChatLoopState>, InterruptableAction<ChatLoopState> {
 
         private final ToolExecutionContext context;
         private final AgentLoopOptions options;
@@ -394,7 +399,7 @@ public class ChatAgentLoop {
         }
 
         @Override
-        public Map<String, Object> apply(ChatLoopState state, RunnableConfig config) {
+        public CompletableFuture<Map<String, Object>> apply(ChatLoopState state, RunnableConfig config) {
             List<Map<String, Object>> messages = new ArrayList<>(state.messages());
             Map<String, Map<String, Object>> receipts = new LinkedHashMap<>(state.toolResults());
 
@@ -474,7 +479,7 @@ public class ChatAgentLoop {
             // 不然下一轮再遇到要批准的工具时会被当成「已经批过了」
             update.put(ChatLoopState.APPROVAL_DECISION, null);
             update.putAll(outcome.snapshot());
-            return update;
+            return completedFuture(update);
         }
 
         /** 只把需要批准的那几个挑出来给前端；不需要批准的工具照常静默执行。 */

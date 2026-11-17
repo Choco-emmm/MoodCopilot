@@ -3,10 +3,12 @@ package com.moodcopilot.ai;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moodcopilot.ai.tool.ChatToolRegistry;
 import com.moodcopilot.langgraph.InMemoryCheckpointSaver;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.ListOperations;
@@ -14,6 +16,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
@@ -24,11 +27,14 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -66,6 +72,11 @@ class ChatGenerationServiceTest {
     private String runId;
     private ChatGenerationService service;
     private StringRedisTemplate redis;
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
 
     @BeforeEach
     @SuppressWarnings("unchecked")
@@ -134,8 +145,30 @@ class ChatGenerationServiceTest {
                     return 1L;
                 });
 
+        when(redis.execute(eq(ChatRunEvents.APPEND), any(), anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenAnswer(invocation -> {
+                    List<?> keys = invocation.getArgument(1);
+                    var mapper = new ObjectMapper();
+                    Map<String, Object> event = mapper.readValue((String) invocation.getArgument(2), Map.class);
+                    var hash = hashes.get(String.valueOf(keys.get(0)));
+                    if ("approval_required".equals(event.get("type"))) {
+                        if (!"RUNNING".equals(hash.get("status"))) return null;
+                        hash.put("status", "AWAITING_APPROVAL");
+                    }
+                    long seq = Long.parseLong(hash.get("lastSequence")) + 1;
+                    hash.put("lastSequence", String.valueOf(seq));
+                    event.put("seq", seq);
+                    lists.computeIfAbsent(String.valueOf(keys.get(1)), key -> new ArrayList<>())
+                            .add(mapper.writeValueAsString(event));
+                    return seq;
+                });
+
         service = new ChatGenerationService(chatService, memoryExtractionService, redis, new ObjectMapper(),
-                Runnable::run);
+                Runnable::run, runEvents());
+    }
+
+    private ChatRunEvents runEvents() {
+        return new ChatRunEvents(redis, new ObjectMapper(), mock(ChatRunEventNotifier.class));
     }
 
     /** 跑一轮；模型这一步由 chatService 的桩决定，返回的 outcome 决定这一轮停不停。 */
@@ -210,6 +243,72 @@ class ChatGenerationServiceTest {
 
     private boolean hasEvent(String type) {
         return events().stream().anyMatch(json -> json.contains("\"type\":\"" + type + "\""));
+    }
+
+    @Test
+    void eventStreamsRejectOtherUsersAndConversations() {
+        startRun(outcome("hello"));
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> service.stream(runId, USER + 1, CONV, 0));
+        assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> service.stream(runId, USER, CONV + 1, 0));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,success", "false,paused", "false,failure",
+            "true,success", "true,paused", "true,failure"})
+    void backgroundTasksBindTheRequestIdentityAndClearIt(boolean resume, String result) throws Exception {
+        var queued = new ArrayList<Runnable>();
+        service = new ChatGenerationService(chatService, memoryExtractionService, redis, new ObjectMapper(), queued::add, runEvents());
+        var auth = new UsernamePasswordAuthenticationToken("request-user", null, List.of());
+        var expected = "paused".equals(result) ? pausedOutcome("waiting") : outcome("reply");
+        when(chatService.chat(any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any(), any(),
+                anyBoolean())).thenAnswer(call -> {
+            assertTrue(Thread.currentThread().isVirtual());
+            assertSame(auth, SecurityContextHolder.getContext().getAuthentication());
+            if (!resume && "failure".equals(result)) throw new IllegalStateException("generation failed");
+            var value = resume ? pausedOutcome("waiting") : expected;
+            return new ChatService.ChatStreamContext("", value.chunks(), value);
+        });
+        when(chatService.resumeChat(anyLong(), any(), anyBoolean(), any(), anyString())).thenAnswer(call -> {
+            assertTrue(Thread.currentThread().isVirtual());
+            assertSame(auth, SecurityContextHolder.getContext().getAuthentication());
+            if ("failure".equals(result)) throw new IllegalStateException("resume failed");
+            return new ChatService.ChatStreamContext("", expected.chunks(), expected);
+        });
+
+        runId = service.start(new ChatGenerationService.StartRequest(USER, CONV, "security-context", MESSAGE,
+                List.of(), List.of(), ReferencePurpose.DISCUSS, false, auth, List.of(), true)).runId();
+        runOnVirtualThreadAndCheckCleanup(queued.remove(0));
+        if (resume) {
+            service.approve(runId, USER, CONV, auth, List.of(new ApprovalChoice("call-1", true, null)));
+            runOnVirtualThreadAndCheckCleanup(queued.remove(0));
+        }
+
+        assertEquals(switch (result) {
+            case "paused" -> "AWAITING_APPROVAL";
+            case "failure" -> "FAILED";
+            default -> "SUCCEEDED";
+        }, status());
+    }
+
+    private static void runOnVirtualThreadAndCheckCleanup(Runnable task) throws Exception {
+        var completion = new FutureTask<Void>(() -> {
+            try {
+                task.run();
+                assertNull(SecurityContextHolder.getContext().getAuthentication(),
+                        "the task must clear its identity before returning");
+                return null;
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
+        });
+        Thread thread = Thread.ofVirtual().start(completion);
+        try {
+            completion.get(5, TimeUnit.SECONDS);
+        } finally {
+            thread.interrupt();
+        }
     }
 
     @Test
@@ -434,7 +533,7 @@ class ChatGenerationServiceTest {
     @ValueSource(booleans = {false, true})
     void cancellationStopsASilentModelWithoutWaitingForIdleTimeout(boolean pro) throws Exception {
         var queued = new ArrayList<Runnable>();
-        service = new ChatGenerationService(chatService, memoryExtractionService, redis, new ObjectMapper(), queued::add);
+        service = new ChatGenerationService(chatService, memoryExtractionService, redis, new ObjectMapper(), queued::add, runEvents());
         var client = mock(DeepSeekClient.class);
         var tools = mock(ChatToolRegistry.class);
         var subscribed = new CountDownLatch(1);

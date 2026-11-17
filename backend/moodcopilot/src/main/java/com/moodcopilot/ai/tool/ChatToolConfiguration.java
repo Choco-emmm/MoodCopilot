@@ -12,6 +12,7 @@ import com.moodcopilot.ai.tool.impl.DiarySemanticSearchTool;
 import com.moodcopilot.ai.tool.impl.DiaryKeywordSearchTool;
 import com.moodcopilot.ai.tool.impl.GraphSearchTool;
 import com.moodcopilot.ai.tool.impl.ListEventsTool;
+import com.moodcopilot.ai.tool.impl.ListRecentDiariesTool;
 import com.moodcopilot.ai.tool.impl.MemoryQueryTool;
 import com.moodcopilot.ai.tool.impl.MergeMemoryTool;
 import com.moodcopilot.ai.tool.impl.ReadDiaryTool;
@@ -56,6 +57,9 @@ public class ChatToolConfiguration {
             RateLimitService rateLimitService,
             @Lazy LifeEventService lifeEventService) {
         List<ChatTool<?>> tools = List.of(
+                // 概览类问题先给列表：没有具体检索词的「我最近都写了什么」
+                // 之前只能靠两个检索工具反复试探，容易把 Agent Loop 的递归深度耗光
+                new ListRecentDiariesTool(diaryService),
                 new DiarySemanticSearchTool(ragMemoryService),
                 new DiaryKeywordSearchTool(diaryService),
                 new ReadDiaryTool(diaryMapper),
