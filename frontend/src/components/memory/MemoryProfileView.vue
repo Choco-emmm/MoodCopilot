@@ -281,7 +281,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onDeactivated, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton, NSpin, NCheckbox, useDialog, NModal, NDrawer, NDrawerContent } from 'naive-ui'
 import { memoryApi } from '../../api'
@@ -427,6 +427,7 @@ function rememberDetailsFocus(event?: Event) {
 function restoreDetailsFocus() {
   // Wait for the drawer's focus trap to restore its original trigger first.
   void nextTick(() => {
+    if (!rootElement.value?.isConnected) return
     const target = returnTarget && rootElement.value?.querySelector<HTMLElement>(`[data-memory-kind="${returnTarget.kind}"][data-memory-id="${returnTarget.id}"]`)
     if (target) target.focus()
     else if (detailsOpener?.isConnected) detailsOpener.focus()
@@ -457,6 +458,11 @@ const candidateConflictGroupCount = computed(() => candidateGroups.value.filter(
 
 onMounted(() => {
   loadMemories()
+})
+
+onDeactivated(() => {
+  if (savingMemoryId.value === null) editingMemoryId.value = null
+  closeDetails()
 })
 
 // 已归档是低频查看的降噪视图：收起时不发请求，展开时才懒加载。
@@ -778,11 +784,15 @@ function historicalVersions(id: number) {
 }
 
 function openDiary(id: number) {
+  closeDetails()
   router.push({ name: 'diary-detail', params: { id } })
 }
 
 function openConversation(id: number) {
-  sessionStorage.setItem('pendingChatConversationId', String(id))
+  const convId = Number(id)
+  if (!Number.isFinite(convId) || convId <= 0) return
+  sessionStorage.setItem('pendingChatConversationId', String(convId))
+  closeDetails()
   router.push({ name: 'chat' })
 }
 

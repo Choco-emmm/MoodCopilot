@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import reactor.core.publisher.Sinks;
@@ -113,7 +114,8 @@ public class ChatToolRegistry {
         try {
             return require(name).approvalPreview(objectMapper, argumentsJson, context);
         } catch (Exception e) {
-            log.warn("构建审批预览失败 tool={} errorType={}", name, e.getClass().getSimpleName());
+            String reason = e instanceof ResponseStatusException rse && rse.getReason() != null ? rse.getReason() : "";
+            log.warn("构建审批预览失败 tool={} errorType={} reason={}", name, e.getClass().getSimpleName(), reason);
             return Map.of("canApprove", false, "previewError", "无法读取完整修改内容，请暂不修改后重试。");
         }
     }
