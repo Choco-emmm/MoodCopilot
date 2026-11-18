@@ -257,10 +257,14 @@ export function useChat() {
     const pendingId = Number(sessionStorage.getItem('pendingChatConversationId'))
     if (!Number.isFinite(pendingId) || pendingId <= 0) return false
     sessionStorage.removeItem('pendingChatConversationId')
+    if (!conv.conversations.value.some(c => c.id === pendingId)) {
+      await conv.loadConversations()
+    }
     if (conv.conversations.value.some(c => c.id === pendingId)) {
       await conv.selectConversation(pendingId)
       return true
     }
+    window.$message?.warning('该聊天会话已不存在或已被删除')
     return false
   }
 

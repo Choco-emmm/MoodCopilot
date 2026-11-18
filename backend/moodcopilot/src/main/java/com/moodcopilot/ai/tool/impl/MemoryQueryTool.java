@@ -32,7 +32,7 @@ public class MemoryQueryTool extends ChatTool<MemoryQueryRequest> {
 
     @Override
     public String description() {
-        return "读取当前登录用户的长期画像条目列表。可以通过 keyword 进行语义检索特定的画像片段（例如'我喜欢的食物'）。如果不提供 keyword 则返回最近更新的条目。limit 可选，默认 20，最大 50。";
+        return "读取当前登录用户的长期画像条目列表。可以通过 keyword 进行语义检索特定的画像片段（例如'我喜欢的食物'）。如果不提供 keyword 则返回最近更新的条目。limit 可选，默认 20，最大 50。注意：返回条目中的 id 仅用于后续调用修改或合并工具定位，绝不能在回复中把 id 数字编号告知用户。";
     }
 
     @Override
