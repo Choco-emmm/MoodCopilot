@@ -78,7 +78,44 @@ export const supportApi = {
   },
 }
 
+export type SuggestionStatus = 'PENDING' | 'READ' | 'RESOLVED'
+
+export interface SuggestionReply {
+  id: number
+  suggestionId: number
+  parentReplyId: number | null
+  rootReplyId: number | null
+  authorUserId: number
+  authorName: string
+  authorAvatar: string | null
+  authorRole: 'USER' | 'ADMIN' | string
+  replyToUserName: string | null
+  content: string
+  createdAt: string
+  replies: SuggestionReply[]
+}
+
+export interface SuggestionItem {
+  id: number
+  userId: number
+  userName: string
+  userAvatar: string | null
+  content: string
+  status: SuggestionStatus | string
+  createdAt: string
+  updatedAt: string
+  replyCount: number
+  replies: SuggestionReply[]
+}
+
 export const suggestionApi = {
   submit: (content: string) => api.post('/suggestions', { content }),
-  adminList: (page = 1, size = 20) => api.get('/suggestions/admin', { params: { page, size } }),
+  myList: (page = 1, size = 20) => api.get('/suggestions/mine', { params: { page, size } }),
+  adminList: (page = 1, size = 20, status?: string) =>
+    api.get('/suggestions/admin', { params: { page, size, ...(status && status !== 'ALL' ? { status } : {}) } }),
+  get: (id: number) => api.get(`/suggestions/${id}`),
+  addReply: (id: number, content: string, parentReplyId?: number | null) =>
+    api.post(`/suggestions/${id}/replies`, { content, ...(parentReplyId != null ? { parentReplyId } : {}) }),
+  deleteReply: (id: number, replyId: number) => api.delete(`/suggestions/${id}/replies/${replyId}`),
+  updateStatus: (id: number, status: SuggestionStatus) => api.put(`/suggestions/${id}/status`, { status }),
 }

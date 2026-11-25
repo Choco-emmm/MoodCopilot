@@ -135,6 +135,11 @@ const openNotification = async (notification: any) => {
     uni.switchTab({ url: '/pages/chat/chat' });
     return;
   }
+  if (notification.type === 'FEEDBACK_REPLY' || notification.suggestionId) {
+    const query = notification.suggestionId ? `?suggestionId=${notification.suggestionId}` : '';
+    uni.navigateTo({ url: `/pages/feedback/feedback${query}` });
+    return;
+  }
   if (notification.diaryId) {
     uni.navigateTo({ url: `/pages/detail/detail?id=${notification.diaryId}` });
     return;
@@ -158,6 +163,7 @@ const getNotifTitle = (type: string) => {
     case 'MEMORY_UPDATED': return '记忆已更新';
     case 'GRAPH_UPDATED': return '图谱已更新';
     case 'PROFILE_UPDATED': return '个人资料已更新';
+    case 'FEEDBACK_REPLY': return '反馈有新回复';
     default: return '系统通知';
   }
 };

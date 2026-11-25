@@ -39,6 +39,8 @@ public class AccountMergeService {
     @Autowired
     private SuggestionMapper suggestionMapper;
     @Autowired
+    private SuggestionReplyMapper suggestionReplyMapper;
+    @Autowired
     private UserMapper userMapper;
     @Autowired
     private UserProfileMemoryMapper userProfileMemoryMapper;
@@ -114,6 +116,10 @@ public class AccountMergeService {
         suggestionMapper.update(null, new LambdaUpdateWrapper<SuggestionEntity>()
                 .eq(SuggestionEntity::getUserId, sourceUserId)
                 .set(SuggestionEntity::getUserId, targetUserId));
+
+        suggestionReplyMapper.update(null, new LambdaUpdateWrapper<SuggestionReplyEntity>()
+                .eq(SuggestionReplyEntity::getAuthorUserId, sourceUserId)
+                .set(SuggestionReplyEntity::getAuthorUserId, targetUserId));
 
         userProfileMemoryMapper.update(null, new LambdaUpdateWrapper<UserProfileMemoryEntity>()
                 .eq(UserProfileMemoryEntity::getUserId, sourceUserId)

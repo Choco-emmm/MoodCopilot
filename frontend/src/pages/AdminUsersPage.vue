@@ -16,7 +16,7 @@
             @keydown.enter="onSearch"
           >
             <template #suffix>
-              <n-button text type="primary" @click="onSearch">搜索</n-button>
+              <button type="button" class="admin-search-btn" @click="onSearch">搜索</button>
             </template>
           </n-input>
         </div>
@@ -546,13 +546,13 @@ function getAvatarStyle(name: string) {
   border-radius: 50%;
 }
 
-.table-user-cell {
+:deep(.table-user-cell) {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.table-avatar-img {
+:deep(.table-avatar-img) {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -560,7 +560,7 @@ function getAvatarStyle(name: string) {
   flex-shrink: 0;
 }
 
-.table-avatar-placeholder {
+:deep(.table-avatar-placeholder) {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -572,9 +572,23 @@ function getAvatarStyle(name: string) {
   flex-shrink: 0;
 }
 
-.table-username-text {
+:deep(.table-username-text) {
   font-weight: 500;
   color: var(--color-text);
+}
+
+.admin-search-btn {
+  border: none;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.admin-search-btn:hover {
+  opacity: 0.75;
 }
 
 .uc-info {
