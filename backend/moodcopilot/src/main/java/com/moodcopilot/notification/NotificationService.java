@@ -180,6 +180,28 @@ public class NotificationService {
         return true;
     }
 
+    public void notifyFeedbackReply(UserEntity actor, Long suggestionId, Long recipientUserId, String message) {
+        if (recipientUserId == null || (actor != null && recipientUserId.equals(actor.getId()))) {
+            return;
+        }
+        try {
+            NotificationEntity n = new NotificationEntity();
+            n.setRecipientUserId(recipientUserId);
+            n.setActorUserId(actor != null ? actor.getId() : null);
+            n.setSuggestionId(suggestionId);
+            n.setType("FEEDBACK_REPLY");
+            n.setMessage(message);
+            n.setIsMarkdown(false);
+            n.setIsRead(false);
+            n.setCreatedAt(LocalDateTime.now());
+            notificationMapper.insert(n);
+            notificationWebSocketHandler.pushNotification(recipientUserId, n);
+        } catch (Exception e) {
+            log.warn("Failed to create feedback reply notification suggestionId={} recipientUserId={}",
+                    suggestionId, recipientUserId, e);
+        }
+    }
+
     public void notifyEncouragement(Long diaryId, Long recipientUserId, String message) {
         try {
             NotificationEntity n = new NotificationEntity();

@@ -116,6 +116,13 @@ async function handleNotifClick(item: Notification) {
     router.push({ path: '/ai-memory', query: { tab: 'graph' } })
     return
   }
+  if (item.type === 'FEEDBACK_REPLY' || item.suggestionId) {
+    router.push({
+      path: '/feedback',
+      query: item.suggestionId ? { id: String(item.suggestionId) } : undefined,
+    })
+    return
+  }
   if (item.lifeEventId) {
     const context: Record<string, unknown> = { eventId: item.lifeEventId }
     try {

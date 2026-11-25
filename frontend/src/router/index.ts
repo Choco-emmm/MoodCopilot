@@ -106,6 +106,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/feedback',
+      name: 'feedback',
+      component: () => import('../pages/FeedbackPage.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/collections/:id',
       name: 'collection-detail',
       component: () => import('../views/CollectionDetail.vue'),

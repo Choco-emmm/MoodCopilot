@@ -12,6 +12,7 @@ export interface Notification {
   actorUserId: number | null
   diaryId: number | null
   lifeEventId: number | null
+  suggestionId?: number | null
   commentId: number | null
   type: string
   message: string

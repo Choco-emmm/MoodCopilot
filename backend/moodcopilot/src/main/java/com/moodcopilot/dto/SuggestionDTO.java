@@ -1,6 +1,7 @@
 package com.moodcopilot.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record SuggestionDTO(
         Long id,
@@ -9,6 +10,9 @@ public record SuggestionDTO(
         String userAvatar,
         String content,
         String status,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt,
+        int replyCount,
+        List<SuggestionReplyDTO> replies
 ) {
 }

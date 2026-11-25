@@ -304,9 +304,11 @@
             :autosize="{ minRows: 2, maxRows: 6 }"
             placeholder="你在使用中遇到了什么问题？或者有什么想要的新功能？请告诉我们..."
           />
-          <div class="flex-between-center">
-            <n-button v-if="isOwner && auth.isAdmin" size="small" type="warning" secondary @click="emit('open-admin-suggestions')">查看所有用户反馈 (Admin)</n-button>
-            <div v-else></div>
+          <div class="flex-between-center" style="gap: 8px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <n-button size="small" secondary @click="router.push('/feedback'); emit('update:show', false)">查看我的反馈与回复</n-button>
+              <n-button v-if="isOwner && auth.isAdmin" size="small" type="warning" secondary @click="emit('open-admin-suggestions')">查看所有用户反馈 (Admin)</n-button>
+            </div>
             <n-button
               size="small"
               type="primary"

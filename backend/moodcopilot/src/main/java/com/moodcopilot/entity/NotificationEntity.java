@@ -15,6 +15,7 @@ public class NotificationEntity {
     private Long actorUserId;
     private Long diaryId;
     private Long lifeEventId;
+    private Long suggestionId;
     private Long commentId;
     private String type;
     private String message;
@@ -61,6 +62,14 @@ public class NotificationEntity {
 
     public void setLifeEventId(Long lifeEventId) {
         this.lifeEventId = lifeEventId;
+    }
+
+    public Long getSuggestionId() {
+        return suggestionId;
+    }
+
+    public void setSuggestionId(Long suggestionId) {
+        this.suggestionId = suggestionId;
     }
 
     public Long getCommentId() {

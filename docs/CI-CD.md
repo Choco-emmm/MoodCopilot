@@ -1,5 +1,12 @@
 # GitHub Actions：检查与部署
 
+> [!WARNING]
+> **GitHub Actions CD 已停用 / 不可用**
+>
+> 当前仓库在 GitHub Actions 中**仅运行 CI 检查**（`.github/workflows/ci.yml` 的 `web`、`miniapp`、`backend`、`automation` 与汇总检查 `CI Ready`），已移除镜像发布与 SSH 自动部署任务。
+>
+> 生产环境部署请直接通过 SSH 登录云服务器，在项目目录执行本地部署脚本 `bash deploy.sh`。以下原 CD 文档仅作历史归档参考。
+
 ## 日常使用
 
 仓库的 **Actions → CI** 显示每次检查和发布的步骤与日志。
