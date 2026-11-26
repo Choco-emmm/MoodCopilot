@@ -122,7 +122,7 @@
         </view>
 
         <!-- Toggle Custom Themes -->
-        <view class="custom-theme-toggle" @click="showCustomThemes = !showCustomThemes">
+        <view class="custom-theme-toggle" @click="toggleCustomThemes">
           <text class="toggle-text">🌈 自定义默认主题</text>
           <text class="toggle-icon">{{ showCustomThemes ? '▲' : '▼' }}</text>
         </view>
@@ -320,12 +320,18 @@ import { showLoginWithoutContinuation } from '@/stores/login';
 import { logout as authLogout } from '@/stores/user';
 import { clearQuote } from '@/stores/quote';
 import { ONBOARDING_COPY } from '@/constants/onboarding';
-import { openWelcomeReplay } from '@/stores/onboarding';
+import { openWelcomeReplay, recordThemeExplored } from '@/stores/onboarding';
 
 
 const showQuotaModal = ref(false);
 
 const showCustomThemes = ref(false);
+const toggleCustomThemes = () => {
+  showCustomThemes.value = !showCustomThemes.value;
+  if (showCustomThemes.value) {
+    void recordThemeExplored();
+  }
+};
 
 const lightThemeGroups = computed(() => {
   const groups: { name: string, themes: typeof themeOptions }[] = [];

@@ -24,6 +24,7 @@ declare module 'vue' {
     CollectionModal: typeof import('./src/components/collection/CollectionModal.vue')['default']
     DiaryComposer: typeof import('./src/components/DiaryComposer.vue')['default']
     DiaryFeedItem: typeof import('./src/components/DiaryFeedItem.vue')['default']
+    FeedbackThreadList: typeof import('./src/components/feedback/FeedbackThreadList.vue')['default']
     GlobalConsolidationModals: typeof import('./src/components/GlobalConsolidationModals.vue')['default']
     ImageGallery: typeof import('./src/components/ImageGallery.vue')['default']
     LifeChapterContent: typeof import('./src/components/LifeChapterContent.vue')['default']
@@ -45,6 +46,7 @@ declare module 'vue' {
     NNotificationProvider: typeof import('naive-ui')['NNotificationProvider']
     NSpin: typeof import('naive-ui')['NSpin']
     NTag: typeof import('naive-ui')['NTag']
+    OnboardingHost: typeof import('./src/components/onboarding/OnboardingHost.vue')['default']
     ProfileSearchPanel: typeof import('./src/components/profile/ProfileSearchPanel.vue')['default']
     ProfileSettingsModal: typeof import('./src/components/profile/ProfileSettingsModal.vue')['default']
     PublicFeed: typeof import('./src/components/PublicFeed.vue')['default']
@@ -56,5 +58,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SettingSection: typeof import('./src/components/SettingSection.vue')['default']
     SimilarDiariesPanel: typeof import('./src/components/SimilarDiariesPanel.vue')['default']
+    StarterChecklist: typeof import('./src/components/onboarding/StarterChecklist.vue')['default']
+    WelcomeDialog: typeof import('./src/components/onboarding/WelcomeDialog.vue')['default']
   }
 }

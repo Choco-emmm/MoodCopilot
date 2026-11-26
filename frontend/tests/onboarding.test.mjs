@@ -5,6 +5,10 @@ import {
   CORE_TASK_KEYS,
   ALL_TASK_KEYS,
   ALL_HINT_KEYS,
+  CORE_ONBOARDING_TASKS,
+  OPTIONAL_ONBOARDING_TASKS,
+  CHAT_STARTER_PROMPTS_WITH_DIARY,
+  CHAT_STARTER_PROMPTS_WITHOUT_DIARY,
   WELCOME_SLIDES,
   WELCOME_ACTIONS,
   buildOnboardingCacheKey,
@@ -179,4 +183,29 @@ test('normalizeOnboardingState sanitizes malformed payloads and buildOnboardingC
     buildOnboardingCacheKey(42, 1, 'WEB'),
     buildOnboardingCacheKey(43, 1, 'WEB'),
   )
+})
+
+test('P0-C task metadata separates 4 core tasks from optional theme task and provides with/without-diary chat starters', () => {
+  assert.equal(CORE_ONBOARDING_TASKS.length, 4)
+  assert.equal(OPTIONAL_ONBOARDING_TASKS.length, 1)
+  assert.equal(OPTIONAL_ONBOARDING_TASKS[0].key, 'THEME_EXPLORED')
+
+  assert.ok(CHAT_STARTER_PROMPTS_WITH_DIARY.length >= 2)
+  assert.ok(CHAT_STARTER_PROMPTS_WITH_DIARY.some((p) => p.requiresDiary))
+  assert.ok(CHAT_STARTER_PROMPTS_WITHOUT_DIARY.length >= 2)
+  assert.ok(CHAT_STARTER_PROMPTS_WITHOUT_DIARY.every((p) => !p.requiresDiary))
+
+  const onlyOptionalDone = createDefaultOnboardingState({
+    enrolledVersion: 1,
+    tasks: {
+      FIRST_DIARY: 'NOT_STARTED',
+      FIRST_ANALYSIS_VIEWED: 'NOT_STARTED',
+      FIRST_CHAT_REPLY: 'NOT_STARTED',
+      MEMORY_CENTER_VISITED: 'NOT_STARTED',
+      THEME_EXPLORED: 'COMPLETED',
+    },
+  })
+  assert.equal(computeCoreTaskProgress(onlyOptionalDone).completed, 0)
+  assert.equal(computeCoreTaskProgress(onlyOptionalDone).total, 4)
+  assert.equal(isChecklistActive(onlyOptionalDone), true)
 })

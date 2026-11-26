@@ -91,6 +91,10 @@
           </view>
 
           <text class="analysis-copy">{{ diary.analysis.feedback || diary.analysis.summary }}</text>
+          <view v-if="isOwner" class="analysis-chat-entry" role="button" @click="quoteToChat">
+            <text class="analysis-chat-label">和 AI 聊聊这篇日记</text>
+            <text class="analysis-chat-arrow">›</text>
+          </view>
         </view>
 
         <view class="entry-actions">
@@ -129,7 +133,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import GlobalUI from '@/components/GlobalUI.vue'
 import MusicCard from '@/components/MusicCard.vue'
@@ -139,6 +143,7 @@ import { currentUser, fetchCurrentUser } from '@/stores/user'
 import { moodColor } from '@/utils/mood'
 import { setQuote } from '@/stores/quote'
 import { currentTheme } from '@/stores/theme'
+import { hasRenderableOwnedAnalysis, recordAnalysisViewed } from '@/stores/onboarding'
 
 const loading = ref(true)
 const diary = ref<any>(null)
@@ -146,6 +151,7 @@ const showCollectionModal = ref(false)
 const myCollections = ref<any[]>([])
 const parentCollections = ref<any[]>([])
 const retrying = ref(false)
+const reportedAnalysisDiaryId = ref<number | null>(null)
 let analysisPollTimer: ReturnType<typeof setTimeout> | null = null
 
 const diaryMoodColor = computed(() => {
@@ -156,6 +162,24 @@ const diaryMoodColor = computed(() => {
 })
 
 const isOwner = computed(() => Boolean(currentUser.value && diary.value && currentUser.value.userId === diary.value.authorUserId))
+
+watch(
+  [diary, currentUser],
+  async ([nextDiary, nextUser]) => {
+    const viewerId = nextUser?.userId ?? nextUser?.id
+    if (!hasRenderableOwnedAnalysis(nextDiary, viewerId)) {
+      return
+    }
+    const diaryId = Number(nextDiary.id)
+    if (reportedAnalysisDiaryId.value === diaryId) {
+      return
+    }
+    reportedAnalysisDiaryId.value = diaryId
+    await nextTick()
+    void recordAnalysisViewed(diaryId)
+  },
+  { deep: true, immediate: true },
+)
 
 const moodLabel = computed(() => diary.value?.analysis?.moodLabel || '')
 const secondaryMoods = computed(() => {
@@ -531,6 +555,27 @@ function goToCollection(collectionId: number) {
 .analysis-copy {
   font-size: 26rpx;
   line-height: 1.8;
+}
+
+.analysis-chat-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 22rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx solid var(--theme-border);
+}
+
+.analysis-chat-label {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: var(--theme-primary);
+}
+
+.analysis-chat-arrow {
+  font-size: 30rpx;
+  color: var(--theme-text-placeholder);
+  line-height: 1;
 }
 
 .entry-actions {

@@ -7,6 +7,9 @@
         <button class="page-back-link" aria-label="返回上一页" @click="router.back()">←</button>
         <div class="panel-header">
           <h1>我的记忆中心</h1>
+          <p class="memory-center-guide-note" data-testid="memory-center-guide-note">
+            {{ ONBOARDING_COPY.memoryCenterSummary }}
+          </p>
         </div>
       </div>
 
@@ -30,6 +33,7 @@ import { NTabs, NTabPane } from 'naive-ui'
 import AppHeader from '../components/AppHeader.vue'
 import MemoryProfileView from '../components/memory/MemoryProfileView.vue'
 import MemoryGraphView from '../components/memory/MemoryGraphView.vue'
+import { ONBOARDING_COPY } from '../constants/onboarding'
 
 type MemoryTab = 'profile' | 'graph'
 
@@ -87,5 +91,11 @@ watch(activeTab, (tab) => {
   color: var(--color-text-secondary);
   font-size: 1.1rem;
   margin: 0;
+}
+.memory-center-guide-note {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.6;
 }
 </style>

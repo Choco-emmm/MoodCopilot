@@ -7,6 +7,24 @@
 >
 > 生产环境部署请直接通过 SSH 登录云服务器，在项目目录执行本地部署脚本 `bash deploy.sh`。以下原 CD 文档仅作历史归档参考。
 
+## 手动部署（当前生产入口）
+
+本机 PowerShell 使用已核验的 root 密钥登录：
+
+```powershell
+ssh -i "$HOME\.ssh\kp_20261117.pem" -o IdentitiesOnly=yes root@43.139.168.10
+```
+
+登录后在服务器项目目录拉取并部署：
+
+```bash
+cd /root/MoodCopilot
+git pull --ff-only
+bash deploy.sh
+```
+
+私钥只保存在本机，不提交到仓库；服务器上的 `.env`、证书和数据卷保持不变。
+
 ## 日常使用
 
 仓库的 **Actions → CI** 显示每次检查和发布的步骤与日志。

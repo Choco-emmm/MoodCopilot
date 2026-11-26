@@ -123,6 +123,9 @@
         <button class="section-action" @click="previewConsolidate" :loading="isConsolidating">整理记忆</button>
       </view>
       <text class="section-desc">这里保存你的个人记忆；近期状态只用于当前关怀参考，不会作为核心长期画像。</text>
+      <view class="memory-control-note">
+        <text class="memory-control-note-text">{{ ONBOARDING_COPY.memoryCenterSummary }}</text>
+      </view>
       <view class="candidate-section" v-if="candidates.length > 0 || loadingCandidates || candidateError">
         <view class="candidate-heading">
           <view class="candidate-heading-main">
@@ -199,7 +202,8 @@
       </view>
       
       <view v-else class="card empty-card">
-        <text class="empty-text">AI 正在努力了解你，多写点日记给它线索吧。</text>
+        <text class="empty-text">还没有整理出的长期记忆，多写几篇日记后这里会逐步沉淀脉络。</text>
+        <text class="empty-subtext">每条记忆都会保留来源与原文依据，你可以随时查看、编辑或删除。</text>
       </view>
 
     </view>
@@ -373,6 +377,8 @@ import { get, post, put, del } from '@/utils/request';
 import { parseMarkdown } from '@/utils/markdown';
 import { hasLoginToken, requireLogin } from '@/stores/login';
 import { currentTheme } from '@/stores/theme';
+import { ONBOARDING_COPY } from '@/constants/onboarding';
+import { recordMemoryCenterVisited } from '@/stores/onboarding';
 
 const loadingReport = ref(false);
 const weeklyReport = ref<any>(null);
@@ -553,6 +559,9 @@ const generateReport = async () => {
 };
 
 const fetchMemory = () => {
+  if (!isLoggedIn.value) {
+    return Promise.resolve();
+  }
   loadingMemory.value = true;
   memoryError.value = false;
   return get('/api/memory')
@@ -560,6 +569,7 @@ const fetchMemory = () => {
       loadingMemory.value = false;
       if (res.code === 200) {
         memories.value = res.data || [];
+        void recordMemoryCenterVisited();
       } else {
         memoryError.value = true;
       }
@@ -2507,6 +2517,28 @@ const deleteTriple = (id: number) => {
   .candidate-row { align-items: stretch; flex-direction: column; gap: 14rpx; }
   .candidate-actions { flex-direction: row; }
   .candidate-approve, .candidate-reject { flex: 1; }
+}
+
+.memory-control-note {
+  margin: 0 0 20rpx;
+  padding: 14rpx 18rpx;
+  border-left: 4rpx solid var(--theme-primary);
+  border-radius: var(--theme-radius-sm);
+  background: color-mix(in oklab, var(--theme-primary) 5%, var(--theme-surface));
+}
+.memory-control-note-text {
+  display: block;
+  font-size: 22rpx;
+  line-height: 1.6;
+  color: var(--theme-text-secondary);
+}
+.empty-subtext {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  line-height: 1.6;
+  color: var(--theme-text-placeholder);
+  text-align: center;
 }
 
 </style>

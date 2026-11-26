@@ -250,6 +250,7 @@
     <ProfileSettingsModal
       v-model:show="showSettingsModal"
       :is-owner="isOwner"
+      :initial-expand-theme="settingsExpandTheme"
       @profile-updated="handleProfileUpdated"
       @open-admin-suggestions="showAdminSuggestions = true"
     />
@@ -299,6 +300,7 @@ const profileAvatar = ref<string | null>(null)
 const profileSignature = ref('')
 const profileLoading = ref(true)
 const showSettingsModal = ref(false)
+const settingsExpandTheme = ref(false)
 
 const isSearching = ref(false)
 const showSearchPanel = ref(false)
@@ -323,6 +325,26 @@ const showCollectionModal = ref(false)
 
 const profileUserId = computed(() => Number(route.params.userId))
 const isOwner = computed(() => auth.userId != null && auth.userId === profileUserId.value)
+
+watch(
+  [() => route.query.openSettings, isOwner],
+  ([openSettings, owner]) => {
+    if (openSettings === 'theme' && owner) {
+      settingsExpandTheme.value = true
+      showSettingsModal.value = true
+      const nextQuery = { ...route.query }
+      delete nextQuery.openSettings
+      void router.replace({ query: nextQuery })
+    }
+  },
+  { immediate: true },
+)
+
+watch(showSettingsModal, (visible) => {
+  if (!visible) {
+    settingsExpandTheme.value = false
+  }
+})
 const profileFollowHover = ref(false)
 const profileFollowLabel = computed(() => {
   if (followStore.isPending(profileUserId.value)) {

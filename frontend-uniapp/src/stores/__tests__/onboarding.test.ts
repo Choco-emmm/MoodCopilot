@@ -264,4 +264,98 @@ describe('mini-program onboarding store', () => {
     expect(store.isOnboardingHostActive(indexHost)).toBe(true);
     expect(store.isOnboardingHostActive(profileHost)).toBe(false);
   });
+
+  it('handles P0-C task events, per-task skip, checklist dismiss without forging completion, and auto-collapse', async () => {
+    const posted: Array<{ url: string; data: any }> = [];
+    let remoteState = createDefaultOnboardingState({
+      enrolledVersion: 1,
+      welcomeStatus: 'COMPLETED',
+      checklistStatus: 'IN_PROGRESS',
+    });
+
+    requestHandler = (options) => {
+      if (options.method === 'GET') {
+        options.success({ statusCode: 200, data: { code: 200, data: remoteState } });
+        return;
+      }
+      posted.push({ url: options.url, data: options.data });
+      if (options.url.endsWith('/api/onboarding/events')) {
+        if (options.data.eventType === 'ANALYSIS_VIEWED') {
+          remoteState = {
+            ...remoteState,
+            tasks: { ...remoteState.tasks, FIRST_ANALYSIS_VIEWED: 'COMPLETED' },
+          };
+        } else if (options.data.eventType === 'MEMORY_CENTER_VISITED') {
+          remoteState = {
+            ...remoteState,
+            tasks: { ...remoteState.tasks, MEMORY_CENTER_VISITED: 'COMPLETED' },
+          };
+        } else if (options.data.eventType === 'THEME_EXPLORED') {
+          remoteState = {
+            ...remoteState,
+            tasks: { ...remoteState.tasks, THEME_EXPLORED: 'COMPLETED' },
+          };
+        }
+      } else if (options.url.endsWith('/api/onboarding/dismiss')) {
+        if (options.data.target === 'TASK' && options.data.key) {
+          remoteState = {
+            ...remoteState,
+            tasks: { ...remoteState.tasks, [options.data.key]: 'SKIPPED' },
+          };
+        } else if (options.data.target === 'CHECKLIST') {
+          remoteState = { ...remoteState, checklistStatus: 'SKIPPED' };
+        }
+      }
+      options.success({ statusCode: 200, data: { code: 200, data: remoteState } });
+    };
+
+    const store = await import('../onboarding');
+    await store.initializeOnboardingForUser(101);
+    expect(store.isOnboardingChecklistActive.value).toBe(true);
+
+    // Record ANALYSIS_VIEWED once & dedupe repeat call
+    await store.recordAnalysisViewed(55);
+    await store.recordAnalysisViewed(55);
+    expect(store.onboardingState.value.tasks.FIRST_ANALYSIS_VIEWED).toBe('COMPLETED');
+    expect(posted.filter((p) => p.data.eventType === 'ANALYSIS_VIEWED')).toHaveLength(1);
+    expect(posted[0].data).toMatchObject({ eventType: 'ANALYSIS_VIEWED', diaryId: 55, scope: 'MINI_PROGRAM' });
+
+    // Record MEMORY_CENTER_VISITED & THEME_EXPLORED once each
+    await store.recordMemoryCenterVisited();
+    await store.recordMemoryCenterVisited();
+    await store.recordThemeExplored();
+    await store.recordThemeExplored();
+    expect(store.onboardingState.value.tasks.MEMORY_CENTER_VISITED).toBe('COMPLETED');
+    expect(store.onboardingState.value.tasks.THEME_EXPLORED).toBe('COMPLETED');
+    expect(store.onboardingProgress.value.completed).toBe(2);
+    expect(store.onboardingProgress.value.total).toBe(4);
+
+    // Skip single task marks SKIPPED, never COMPLETED
+    await store.dismissTask('FIRST_CHAT_REPLY');
+    expect(store.onboardingState.value.tasks.FIRST_CHAT_REPLY).toBe('SKIPPED');
+    expect(store.onboardingProgress.value.completed).toBe(2);
+
+    // Dismissing checklist hides checklist without forging task completions
+    await store.dismissChecklist();
+    expect(store.onboardingState.value.checklistStatus).toBe('SKIPPED');
+    expect(store.isOnboardingChecklistActive.value).toBe(false);
+    expect(store.onboardingState.value.tasks.FIRST_DIARY).toBe('NOT_STARTED');
+
+    // Refresh after business action merges real server completion monotonically
+    remoteState = {
+      ...remoteState,
+      checklistStatus: 'IN_PROGRESS',
+      tasks: {
+        FIRST_DIARY: 'COMPLETED',
+        FIRST_ANALYSIS_VIEWED: 'COMPLETED',
+        FIRST_CHAT_REPLY: 'COMPLETED',
+        MEMORY_CENTER_VISITED: 'COMPLETED',
+        THEME_EXPLORED: 'COMPLETED',
+      },
+    };
+    await store.refreshAfterBusinessAction();
+    expect(store.onboardingProgress.value.allCompleted).toBe(true);
+    expect(store.onboardingState.value.checklistStatus).toBe('COMPLETED');
+    expect(store.isOnboardingChecklistActive.value).toBe(false);
+  });
 });

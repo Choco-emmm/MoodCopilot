@@ -902,5 +902,162 @@ try {
     triggerBtn.remove()
     app.unmount()
   })
+  await check('StarterChecklist renders 4 core tasks + optional theme, supports task skip/dismiss, and splits fetchSeq from mutations', async () => {
+    const { createApp, h, createPinia, setActivePinia, createRouter, createMemoryHistory } = f
+    const { api } = await import('/src/api/core.ts')
+    const { useAuthStore } = await import('/src/stores/auth.ts')
+    const { useOnboardingStore } = await import('/src/stores/onboarding.ts')
+    const { default: StarterChecklist } = await import('/src/components/onboarding/StarterChecklist.vue')
+
+    localStorage.clear()
+    localStorage.setItem('token', 'checklist-token')
+    const dismissCalls = []
+    const slowRefresh = deferred()
+    let holdGet = false
+    let serverState = {
+      enrolledVersion: 1,
+      guideVersion: 1,
+      welcomeStatus: 'COMPLETED',
+      checklistStatus: 'IN_PROGRESS',
+      tasks: {
+        FIRST_DIARY: 'COMPLETED',
+        FIRST_ANALYSIS_VIEWED: 'NOT_STARTED',
+        FIRST_CHAT_REPLY: 'NOT_STARTED',
+        MEMORY_CENTER_VISITED: 'NOT_STARTED',
+        THEME_EXPLORED: 'NOT_STARTED',
+      },
+      hints: {},
+    }
+    api.defaults.adapter = async (config) => {
+      if (config.url === '/onboarding') {
+        if (holdGet) return slowRefresh.promise
+        return { data: { code: 0, message: 'OK', data: structuredClone(serverState) }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      if (config.url === '/onboarding/events') {
+        const body = JSON.parse(config.data)
+        if (body.eventType === 'THEME_EXPLORED') serverState.tasks.THEME_EXPLORED = 'COMPLETED'
+        return { data: { code: 0, message: 'OK', data: structuredClone(serverState) }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      if (config.url === '/onboarding/dismiss') {
+        const body = JSON.parse(config.data)
+        dismissCalls.push(body)
+        if (body.target === 'TASK' && body.key) serverState.tasks[body.key] = 'SKIPPED'
+        if (body.target === 'CHECKLIST') serverState.checklistStatus = 'SKIPPED'
+        return { data: { code: 0, message: 'OK', data: structuredClone(serverState) }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      return { data: { code: 0, message: 'OK', data: {} }, status: 200, statusText: 'OK', headers: {}, config }
+    }
+
+    const pinia = createPinia(); setActivePinia(pinia)
+    const auth = useAuthStore(); auth.token = 'checklist-token'; auth.userId = 808
+    const onboarding = useOnboardingStore()
+    await onboarding.loadForUser(808, { force: true })
+
+    // Overlapping refreshIfActive + mutation must not leave loading stuck true
+    holdGet = true
+    const refreshPromise = onboarding.refreshAfterBusinessAction()
+    assert(onboarding.loading === true, 'loading should be true while refresh is in flight')
+    await onboarding.recordThemeExplored()
+    slowRefresh.resolve({ data: { code: 0, message: 'OK', data: structuredClone(serverState) }, status: 200, statusText: 'OK', headers: {}, config: {} })
+    await refreshPromise
+    assert(onboarding.loading === false, 'loading remained stuck true after overlapping mutation')
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/', component: { render: () => null } },
+        { path: '/write', component: { render: () => null } },
+        { path: '/chat', component: { render: () => null } },
+        { path: '/ai-memory', component: { render: () => null } },
+        { path: '/profile/:userId', component: { render: () => null } },
+      ],
+    })
+    await router.push('/')
+    const app = createApp({ render: () => h(StarterChecklist) })
+    app.use(pinia).use(router).mount('#app'); await flush()
+
+    assert(document.querySelector('[data-testid="starter-checklist-progress"]').textContent.includes('1 / 4'), 'core progress denominator should be 1 / 4 even with THEME_EXPLORED completed')
+    document.querySelector('[data-testid="starter-skip-FIRST_ANALYSIS_VIEWED"]').click(); await flush()
+    assert(dismissCalls.some((d) => d.target === 'TASK' && d.key === 'FIRST_ANALYSIS_VIEWED'), 'task skip did not call dismiss API')
+    assert(document.querySelector('[data-testid="starter-task-FIRST_ANALYSIS_VIEWED"]').textContent.includes('已跳过'), 'skipped task missing readable status text')
+    assert(document.querySelector('[data-testid="starter-checklist-progress"]').textContent.includes('1 / 4'), 'skipped task should not count as completed')
+
+    document.querySelector('[data-testid="starter-checklist-dismiss"]').click(); await flush()
+    assert(dismissCalls.some((d) => d.target === 'CHECKLIST'), 'checklist dismiss did not call dismiss API')
+    assert(!document.querySelector('[data-testid="starter-checklist"]'), 'checklist stayed visible after dismiss')
+    assert(onboarding.state.tasks.FIRST_CHAT_REPLY === 'NOT_STARTED', 'dismissing checklist must not forge task completion')
+    app.unmount()
+  })
+  await check('P0-C MemoryProfileView reports visit on empty success only, and Chat starters preserve non-empty draft & sync approval block', async () => {
+    const { createApp, h, createPinia, setActivePinia, createRouter, createMemoryHistory } = f
+    const { NDialogProvider } = await import('/node_modules/.vite/deps/naive-ui.js')
+    const { api } = await import('/src/api/core.ts')
+    const { memoryApi, diaryApi } = await import('/src/api/index.ts')
+    const { useAuthStore } = await import('/src/stores/auth.ts')
+    const { useOnboardingStore } = await import('/src/stores/onboarding.ts')
+    const { default: MemoryProfileView } = await import('/src/components/memory/MemoryProfileView.vue')
+    const { useChat } = await import('/src/composables/useChat.ts')
+
+    localStorage.clear()
+    localStorage.setItem('token', 'p0c-hooks-token')
+    const postedEvents = []
+    api.defaults.adapter = async (config) => {
+      if (config.url === '/onboarding') {
+        return { data: { code: 0, message: 'OK', data: { enrolledVersion: 1, guideVersion: 1, welcomeStatus: 'COMPLETED', checklistStatus: 'IN_PROGRESS', tasks: {}, hints: {} } }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      if (config.url === '/onboarding/events') {
+        const body = JSON.parse(config.data)
+        postedEvents.push(body)
+        return { data: { code: 0, message: 'OK', data: { enrolledVersion: 1, guideVersion: 1, welcomeStatus: 'COMPLETED', checklistStatus: 'IN_PROGRESS', tasks: { MEMORY_CENTER_VISITED: 'COMPLETED' }, hints: {} } }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      return { data: { code: 0, message: 'OK', data: [] }, status: 200, statusText: 'OK', headers: {}, config }
+    }
+
+    const pinia = createPinia(); setActivePinia(pinia)
+    const auth = useAuthStore(); auth.token = 'p0c-hooks-token'; auth.userId = 909
+    const onboarding = useOnboardingStore()
+    await onboarding.loadForUser(909, { force: true })
+
+    // Error state must NOT report MEMORY_CENTER_VISITED
+    let failMemories = true
+    memoryApi.getAll = async () => { if (failMemories) throw new Error('offline'); return ok([]) }
+    memoryApi.getCandidates = async () => ok([])
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
+    await router.push('/')
+    const app1 = createApp({ render: () => h(NDialogProvider, null, { default: () => h(MemoryProfileView) }) })
+    app1.use(pinia).use(router).mount('#app'); await flush()
+    assert(!postedEvents.some((e) => e.eventType === 'MEMORY_CENTER_VISITED'), 'failed memory load falsely reported MEMORY_CENTER_VISITED')
+    app1.unmount()
+
+    // Genuine empty memory list MUST report MEMORY_CENTER_VISITED once
+    failMemories = false
+    const app2 = createApp({ render: () => h(NDialogProvider, null, { default: () => h(MemoryProfileView) }) })
+    app2.use(pinia).use(router).mount('#app'); await flush()
+    assert(postedEvents.filter((e) => e.eventType === 'MEMORY_CENTER_VISITED').length === 1, 'empty memory center did not report MEMORY_CENTER_VISITED')
+    app2.unmount()
+
+    // Chat starter fills empty draft without forcing Pro or overwriting existing draft, and syncs awaitingApproval
+    diaryApi.mine = async () => ok({ items: [] })
+    let chatApiHandle = null
+    const ChatProbe = {
+      setup() {
+        chatApiHandle = useChat()
+        return () => null
+      },
+    }
+    const app3 = createApp(ChatProbe)
+    app3.use(pinia).use(router).mount('#app'); await flush()
+    chatApiHandle.fillStarterPrompt('帮我梳理今天要做的三件事')
+    assert(chatApiHandle.draft.value === '帮我梳理今天要做的三件事', 'starter did not fill empty draft')
+    assert(chatApiHandle.useReasoning.value === false, 'starter must not force Pro')
+    chatApiHandle.fillStarterPrompt('另一段提示')
+    assert(chatApiHandle.draft.value === '帮我梳理今天要做的三件事', 'starter overwrote non-empty user draft')
+
+    chatApiHandle.pendingApprovals.value = [{ toolCallId: 't1', toolName: 'saveMemory' }]
+    await flush()
+    assert(onboarding.externalModalBlocking === true, 'awaitingApproval did not block onboarding host')
+    app3.unmount(); await flush()
+    assert(onboarding.externalModalBlocking === false, 'unmounting Chat did not clear externalModalBlocking')
+  })
 } finally { await browser.close(); await server.close() }
 process.exitCode = failed ? 1 : 0

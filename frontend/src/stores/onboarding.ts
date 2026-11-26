@@ -85,10 +85,15 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   const autoWelcomeActive = ref(false)
   const externalModalBlocking = ref(false)
 
+  let sessionGen = 0
+  let fetchSeq = 0
   let requestSeq = 0
   let lastFetchAt = 0
   let welcomeStartedSentForUser: number | null = null
   let autoWelcomeHandledForUser: number | null = null
+  let analysisViewedReportedDiaries = new Set<number>()
+  let memoryCenterReportedForUser: number | null = null
+  let themeExploredReportedForUser: number | null = null
   let retryQueue: PendingRetryEvent[] = []
   let retryFlushing = false
 
@@ -104,8 +109,16 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   })
   const isWelcomeOpen = computed(() => replayMode.value || autoWelcomeActive.value)
 
-  function isCurrentRequest(seq: number, targetUserId: number): boolean {
-    return seq === requestSeq && boundUserId.value === targetUserId
+  function isCurrentSession(gen: number, targetUserId: number): boolean {
+    return gen === sessionGen && boundUserId.value === targetUserId
+  }
+
+  function isCurrentFetch(seq: number, gen: number, targetUserId: number): boolean {
+    return seq === fetchSeq && isCurrentSession(gen, targetUserId)
+  }
+
+  function isCurrentMutation(seq: number, gen: number, targetUserId: number): boolean {
+    return seq === requestSeq && isCurrentSession(gen, targetUserId)
   }
 
   function applyRemoteState(targetUserId: number, remote: OnboardingState): void {
@@ -117,6 +130,8 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   }
 
   function reset(): void {
+    sessionGen += 1
+    fetchSeq += 1
     requestSeq += 1
     boundUserId.value = null
     state.value = createDefaultOnboardingState()
@@ -129,6 +144,9 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     lastFetchAt = 0
     welcomeStartedSentForUser = null
     autoWelcomeHandledForUser = null
+    analysisViewedReportedDiaries = new Set<number>()
+    memoryCenterReportedForUser = null
+    themeExploredReportedForUser = null
     retryQueue = []
     retryFlushing = false
   }
@@ -160,11 +178,12 @@ export const useOnboardingStore = defineStore('onboarding', () => {
       return state.value
     }
 
-    const seq = ++requestSeq
+    const gen = sessionGen
+    const seq = ++fetchSeq
     loading.value = true
     try {
       const remote = await fetchOnboardingState()
-      if (!isCurrentRequest(seq, userId)) {
+      if (!isCurrentFetch(seq, gen, userId)) {
         return null
       }
       lastFetchAt = Date.now()
@@ -172,13 +191,13 @@ export const useOnboardingStore = defineStore('onboarding', () => {
       void flushRetryQueue(userId)
       return state.value
     } catch (err) {
-      if (isCurrentRequest(seq, userId)) {
+      if (isCurrentFetch(seq, gen, userId)) {
         degraded.value = true
         logWarn('onboarding', '加载引导状态失败，已静默降级', err)
       }
       return null
     } finally {
-      if (isCurrentRequest(seq, userId)) {
+      if (isCurrentFetch(seq, gen, userId)) {
         loading.value = false
       }
     }
@@ -188,6 +207,12 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     const userId = boundUserId.value
     if (userId == null) return null
     return loadForUser(userId, options)
+  }
+
+  async function refreshAfterBusinessAction(): Promise<OnboardingState | null> {
+    const userId = boundUserId.value
+    if (userId == null) return null
+    return loadForUser(userId, { force: true })
   }
 
   function enqueueRetryEvent(userId: number, payload: OnboardingEventRequest): void {
@@ -209,9 +234,10 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     if (retryFlushing || boundUserId.value !== targetUserId || retryQueue.length === 0) {
       return
     }
+    const gen = sessionGen
     retryFlushing = true
     try {
-      while (retryQueue.length > 0 && boundUserId.value === targetUserId) {
+      while (retryQueue.length > 0 && isCurrentSession(gen, targetUserId)) {
         const item = retryQueue[0]
         if (item.userId !== targetUserId) {
           retryQueue.shift()
@@ -220,13 +246,13 @@ export const useOnboardingStore = defineStore('onboarding', () => {
         const seq = ++requestSeq
         try {
           const remote = await postOnboardingEvent(item.payload)
-          if (!isCurrentRequest(seq, targetUserId)) {
+          if (!isCurrentMutation(seq, gen, targetUserId)) {
             return
           }
           retryQueue.shift()
           applyRemoteState(targetUserId, remote)
         } catch (err) {
-          if (boundUserId.value !== targetUserId) {
+          if (!isCurrentSession(gen, targetUserId)) {
             return
           }
           item.attempts += 1
@@ -249,16 +275,17 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     // 乐观单调更新本地状态（仅白名单 UI 事件）
     applyOptimisticEvent(userId, payload)
 
+    const gen = sessionGen
     const seq = ++requestSeq
     try {
       const remote = await postOnboardingEvent(payload)
-      if (!isCurrentRequest(seq, userId)) {
+      if (!isCurrentMutation(seq, gen, userId)) {
         return null
       }
       applyRemoteState(userId, remote)
       return state.value
     } catch (err) {
-      if (boundUserId.value === userId && isRetryableError(err)) {
+      if (isCurrentSession(gen, userId) && isRetryableError(err)) {
         enqueueRetryEvent(userId, payload)
       }
       logWarn('onboarding', `上报引导事件 ${payload.eventType} 失败，已静默降级`, err)
@@ -303,10 +330,11 @@ export const useOnboardingStore = defineStore('onboarding', () => {
 
     applyOptimisticDismiss(userId, payload)
 
+    const gen = sessionGen
     const seq = ++requestSeq
     try {
       const remote = await postOnboardingDismiss(payload)
-      if (!isCurrentRequest(seq, userId)) {
+      if (!isCurrentMutation(seq, gen, userId)) {
         return null
       }
       applyRemoteState(userId, remote)
@@ -341,6 +369,44 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     }
     state.value = normalizeOnboardingState(next)
     writeCachedState(userId, state.value)
+  }
+
+  async function recordAnalysisViewed(diaryId: number): Promise<OnboardingState | null> {
+    const userId = boundUserId.value
+    if (userId == null || !Number.isFinite(diaryId) || diaryId <= 0) return null
+    if (state.value.tasks.FIRST_ANALYSIS_VIEWED === 'COMPLETED') return state.value
+    if (analysisViewedReportedDiaries.has(diaryId)) return state.value
+    analysisViewedReportedDiaries.add(diaryId)
+    return recordEvent({ eventType: 'ANALYSIS_VIEWED', diaryId })
+  }
+
+  async function recordMemoryCenterVisited(): Promise<OnboardingState | null> {
+    const userId = boundUserId.value
+    if (userId == null) return null
+    if (state.value.tasks.MEMORY_CENTER_VISITED === 'COMPLETED') return state.value
+    if (memoryCenterReportedForUser === userId) return state.value
+    memoryCenterReportedForUser = userId
+    return recordEvent({ eventType: 'MEMORY_CENTER_VISITED' })
+  }
+
+  async function recordThemeExplored(): Promise<OnboardingState | null> {
+    const userId = boundUserId.value
+    if (userId == null) return null
+    if (state.value.tasks.THEME_EXPLORED === 'COMPLETED') return state.value
+    if (themeExploredReportedForUser === userId) return state.value
+    themeExploredReportedForUser = userId
+    return recordEvent({ eventType: 'THEME_EXPLORED' })
+  }
+
+  async function dismissChecklist(): Promise<OnboardingState | null> {
+    return dismiss({ target: 'CHECKLIST' })
+  }
+
+  async function dismissTask(taskKey: TaskKey): Promise<OnboardingState | null> {
+    if (state.value.tasks[taskKey] === 'COMPLETED' || state.value.tasks[taskKey] === 'SKIPPED') {
+      return state.value
+    }
+    return dismiss({ target: 'TASK', key: taskKey })
   }
 
   function openAutoWelcome(): boolean {
@@ -412,8 +478,14 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     isWelcomeOpen,
     loadForUser,
     refreshIfActive,
+    refreshAfterBusinessAction,
     recordEvent,
+    recordAnalysisViewed,
+    recordMemoryCenterVisited,
+    recordThemeExplored,
     dismiss,
+    dismissChecklist,
+    dismissTask,
     openAutoWelcome,
     completeWelcome,
     skipWelcome,

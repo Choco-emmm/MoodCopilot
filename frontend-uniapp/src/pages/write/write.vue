@@ -51,6 +51,51 @@
       </view>
     </view>
 
+    <!-- Writing Inspirations (create mode, non-destructive) -->
+    <view v-if="mode === 'create' && !savedNextStep" class="inspiration-section">
+      <view class="inspiration-head">
+        <text class="inspiration-title">写点什么？轻点填入一句开头</text>
+        <text class="inspiration-note">仅在空白时填入，不会覆盖已写内容</text>
+      </view>
+      <view class="inspiration-list">
+        <view
+          v-for="prompt in writeInspirations"
+          :key="prompt.id"
+          class="inspiration-chip"
+          role="button"
+          @click="applyInspiration(prompt.text)"
+        >
+          <text class="inspiration-chip-text">{{ prompt.label }}</text>
+        </view>
+      </view>
+      <text class="composer-media-guide">
+        可搭配照片或一首歌记录此刻；上方可随时开关 AI 分析，不影响正常保存。
+      </text>
+    </view>
+
+    <!-- Non-blocking post-save next step -->
+    <view v-if="savedNextStep" class="save-next-card">
+      <text class="save-next-eyebrow">记录已保存</text>
+      <text class="save-next-title">{{ savedNextStep.title }}</text>
+      <text class="save-next-desc">{{ savedNextStep.description }}</text>
+      <view class="save-next-actions">
+        <button
+          v-if="savedDiaryId"
+          class="save-next-btn save-next-primary"
+          @click="goToSavedDetail"
+        >
+          查看这篇日记
+        </button>
+        <button
+          class="save-next-btn save-next-secondary"
+          @click="goToChatAfterSave"
+        >
+          找 AI 聊聊
+        </button>
+        <text class="save-next-back" @click="goBackAfterSave">返回日记本</text>
+      </view>
+    </view>
+
     <!-- Hint -->
     <text class="composer-hint">
       写得越具体，MoodCopilot 越能理解你在意的人和事。持续记录比一次写满更重要。    </text>
@@ -124,6 +169,13 @@
 import { ref, computed, watch } from 'vue';
 import { post, upload, get, request } from '@/utils/request';
 import { currentTheme } from '@/stores/theme';
+import {
+  applyStarterPromptToDraft,
+  describeWriteSaveNextStep,
+  navigateMiniProgramRoute,
+  refreshAfterBusinessAction,
+} from '@/stores/onboarding';
+import type { WriteSaveNextStep } from '@/utils/onboardingRouter';
 
 import { onLoad, onHide, onUnload } from '@dcloudio/uni-app';
 
@@ -152,7 +204,38 @@ const lyricsError = ref(false);
 const showLyricsPanel = ref(false);
 const selectedLyricIndices = ref<number[]>([]);
 const suppressDraftSave = ref(false);
+const savedDiaryId = ref<number | null>(null);
+const savedNextStep = ref<WriteSaveNextStep | null>(null);
 let lyricsRequestId = 0;
+
+const writeInspirations = [
+  { id: 'small-moment', label: '今天的一件小事', text: '今天有一件值得留下的小事：' },
+  { id: 'current-feeling', label: '此刻最在意的感受', text: '此刻心里最在意的是：' },
+  { id: 'progress', label: '学到或完成的事', text: '今天完成或弄明白的一件事：' },
+  { id: 'fragment', label: '随手记一个念头', text: '刚才突然想到的一个念头：' },
+] as const;
+
+const applyInspiration = (promptText: string) => {
+  const { nextDraft, applied } = applyStarterPromptToDraft(content.value, promptText);
+  if (!applied) {
+    uni.showToast({ title: '已有正文内容，未覆盖', icon: 'none' });
+    return;
+  }
+  content.value = nextDraft;
+};
+
+const goToSavedDetail = () => {
+  if (!savedDiaryId.value) return;
+  uni.redirectTo({ url: `/pages/detail/detail?id=${savedDiaryId.value}` });
+};
+
+const goToChatAfterSave = () => {
+  navigateMiniProgramRoute('/pages/chat/chat');
+};
+
+const goBackAfterSave = () => {
+  uni.navigateBack();
+};
 
 const draftUserKey = () => String(uni.getStorageSync('loginUserId') || 'guest');
 const writeDraftKey = (draftMode = mode.value, draftId = editId.value) =>
@@ -391,24 +474,20 @@ const submitDiary = async () => {
     if (res.code === 200) {
       clearDraft();
       uni.$emit('refreshFeed');
-      
-      if (analyze.value && mode.value === 'create') {
-        const analysisStatus = res.data?.analysisStatus;
-        const analysisQueued = analysisStatus === 'analyzing';
-        uni.showModal({
-          title: '发布成功',
-          content: analysisQueued
-            ? '日记已保存。AI 正在分析，完成后会通知你。'
-            : analysisStatus === 'failed_limit'
-              ? '日记已保存。深度思考额度已用完，可改用普通分析或稍后重试。'
-              : '日记已保存。今日 AI 分析次数已用完，你仍可正常查看和编辑日记。',
-          showCancel: false,
-          success: () => {
-            uni.navigateBack();
-          }
-        });
+
+      if (mode.value === 'create') {
+        void refreshAfterBusinessAction();
+        const createdId = Number(res.data?.id ?? res.data?.diaryId);
+        savedDiaryId.value = Number.isFinite(createdId) && createdId > 0 ? Math.floor(createdId) : null;
+        savedNextStep.value = describeWriteSaveNextStep(res.data?.analysisStatus, analyze.value);
+        suppressDraftSave.value = true;
+        content.value = '';
+        images.value = [];
+        musicMeta.value = null;
+        selectedLyricIndices.value = [];
+        suppressDraftSave.value = false;
       } else {
-        uni.showToast({ title: mode.value === 'edit' ? '更新成功' : '发布成功', icon: 'success' });
+        uni.showToast({ title: '更新成功', icon: 'success' });
         setTimeout(() => {
           uni.navigateBack();
         }, 1000);
@@ -885,5 +964,124 @@ const previewImage = (current: string) => {
 .composer-submit.disabled { background: var(--theme-surface-hover); color: var(--theme-text-placeholder); }
 .lyrics-selector { border-color: var(--theme-border); background: var(--theme-surface); }
 .selected-lyric { border-radius: var(--theme-radius-sm); background: color-mix(in oklab, var(--theme-primary) 8%, var(--theme-surface)); }
+
+.inspiration-section {
+  margin-bottom: 18rpx;
+  padding: 18rpx 20rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-md);
+  background: var(--theme-surface);
+}
+.inspiration-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-bottom: 14rpx;
+}
+.inspiration-title {
+  font-size: 23rpx;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+}
+.inspiration-note {
+  font-size: 20rpx;
+  color: var(--theme-text-placeholder);
+}
+.inspiration-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+.inspiration-chip {
+  padding: 10rpx 16rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: var(--theme-radius-sm);
+  background: var(--theme-bg);
+}
+.inspiration-chip-text {
+  font-size: 22rpx;
+  color: var(--theme-text-secondary);
+}
+.composer-media-guide {
+  display: block;
+  margin-top: 14rpx;
+  padding-top: 12rpx;
+  border-top: 1rpx solid var(--theme-border);
+  font-size: 21rpx;
+  line-height: 1.55;
+  color: var(--theme-text-placeholder);
+}
+
+.save-next-card {
+  margin-bottom: 20rpx;
+  padding: 24rpx;
+  border: 1rpx solid var(--theme-border);
+  border-top: 4rpx solid var(--theme-primary);
+  border-radius: var(--theme-radius-md);
+  background: var(--theme-surface);
+  box-shadow: var(--theme-shadow-panel);
+}
+.save-next-eyebrow {
+  display: block;
+  font-size: 20rpx;
+  font-weight: 600;
+  letter-spacing: 1rpx;
+  color: var(--theme-primary);
+  margin-bottom: 8rpx;
+}
+.save-next-title {
+  display: block;
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 32rpx;
+  font-weight: 700;
+  color: var(--theme-text-primary);
+  margin-bottom: 8rpx;
+}
+.save-next-desc {
+  display: block;
+  font-size: 24rpx;
+  line-height: 1.65;
+  color: var(--theme-text-secondary);
+}
+.save-next-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin-top: 20rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx solid var(--theme-border);
+}
+.save-next-btn {
+  flex: 1;
+  min-width: 210rpx;
+  height: 70rpx;
+  line-height: 70rpx;
+  margin: 0;
+  padding: 0 20rpx;
+  border-radius: var(--theme-radius-sm);
+  font-size: 24rpx;
+  font-weight: 600;
+}
+.save-next-btn::after {
+  border: none;
+}
+.save-next-primary {
+  background: var(--theme-primary);
+  color: var(--theme-text-on-primary);
+}
+.save-next-secondary {
+  background: transparent;
+  color: var(--theme-text-primary);
+  border: 1rpx solid var(--theme-border);
+}
+.save-next-back {
+  width: 100%;
+  text-align: center;
+  padding-top: 8rpx;
+  font-size: 23rpx;
+  color: var(--theme-text-secondary);
+}
 </style>
 

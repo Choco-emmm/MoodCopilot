@@ -16,11 +16,16 @@ import type {
   OnboardingEventRequest,
   OnboardingState,
   PlatformGuideScope,
+  TaskKey,
   WelcomeActionKey,
 } from '../constants/onboarding';
 import { get, post } from '../utils/request';
 import {
+  applyStarterPromptToDraft,
+  describeWriteSaveNextStep,
+  executeChecklistTaskAction,
   executeWelcomeAction,
+  hasRenderableOwnedAnalysis,
   isMiniProgramTabBarPage,
   isRouteSafeForAutoWelcome,
   navigateMiniProgramRoute,
@@ -28,7 +33,11 @@ import {
 } from '../utils/onboardingRouter';
 
 export {
+  applyStarterPromptToDraft,
+  describeWriteSaveNextStep,
+  executeChecklistTaskAction,
   executeWelcomeAction,
+  hasRenderableOwnedAnalysis,
   isMiniProgramTabBarPage,
   isRouteSafeForAutoWelcome,
   navigateMiniProgramRoute,
@@ -68,6 +77,9 @@ let fetchSeq = 0;
 let hostCounter = 0;
 let autoWelcomeSuppressed = false;
 let welcomeStartedNotifiedUserId: number | null = null;
+let memoryCenterReportedUserId: number | null = null;
+let themeExploredReportedUserId: number | null = null;
+const reportedAnalysisDiaryIds = new Set<number>();
 let flushingRetryQueue = false;
 let retryQueue: QueuedOnboardingMutation[] = [];
 
@@ -234,6 +246,9 @@ export function resetOnboardingState(options?: { resetHosts?: boolean }): void {
   flushingRetryQueue = false;
   autoWelcomeSuppressed = false;
   welcomeStartedNotifiedUserId = null;
+  memoryCenterReportedUserId = null;
+  themeExploredReportedUserId = null;
+  reportedAnalysisDiaryIds.clear();
 
   onboardingBoundUserId.value = null;
   onboardingState.value = createDefaultOnboardingState();
@@ -559,6 +574,109 @@ export async function completeWelcome(actionKey: WelcomeActionKey): Promise<void
   }
 
   executeWelcomeAction(actionKey);
+}
+
+export async function recordAnalysisViewed(diaryId: number): Promise<OnboardingState | null> {
+  const userId = onboardingBoundUserId.value;
+  const normalizedDiaryId = Number(diaryId);
+  if (!userId || !Number.isFinite(normalizedDiaryId) || normalizedDiaryId <= 0) {
+    return null;
+  }
+  const safeDiaryId = Math.floor(normalizedDiaryId);
+  if (
+    onboardingState.value.tasks.FIRST_ANALYSIS_VIEWED === 'COMPLETED' ||
+    reportedAnalysisDiaryIds.has(safeDiaryId)
+  ) {
+    return onboardingState.value;
+  }
+  reportedAnalysisDiaryIds.add(safeDiaryId);
+  const updated = await recordOnboardingEvent({
+    eventType: 'ANALYSIS_VIEWED',
+    diaryId: safeDiaryId,
+  });
+  if (!updated) {
+    reportedAnalysisDiaryIds.delete(safeDiaryId);
+  }
+  return updated;
+}
+
+export async function recordMemoryCenterVisited(): Promise<OnboardingState | null> {
+  const userId = onboardingBoundUserId.value;
+  if (!userId) return null;
+  if (
+    onboardingState.value.tasks.MEMORY_CENTER_VISITED === 'COMPLETED' ||
+    memoryCenterReportedUserId === userId
+  ) {
+    return onboardingState.value;
+  }
+  memoryCenterReportedUserId = userId;
+  const updated = await recordOnboardingEvent({ eventType: 'MEMORY_CENTER_VISITED' });
+  if (!updated && memoryCenterReportedUserId === userId) {
+    memoryCenterReportedUserId = null;
+  }
+  return updated;
+}
+
+export async function recordThemeExplored(): Promise<OnboardingState | null> {
+  const userId = onboardingBoundUserId.value;
+  if (!userId) return null;
+  if (
+    onboardingState.value.tasks.THEME_EXPLORED === 'COMPLETED' ||
+    themeExploredReportedUserId === userId
+  ) {
+    return onboardingState.value;
+  }
+  themeExploredReportedUserId = userId;
+  const updated = await recordOnboardingEvent({ eventType: 'THEME_EXPLORED' });
+  if (!updated && themeExploredReportedUserId === userId) {
+    themeExploredReportedUserId = null;
+  }
+  return updated;
+}
+
+export async function dismissChecklist(): Promise<OnboardingState | null> {
+  const userId = onboardingBoundUserId.value;
+  if (!userId) return null;
+
+  onboardingState.value = {
+    ...onboardingState.value,
+    checklistStatus: maxGuideStatus(onboardingState.value.checklistStatus, 'SKIPPED'),
+  };
+  writeCachedState(userId, onboardingState.value);
+  return dismissOnboarding({ target: 'CHECKLIST' });
+}
+
+export async function dismissTask(taskKey: TaskKey): Promise<OnboardingState | null> {
+  const userId = onboardingBoundUserId.value;
+  if (!userId) return null;
+
+  const currentStatus = onboardingState.value.tasks[taskKey];
+  if (currentStatus === 'COMPLETED' || currentStatus === 'SKIPPED') {
+    return onboardingState.value;
+  }
+
+  onboardingState.value = {
+    ...onboardingState.value,
+    tasks: {
+      ...onboardingState.value.tasks,
+      [taskKey]: maxGuideStatus(currentStatus, 'SKIPPED'),
+    },
+  };
+  writeCachedState(userId, onboardingState.value);
+  return dismissOnboarding({ target: 'TASK', key: taskKey });
+}
+
+export async function refreshAfterBusinessAction(): Promise<OnboardingState | null> {
+  const token = uni.getStorageSync('token');
+  const storedUserId = parseValidUserId(uni.getStorageSync('loginUserId'));
+  const userId = onboardingBoundUserId.value ?? storedUserId;
+  if (!token || !userId) {
+    return null;
+  }
+  if (onboardingBoundUserId.value !== userId) {
+    return initializeOnboardingForUser(userId, { suppressAutoWelcome: true, forceRefresh: true });
+  }
+  return fetchOnboardingState(userId);
 }
 
 export function getPendingOnboardingRetryCount(): number {
