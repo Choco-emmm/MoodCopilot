@@ -15,13 +15,14 @@
 ssh -i "$HOME\.ssh\kp_20261117.pem" -o IdentitiesOnly=yes root@43.139.168.10
 ```
 
-登录后在服务器项目目录拉取并部署：
+登录后在服务器项目目录直接执行部署脚本：
 
 ```bash
 cd /root/MoodCopilot
-git pull --ff-only
 bash deploy.sh
 ```
+
+`deploy.sh` 会自行拉取 `develop` 并按变更重建服务；不要提前手动 `git pull`，否则变更检测会认为“已是最新”而跳过编译。
 
 私钥只保存在本机，不提交到仓库；服务器上的 `.env`、证书和数据卷保持不变。
 ## 日常使用
