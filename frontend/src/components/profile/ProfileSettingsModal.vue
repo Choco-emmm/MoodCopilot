@@ -149,7 +149,7 @@
           </button>
         </div>
 
-        <button type="button" class="theme-toggle-btn" @click="themeExpanded = !themeExpanded">
+        <button type="button" class="theme-toggle-btn" @click="toggleThemeExpanded">
           主题配色 {{ themeExpanded ? '▾' : '▸' }}
         </button>
 
@@ -367,6 +367,7 @@ import { NModal, NButton, NInput, NSwitch } from 'naive-ui'
 import SettingSection from '../SettingSection.vue'
 import { authApi, suggestionApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
+import { useOnboardingStore } from '../../stores/onboarding'
 import { logWarn } from '../../utils/logger'
 import { renderSafeMarkdown } from '../../utils/markdown'
 import { themeOptions, type ThemeOption } from '../../constants/theme'
@@ -374,6 +375,7 @@ import { themeOptions, type ThemeOption } from '../../constants/theme'
 const props = defineProps<{
   show: boolean
   isOwner: boolean
+  initialExpandTheme?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -384,6 +386,7 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const auth = useAuthStore()
+const onboardingStore = useOnboardingStore()
 const themeModeOptions = [
   { value: 'auto', label: '跟随系统' },
   { value: 'light', label: '保持白天' },
@@ -858,11 +861,29 @@ async function toggleProfileNotify(val: boolean) {
   }
 }
 
+function toggleThemeExpanded() {
+  themeExpanded.value = !themeExpanded.value
+  if (themeExpanded.value) {
+    void onboardingStore.recordThemeExplored()
+  }
+}
+
+watch(
+  () => [props.show, props.initialExpandTheme],
+  ([visible, expandTheme]) => {
+    if (visible && expandTheme) {
+      themeExpanded.value = true
+      void onboardingStore.recordThemeExplored()
+    }
+  },
+)
+
 async function selectThemeMode(mode: string) {
   if (auth.themeMode === mode) return
   try {
     await auth.updateSettings(auth.dailyNotifyEnabled, auth.profileNotifyEnabled,
       undefined, mode, undefined, undefined)
+    void onboardingStore.recordThemeExplored()
   } catch (e) {
     logWarn('profile', '更新主题模式失败', e)
   }
@@ -873,6 +894,7 @@ async function selectLightTheme(themeValue: string) {
   try {
     await auth.updateSettings(auth.dailyNotifyEnabled, auth.profileNotifyEnabled,
       undefined, undefined, themeValue, undefined)
+    void onboardingStore.recordThemeExplored()
   } catch (e) {
     logWarn('profile', '更新日间主题失败', e)
   }
@@ -883,6 +905,7 @@ async function selectDarkTheme(themeValue: string) {
   try {
     await auth.updateSettings(auth.dailyNotifyEnabled, auth.profileNotifyEnabled,
       undefined, undefined, undefined, themeValue)
+    void onboardingStore.recordThemeExplored()
   } catch (e) {
     logWarn('profile', '更新夜间主题失败', e)
   }

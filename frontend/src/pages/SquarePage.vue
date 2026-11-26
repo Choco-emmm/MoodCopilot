@@ -11,6 +11,8 @@
       </div>
     </header>
 
+    <StarterChecklist v-if="authStore.isAuthenticated && onboardingStore.checklistActive" />
+
     <!-- Feed -->
     <PublicFeed
       :diaries="store.publicDiaries"
@@ -56,7 +58,10 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
 import PublicFeed from '../components/PublicFeed.vue'
+import StarterChecklist from '../components/onboarding/StarterChecklist.vue'
+import { useAuthStore } from '../stores/auth'
 import { useDiaryStore, type Diary } from '../stores/diary'
+import { useOnboardingStore } from '../stores/onboarding'
 import { diaryApi } from '../api'
 import { stripMarkdown } from '../utils/markdown'
 import { logWarn } from '../utils/logger'
@@ -68,7 +73,9 @@ function snippet(diary: any): string {
 }
 
 const router = useRouter()
+const authStore = useAuthStore()
 const store = useDiaryStore()
+const onboardingStore = useOnboardingStore()
 const matchDiary = ref<any>(null)
 
 onMounted(async () => {

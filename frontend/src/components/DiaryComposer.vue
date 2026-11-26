@@ -29,6 +29,10 @@
       </div>
     </div>
 
+    <p v-if="!isEditMode" class="composer-guide-note" data-testid="composer-guide-note">
+      新日记默认仅自己可见；开启 AI 分析后会在详情页展示情绪线索，也可随时关闭或切换模型。
+    </p>
+
     <!-- 合集选择 -->
     <div class="composer-collections">
       <div class="composer-collections-trigger" @click="showCollectionModal = true; loadCollections()">
@@ -138,6 +142,29 @@
       </div>
     </div>
 
+    <!-- 轻量写作灵感（不覆盖已有草稿，不自动提交） -->
+    <div v-if="!isEditMode" class="composer-inspirations" data-testid="composer-inspirations">
+      <div class="composer-inspirations-head">
+        <span class="composer-inspirations-label">写作灵感</span>
+        <span class="composer-inspirations-sub">点击填入开头，不会覆盖已有文字</span>
+      </div>
+      <div class="composer-inspirations-list">
+        <button
+          v-for="prompt in WRITING_INSPIRATION_PROMPTS"
+          :key="prompt"
+          type="button"
+          class="composer-inspiration-chip"
+          data-testid="composer-inspiration-chip"
+          @click="applyInspirationPrompt(prompt)"
+        >
+          {{ prompt }}
+        </button>
+      </div>
+      <p v-if="inspirationNotice" class="composer-inspiration-notice" role="status">
+        {{ inspirationNotice }}
+      </p>
+    </div>
+
     <!-- 音乐附件 -->
     <div class="composer-music">
       <button
@@ -202,7 +229,7 @@
 
     <!-- 提示文字 -->
     <p class="composer-hint">
-      写得越具体，MoodCopilot 越能理解你在意的人和事。持续记录比一次写满更重要。
+      可搭配照片或网易云音乐，记录当下的声音与画面。写得越具体，MoodCopilot 越能理解你在意的人和事。
     </p>
 
     <!-- 底部操作栏 -->
@@ -224,19 +251,29 @@
     </div>
 
     <!-- 分析状态 -->
-    <div v-if="store.analysisStatus !== 'idle'" class="composer-status">
-      <template v-if="store.analysisStatus === 'analyzing'">已保存，MoodCopilot 正在分析中...</template>
-      <template v-else-if="store.analysisStatus === 'complete'">分析完成</template>
-      <template v-else-if="store.analysisStatus === 'skipped_quota'">日记已保存，今日分析次数已用完。</template>
-      <template v-else-if="store.analysisStatus === 'failed_limit'">日记已保存，深度思考额度已用完。</template>
-      <template v-else-if="store.analysisStatus === 'skipped_user'">日记已保存，AI 分析已关闭。</template>
-      <template v-else-if="store.analysisStatus === 'failed'">
-        分析结果暂时没有更新。
-        <template v-if="store.activeDiary">
-          <button class="composer-inline-link" @click="store.refreshAnalysis(store.activeDiary.id, false)">普通分析</button>
-          <button class="composer-inline-link" @click="store.refreshAnalysis(store.activeDiary.id, true)">深度思考</button>
+    <div v-if="store.analysisStatus !== 'idle'" class="composer-status" data-testid="composer-save-status">
+      <div class="composer-status-text">
+        <template v-if="store.analysisStatus === 'analyzing'">已保存，MoodCopilot 正在分析中...</template>
+        <template v-else-if="store.analysisStatus === 'complete'">日记已保存，分析完成。</template>
+        <template v-else-if="store.analysisStatus === 'skipped_quota'">日记已保存，今日分析次数已用完。</template>
+        <template v-else-if="store.analysisStatus === 'failed_limit'">日记已保存，深度思考额度已用完。</template>
+        <template v-else-if="store.analysisStatus === 'skipped_user'">日记已保存，AI 分析已关闭。</template>
+        <template v-else-if="store.analysisStatus === 'failed'">
+          分析结果暂时没有更新，日记已安全保存。
+          <template v-if="store.activeDiary">
+            <button class="composer-inline-link" @click="store.refreshAnalysis(store.activeDiary.id, false)">普通分析</button>
+            <button class="composer-inline-link" @click="store.refreshAnalysis(store.activeDiary.id, true)">深度思考</button>
+          </template>
         </template>
-      </template>
+      </div>
+      <div v-if="lastSavedDiaryId && !isEditMode" class="composer-next-steps" data-testid="composer-next-steps">
+        <router-link :to="`/diary/${lastSavedDiaryId}`" class="composer-next-link is-primary">
+          查看这篇日记 →
+        </router-link>
+        <router-link to="/chat" class="composer-next-link">
+          去找 AI 聊聊 →
+        </router-link>
+      </div>
     </div>
 
     <div v-if="store.errorMessage" class="composer-error">{{ store.errorMessage }}</div>
@@ -259,6 +296,7 @@ import '@wangeditor/editor/dist/css/style.css'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import type { IDomEditor, IToolbarConfig, IEditorConfig } from '@wangeditor/editor'
 import { useDiaryStore, type MusicMeta } from '../stores/diary'
+import { useOnboardingStore } from '../stores/onboarding'
 import { musicApi, imageApi, collectionApi } from '../api'
 import type { DiaryImageMetaPayload } from '../api/diary'
 import MusicCard from './MusicCard.vue'
@@ -277,9 +315,20 @@ const props = withDefaults(defineProps<{
 }>(), {})
 
 const store = useDiaryStore()
+const onboardingStore = useOnboardingStore()
 const router = useRouter()
 const route = useRoute()
 const isEditMode = computed(() => props.editId != null && props.editId > 0)
+
+const WRITING_INSPIRATION_PROMPTS = [
+  '今天最想记住的一个瞬间',
+  '最近让我反复思考的一件事',
+  '此刻的身体和情绪状态',
+  '今天一件值得肯定自己的小事',
+] as const
+const inspirationNotice = ref('')
+let inspirationNoticeTimer: ReturnType<typeof setTimeout> | null = null
+const lastSavedDiaryId = ref<number | null>(null)
 
 const DRAFT_KEY = 'moodcopilot:draft'
 
@@ -408,6 +457,29 @@ function handleEditorCreated(editor: IDomEditor) {
   editorRef.value = editor
 }
 
+function applyInspirationPrompt(promptText: string) {
+  if (plainText.value.length > 0) {
+    inspirationNotice.value = '编辑器已有文字，未覆盖你的草稿。'
+    if (inspirationNoticeTimer != null) clearTimeout(inspirationNoticeTimer)
+    inspirationNoticeTimer = setTimeout(() => {
+      inspirationNotice.value = ''
+      inspirationNoticeTimer = null
+    }, 3000)
+    return
+  }
+  inspirationNotice.value = ''
+  const nextHtml = `<p>${promptText}：</p>`
+  htmlContent.value = nextHtml
+  if (editorRef.value) {
+    try {
+      editorRef.value.setHtml(nextHtml)
+      editorRef.value.focus(true)
+    } catch {
+      // 编辑器未就绪时由 v-model 同步
+    }
+  }
+}
+
 onMounted(() => {
   if (draftNotice.value) {
     updateDraftSavedAt()
@@ -426,6 +498,10 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (inspirationNoticeTimer != null) {
+    clearTimeout(inspirationNoticeTimer)
+    inspirationNoticeTimer = null
+  }
   const editor = editorRef.value
   if (editor) {
     try { editor.destroy() } catch (e) { /* ignore */ }
@@ -677,6 +753,8 @@ async function handleSave() {
     } else {
       const saved = await store.createDiary(content, visibility.value, musicPayload, analyze.value, imagesPayload, imageMetaPayload, useReasoning.value)
       diaryId = saved.id
+      lastSavedDiaryId.value = saved.id
+      void onboardingStore.refreshAfterBusinessAction()
       htmlContent.value = ''
       editorRef.value?.clear()
       draft.value = ''
@@ -1686,6 +1764,117 @@ async function handleSave() {
     width: 66px;
     height: 66px;
   }
+}
+
+.composer-guide-note {
+  margin: 0 0 14px;
+  font-size: var(--text-xs);
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.composer-inspirations {
+  margin: 12px 0 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-soft);
+}
+
+.composer-inspirations-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.composer-inspirations-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.composer-inspirations-sub {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.composer-inspirations-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.composer-inspiration-chip {
+  padding: 5px 11px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.composer-inspiration-chip:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: var(--color-surface-hover);
+}
+
+.composer-inspiration-notice {
+  margin: 8px 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.composer-status-text {
+  line-height: 1.6;
+}
+
+.composer-next-steps {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.composer-next-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.composer-next-link:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: var(--color-surface-hover);
+}
+
+.composer-next-link.is-primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.composer-next-link.is-primary:hover {
+  background: color-mix(in oklab, var(--color-primary) 88%, var(--color-text));
+  color: var(--color-on-primary);
 }
 </style>
 

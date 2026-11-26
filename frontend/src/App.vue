@@ -27,6 +27,7 @@
           </router-link>
 
           <GlobalConsolidationModals />
+          <OnboardingHost />
         </n-message-provider>
       </n-notification-provider>
     </n-dialog-provider>
@@ -34,14 +35,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, watchEffect, onMounted } from 'vue'
+import { computed, watch, watchEffect, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { defineComponent } from 'vue'
 import { useMessage, useNotification, zhCN, dateZhCN, useOsTheme, darkTheme } from 'naive-ui'
 import { useAuthStore } from './stores/auth'
 import { useNotificationStore } from './stores/notification'
 import { useTaskStore } from './stores/task'
+import { useOnboardingStore } from './stores/onboarding'
 import GlobalConsolidationModals from './components/GlobalConsolidationModals.vue'
+import OnboardingHost from './components/onboarding/OnboardingHost.vue'
 import type { GlobalThemeOverrides } from 'naive-ui'
 import { themeOptions, type ThemeOption } from './constants/theme'
 
@@ -49,6 +52,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
 const taskStore = useTaskStore()
+const onboardingStore = useOnboardingStore()
 const osTheme = useOsTheme()
 
 const MessageEnvironment = defineComponent({
@@ -71,10 +75,33 @@ watch(() => authStore.token, (newToken, oldToken) => {
   }
 })
 
+watch(
+  [() => authStore.isAuthenticated, () => authStore.userId],
+  ([authenticated, userId]) => {
+    if (authenticated && userId != null) {
+      void onboardingStore.loadForUser(userId)
+    } else {
+      onboardingStore.reset()
+    }
+  },
+  { immediate: true },
+)
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible' && authStore.isAuthenticated && authStore.userId != null) {
+    void onboardingStore.refreshIfActive()
+  }
+}
+
 onMounted(() => {
   if (authStore.isAuthenticated) {
     taskStore.fetchCheckInStatus()
   }
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
 const isDark = computed(() => osTheme.value === 'dark')

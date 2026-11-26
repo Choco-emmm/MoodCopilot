@@ -36,6 +36,7 @@ public class UserEntity {
     private LocalDateTime proExpireTime;
     private Integer nameChangeCount = 0;
     private Integer nameChangeWeek = 0;
+    private Integer onboardingEnrolledVersion;
     private LocalDateTime lastActiveTime;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -246,6 +247,14 @@ public class UserEntity {
 
     public void setNameChangeWeek(Integer nameChangeWeek) {
         this.nameChangeWeek = nameChangeWeek;
+    }
+
+    public Integer getOnboardingEnrolledVersion() {
+        return onboardingEnrolledVersion;
+    }
+
+    public void setOnboardingEnrolledVersion(Integer onboardingEnrolledVersion) {
+        this.onboardingEnrolledVersion = onboardingEnrolledVersion;
     }
 
     public LocalDateTime getLastActiveTime() {

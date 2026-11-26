@@ -215,6 +215,9 @@ public class DiaryService {
         diary.setCreatedAt(LocalDateTime.now());
         diary.setUpdatedAt(LocalDateTime.now());
         diaryMapper.insert(diary);
+        if (eventPublisher != null) {
+            eventPublisher.publishEvent(new DiaryCreatedEvent(user.getId(), diary.getId()));
+        }
 
         if (diary.getContent() != null && diary.getContent().length() >= 15) {
             userGrowthService.addExp(user.getId(), ExpAction.DIARY, diary.getContent().length());

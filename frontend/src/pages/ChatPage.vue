@@ -88,13 +88,10 @@
         <Teleport to="body">
           <div v-if="personaOpen" class="chat-persona-modal" @click.self="personaOpen = false">
             <section class="chat-persona-panel" role="dialog" aria-modal="true" aria-labelledby="chat-persona-title">
-              <button type="button" class="chat-persona-close" aria-label="关闭本会话风格设置" @click="personaOpen = false">×</button>
+              <button type="button" class="chat-persona-close" aria-label="关闭对话风格设置" @click="personaOpen = false">×</button>
             <div class="chat-persona-heading">
-              <strong id="chat-persona-title">本会话风格</strong>
-              <strong>{{ activeConvId ? '只影响这一场对话' : '新对话风格' }}</strong>
-              <span>{{ activeConvId
-                ? (conversationPersonaUsesGlobal ? '当前正在使用全局设置' : '当前会话正在使用独立设置')
-                : '当前正在使用全局设置，应用后会保存为本会话设置' }}</span>
+              <strong id="chat-persona-title">全局对话风格</strong>
+              <span>修改后对所有对话与 AI 功能统一生效</span>
             </div>
             <label class="chat-persona-label" for="chat-persona-role">互动身份</label>
             <select id="chat-persona-role" v-model="conversationPersona.role" class="chat-persona-select">
@@ -122,9 +119,9 @@
             <span class="chat-persona-help">只影响回答组织方式。</span>
             <div class="chat-persona-actions">
               <button type="button" class="chat-persona-save" :disabled="personaSaving" @click="saveConversationPersona">
-                {{ personaSaving ? '保存中' : '应用到本会话' }}
+                {{ personaSaving ? '保存中' : '保存全局风格' }}
               </button>
-              <button type="button" class="chat-persona-reset" :disabled="personaSaving" @click="resetConversationPersona">恢复全局设置</button>
+              <button type="button" class="chat-persona-reset" :disabled="personaSaving" @click="resetConversationPersona">恢复默认</button>
             </div>
             <p v-if="personaMessage" class="chat-persona-message">{{ personaMessage }}</p>
             </section>
@@ -157,6 +154,30 @@
                 <span class="starter-icon">{{ item.icon }}</span>
                 <span class="starter-text">{{ item.text }}</span>
               </button>
+            </div>
+
+            <div class="chat-onboarding-starters" data-testid="chat-onboarding-starters">
+              <div class="chat-onboarding-starters-head">
+                <span class="chat-onboarding-starters-label">
+                  {{ hasOwnDiaries ? '结合你的记录聊聊' : '也可以从这些话题开始' }}
+                </span>
+                <span class="chat-onboarding-starters-sub">点击填入输入框，由你修改后发送</span>
+              </div>
+              <div class="chat-onboarding-starters-list">
+                <button
+                  v-for="prompt in onboardingStarterPrompts"
+                  :key="prompt.id"
+                  type="button"
+                  class="chat-onboarding-starter-chip"
+                  :data-testid="`chat-starter-${prompt.id}`"
+                  @click="fillStarterPrompt(prompt.text)"
+                >
+                  {{ prompt.label }}
+                </button>
+              </div>
+              <p v-if="starterDraftNotice" class="chat-onboarding-starter-notice" role="status">
+                {{ starterDraftNotice }}
+              </p>
             </div>
           </div>
 
@@ -378,6 +399,7 @@ const {
   recentEventOptions, recentEventsLoading, recentEventsError,
   addEventRef, loadRecentEventOptions,
   quickStarters, quickStartersLoading, useQuickStarter,
+  hasOwnDiaries, onboardingStarterPrompts, starterDraftNotice, fillStarterPrompt,
   msgBox, chatInputArea,
   handleDraftFocus, handleDraftEnter, goToDiary,
 } = useChat()
@@ -613,7 +635,6 @@ const personaOpen = ref(false)
 const personaSaving = ref(false)
 const personaMessage = ref('')
 const personaLoading = ref(false)
-const conversationPersonaUsesGlobal = ref(true)
 const defaultPersona = () => ({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: [] as string[], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' })
 const conversationPersona = ref(defaultPersona())
 const globalPersonaSnapshot = ref(defaultPersona())
@@ -622,21 +643,15 @@ function openPersonaPanel() {
   personaMessage.value = ''
   personaOpen.value = true
   if (personaLoading.value) return
-  const id = activeConvId.value
-  const token = ++personaLoadToken
-  if (id) void loadConversationPersona(id, token)
-  else void loadGlobalPersona(token)
+  void loadGlobalPersona(++personaLoadToken)
 }
 
 let personaLoadToken = 0
 
-watch(activeConvId, (id) => {
+watch(activeConvId, () => {
   if (personaSaving.value) return
   personaOpen.value = false
   personaMessage.value = ''
-  const token = ++personaLoadToken
-  if (id) void loadConversationPersona(id, token)
-  else void loadGlobalPersona(token)
 }, { immediate: true })
 
 function unwrapPersonaPayload(payload: any) {
@@ -672,43 +687,12 @@ async function loadGlobalPersona(token = ++personaLoadToken) {
     const global = unwrapPersonaPayload((await authApi.getAiPersona()).data)
     if (token !== personaLoadToken) return
     applyGlobalPersona(global)
-    conversationPersonaUsesGlobal.value = true
     conversationPersona.value = copyPersona(globalPersonaSnapshot.value)
   } catch {
     if (token !== personaLoadToken) return
     applyGlobalPersona(null)
-    conversationPersonaUsesGlobal.value = true
     conversationPersona.value = defaultPersona()
     personaMessage.value = '全局设置暂时无法加载，当前显示默认设置'
-  } finally {
-    if (token === personaLoadToken) personaLoading.value = false
-  }
-}
-
-async function loadConversationPersona(id: number, token = ++personaLoadToken) {
-  personaLoading.value = true
-  try {
-    const [overrideResponse, globalResponse] = await Promise.all([chatApi.getPersona(id), authApi.getAiPersona()])
-    if (token !== personaLoadToken) return
-    const override = unwrapPersonaPayload(overrideResponse.data)
-    const global = unwrapPersonaPayload(globalResponse.data)
-    applyGlobalPersona(global)
-    const fallback = defaultPersona()
-    const data = override || global
-    conversationPersonaUsesGlobal.value = !override
-    conversationPersona.value = {
-      role: data?.role || fallback.role,
-      tone: Array.isArray(data?.tone) && data.tone.length ? data.tone : fallback.tone,
-      behaviorFlags: Array.isArray(data?.behaviorFlags) ? data.behaviorFlags : fallback.behaviorFlags,
-      disabledBehaviorFlags: Array.isArray(data?.disabledBehaviorFlags) ? data.disabledBehaviorFlags : [],
-      customTone: data?.customTone || '',
-      customResponseStyle: data?.customResponseStyle || '',
-    }
-  } catch {
-    if (token !== personaLoadToken) return
-    conversationPersonaUsesGlobal.value = true
-    conversationPersona.value = copyPersona(globalPersonaSnapshot.value)
-    personaMessage.value = '会话设置暂时无法加载'
   } finally {
     if (token === personaLoadToken) personaLoading.value = false
   }
@@ -731,20 +715,15 @@ async function saveConversationPersona() {
   personaSaving.value = true
   personaMessage.value = ''
   try {
-    const conversationId = await ensureConversation()
-    if (!conversationId) {
-      personaMessage.value = '创建会话失败，请稍后重试'
-      return
-    }
-    await chatApi.updatePersona(conversationId, {
+    const response = await authApi.updateAiPersona({
       ...conversationPersona.value,
       customTone: conversationPersona.value.customTone.trim(),
       customResponseStyle: conversationPersona.value.customResponseStyle.trim(),
       disabledBehaviorFlags: [],
     })
-    await loadConversationPersona(conversationId)
-    conversationPersonaUsesGlobal.value = false
-    personaMessage.value = '本会话风格已应用'
+    applyGlobalPersona(unwrapPersonaPayload(response.data))
+    conversationPersona.value = copyPersona(globalPersonaSnapshot.value)
+    personaMessage.value = '全局风格已更新'
   } catch (error: any) {
     personaMessage.value = error?.response?.data?.message || '保存失败，请稍后重试'
   } finally {
@@ -754,17 +733,13 @@ async function saveConversationPersona() {
 
 async function resetConversationPersona() {
   if (personaSaving.value) return
-  if (!activeConvId.value) {
-    conversationPersonaUsesGlobal.value = true
-    conversationPersona.value = copyPersona(globalPersonaSnapshot.value)
-    personaMessage.value = '新对话当前使用全局设置'
-    return
-  }
   personaSaving.value = true
+  personaMessage.value = ''
   try {
-    await chatApi.resetPersona(activeConvId.value)
-    await loadConversationPersona(activeConvId.value)
-    personaMessage.value = '已恢复全局设置'
+    const response = await authApi.updateAiPersona(defaultPersona())
+    applyGlobalPersona(unwrapPersonaPayload(response.data))
+    conversationPersona.value = copyPersona(globalPersonaSnapshot.value)
+    personaMessage.value = '已恢复默认全局风格'
   } catch (error: any) {
     personaMessage.value = error?.response?.data?.message || '恢复失败，请稍后重试'
   } finally {
@@ -2220,6 +2195,65 @@ body.chat-keyboard-open .chat-input-wrapper {
 </style>
 
 <style scoped>
+.chat-onboarding-starters {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+  width: min(560px, 100%);
+  text-align: left;
+}
+
+.chat-onboarding-starters-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.chat-onboarding-starters-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.chat-onboarding-starters-sub {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.chat-onboarding-starters-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chat-onboarding-starter-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.chat-onboarding-starter-chip:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: var(--color-surface-hover);
+}
+
+.chat-onboarding-starter-notice {
+  margin: 8px 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
 @media (max-width: 768px) {
   .chat-empty {
     justify-content: flex-start !important;

@@ -5,6 +5,11 @@
 - 修改构建、测试、Docker 或发布流程时，先阅读 `docs/CI-CD.md`，并同步 `.github/workflows/ci.yml` 的实际命令。分支合并保护使用汇总检查 `CI Ready`。
 - 生产发布使用固定提交 SHA 的应用镜像；服务器 `.env`、证书和数据卷保留在服务器。修改部署脚本后执行 `bash scripts/tests/deploy-images.test.sh`，覆盖拉取失败、健康检查失败、恢复旧镜像和并发互斥。
 
+## 本地开发与 Cloudflare Tunnel
+
+- 生产 Cloudflare Tunnel 只在生产服务器运行。本地开发禁止启动 `tunnel` 服务或使用生产隧道的 `CF_TUNNEL_TOKEN`。本机接入同一条隧道时可能收到生产流量，本机源站不可用就会返回 502。
+- 本地启动 Docker Compose 时必须显式指定所需服务，例如 `docker compose up -d backend web`。如果本机的 `tunnel` 已在运行，在本机执行 `docker compose stop tunnel`。
+
 ## 产品边界
 
 - `frontend/` 是网页端，包含完整社区能力。
@@ -71,10 +76,9 @@
 
 ### Persona 作用域与版本
 
-- 产品当前只提供全局和会话两个 Persona 作用域：全局配置持久化在 `user_personas`，会话覆盖持久化在 `conversation_persona_overrides`。当前消息中的自然要求直接属于 `CurrentUserRequest`，不转换为第三层 Persona；旧的当前轮字段仅为兼容保留，不参与标准聊天。
-- 全局和会话配置必须版本化保存；保存、恢复默认和会话恢复都生成新版本，不得通过覆盖或删除历史行破坏审计链。所有查询必须带当前用户 ID，并校验会话归属。
-- 字段来源由 `PersonaResolver` 决定，安全校验、规范化、过滤和哈希由 `PersonaCompiler` 完成，二者都不得直接生成 Prompt。`role` 使用 `Conversation > Global`；`tone` 在同一作用域允许多选，会话非空配置整体覆盖全局，会话空数组明确清空并回到系统默认；`behaviorFlags` 保留 enabled 数组并使用独立的 `disabledBehaviorFlags` 表达关闭，按低到高作用域解析且同一作用域 disabled 优先。
-- 会话 Persona 接口返回空值只代表“没有会话覆盖”，不代表默认 Persona。网页和小程序在此情况下必须继续读取全局 Persona，并显示“当前使用全局设置”，禁止用前端硬编码默认值冒充用户配置。实际模型调用统一由后端编译全局、会话和当前轮配置。
+- 产品统一只使用**全局 Persona** 作用域（持久化在 `user_personas`），不再区分“本会话风格”与“全局风格”。无论从系统设置还是聊天页的对话风格入口进入，读取、修改和恢复默认均统一作用于全局 Persona；旧会话级 Persona 接口（`/api/chat/conversations/{conversationId}/persona`）在校验会话归属后同样统一代理到全局 Persona。当前消息中的自然要求直接属于 `CurrentUserRequest`，不转换为第三层 Persona；旧的当前轮字段仅为兼容保留，不参与标准聊天。
+- 全局配置必须版本化保存；保存和恢复默认都生成新版本，不得通过覆盖或删除历史行破坏审计链。所有查询必须带当前用户 ID。
+- 字段来源由 `PersonaResolver` 决定，安全校验、规范化、过滤和哈希由 `PersonaCompiler` 完成，二者都不得直接生成 Prompt。标准聊天与 AI 任务统一按用户的最新全局 Persona 编译。
 
 ### Persona 字段语义
 
@@ -148,7 +152,7 @@
 ### Persona 与通用 AI
 
 - MoodCopilot 是通用个人 AI。合法的编程、学习、写作、翻译、规划和情绪支持请求都应正常回答，不得强行套用情绪陪伴语气。
-- Persona 只控制互动身份、语气和回答组织方式，不是 Memory、TaskContext 或权限配置。全局 Persona 与会话 Persona 是产品提供的两层作用域；用户当前消息中的“简洁一点”“先给结论”等要求只属于当前请求，不得自动写入 Persona、Memory 或 RAG。
+- Persona 只控制互动身份、语气和回答组织方式，不是 Memory、TaskContext 或权限配置。产品统一只使用全局 Persona，无论从哪个入口进入都是修改全局风格；用户当前消息中的“简洁一点”“先给结论”等要求只属于当前请求，不得自动写入 Persona、Memory 或 RAG。
 - `customTone` 只描述说话感觉，`customResponseStyle` 只描述答案组织方式。二者必须分区、单独校验和转义，不得拼成不可审计的 Mega Prompt，也不得改变安全规则、模型选择、工具权限、数据访问范围或结构化输出协议。
 - `customDescription` 仅为历史兼容字段，不作为新的 Prompt 输入。结构化任务（如日记分析、记忆/事件抽取、时间线、章节和报告生成）不得注入自定义回答方式。
 - Pro/Flash 始终由用户手动选择：`useReasoning=false` 为 Flash，`true` 为 Pro。禁止自动路由、复杂度判断、静默降级或由 Persona 改变模型。
