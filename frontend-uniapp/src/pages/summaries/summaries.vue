@@ -34,6 +34,11 @@
         </view>
 
         <template v-else>
+          <GuideBubble
+            hint-key="REPORT_AVAILABLE"
+            :eligible="isReportAvailableHintEligible"
+            compact
+          />
           <view class="report-meta">
             <text>{{ report.diaryCount }} 篇日记</text>
             <text v-if="report.generatedAt">更新于 {{ formatGeneratedAt(report.generatedAt) }}</text>
@@ -101,6 +106,11 @@
       </view>
 
       <view v-else class="custom-report">
+        <GuideBubble
+          hint-key="REPORT_AVAILABLE"
+          :eligible="isCustomReportAvailableHintEligible"
+          compact
+        />
         <view class="custom-form">
           <text class="custom-title">自定义一段时间</text>
           <view class="date-fields">
@@ -166,6 +176,7 @@
 import { computed, ref } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import GlobalUI from '@/components/GlobalUI.vue'
+import GuideBubble from '@/components/onboarding/GuideBubble.vue'
 import { get, post } from '@/utils/request'
 import { parseMarkdown } from '@/utils/markdown'
 
@@ -208,6 +219,15 @@ const visibleDays = computed(() => {
 })
 
 const canCreateCustom = computed(() => Boolean(startDate.value && endDate.value && startDate.value <= endDate.value))
+const isReportAvailableHintEligible = computed(() =>
+  !loading.value &&
+  !loadError.value &&
+  Boolean(report.value) &&
+  Number(report.value?.diaryCount || 0) > 0,
+)
+const isCustomReportAvailableHintEligible = computed(() =>
+  !customLoading.value && customSummaries.value.length > 0,
+)
 
 onLoad(() => {
   void loadRegularReport()

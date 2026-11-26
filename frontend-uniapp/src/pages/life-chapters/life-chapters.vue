@@ -6,6 +6,11 @@
       <text class="page-title">时光画卷</text>
       <text class="page-desc">把一段段日子放远一点看，成长藏在那些当时没有察觉的转弯里。</text>
     </view>
+    <GuideBubble
+      hint-key="LIFE_CHAPTER"
+      :eligible="isLifeChapterHintEligible"
+      compact
+    />
     <view v-if="candidates.length" class="candidate-panel">
       <text class="section-label">需要你确认</text><text class="candidate-title">可能是新的阶段</text>
       <view v-for="candidate in candidates" :key="candidate.id" class="candidate-item">
@@ -58,8 +63,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import GlobalUI from '@/components/GlobalUI.vue'
+import GuideBubble from '@/components/onboarding/GuideBubble.vue'
 import { get, request } from '@/utils/request'
 import { hasLoginToken, requireLogin } from '@/stores/login'
 
@@ -78,6 +84,9 @@ const candidates = ref<TimelineCandidate[]>([])
 const gaps = ref<{ startDate: string; endDate: string }[]>([])
 const nextCursor = ref<string | null>(null)
 const loadingMore = ref(false)
+const isLifeChapterHintEligible = computed(
+  () => !loading.value && (chapters.value.length > 0 || candidates.value.length > 0),
+)
 
 onMounted(() => {
   if (!hasLoginToken()) {

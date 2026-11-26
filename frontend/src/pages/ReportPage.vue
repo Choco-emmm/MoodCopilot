@@ -60,7 +60,7 @@
         </div>
 
         <template v-if="report && report.diaryCount > 0">
-          <div class="report-detail">
+          <div class="report-detail" data-guide-id="report-summary-section">
             <div class="report-meta-row">
               <span v-if="report.generatedAt" class="report-meta-text">上次生成：{{ formatGeneratedAt(report.generatedAt) }}</span>
               <span v-if="report.needsRegenerate" class="report-meta-warning">有新日记未纳入，建议重新生成</span>
@@ -158,7 +158,7 @@
         </div>
 
         <template v-if="monthReport && monthReport.diaryCount > 0">
-          <div class="report-detail">
+          <div class="report-detail" data-guide-id="report-summary-section">
             <div class="report-meta-row">
               <span v-if="monthReport.generatedAt" class="report-meta-text">上次生成：{{ formatGeneratedAt(monthReport.generatedAt) }}</span>
               <span v-if="monthReport.needsRegenerate" class="report-meta-warning">有新日记未纳入，建议重新生成</span>
@@ -322,6 +322,7 @@
       </template>
       </div> <!-- close report-panel -->
     </div>
+    <SpotlightGuide :hint="reportAvailableHint" />
   </main>
 </template>
 
@@ -331,7 +332,9 @@ import { useRouter } from 'vue-router'
 import { NButton, NTag, NDatePicker, NSpin, NDropdown, NIcon } from 'naive-ui'
 import { DownloadOutline } from '@vicons/ionicons5'
 import AppHeader from '../components/AppHeader.vue'
+import SpotlightGuide from '../components/onboarding/SpotlightGuide.vue'
 import { useReportStore } from '../stores/report'
+import { useOnboardingStore } from '../stores/onboarding'
 import { summaryApi } from '../api'
 import { moodColor } from '../utils/mood'
 import { renderSafeMarkdown } from '../utils/markdown'
@@ -346,6 +349,7 @@ const router = useRouter()
 import ReportCharts from '../components/ReportCharts.vue'
 
 const store = useReportStore()
+const onboardingStore = useOnboardingStore()
 
 const mainTab = ref<'regular' | 'custom'>('regular')
 const mode = ref<'week' | 'month'>('week')
@@ -418,6 +422,16 @@ async function handleExport(key: 'image' | 'pdf') {
 
 const report = computed(() => store.weeklyReport)
 const monthReport = computed(() => store.monthlyReport)
+const hasAvailableReport = computed(() => {
+  if (mainTab.value !== 'regular') return false
+  if (mode.value === 'week') {
+    return !store.reportLoading && !store.reportError && Boolean(report.value && report.value.diaryCount > 0)
+  }
+  return !store.monthLoading && !store.monthError && Boolean(monthReport.value && monthReport.value.diaryCount > 0)
+})
+const reportAvailableHint = computed(() =>
+  hasAvailableReport.value ? onboardingStore.pickEligibleHint(['REPORT_AVAILABLE']) : null,
+)
 
 onMounted(() => {
   store.fetchWeeklyReport(weekOffset.value)

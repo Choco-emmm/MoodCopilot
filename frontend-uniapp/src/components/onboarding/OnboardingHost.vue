@@ -24,6 +24,7 @@ import {
   isRouteSafeForAutoWelcome,
   markWelcomeDisplayed,
   releaseOnboardingHost,
+  setHintOverlayBlocked,
   skipWelcome,
   welcomeOpen,
   welcomeReplayMode,
@@ -57,6 +58,26 @@ const canRenderWelcome = computed(() => {
   }
   return true;
 });
+
+watch(
+  hasHigherPriorityOverlay,
+  (blocked) => {
+    if (isActiveHost.value) {
+      setHintOverlayBlocked(blocked);
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  isActiveHost,
+  (active) => {
+    if (active) {
+      setHintOverlayBlocked(hasHigherPriorityOverlay.value);
+    }
+  },
+  { immediate: true },
+);
 
 watch(
   canRenderWelcome,

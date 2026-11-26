@@ -10,7 +10,11 @@
     </div>
 
     <div class="msg-wrapper">
-      <div v-if="msg.role === 'ai' && msg.ragReferences?.length" class="rag-refs-panel rag-refs-above rag-references-fixed">
+      <div
+        v-if="msg.role === 'ai' && msg.ragReferences?.length"
+        class="rag-refs-panel rag-refs-above rag-references-fixed"
+        data-guide-id="chat-citation-panel"
+      >
         <button class="rag-refs-toggle" @click="toggleRefs">
           <span class="rag-refs-icon">🔍</span>
           <span>已检索 {{ diaryRefs.length }} 条记录</span>

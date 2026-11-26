@@ -14,7 +14,7 @@
     <p class="memory-overview" role="status">{{ formalLoaded ? `${store.memories.length} 条正式记忆` : '正式记忆数量待加载' }} · {{ candidatesLoaded ? `${candidates.length} 条待确认` : '待确认数量待加载' }}</p>
     <p v-if="memoryError && !detailsOpen" class="memory-action-error" role="alert">{{ memoryError }}</p>
     <div v-if="formalLoadError" class="memory-detail-error" role="alert">{{ formalLoadError }} <n-button secondary :loading="memoriesLoading" :disabled="editingMemoryId !== null || savingMemoryId !== null" @click="loadMemories">重试正式记忆</n-button></div>
-    <section class="candidate-section" aria-label="待确认记忆">
+    <section class="candidate-section" aria-label="待确认记忆" data-guide-id="memory-candidate-section">
       <button type="button" class="candidate-toggle" :aria-expanded="candidatesExpanded" aria-controls="candidate-queue" @click="candidatesExpanded = !candidatesExpanded">
         <span class="candidate-toggle-copy">
           <span>待确认的记忆 · {{ candidatesLoaded ? `${candidates.length} 条` : '待加载' }}</span>
@@ -277,6 +277,7 @@
         <p v-if="memoryError" class="memory-action-error" role="alert">{{ memoryError }}</p>
       </div>
     </n-modal>
+    <SpotlightGuide :hint="memoryCandidateHint" :visible="props.active" />
   </div>
 </template>
 
@@ -287,9 +288,12 @@ import { NButton, NSpin, NCheckbox, useDialog, NModal, NDrawer, NDrawerContent }
 import { memoryApi } from '../../api'
 import MemoryPreview from './MemoryPreview.vue'
 import MemoryPagination from './MemoryPagination.vue'
+import SpotlightGuide from '../onboarding/SpotlightGuide.vue'
 import { logWarn } from '../../utils/logger'
 import { useConsolidationStore } from '../../stores/consolidation'
 import { useOnboardingStore } from '../../stores/onboarding'
+
+const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
 
 interface MemoryItem {
   id: number
@@ -325,6 +329,11 @@ const candidates = ref<any[]>([])
 const formalLoaded = ref(store.memories.length > 0)
 const formalLoadError = ref('')
 const candidatesLoaded = ref(false)
+const memoryCandidateHint = computed(() =>
+  props.active && candidatesLoaded.value && candidates.value.length > 0
+    ? onboardingStore.pickEligibleHint(['MEMORY_CANDIDATE'])
+    : null,
+)
 const candidatesLoading = ref(false)
 const candidatesError = ref('')
 const candidatesExpanded = ref(false)

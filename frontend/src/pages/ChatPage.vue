@@ -254,7 +254,7 @@
              浮层会把消息区一并盖住，用户既看不到 AI 刚说了什么，也切不了别的页面。
              也刻意不给「点背景关闭」—— 这一轮正停在半路，必须有一个明确的结论（记或不记）。 -->
         <section v-if="awaitingApproval && approvalItem" class="chat-approval-panel" role="dialog"
-          aria-labelledby="chat-approval-title">
+          aria-labelledby="chat-approval-title" data-guide-id="chat-tool-approval">
           <div class="chat-approval-heading">
             <strong id="chat-approval-title">{{ approvalTitleText }}</strong>
             <span>{{ approvalHintText }}</span>
@@ -353,7 +353,7 @@
             :recent-events-error="recentEventsError"
             @send="send"
             @send-enter="handleDraftEnter"
-            @update:use-reasoning="useReasoning = $event"
+            @update:use-reasoning="handleReasoningToggle"
             @retry="retryLastReply"
             @remove-ref="removeRef"
             @add-diary-ref="addDiaryRef"
@@ -367,6 +367,10 @@
         </div>
       </div>
     </div>
+    <SpotlightGuide
+      :hint="activeChatHint"
+      :non-blocking="activeChatHint?.key === 'TOOL_APPROVAL_WEB'"
+    />
   </main>
 </template>
 
@@ -377,7 +381,10 @@ import ChatSidebar from '../components/chat/ChatSidebar.vue'
 import ChatMessageItem from '../components/chat/ChatMessageItem.vue'
 import ChatStreamingItem from '../components/chat/ChatStreamingItem.vue'
 import ChatInputBox from '../components/chat/ChatInputBox.vue'
+import SpotlightGuide from '../components/onboarding/SpotlightGuide.vue'
 import { useChat } from '../composables/useChat'
+import { useOnboardingStore } from '../stores/onboarding'
+import type { HintKey } from '../constants/onboarding'
 import { displayConversationTitle } from '../utils/chatTitle'
 import { chatApi, type PendingApprovalItem } from '../api/social'
 import { authApi } from '../api/auth'
@@ -403,6 +410,34 @@ const {
   msgBox, chatInputArea,
   handleDraftFocus, handleDraftEnter, goToDiary,
 } = useChat()
+
+const onboardingStore = useOnboardingStore()
+const userSelectedPro = ref(false)
+
+function handleReasoningToggle(next: boolean) {
+  useReasoning.value = next
+  if (next) {
+    userSelectedPro.value = true
+  }
+}
+
+const hasRenderedChatCitation = computed(() =>
+  messages.value.some((m) => m.role === 'ai' && Boolean(m.ragReferences?.length)),
+)
+
+const activeChatHint = computed(() => {
+  const candidates: HintKey[] = []
+  if (awaitingApproval.value && approvalItem.value) {
+    candidates.push('TOOL_APPROVAL_WEB')
+  }
+  if (userSelectedPro.value && useReasoning.value) {
+    candidates.push('MODEL_PRO')
+  }
+  if (hasRenderedChatCitation.value) {
+    candidates.push('CHAT_CITATION')
+  }
+  return onboardingStore.pickEligibleHint(candidates)
+})
 
 // ── 工具执行前的人工批准 ──
 

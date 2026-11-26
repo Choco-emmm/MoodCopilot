@@ -14,7 +14,7 @@
         <div class="candidate-actions"><button type="button" class="text-button" @click="rejectCandidate(candidate.id)">暂不分开</button><button type="button" class="primary-button" @click="acceptCandidate(candidate.id)">接受新阶段</button></div>
       </div>
     </section>
-    <section class="chapter-list" aria-live="polite">
+    <section class="chapter-list" aria-live="polite" data-guide-id="life-chapter-list">
       <div v-if="loading" class="state">正在翻阅你的时光...</div>
       <div v-else-if="error" class="state error">{{ error }}</div>
       <div v-else-if="chapters.length === 0" class="state">还没有足够长的一段故事。继续记录，章节会慢慢长出来。</div>
@@ -27,6 +27,7 @@
       <div v-if="gaps.length" class="gaps"><p class="group-label">记录较少的时间段</p><div v-for="gap in gaps" :key="`${gap.startDate}-${gap.endDate}`">{{ gap.startDate }} — {{ gap.endDate }}<span>这段时间暂时没有足够记录</span></div></div>
       <div v-if="nextCursor" class="timeline-load-more"><button type="button" class="text-button" :disabled="loadingMore" @click="loadMoreChapters">{{ loadingMore ? '正在加载…' : '继续查看更早阶段' }}</button></div>
     </section>
+    <SpotlightGuide :hint="lifeChapterHint" />
   </main>
 </template>
 
@@ -34,7 +35,9 @@
 import { computed, onMounted, ref } from 'vue'
 import AppHeader from '../components/AppHeader.vue'
 import LifeChapterContent from '../components/LifeChapterContent.vue'
+import SpotlightGuide from '../components/onboarding/SpotlightGuide.vue'
 import { lifeChapterApi, type LifeChapter, type LifeChapterVersion, type LifeTimelineCandidate } from '../api/life'
+import { useOnboardingStore } from '../stores/onboarding'
 import { useRouter } from 'vue-router'
 
 const chapters = ref<LifeChapter[]>([])
@@ -49,8 +52,14 @@ const gaps = ref<{ startDate: string; endDate: string }[]>([])
 const nextCursor = ref<string | null>(null)
 const loadingMore = ref(false)
 const router = useRouter()
+const onboardingStore = useOnboardingStore()
 const currentChapter = computed(() => chapters.value.find(chapter => chapter.isOpen))
 const historyChapters = computed(() => chapters.value.filter(chapter => !chapter.isOpen))
+const lifeChapterHint = computed(() =>
+  !loading.value && !error.value && (chapters.value.length > 0 || candidates.value.length > 0)
+    ? onboardingStore.pickEligibleHint(['LIFE_CHAPTER'])
+    : null,
+)
 
 async function loadChapters() {
   const timeline = (await lifeChapterApi.timeline({ includeGaps: true, size: 50 })).data.data

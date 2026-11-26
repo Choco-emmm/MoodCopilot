@@ -8,6 +8,11 @@
     <view v-if="loading" class="state">正在整理你的事件线索...</view>
     <view v-else-if="events.length === 0" class="state">暂时没有重要事件。你也可以手动记下一件想回来关注的事。</view>
     <view v-else class="event-list">
+      <GuideBubble
+        hint-key="LIFE_EVENT"
+        :eligible="isLifeEventHintEligible"
+        compact
+      />
       <view v-for="event in events" :key="event.id" class="event-item">
         <view class="event-date"><text class="date-main">{{ formatSchedule(event) }}</text><text>{{ statusLabel(event) }}</text><text v-if="phaseLabel(event.temporalPhase)">{{ phaseLabel(event.temporalPhase) }}</text></view>
         <view class="event-main">
@@ -62,8 +67,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import GlobalUI from '@/components/GlobalUI.vue'
+import GuideBubble from '@/components/onboarding/GuideBubble.vue'
 import { del, get, post, put } from '@/utils/request'
 import { hasLoginToken, requireLogin } from '@/stores/login'
 import { currentTheme } from '@/stores/theme'
@@ -88,6 +94,7 @@ const selectedDiaryIds = ref<number[]>([])
 const form = ref<EventForm>({ title: '', description: '', followUpNote: '', targetDate: '', endDate: '', startTime: '', endTime: '' })
 const undoEvent = ref<LifeEvent | null>(null)
 const eventInfoOpen = ref(false)
+const isLifeEventHintEligible = computed(() => !loading.value && events.value.length > 0)
 let undoTimer: ReturnType<typeof setTimeout> | undefined
 
 onMounted(() => { if (!hasLoginToken()) { requireLogin(); loading.value = false; return } void loadEvents() })

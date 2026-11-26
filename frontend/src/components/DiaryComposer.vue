@@ -24,10 +24,13 @@
           v-for="opt in visibilityOptions"
           :key="opt.value"
           :class="['composer-vis-opt', { active: visibility === opt.value }]"
-          @click="visibility = opt.value as 'PRIVATE' | 'PUBLIC'"
+          :data-guide-id="opt.value === 'PUBLIC' ? 'diary-visibility-public' : undefined"
+          @click="handleVisibilitySelect(opt.value as 'PRIVATE' | 'PUBLIC')"
         >{{ opt.label }}</button>
       </div>
     </div>
+
+    <SpotlightGuide :hint="publicDiaryHint" />
 
     <p v-if="!isEditMode" class="composer-guide-note" data-testid="composer-guide-note">
       新日记默认仅自己可见；开启 AI 分析后会在详情页展示情绪线索，也可随时关闭或切换模型。
@@ -300,6 +303,7 @@ import { useOnboardingStore } from '../stores/onboarding'
 import { musicApi, imageApi, collectionApi } from '../api'
 import type { DiaryImageMetaPayload } from '../api/diary'
 import MusicCard from './MusicCard.vue'
+import SpotlightGuide from './onboarding/SpotlightGuide.vue'
 import { formatLegacyContent } from '../utils/markdown'
 import { prepareImageUpload } from '../utils/imageCompression'
 import { NButton, NSpin, NEmpty } from 'naive-ui'
@@ -329,6 +333,19 @@ const WRITING_INSPIRATION_PROMPTS = [
 const inspirationNotice = ref('')
 let inspirationNoticeTimer: ReturnType<typeof setTimeout> | null = null
 const lastSavedDiaryId = ref<number | null>(null)
+const publicToggledByUser = ref(false)
+const publicDiaryHint = computed(() =>
+  publicToggledByUser.value && visibility.value === 'PUBLIC'
+    ? onboardingStore.pickEligibleHint(['PUBLIC_DIARY_WEB'])
+    : null,
+)
+
+function handleVisibilitySelect(next: 'PRIVATE' | 'PUBLIC') {
+  if (next === 'PUBLIC' && visibility.value !== 'PUBLIC') {
+    publicToggledByUser.value = true
+  }
+  visibility.value = next
+}
 
 const DRAFT_KEY = 'moodcopilot:draft'
 

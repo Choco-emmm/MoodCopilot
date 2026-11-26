@@ -135,6 +135,12 @@
           <text class="candidate-count">{{ candidates.length }} 条</text>
         </view>
         <text v-if="candidates.length" class="candidate-summary">{{ candidateGroups.length }} 个属性需要你的确认</text>
+        <GuideBubble
+          v-if="activeAnalysisHintKey === 'MEMORY_CANDIDATE'"
+          hint-key="MEMORY_CANDIDATE"
+          :eligible="hasPendingCandidates"
+          compact
+        />
         <view v-if="loadingCandidates" class="loading-state candidate-loading-state"><text>正在加载待确认记忆...</text></view>
         <view v-else-if="candidateError" class="inline-error-card candidate-error-card">
           <text class="empty-text">待确认记忆暂时无法加载</text>
@@ -248,6 +254,12 @@
       </view>
       
       <view v-else-if="triples.length > 0" class="graph-container">
+        <GuideBubble
+          v-if="activeAnalysisHintKey === 'RELATION_GRAPH'"
+          hint-key="RELATION_GRAPH"
+          :eligible="hasRelationGraphData"
+          compact
+        />
         <view class="graph-toolbar">
           <input v-model="graphKeyword" class="graph-search" placeholder="搜索人物、关系或事物" confirm-type="search" />
           <text v-if="graphKeyword" class="graph-search-clear" @click="graphKeyword = ''">清除</text>
@@ -370,6 +382,7 @@
 
 <script setup lang="ts">
 import GlobalUI from '@/components/GlobalUI.vue';
+import GuideBubble from '@/components/onboarding/GuideBubble.vue';
 
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
@@ -378,7 +391,8 @@ import { parseMarkdown } from '@/utils/markdown';
 import { hasLoginToken, requireLogin } from '@/stores/login';
 import { currentTheme } from '@/stores/theme';
 import { ONBOARDING_COPY } from '@/constants/onboarding';
-import { recordMemoryCenterVisited } from '@/stores/onboarding';
+import type { HintKey } from '@/constants/onboarding';
+import { pickActiveMiniProgramHint, recordMemoryCenterVisited } from '@/stores/onboarding';
 
 const loadingReport = ref(false);
 const weeklyReport = ref<any>(null);
@@ -486,6 +500,23 @@ const graphOperationLabel = (operation?: string) => ({
   MERGE: '合并重复关系', DEDUP: '去除重复', NORMALIZE: '统一表达',
 }[operation || ''] || '整理建议');
 const isLoggedIn = ref(hasLoginToken());
+
+const hasPendingCandidates = computed(
+  () => isLoggedIn.value && !loadingCandidates.value && !candidateError.value && candidates.value.length > 0,
+);
+const hasRelationGraphData = computed(
+  () => isLoggedIn.value && !loadingGraph.value && !graphError.value && triples.value.length > 0,
+);
+const activeAnalysisHintKey = computed<HintKey | null>(() => {
+  const eligible: HintKey[] = [];
+  if (hasPendingCandidates.value) {
+    eligible.push('MEMORY_CANDIDATE');
+  }
+  if (hasRelationGraphData.value) {
+    eligible.push('RELATION_GRAPH');
+  }
+  return pickActiveMiniProgramHint(eligible)?.key ?? null;
+});
 
 const loadAllData = async () => {
   fetchMemory();

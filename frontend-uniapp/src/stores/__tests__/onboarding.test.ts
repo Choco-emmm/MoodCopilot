@@ -358,4 +358,97 @@ describe('mini-program onboarding store', () => {
     expect(store.onboardingState.value.checklistStatus).toBe('COMPLETED');
     expect(store.isOnboardingChecklistActive.value).toBe(false);
   });
+
+  it('gates P1 hints by login, loaded state, scope, welcome/overlays, and persists seen/dismiss once', async () => {
+    const posted: Array<{ url: string; data: any }> = [];
+    let remoteState = createDefaultOnboardingState({
+      enrolledVersion: 1,
+      welcomeStatus: 'COMPLETED',
+      checklistStatus: 'IN_PROGRESS',
+    });
+
+    requestHandler = (options) => {
+      if (options.method === 'GET') {
+        options.success({ statusCode: 200, data: { code: 200, data: remoteState } });
+        return;
+      }
+      posted.push({ url: options.url, data: options.data });
+      if (options.url.endsWith('/api/onboarding/events') && options.data.eventType === 'HINT_SEEN') {
+        remoteState = {
+          ...remoteState,
+          hints: { ...remoteState.hints, [options.data.hintKey]: 'COMPLETED' },
+        };
+      } else if (options.url.endsWith('/api/onboarding/dismiss') && options.data.target === 'HINT') {
+        remoteState = {
+          ...remoteState,
+          hints: { ...remoteState.hints, [options.data.key]: 'SKIPPED' },
+        };
+      }
+      options.success({ statusCode: 200, data: { code: 200, data: remoteState } });
+    };
+
+    const store = await import('../onboarding');
+
+    // Guest / unloaded state cannot show hints
+    expect(store.canShowHint('ANALYSIS_READY')).toBe(false);
+    expect(store.pickActiveMiniProgramHint(['ANALYSIS_READY'])).toBeNull();
+
+    await store.initializeOnboardingForUser(101);
+    expect(store.canShowHint('ANALYSIS_READY')).toBe(true);
+    // Web-only hints are strictly forbidden on Mini-Program
+    expect(store.canShowHint('PUBLIC_DIARY_WEB')).toBe(false);
+    expect(store.canShowHint('TOOL_APPROVAL_WEB')).toBe(false);
+    expect(await store.recordHintSeen('PUBLIC_DIARY_WEB')).toBeNull();
+    expect(await store.dismissHint('TOOL_APPROVAL_WEB')).toBeNull();
+    expect(posted).toHaveLength(0);
+
+    // Higher-priority overlay or welcome/replay suppresses all hints
+    store.setHintOverlayBlocked(true);
+    expect(store.canShowHint('ANALYSIS_READY')).toBe(false);
+    expect(store.pickActiveMiniProgramHint(['MEMORY_CANDIDATE', 'RELATION_GRAPH'])).toBeNull();
+    store.setHintOverlayBlocked(false);
+
+    store.openWelcomeReplay();
+    expect(store.canShowHint('ANALYSIS_READY')).toBe(false);
+    store.closeWelcomeReplay();
+    expect(store.canShowHint('ANALYSIS_READY')).toBe(true);
+
+    // Priority selection between two eligible hints on same page
+    expect(
+      store.pickActiveMiniProgramHint(['RELATION_GRAPH', 'MEMORY_CANDIDATE'])?.key,
+    ).toBe('MEMORY_CANDIDATE');
+
+    // recordHintSeen persists once and dedupes repeat calls
+    await store.recordHintSeen('MEMORY_CANDIDATE');
+    await store.recordHintSeen('MEMORY_CANDIDATE');
+    expect(store.onboardingState.value.hints.MEMORY_CANDIDATE).toBe('COMPLETED');
+    expect(store.canShowHint('MEMORY_CANDIDATE')).toBe(false);
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toMatchObject({
+      url: expect.stringMatching(/\/api\/onboarding\/events$/),
+      data: { eventType: 'HINT_SEEN', hintKey: 'MEMORY_CANDIDATE', scope: 'MINI_PROGRAM' },
+    });
+
+    // Next priority hint now surfaces
+    expect(
+      store.pickActiveMiniProgramHint(['RELATION_GRAPH', 'MEMORY_CANDIDATE'])?.key,
+    ).toBe('RELATION_GRAPH');
+
+    // dismissHint persists once and dedupes repeat calls
+    await store.dismissHint('RELATION_GRAPH');
+    await store.dismissHint('RELATION_GRAPH');
+    expect(store.onboardingState.value.hints.RELATION_GRAPH).toBe('SKIPPED');
+    expect(store.canShowHint('RELATION_GRAPH')).toBe(false);
+    expect(posted).toHaveLength(2);
+    expect(posted[1]).toMatchObject({
+      url: expect.stringMatching(/\/api\/onboarding\/dismiss$/),
+      data: { target: 'HINT', key: 'RELATION_GRAPH', scope: 'MINI_PROGRAM' },
+    });
+
+    // Reset clears session dedupe & overlay block cleanly
+    store.setHintOverlayBlocked(true);
+    store.resetOnboardingState();
+    expect(store.hintOverlayBlocked.value).toBe(false);
+    expect(store.canShowHint('ANALYSIS_READY')).toBe(false);
+  });
 });

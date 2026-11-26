@@ -1059,5 +1059,129 @@ try {
     app3.unmount(); await flush()
     assert(onboarding.externalModalBlocking === false, 'unmounting Chat did not clear externalModalBlocking')
   })
+  await check('P1 SpotlightGuide positions on visible anchor, falls back cleanly when anchor missing, cleans up on route change, persists seen/dismiss, and keeps TOOL_APPROVAL_WEB non-blocking', async () => {
+    const { createApp, h, ref, createPinia, setActivePinia, createRouter, createMemoryHistory } = f
+    const { api } = await import('/src/api/core.ts')
+    const { useAuthStore } = await import('/src/stores/auth.ts')
+    const { useOnboardingStore } = await import('/src/stores/onboarding.ts')
+    const { ONBOARDING_HINT_MAP } = await import('/src/constants/onboarding.ts')
+    const { default: SpotlightGuide } = await import('/src/components/onboarding/SpotlightGuide.vue')
+
+    localStorage.clear()
+    localStorage.setItem('token', 'p1-spotlight-token')
+    const postedEvents = []
+    const postedDismisses = []
+    const serverHints = {}
+    api.defaults.adapter = async (config) => {
+      if (config.url === '/onboarding') {
+        return { data: { code: 0, message: 'OK', data: { enrolledVersion: 1, guideVersion: 1, welcomeStatus: 'COMPLETED', checklistStatus: 'COMPLETED', tasks: {}, hints: { ...serverHints } } }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      if (config.url === '/onboarding/events') {
+        const body = JSON.parse(config.data)
+        postedEvents.push(body)
+        if (body.eventType === 'HINT_SEEN' && body.hintKey) serverHints[body.hintKey] = 'COMPLETED'
+        return { data: { code: 0, message: 'OK', data: { enrolledVersion: 1, guideVersion: 1, welcomeStatus: 'COMPLETED', checklistStatus: 'COMPLETED', tasks: {}, hints: { ...serverHints } } }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      if (config.url === '/onboarding/dismiss') {
+        const body = JSON.parse(config.data)
+        postedDismisses.push(body)
+        if (body.target === 'HINT' && body.key) serverHints[body.key] = 'SKIPPED'
+        return { data: { code: 0, message: 'OK', data: { enrolledVersion: 1, guideVersion: 1, welcomeStatus: 'COMPLETED', checklistStatus: 'COMPLETED', tasks: {}, hints: { ...serverHints } } }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      return { data: { code: 0, message: 'OK', data: {} }, status: 200, statusText: 'OK', headers: {}, config }
+    }
+
+    const pinia = createPinia(); setActivePinia(pinia)
+    const auth = useAuthStore(); auth.token = 'p1-spotlight-token'; auth.userId = 616
+    const onboarding = useOnboardingStore()
+    await onboarding.loadForUser(616, { force: true })
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/diary/1', component: { render: () => null } },
+        { path: '/chat', component: { render: () => null } },
+      ],
+    })
+    await router.push('/diary/1')
+
+    // 1. Anchor present -> anchored spotlight + seen persistence
+    const anchorEl = document.createElement('div')
+    anchorEl.setAttribute('data-guide-id', 'diary-analysis-card')
+    anchorEl.style.cssText = 'position:fixed;top:120px;left:24px;width:280px;height:80px;'
+    document.body.appendChild(anchorEl)
+
+    const currentHint = ref(onboarding.pickEligibleHint(['ANALYSIS_READY']))
+    const nonBlocking = ref(false)
+    const app = createApp({
+      render: () => h(SpotlightGuide, { hint: currentHint.value, nonBlocking: nonBlocking.value }),
+    })
+    app.use(pinia).use(router).mount('#app'); await flush()
+    const layer1 = document.querySelector('[data-testid="spotlight-guide"]')
+    assert(layer1 && layer1.getAttribute('data-fallback') === 'false', 'visible anchor should render anchored spotlight')
+    assert(getComputedStyle(layer1).pointerEvents === 'none', 'spotlight layer must not block page clicks')
+
+    document.querySelector('[data-testid="spotlight-seen-btn"]').click(); await flush()
+    assert(postedEvents.some((e) => e.eventType === 'HINT_SEEN' && e.hintKey === 'ANALYSIS_READY' && e.scope === 'WEB'), 'HINT_SEEN was not persisted')
+    assert(onboarding.isHintEligible('ANALYSIS_READY') === false, 'seen hint should no longer be eligible')
+
+    // 2. Missing anchor -> graceful corner fallback without blocking mask, dismissed via Esc
+    currentHint.value = onboarding.pickEligibleHint(['REPORT_AVAILABLE'])
+    await flush()
+    const layer2 = document.querySelector('[data-testid="spotlight-guide"]')
+    assert(layer2 && layer2.getAttribute('data-fallback') === 'true', 'missing anchor must fall back to non-blocking card')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await flush()
+    assert(postedDismisses.some((d) => d.target === 'HINT' && d.key === 'REPORT_AVAILABLE' && d.scope === 'WEB'), 'Esc did not persist hint dismiss')
+
+    // 3. TOOL_APPROVAL_WEB remains eligible while externalModalBlocking is true & renders non-blocking, then cleans up on route change
+    onboarding.setExternalModalBlocking(true)
+    assert(onboarding.isHintEligible('CHAT_CITATION') === false, 'non-approval hint must be blocked while approval modal active')
+    assert(onboarding.isHintEligible('TOOL_APPROVAL_WEB') === true, 'TOOL_APPROVAL_WEB must remain eligible alongside approval')
+    currentHint.value = ONBOARDING_HINT_MAP.TOOL_APPROVAL_WEB
+    nonBlocking.value = true
+    await flush()
+    assert(document.querySelector('[data-testid="spotlight-guide"]')?.classList.contains('is-non-blocking'), 'TOOL_APPROVAL_WEB must use non-blocking mode')
+
+    await router.push('/chat'); await flush()
+    assert(!document.querySelector('[data-testid="spotlight-guide"]'), 'route change must dismiss active spotlight guide')
+
+    anchorEl.remove()
+    app.unmount()
+
+    // 4. KeepAlive lifecycle: deactivated view must NOT teleport hint when hint changes in background, and must restore on re-activation
+    const { KeepAlive } = await import('/node_modules/.vite/deps/vue.js')
+    const showKeepAlivePage = ref(true)
+    const keepAliveHint = ref(null)
+    const KeepAliveChild = {
+      name: 'KeepAliveChild',
+      setup() {
+        return () => h('div', [
+          h('div', { 'data-guide-id': 'chat-citation-panel', style: 'position:fixed;top:120px;left:24px;width:240px;height:60px;' }),
+          h(SpotlightGuide, { hint: keepAliveHint.value }),
+        ])
+      },
+    }
+    const KeepAliveOther = {
+      name: 'KeepAliveOther',
+      render: () => h('div', 'other-page'),
+    }
+    const appKeepAlive = createApp({
+      render: () => h(KeepAlive, null, {
+        default: () => (showKeepAlivePage.value ? h(KeepAliveChild, { key: 'chat' }) : h(KeepAliveOther, { key: 'other' })),
+      }),
+    })
+    appKeepAlive.use(pinia).use(router).mount('#app'); await flush()
+
+    // Navigate away (deactivates KeepAliveChild), then a background hint becomes eligible
+    showKeepAlivePage.value = false; await flush()
+    keepAliveHint.value = ONBOARDING_HINT_MAP.CHAT_CITATION; await flush()
+    assert(!document.querySelector('[data-testid="spotlight-guide"]'), 'deactivated KeepAlive SpotlightGuide leaked onto another route')
+
+    // Return to KeepAliveChild -> hint should now render cleanly
+    showKeepAlivePage.value = true; await flush()
+    assert(document.querySelector('[data-testid="spotlight-guide"]')?.getAttribute('data-hint-key') === 'CHAT_CITATION', 'reactivated KeepAlive SpotlightGuide stayed stuck hidden')
+
+    appKeepAlive.unmount()
+  })
 } finally { await browser.close(); await server.close() }
 process.exitCode = failed ? 1 : 0

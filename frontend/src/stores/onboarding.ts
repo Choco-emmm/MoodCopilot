@@ -12,14 +12,18 @@ import {
   computeCoreTaskProgress,
   createDefaultOnboardingState,
   isChecklistActive,
+  isHintAllowedForScope,
+  isHintPending,
   maxGuideStatus,
   mergeOnboardingStateMonotonic,
   normalizeOnboardingState,
+  pickActiveHint,
   shouldAutoShowWelcome,
   type HintKey,
   type OnboardingDismissRequest,
   type OnboardingEventRequest,
   type OnboardingEventType,
+  type OnboardingHintDefinition,
   type OnboardingState,
   type TaskKey,
 } from '../constants/onboarding'
@@ -94,6 +98,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   let analysisViewedReportedDiaries = new Set<number>()
   let memoryCenterReportedForUser: number | null = null
   let themeExploredReportedForUser: number | null = null
+  let hintReportedKeys = new Set<HintKey>()
   let retryQueue: PendingRetryEvent[] = []
   let retryFlushing = false
 
@@ -147,6 +152,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     analysisViewedReportedDiaries = new Set<number>()
     memoryCenterReportedForUser = null
     themeExploredReportedForUser = null
+    hintReportedKeys = new Set<HintKey>()
     retryQueue = []
     retryFlushing = false
   }
@@ -409,6 +415,45 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     return dismiss({ target: 'TASK', key: taskKey })
   }
 
+  function isHintEligible(hintKey: HintKey): boolean {
+    if (boundUserId.value == null || !loaded.value) return false
+    if (!isHintAllowedForScope(hintKey, 'WEB')) return false
+    if (!isHintPending(state.value, hintKey)) return false
+    if (isWelcomeOpen.value) return false
+    if (hintKey !== 'TOOL_APPROVAL_WEB' && externalModalBlocking.value) return false
+    return true
+  }
+
+  function pickEligibleHint(eligibleKeys: readonly HintKey[]): OnboardingHintDefinition | null {
+    const allowed: HintKey[] = []
+    for (let i = 0; i < eligibleKeys.length; i += 1) {
+      const key = eligibleKeys[i]
+      if (isHintEligible(key)) {
+        allowed.push(key)
+      }
+    }
+    if (allowed.length === 0) return null
+    return pickActiveHint(state.value, allowed, 'WEB')
+  }
+
+  async function recordHintSeen(hintKey: HintKey): Promise<OnboardingState | null> {
+    if (boundUserId.value == null || !isHintAllowedForScope(hintKey, 'WEB')) return null
+    if (!isHintPending(state.value, hintKey) || hintReportedKeys.has(hintKey)) {
+      return state.value
+    }
+    hintReportedKeys.add(hintKey)
+    return recordEvent({ eventType: 'HINT_SEEN', hintKey, scope: 'WEB' })
+  }
+
+  async function dismissHint(hintKey: HintKey): Promise<OnboardingState | null> {
+    if (boundUserId.value == null || !isHintAllowedForScope(hintKey, 'WEB')) return null
+    if (!isHintPending(state.value, hintKey) || hintReportedKeys.has(hintKey)) {
+      return state.value
+    }
+    hintReportedKeys.add(hintKey)
+    return dismiss({ target: 'HINT', key: hintKey, scope: 'WEB' })
+  }
+
   function openAutoWelcome(): boolean {
     const userId = boundUserId.value
     if (userId == null || !canAutoShowWelcome.value) {
@@ -486,6 +531,10 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     dismiss,
     dismissChecklist,
     dismissTask,
+    isHintEligible,
+    pickEligibleHint,
+    recordHintSeen,
+    dismissHint,
     openAutoWelcome,
     completeWelcome,
     skipWelcome,

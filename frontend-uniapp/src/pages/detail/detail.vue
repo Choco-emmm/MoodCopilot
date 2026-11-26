@@ -97,6 +97,12 @@
           </view>
         </view>
 
+        <GuideBubble
+          hint-key="ANALYSIS_READY"
+          :eligible="isAnalysisReadyHintEligible"
+          compact
+        />
+
         <view class="entry-actions">
           <view class="chat-action" @click="quoteToChat">
             <text class="chat-action-icon">✦</text>
@@ -137,6 +143,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import GlobalUI from '@/components/GlobalUI.vue'
 import MusicCard from '@/components/MusicCard.vue'
+import GuideBubble from '@/components/onboarding/GuideBubble.vue'
 import { get, post, request } from '@/utils/request'
 import { formatDiaryContent, extractPlainText } from '@/utils/markdown'
 import { currentUser, fetchCurrentUser } from '@/stores/user'
@@ -162,6 +169,9 @@ const diaryMoodColor = computed(() => {
 })
 
 const isOwner = computed(() => Boolean(currentUser.value && diary.value && currentUser.value.userId === diary.value.authorUserId))
+const isAnalysisReadyHintEligible = computed(() =>
+  hasRenderableOwnedAnalysis(diary.value, currentUser.value?.userId ?? currentUser.value?.id),
+)
 
 watch(
   [diary, currentUser],

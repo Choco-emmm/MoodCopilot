@@ -48,6 +48,7 @@
           <button 
             class="ds-btn ds-toggle-btn" 
             :class="{ 'is-active': useReasoning }"
+            data-guide-id="chat-model-pro"
             @click="$emit('update:use-reasoning', !useReasoning)"
             :disabled="streaming || isCompressing || disabled"
           >

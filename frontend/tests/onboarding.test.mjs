@@ -5,6 +5,8 @@ import {
   CORE_TASK_KEYS,
   ALL_TASK_KEYS,
   ALL_HINT_KEYS,
+  ONBOARDING_HINTS,
+  ONBOARDING_HINT_MAP,
   CORE_ONBOARDING_TASKS,
   OPTIONAL_ONBOARDING_TASKS,
   CHAT_STARTER_PROMPTS_WITH_DIARY,
@@ -14,9 +16,13 @@ import {
   buildOnboardingCacheKey,
   computeCoreTaskProgress,
   createDefaultOnboardingState,
+  getHintsForScope,
   isChecklistActive,
+  isHintAllowedForScope,
+  isHintPending,
   mergeOnboardingStateMonotonic,
   normalizeOnboardingState,
+  pickActiveHint,
   shouldAutoShowWelcome,
 } from '../../shared/onboarding.ts'
 
@@ -208,4 +214,43 @@ test('P0-C task metadata separates 4 core tasks from optional theme task and pro
   assert.equal(computeCoreTaskProgress(onlyOptionalDone).completed, 0)
   assert.equal(computeCoreTaskProgress(onlyOptionalDone).total, 4)
   assert.equal(isChecklistActive(onlyOptionalDone), true)
+})
+
+test('P1 hint registry covers all 10 hints with strict WEB vs MINI_PROGRAM scope filtering and priority picking', () => {
+  assert.equal(ONBOARDING_HINTS.length, 10)
+  for (const key of ALL_HINT_KEYS) {
+    assert.ok(ONBOARDING_HINT_MAP[key], `missing hint metadata for ${key}`)
+    assert.ok(ONBOARDING_HINT_MAP[key].anchorId.length > 0)
+  }
+
+  const webHints = getHintsForScope('WEB')
+  const mpHints = getHintsForScope('MINI_PROGRAM')
+  assert.equal(webHints.length, 10)
+  assert.equal(mpHints.length, 8)
+  assert.equal(isHintAllowedForScope('PUBLIC_DIARY_WEB', 'WEB'), true)
+  assert.equal(isHintAllowedForScope('TOOL_APPROVAL_WEB', 'WEB'), true)
+  assert.equal(isHintAllowedForScope('PUBLIC_DIARY_WEB', 'MINI_PROGRAM'), false)
+  assert.equal(isHintAllowedForScope('TOOL_APPROVAL_WEB', 'MINI_PROGRAM'), false)
+
+  const state = createDefaultOnboardingState({
+    enrolledVersion: 1,
+    hints: {
+      ANALYSIS_READY: 'COMPLETED',
+      LIFE_EVENT: 'SKIPPED',
+    },
+  })
+  assert.equal(isHintPending(state, 'ANALYSIS_READY'), false)
+  assert.equal(isHintPending(state, 'LIFE_EVENT'), false)
+  assert.equal(isHintPending(state, 'CHAT_CITATION'), true)
+
+  // Picks highest priority eligible hint for WEB
+  const pickedWeb = pickActiveHint(state, ['CHAT_CITATION', 'MODEL_PRO', 'TOOL_APPROVAL_WEB'], 'WEB')
+  assert.equal(pickedWeb?.key, 'TOOL_APPROVAL_WEB')
+
+  // Filters out WEB-only hints on MINI_PROGRAM and picks next highest priority
+  const pickedMp = pickActiveHint(state, ['CHAT_CITATION', 'MODEL_PRO', 'TOOL_APPROVAL_WEB'], 'MINI_PROGRAM')
+  assert.equal(pickedMp?.key, 'MODEL_PRO')
+
+  // Returns null when all eligible hints are already seen/dismissed
+  assert.equal(pickActiveHint(state, ['ANALYSIS_READY', 'LIFE_EVENT'], 'WEB'), null)
 })
