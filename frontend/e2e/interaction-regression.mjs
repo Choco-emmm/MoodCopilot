@@ -729,5 +729,178 @@ try {
     assert(document.querySelector('.streaming-md tbody td')?.textContent === '4.5', 'table did not render')
     app.unmount()
   })
+  await check('onboarding store enforces account isolation, monotonic merge, silent degradation, and retry cleanup', async () => {
+    const { createPinia, setActivePinia } = f
+    const { api } = await import('/src/api/core.ts')
+    const { useOnboardingStore } = await import('/src/stores/onboarding.ts')
+    const {
+      computeCoreTaskProgress,
+      createDefaultOnboardingState,
+      isChecklistActive,
+      mergeOnboardingStateMonotonic,
+      shouldAutoShowWelcome,
+    } = await import('/src/constants/onboarding.ts')
+
+    // Pure helpers sanity
+    const oldUser = createDefaultOnboardingState()
+    assert(!shouldAutoShowWelcome(oldUser), 'old user should not auto-show welcome')
+    assert(!isChecklistActive(oldUser), 'old user should not have active checklist')
+
+    const newUser = createDefaultOnboardingState({ enrolledVersion: 1 })
+    assert(shouldAutoShowWelcome(newUser), 'new enrolled user should auto-show welcome')
+    assert(isChecklistActive(newUser), 'new enrolled user with NOT_STARTED checklist should be active')
+
+    const merged = mergeOnboardingStateMonotonic(
+      createDefaultOnboardingState({ enrolledVersion: 1, tasks: { ...oldUser.tasks, FIRST_DIARY: 'COMPLETED' } }),
+      createDefaultOnboardingState({ enrolledVersion: 1, welcomeStatus: 'SKIPPED', tasks: { ...oldUser.tasks, FIRST_DIARY: 'NOT_STARTED', THEME_EXPLORED: 'COMPLETED' } }),
+    )
+    assert(merged.tasks.FIRST_DIARY === 'COMPLETED', 'monotonic merge downgraded COMPLETED task')
+    assert(merged.welcomeStatus === 'SKIPPED', 'monotonic merge did not advance welcomeStatus')
+    assert(computeCoreTaskProgress(merged).completed === 1 && computeCoreTaskProgress(merged).total === 4, 'THEME_EXPLORED should not count in core 4 denominator')
+
+    // Store race, failure degradation, retry queue cleanup on account switch
+    const pinia = createPinia(); setActivePinia(pinia)
+    const store = useOnboardingStore()
+    const slowUser1 = deferred()
+    let failEvent = false
+    const eventCalls = []
+    api.defaults.adapter = async (config) => {
+      if (config.url === '/onboarding') {
+        if (config.headers?.Authorization === 'Bearer token-u1') return slowUser1.promise
+        if (config.headers?.Authorization === 'Bearer token-fail') throw new Error('network down')
+        return { data: { code: 0, message: 'OK', data: { enrolledVersion: 0, guideVersion: 1, welcomeStatus: 'NOT_STARTED', checklistStatus: 'NOT_STARTED', tasks: {}, hints: {} } }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      if (config.url === '/onboarding/events') {
+        eventCalls.push(JSON.parse(config.data))
+        if (failEvent) throw new Error('503')
+        return { data: { code: 0, message: 'OK', data: { enrolledVersion: 1, guideVersion: 1, welcomeStatus: 'IN_PROGRESS', checklistStatus: 'NOT_STARTED', tasks: {}, hints: {} } }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      return { data: { code: 0, message: 'OK', data: {} }, status: 200, statusText: 'OK', headers: {}, config }
+    }
+
+    // API failure degrades silently without treating user as new
+    localStorage.setItem('token', 'token-fail')
+    await store.loadForUser(99, { force: true })
+    assert(store.degraded && store.state.enrolledVersion === 0 && !store.canAutoShowWelcome, 'API failure falsely enrolled user')
+
+    // Account switch discards stale response from previous account and clears retry queue
+    localStorage.setItem('token', 'token-u1')
+    const p1 = store.loadForUser(101, { force: true })
+    failEvent = true
+    await store.recordEvent({ eventType: 'THEME_EXPLORED' })
+    assert(store.getPendingRetryCount() === 1, 'retryable UI event was not queued')
+
+    localStorage.setItem('token', 'token-u2')
+    await store.loadForUser(202, { force: true })
+    assert(store.getPendingRetryCount() === 0, 'retry queue leaked across account switch')
+
+    slowUser1.resolve({ data: { code: 0, message: 'OK', data: { enrolledVersion: 1, guideVersion: 1, welcomeStatus: 'NOT_STARTED', checklistStatus: 'NOT_STARTED', tasks: {}, hints: {} } }, status: 200, statusText: 'OK', headers: {}, config: {} })
+    await p1
+    assert(store.boundUserId === 202 && store.state.enrolledVersion === 0, 'stale user 101 response polluted user 202')
+  })
+  await check('OnboardingHost respects mutual exclusion, Esc/focus restore, welcome actions, and local-only replay', async () => {
+    const { createApp, h, createPinia, setActivePinia, createRouter, createMemoryHistory } = f
+    const { api } = await import('/src/api/core.ts')
+    const { useAuthStore } = await import('/src/stores/auth.ts')
+    const { useAiPreviewStore } = await import('/src/stores/aiPreview.ts')
+    const { useOnboardingStore } = await import('/src/stores/onboarding.ts')
+    const { default: OnboardingHost } = await import('/src/components/onboarding/OnboardingHost.vue')
+
+    localStorage.clear()
+    localStorage.setItem('token', 'onboarding-host-token')
+    const postedEvents = []
+    const postedDismisses = []
+    api.defaults.adapter = async (config) => {
+      if (config.url === '/onboarding') {
+        return { data: { code: 0, message: 'OK', data: { enrolledVersion: 1, guideVersion: 1, welcomeStatus: 'NOT_STARTED', checklistStatus: 'NOT_STARTED', tasks: {}, hints: {} } }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      if (config.url === '/onboarding/events') {
+        const body = JSON.parse(config.data)
+        postedEvents.push(body)
+        const nextWelcome = body.eventType === 'WELCOME_COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS'
+        return { data: { code: 0, message: 'OK', data: { enrolledVersion: 1, guideVersion: 1, welcomeStatus: nextWelcome, checklistStatus: 'NOT_STARTED', tasks: {}, hints: {} } }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      if (config.url === '/onboarding/dismiss') {
+        const body = JSON.parse(config.data)
+        postedDismisses.push(body)
+        return { data: { code: 0, message: 'OK', data: { enrolledVersion: 1, guideVersion: 1, welcomeStatus: 'SKIPPED', checklistStatus: 'NOT_STARTED', tasks: {}, hints: {} } }, status: 200, statusText: 'OK', headers: {}, config }
+      }
+      return { data: { code: 0, message: 'OK', data: {} }, status: 200, statusText: 'OK', headers: {}, config }
+    }
+
+    const pinia = createPinia(); setActivePinia(pinia)
+    const auth = useAuthStore()
+    auth.token = 'onboarding-host-token'
+    auth.userId = 777
+    const aiPreview = useAiPreviewStore()
+    const onboarding = useOnboardingStore()
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/', component: { render: () => null } },
+        { path: '/login', component: { render: () => null } },
+        { path: '/write', component: { render: () => null } },
+        { path: '/chat', component: { render: () => null } },
+        { path: '/admin/users', meta: { requiresAdmin: true }, component: { render: () => null } },
+      ],
+    })
+    await router.push('/admin/users')
+    const app = createApp({ render: () => h(OnboardingHost) })
+    app.use(pinia).use(router).mount('#app')
+
+    // Load enrolled new user while blocked by /admin/users + aiPreview modal
+    aiPreview.enqueue({ kind: 'DIARY_ANALYSIS', diary: { id: 1 } })
+    await onboarding.loadForUser(777, { force: true })
+    await new Promise((r) => setTimeout(r, 180)); await flush()
+    assert(!document.querySelector('[data-testid="onboarding-welcome-dialog"]'), 'welcome opened on /admin route with aiPreview active')
+
+    // Move to / while aiPreview still blocks
+    await router.push('/')
+    await new Promise((r) => setTimeout(r, 180)); await flush()
+    assert(!document.querySelector('[data-testid="onboarding-welcome-dialog"]'), 'welcome opened while aiPreview modal active')
+
+    // Release aiPreview -> auto-welcome opens and stays open after WELCOME_STARTED
+    aiPreview.pop()
+    await new Promise((r) => setTimeout(r, 180)); await flush()
+    assert(document.querySelector('[data-testid="onboarding-welcome-dialog"]'), 'welcome did not auto-open for enrolled user')
+    assert(postedEvents.some((e) => e.eventType === 'WELCOME_STARTED' && e.scope === 'WEB'), 'WELCOME_STARTED was not sent')
+
+    // Step through 3 cards to action screen and verify NO 先体验一下
+    document.querySelector('[data-testid="onboarding-next-btn"]').click(); await flush()
+    document.querySelector('[data-testid="onboarding-next-btn"]').click(); await flush()
+    document.querySelector('[data-testid="onboarding-next-btn"]').click(); await flush()
+    const dialogText = document.querySelector('[data-testid="onboarding-welcome-dialog"]').textContent
+    assert(dialogText.includes('记录今天') && dialogText.includes('找 AI 聊聊') && dialogText.includes('稍后探索'), 'post-welcome actions missing')
+    assert(!dialogText.includes('先体验一下'), 'P2 sandbox action should not appear in P0-B')
+
+    // Click 记录今天 -> completes welcome and routes to /write
+    document.querySelector('[data-testid="onboarding-action-WRITE_TODAY"]').click(); await flush()
+    assert(!onboarding.isWelcomeOpen, 'welcome store stayed open after action')
+    await new Promise((r) => setTimeout(r, 260)); await flush()
+    assert(!document.querySelector('[data-testid="onboarding-welcome-dialog"]'), 'welcome stayed open after action')
+    assert(postedEvents.some((e) => e.eventType === 'WELCOME_COMPLETED'), 'WELCOME_COMPLETED was not sent')
+    assert(router.currentRoute.value.path === '/write', 'WRITE_TODAY did not navigate to /write')
+
+    // Local-only replay: focus restore on Esc & zero remote API calls
+    const triggerBtn = document.createElement('button')
+    triggerBtn.textContent = '使用指南'
+    document.body.appendChild(triggerBtn)
+    triggerBtn.focus()
+    const eventCountBeforeReplay = postedEvents.length
+    const dismissCountBeforeReplay = postedDismisses.length
+
+    onboarding.openWelcomeReplay(); await flush()
+    assert(document.querySelector('[data-testid="onboarding-welcome-dialog"]'), 'replay dialog did not open')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await flush()
+    assert(!onboarding.isWelcomeOpen, 'replay store stayed open on Esc')
+    await new Promise((r) => setTimeout(r, 260)); await flush()
+    assert(!document.querySelector('[data-testid="onboarding-welcome-dialog"]'), 'Esc did not close replay dialog')
+    assert(document.activeElement === triggerBtn, 'focus was not restored to trigger element on close')
+    assert(postedEvents.length === eventCountBeforeReplay && postedDismisses.length === dismissCountBeforeReplay, 'replay sent remote onboarding requests')
+
+    triggerBtn.remove()
+    app.unmount()
+  })
 } finally { await browser.close(); await server.close() }
 process.exitCode = failed ? 1 : 0

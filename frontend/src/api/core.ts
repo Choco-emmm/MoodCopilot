@@ -28,8 +28,9 @@ api.interceptors.response.use(
     const method = String(error.config?.method ?? '').toUpperCase()
     const msg = error.response?.data?.message || error.message || '未知错误'
     logError('api', `${method} ${requestUrl} → ${status ?? 'NET_ERR'}: ${msg}`)
-    const isQuotaRequest = requestUrl.includes('/user/quota')
-    if (status === 401 && !isQuotaRequest) {
+    const isSilentAuthRequest =
+      requestUrl.includes('/user/quota') || requestUrl.includes('/onboarding')
+    if (status === 401 && !isSilentAuthRequest) {
       clearAuthStorage()
 
       const path = window.location.pathname

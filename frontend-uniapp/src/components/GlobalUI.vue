@@ -2,6 +2,7 @@
   <view class="global-ui">
     <GlobalAnnouncement />
     <GlobalLoginSheet />
+    <OnboardingHost />
     <!-- Top Right Popups (Memory / Graph) -->
     <view class="popups-container">
       <view 
@@ -48,6 +49,7 @@ import { currentTheme, syncNavigationBarColor } from '@/stores/theme';
 import CustomTabBar from './CustomTabBar.vue';
 import GlobalAnnouncement from './GlobalAnnouncement.vue';
 import GlobalLoginSheet from './GlobalLoginSheet.vue';
+import OnboardingHost from './onboarding/OnboardingHost.vue';
 
 const props = defineProps<{
   tabIndex?: number

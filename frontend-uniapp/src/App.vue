@@ -6,6 +6,11 @@ import { watch } from "vue";
 import { get } from '@/utils/request';
 import { loadActiveAnnouncement, setAnnouncementUserId } from '@/stores/announcement';
 import { restoreLoggedInUser, showLoginWithoutContinuation } from '@/stores/login';
+import {
+  initializeOnboardingForUser,
+  refreshOnboardingOnForeground,
+  resetOnboardingState,
+} from '@/stores/onboarding';
 import { clearQuote } from '@/stores/quote';
 
 
@@ -25,7 +30,7 @@ onShow(() => {
   console.log("App Show");
   syncNavigationBarColor();
   connectWebSocket();
-
+  void refreshOnboardingOnForeground();
 });
 
 onHide(() => {
@@ -34,6 +39,7 @@ onHide(() => {
 });
 
 uni.$on('unauthorized', () => {
+  resetOnboardingState();
   showLoginWithoutContinuation();
 });
 
@@ -43,9 +49,13 @@ async function restoreAnnouncementUser() {
     const response = await get<{ userId?: number }>('/api/auth/me');
     const userId = response.data?.userId;
     if (response.code === 200 && userId) {
-      if (String(uni.getStorageSync('loginUserId')) !== String(userId)) clearQuote();
+      if (String(uni.getStorageSync('loginUserId')) !== String(userId)) {
+        clearQuote();
+        resetOnboardingState();
+      }
       uni.setStorageSync('loginUserId', userId);
       setAnnouncementUserId(userId);
+      void initializeOnboardingForUser(userId);
     }
   } catch (error) {
     console.warn('恢复公告用户标识失败', error);

@@ -90,6 +90,13 @@
       <view class="card action-card hover-scale smooth-shadow" @click="goToFeedback" style="margin-bottom: 24rpx;">
         <text class="action-text">✉️ 意见反馈</text>
       </view>
+      <view class="card action-card guide-action-card hover-scale smooth-shadow" @click="handleOpenGuide" style="margin-bottom: 24rpx;">
+        <view class="guide-entry-copy">
+          <text class="action-text">📖 {{ ONBOARDING_COPY.guideEntryLabel }}</text>
+          <text class="guide-entry-desc">{{ ONBOARDING_COPY.guideEntryDescription }}</text>
+        </view>
+        <text class="guide-entry-arrow">›</text>
+      </view>
       <view class="card action-card hover-scale smooth-shadow" @click="goToSettings">
         <text class="action-text">⚙️ 个人设置</text>
       </view>
@@ -312,6 +319,8 @@ import { connectWebSocket } from '@/utils/socket';
 import { showLoginWithoutContinuation } from '@/stores/login';
 import { logout as authLogout } from '@/stores/user';
 import { clearQuote } from '@/stores/quote';
+import { ONBOARDING_COPY } from '@/constants/onboarding';
+import { openWelcomeReplay } from '@/stores/onboarding';
 
 
 const showQuotaModal = ref(false);
@@ -440,6 +449,10 @@ const goToFeedback = () => {
 
 const goToSettings = () => {
   uni.navigateTo({ url: '/pages/settings/settings' });
+};
+
+const handleOpenGuide = () => {
+  openWelcomeReplay();
 };
 
 onMounted(() => {
@@ -1302,6 +1315,23 @@ const fetchQuota = async () => {
 .checkin-text,
 .logout-text {
   font-size: 25rpx;
+}
+
+.guide-entry-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.guide-entry-desc {
+  font-size: 22rpx;
+  color: var(--theme-text-secondary);
+}
+
+.guide-entry-arrow {
+  font-size: 32rpx;
+  color: var(--theme-text-placeholder);
+  line-height: 1;
 }
 
 .checkin-card {

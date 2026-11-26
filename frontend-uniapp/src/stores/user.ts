@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { get, post } from '../utils/request';
 import { disconnectWebSocket } from '../utils/socket';
 import { setAnnouncementUserId } from '../stores/announcement';
+import { initializeOnboardingForUser, resetOnboardingState } from './onboarding';
 import { clearQuote } from './quote';
 
 export const currentUser = ref<any>(null);
@@ -12,6 +13,7 @@ export const fetchCurrentUser = async () => {
   if (!token) {
     isLoggedIn.value = false;
     currentUser.value = null;
+    resetOnboardingState();
     return null;
   }
 
@@ -20,6 +22,17 @@ export const fetchCurrentUser = async () => {
     if (res.code === 200 && res.data) {
       isLoggedIn.value = true;
       currentUser.value = res.data.user || res.data;
+      const resolvedUserId = Number(
+        res.data.userId || currentUser.value?.id || currentUser.value?.userId,
+      );
+      if (Number.isFinite(resolvedUserId) && resolvedUserId > 0) {
+        if (String(uni.getStorageSync('loginUserId')) !== String(resolvedUserId)) {
+          clearQuote();
+          resetOnboardingState();
+        }
+        uni.setStorageSync('loginUserId', resolvedUserId);
+        void initializeOnboardingForUser(resolvedUserId);
+      }
       return currentUser.value;
     }
   } catch (e) {
@@ -30,6 +43,7 @@ export const fetchCurrentUser = async () => {
 
 export const logout = async () => {
   clearQuote();
+  resetOnboardingState();
   // 1. Notify backend to invalidate the token (best-effort, don't block on failure)
   try {
     await post('/api/auth/logout');
@@ -52,4 +66,5 @@ export const logout = async () => {
 
   // 5. Reset announcement user context
   setAnnouncementUserId(null);
+  resetOnboardingState();
 };
