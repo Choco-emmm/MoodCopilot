@@ -40,6 +40,7 @@ export function useChatStream(
   loadConversations: () => Promise<void>,
   waitForConversationTitle: (convId: number) => Promise<void>,
   scrollManager: ReturnType<typeof useScrollManager>,
+  onAssistantReplyCompleted?: () => void,
 ) {
   const draft = ref('')
   const streaming = ref(false)
@@ -447,6 +448,9 @@ export function useChatStream(
         createdAt: new Date().toISOString(),
         ragReferences: currentRefs.length ? currentRefs : undefined,
       })
+      if (fullReply.trim().length > 0 && !awaitingApproval.value) {
+        onAssistantReplyCompleted?.()
+      }
     } catch (e: any) {
       const isAbort = e?.name === 'AbortError' || /AbortError|聊天流已取消/.test(String(e?.message || ''))
       isCompressing.value = false

@@ -88,6 +88,34 @@
         <template v-if="isOwner">
           <div class="section-divider" />
           <AiAnalysisCard :diary="diary" :compact="true" />
+          <div
+            v-if="hasRenderedAnalysis && !dismissedAnalysisChatCta"
+            class="analysis-chat-cta"
+            data-testid="diary-analysis-chat-cta"
+          >
+            <div class="analysis-chat-cta-copy">
+              <span class="analysis-chat-cta-title">想沿着这篇日记继续聊几句？</span>
+              <span class="analysis-chat-cta-sub">进入聊天后会自动附带这篇日记作为参考，由你决定说什么。</span>
+            </div>
+            <div class="analysis-chat-cta-actions">
+              <button
+                type="button"
+                class="analysis-chat-cta-btn"
+                data-testid="diary-analysis-chat-btn"
+                @click="chatAboutThisDiary"
+              >
+                和 AI 聊聊这篇日记 →
+              </button>
+              <button
+                type="button"
+                class="analysis-chat-cta-dismiss"
+                aria-label="收起提示"
+                @click="dismissedAnalysisChatCta = true"
+              >
+                ×
+              </button>
+            </div>
+          </div>
         </template>
       </article>
 
@@ -219,6 +247,8 @@ import ImageGallery from '../components/ImageGallery.vue'
 import SimilarDiariesPanel from '../components/SimilarDiariesPanel.vue'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
+import { useOnboardingStore } from '../stores/onboarding'
+import { setPendingChatDiaryContext } from '../utils/chatContext'
 import { moodColor } from '../utils/mood'
 
 const route = useRoute()
@@ -226,6 +256,7 @@ const router = useRouter()
 const store = useDiaryStore()
 const followStore = useFollowStore()
 const auth = useAuthStore()
+const onboardingStore = useOnboardingStore()
 const message = useMessage()
 function renderMd(text: string) {
   return formatLegacyContent(text)
@@ -260,6 +291,43 @@ const hideSimilarOnMobileInput = ref(false)
 let inputBlurTimer: ReturnType<typeof setTimeout> | null = null
 
 const isOwner = computed(() => auth.userId != null && diary.value != null && auth.userId === diary.value.authorUserId)
+const NON_COMPLETE_ANALYSIS_STATUSES = new Set([
+  'analyzing',
+  'skipped_user',
+  'skipped_quota',
+  'failed',
+  'failed_limit',
+  'cancelled',
+])
+const hasRenderedAnalysis = computed(() => {
+  if (!isOwner.value || !diary.value?.analysis?.summary) return false
+  const status = (diary.value.analysisStatus || '').trim()
+  return !NON_COMPLETE_ANALYSIS_STATUSES.has(status)
+})
+const dismissedAnalysisChatCta = ref(false)
+
+watch(
+  [hasRenderedAnalysis, () => diary.value?.id],
+  ([rendered, diaryId]) => {
+    if (rendered && diaryId) {
+      void onboardingStore.recordAnalysisViewed(diaryId)
+    }
+  },
+  { immediate: true },
+)
+
+function chatAboutThisDiary() {
+  if (!diary.value || !isOwner.value) return
+  const plainText = (diary.value.content || '').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim()
+  setPendingChatDiaryContext({
+    diaryId: diary.value.id,
+    date: diary.value.createdAt?.split('T')[0] ?? '',
+    snippet: plainText.length > 30 ? `${plainText.slice(0, 30)}...` : plainText,
+    fullContent: diary.value.content || '',
+  })
+  dismissedAnalysisChatCta.value = true
+  void router.push('/chat')
+}
 
 /** 递归统计所有评论（含嵌套回复），优先使用后端预计算的 commentCount */
 const totalCommentCount = computed(() => {
@@ -651,6 +719,81 @@ function ensureCommentInputVisible() {
   background: color-mix(in oklab, var(--color-surface-soft) 80%, transparent);
   padding: 1px 6px;
   border-radius: 3px;
+}
+
+.analysis-chat-cta {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.analysis-chat-cta-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.analysis-chat-cta-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.analysis-chat-cta-sub {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.analysis-chat-cta-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.analysis-chat-cta-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.analysis-chat-cta-btn:hover {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.analysis-chat-cta-dismiss {
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.analysis-chat-cta-dismiss:hover {
+  color: var(--color-text);
+  border-color: var(--color-border);
+  background: var(--color-surface-hover);
 }
 </style>
 

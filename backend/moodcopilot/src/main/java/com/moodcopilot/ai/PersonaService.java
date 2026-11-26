@@ -79,18 +79,15 @@ public class PersonaService {
 
     public EffectivePersona compileForChat(Long userId, Long conversationId,
             PersonaCompiler.PersonaUpdateRequestLike turnOverride) {
-        return compiler.compile(latestGlobal(userId),
-                conversationId == null ? null : latestOverride(userId, conversationId), turnOverride);
+        return compiler.compile(latestGlobal(userId), null, turnOverride);
     }
 
     public EffectivePersona compileForChat(Long userId, Long conversationId) {
-        return compiler.compile(latestGlobal(userId),
-                conversationId == null ? null : latestOverride(userId, conversationId));
+        return compiler.compile(latestGlobal(userId), null);
     }
 
     public EffectivePersona compileForChat(Long userId, Long conversationId, CurrentTurnPreference turnPreference) {
-        return compiler.compile(latestGlobal(userId),
-                conversationId == null ? null : latestOverride(userId, conversationId), turnPreference);
+        return compiler.compile(latestGlobal(userId), null, turnPreference);
     }
 
     public EffectivePersona compileForUser(Long userId) {
@@ -135,63 +132,19 @@ public class PersonaService {
 
     public PersonaResponse currentOverride(Long userId, Long conversationId) {
         requireOwnedConversation(userId, conversationId);
-        ConversationPersonaOverrideEntity entity = latestOverride(userId, conversationId);
-        return entity == null || isResetMarker(entity) ? null : toResponse(entity);
+        return current(userId);
     }
 
     @Transactional
     public PersonaResponse saveOverride(Long userId, Long conversationId, PersonaUpdateRequest request) {
         requireOwnedConversation(userId, conversationId);
-        // The conversation row is the stable lock owner for version allocation.
-        if (conversationMapper != null) {
-            conversationMapper.selectByIdForUpdate(conversationId);
-        }
-        PersonaUpdateRequest safe = request == null
-                ? new PersonaUpdateRequest(null, null, null, null, null) : request;
-        validateDescription(safe.customDescription());
-        validateCustomTone(safe.customTone());
-        validateResponseStyle(safe.customResponseStyle());
-        ConversationPersonaOverrideEntity entity = new ConversationPersonaOverrideEntity();
-        entity.setUserId(userId);
-        entity.setConversationId(conversationId);
-        entity.setVersion(java.util.Optional.ofNullable(latestOverrideRecord(userId, conversationId))
-                .map(ConversationPersonaOverrideEntity::getVersion).orElse(0) + 1);
-        entity.setRole(normalizeRole(safe.role(), false));
-        entity.setToneJson(safe.tone() == null ? null
-                : writeValues(PersonaPolicy.normalizeValues(safe.tone(), PersonaPolicy.TONES)));
-        entity.setBehaviorFlagsJson(safe.behaviorFlags() == null ? null
-                : writeValues(PersonaPolicy.normalizeValues(safe.behaviorFlags(), PersonaPolicy.BEHAVIORS)));
-        entity.setDisabledBehaviorFlagsJson(safe.disabledBehaviorFlags() == null ? null
-                : writeValues(PersonaPolicy.normalizeValues(safe.disabledBehaviorFlags(), PersonaPolicy.BEHAVIORS)));
-        entity.setCustomDescription(normalizeDescription(safe.customDescription()));
-        entity.setCustomTone(normalizeCustomTone(safe.customTone()));
-        entity.setCustomResponseStyle(normalizeResponseStyle(safe.customResponseStyle()));
-        entity.setCreatedAt(LocalDateTime.now());
-        entity.setUpdatedAt(entity.getCreatedAt());
-        overrideMapper.insert(entity);
-        return toResponse(entity);
+        return saveGlobal(userId, request);
     }
 
     @Transactional
     public void deleteOverride(Long userId, Long conversationId) {
         requireOwnedConversation(userId, conversationId);
-        // Keep a versioned reset marker so the audit trail remains intact and a stale
-        // read cannot resurrect the previous conversation override.
-        ConversationPersonaOverrideEntity entity = new ConversationPersonaOverrideEntity();
-        entity.setUserId(userId);
-        entity.setConversationId(conversationId);
-        entity.setVersion(java.util.Optional.ofNullable(latestOverrideRecord(userId, conversationId))
-                .map(ConversationPersonaOverrideEntity::getVersion).orElse(0) + 1);
-        entity.setRole(null);
-        entity.setToneJson("[]");
-        entity.setBehaviorFlagsJson("[]");
-        entity.setDisabledBehaviorFlagsJson("[]");
-        entity.setCustomDescription(null);
-        entity.setCustomTone(null);
-        entity.setCustomResponseStyle(null);
-        entity.setCreatedAt(LocalDateTime.now());
-        entity.setUpdatedAt(entity.getCreatedAt());
-        overrideMapper.insert(entity);
+        saveGlobal(userId, new PersonaUpdateRequest(PersonaPolicy.DEFAULT_ROLE, PersonaPolicy.DEFAULT_TONE, List.of(), List.of(), null, null, null));
     }
 
     public String preview(UserEntity user, PersonaPreviewRequest request) {

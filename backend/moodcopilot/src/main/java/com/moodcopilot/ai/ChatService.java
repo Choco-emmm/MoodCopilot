@@ -14,7 +14,25 @@ import com.moodcopilot.diary.UserStatsResult;
 import com.moodcopilot.common.RateLimitException;
 import com.moodcopilot.growth.ExpAction;
 import com.moodcopilot.growth.UserGrowthService;
+import com.moodcopilot.onboarding.GuideKey;
+import com.moodcopilot.onboarding.OnboardingService;
 import com.moodcopilot.security.RateLimitService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.moodcopilot.ai.tool.ChatToolRegistry;
+import com.moodcopilot.config.AiPromptProperties;
+import com.moodcopilot.entity.dto.CustomChatMessage;
+import com.moodcopilot.event.LifeChapterService;
+import com.moodcopilot.event.LifeEventService;
+import com.moodcopilot.mapper.DiaryKnowledgeGraphMapper;
+import com.moodcopilot.mapper.DiaryMapper;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
@@ -50,7 +68,7 @@ public class ChatService {
 
     private final ChatClient analysisChatClient;
     private final ChatConversationMapper conversationMapper;
-    private final Cache<String, List<com.moodcopilot.entity.dto.CustomChatMessage>> userChatMemories;
+    private final Cache<String, List<CustomChatMessage>> userChatMemories;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final ChatHistoryStore historyStore;
@@ -62,28 +80,29 @@ public class ChatService {
     private final RagMemoryService ragMemoryService;
     private final AiAnalysisService aiAnalysisService;
     private final DeepSeekClient deepSeekClient;
-    private final com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper;
-    private final com.moodcopilot.mapper.DiaryMapper diaryMapper;
+    private final DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper;
+    private final DiaryMapper diaryMapper;
     private final VisionService visionService;
-    private final com.moodcopilot.ai.tool.ChatToolRegistry toolRegistry;
+    private final ChatToolRegistry toolRegistry;
     private final ChatAgentLoop agentLoop;
     private final ChatModelProfiles modelProfiles;
     private final ChatImageCaptionService imageCaptionService;
-    private final com.moodcopilot.config.AiPromptProperties aiPrompts;
-    private final com.moodcopilot.event.LifeEventService lifeEventService;
-    private final com.moodcopilot.event.LifeChapterService lifeChapterService;
+    private final AiPromptProperties aiPrompts;
+    private final LifeEventService lifeEventService;
+    private final LifeChapterService lifeChapterService;
     private final ChatTitleService chatTitleService;
     private final PersonaService personaService;
     private final TaskContextResolver taskContextResolver;
     private final ContextMetadataRecorder contextMetadataRecorder;
     private final PersonaPromptSupport personaPromptSupport;
     private final PromptComposer promptComposer;
+    private final OnboardingService onboardingService;
     private final ZoneId businessTimeZone;
 
     public ChatService(
             ChatClient analysisChatClient,
             ChatConversationMapper conversationMapper,
-            Cache<String, List<com.moodcopilot.entity.dto.CustomChatMessage>> userChatMemories,
+            Cache<String, List<CustomChatMessage>> userChatMemories,
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper,
             RateLimitService rateLimitService,
@@ -94,23 +113,24 @@ public class ChatService {
             RagMemoryService ragMemoryService,
             AiAnalysisService aiAnalysisService,
             DeepSeekClient deepSeekClient,
-            com.moodcopilot.mapper.DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper,
-            com.moodcopilot.mapper.DiaryMapper diaryMapper,
+            DiaryKnowledgeGraphMapper diaryKnowledgeGraphMapper,
+            DiaryMapper diaryMapper,
             VisionService visionService,
-            com.moodcopilot.ai.tool.ChatToolRegistry toolRegistry,
+            ChatToolRegistry toolRegistry,
             ChatAgentLoop agentLoop,
             ChatModelProfiles modelProfiles,
             ChatImageCaptionService imageCaptionService,
-            com.moodcopilot.config.AiPromptProperties aiPrompts,
-            @org.springframework.context.annotation.Lazy com.moodcopilot.event.LifeEventService lifeEventService,
-            @org.springframework.context.annotation.Lazy com.moodcopilot.event.LifeChapterService lifeChapterService,
+            AiPromptProperties aiPrompts,
+            @Lazy LifeEventService lifeEventService,
+            @Lazy LifeChapterService lifeChapterService,
             ChatTitleService chatTitleService,
             PersonaService personaService,
             TaskContextResolver taskContextResolver,
             ContextMetadataRecorder contextMetadataRecorder,
             PersonaPromptSupport personaPromptSupport,
             PromptComposer promptComposer,
-            @org.springframework.beans.factory.annotation.Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId) {
+            OnboardingService onboardingService,
+            @Value("${moodcopilot.time-zone:Asia/Shanghai}") String timeZoneId) {
         this.analysisChatClient = analysisChatClient;
         this.conversationMapper = conversationMapper;
         this.userChatMemories = userChatMemories;
@@ -141,6 +161,7 @@ public class ChatService {
         this.contextMetadataRecorder = contextMetadataRecorder;
         this.personaPromptSupport = personaPromptSupport;
         this.promptComposer = promptComposer;
+        this.onboardingService = onboardingService;
         this.businessTimeZone = parseBusinessTimeZone(timeZoneId);
     }
 
@@ -160,8 +181,8 @@ public class ChatService {
         ChatConversationEntity conv = new ChatConversationEntity();
         conv.setUserId(user.getId());
         conv.setTitle(title != null && !title.isBlank() ? title : "新聊天");
-        conv.setCreatedAt(java.time.LocalDateTime.now());
-        conv.setUpdatedAt(java.time.LocalDateTime.now());
+        conv.setCreatedAt(LocalDateTime.now());
+        conv.setUpdatedAt(LocalDateTime.now());
         conversationMapper.insert(conv);
         return conv;
     }
@@ -232,7 +253,7 @@ public class ChatService {
             // Check and set lock to prevent concurrent generations, lock lasts for 4 hours
             Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "1", Duration.ofHours(4));
             if (Boolean.TRUE.equals(acquired)) {
-                java.util.concurrent.CompletableFuture.runAsync(() -> {
+                CompletableFuture.runAsync(() -> {
                     try {
                         generateAndCacheWelcomeTopics(userId);
                     } catch (Exception e) {
@@ -248,7 +269,7 @@ public class ChatService {
         try {
             String cached = redisTemplate.opsForValue().get(cacheKey);
             if (cached != null) {
-                topics = objectMapper.readValue(cached, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, String>>>() {});
+                topics = objectMapper.readValue(cached, new TypeReference<List<Map<String, String>>>() {});
             }
         } catch (Exception e) {
             log.warn("读取 welcome topics 缓存失败", e);
@@ -308,7 +329,7 @@ public class ChatService {
                     .content();
 
             String cleanedJson = JsonUtils.cleanJson(response);
-            List<Map<String, String>> topics = objectMapper.readValue(cleanedJson, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, String>>>() {});
+            List<Map<String, String>> topics = objectMapper.readValue(cleanedJson, new TypeReference<List<Map<String, String>>>() {});
 
             if (topics != null && !topics.isEmpty()) {
                 // 缓存 7 天（过期则回退到默认话题），靠 4 小时的 lockKey 来控制刷新频率
@@ -367,7 +388,7 @@ public class ChatService {
         // 所以按「这个通道问不了用户」处理：需要批准的工具会被直接拒绝并说明理由，
         // 而不是让这一轮悬在一个没人能点的等待上。
         return chat(conversationId, message, refs, memoryBackground, useReasoning, referencePurpose,
-                resolvedReferences, turnPreference, imageUrls, java.util.UUID.randomUUID().toString(), false);
+                resolvedReferences, turnPreference, imageUrls, UUID.randomUUID().toString(), false);
     }
 
     /**
@@ -508,7 +529,7 @@ public class ChatService {
             // 并把「请到 App 里确认」作为理由回给模型，而不是把这一轮挂在这里等一个不会来的点击。
             AgentLoopOutcome outcome = agentLoop.run(msgs, auth, null, options,
                     chatTurn(exec.user().getId(), conversationId, message, imageUrls, resolvedReferences),
-                    java.util.UUID.randomUUID().toString(), false);
+                    UUID.randomUUID().toString(), false);
             // 非流式：先驱动 flux 走完，再读 outcome —— 累加在流结束后才完整
             outcome.chunks().reduce(String::concat).block();
             addAssistantTurn(exec.user().getId(), conversationId, outcome, options.exposeReasoning());
@@ -615,7 +636,7 @@ public class ChatService {
 
         if (request.memory() != null) {
             for (int i = 0; i < request.memory().size(); i++) {
-                com.moodcopilot.entity.dto.CustomChatMessage msg = request.memory().get(i);
+                CustomChatMessage msg = request.memory().get(i);
                 // Skip the last message if it is the exact same user turn, because it is
                 // appended below together with the language instruction.
                 if (i == request.memory().size() - 1 && "user".equalsIgnoreCase(msg.role())
@@ -660,8 +681,11 @@ public class ChatService {
      * 存下来只会在重载时凭空冒出一个英文思考面板（它的推理没有语言约束）。
      * 存的和显示的必须是同一件事。
      */
-    private void addAssistantTurn(Long userId, Long conversationId, AgentLoopOutcome outcome,
+    void addAssistantTurn(Long userId, Long conversationId, AgentLoopOutcome outcome,
             boolean keepReasoning) {
+        if (outcome == null || outcome.paused()) {
+            return;
+        }
         String reply = outcome.reply();
         String reasoning = keepReasoning ? outcome.reasoning() : "";
         if (reply.isEmpty() && reasoning.isEmpty()) {
@@ -669,15 +693,27 @@ public class ChatService {
         }
         appendToChatMemory(conversationId, chatMemory(userId, conversationId), "assistant", reply,
                 reasoning.isEmpty() ? null : reasoning, outcome.toolReferences());
+        recordFirstChatReplyCompleted(userId, reply);
+    }
+
+    private void recordFirstChatReplyCompleted(Long userId, String reply) {
+        if (onboardingService == null || userId == null || reply == null || reply.isBlank()) {
+            return;
+        }
+        try {
+            onboardingService.recordBusinessTaskCompleted(userId, GuideKey.FIRST_CHAT_REPLY);
+        } catch (Exception e) {
+            log.warn("记录首次聊天回复引导进度失败 userId={} errorType={}", userId, e.getClass().getSimpleName());
+        }
     }
 
     /**
      * 会话的消息列表。空了先从 Redis 补一份 —— 恢复审批时内存里那条多半已经被 Caffeine 淘汰，
      * 拿一个空列表直接写回，会把整段历史覆盖成只剩这一条助手回复。
      */
-    private List<com.moodcopilot.entity.dto.CustomChatMessage> chatMemory(Long userId, Long conversationId) {
-        List<com.moodcopilot.entity.dto.CustomChatMessage> memory = userChatMemories.get(
-                userId + ":" + conversationId, key -> new java.util.concurrent.CopyOnWriteArrayList<>());
+    private List<CustomChatMessage> chatMemory(Long userId, Long conversationId) {
+        List<CustomChatMessage> memory = userChatMemories.get(
+                userId + ":" + conversationId, key -> new CopyOnWriteArrayList<>());
         restoreChatMemoryFromRedis(conversationId, memory);
         return memory;
     }
@@ -688,7 +724,7 @@ public class ChatService {
      * 压缩聊天历史：当 ChatMemory 中消息数超过阈值时，将旧消息压缩为摘要存入 Redis，
      * 并裁剪 ChatMemory 和 Redis chat:msgs: 只保留最近 KEEP_RECENT_MSG_COUNT 条消息。
      */
-    private String compressChatHistory(Long userId, Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory) {
+    private String compressChatHistory(Long userId, Long conversationId, List<CustomChatMessage> memory) {
         if (memory == null || memory.size() < COMPRESSION_TRIGGER_MSG_COUNT) {
             return null;
         }
@@ -701,7 +737,7 @@ public class ChatService {
 
         StringBuilder toCompress = new StringBuilder();
         for (int i = 0; i < middleEndIndex; i++) {
-            com.moodcopilot.entity.dto.CustomChatMessage msg = memory.get(i);
+            CustomChatMessage msg = memory.get(i);
             String role = "user".equalsIgnoreCase(msg.role()) ? "用户" : "AI";
             String text = msg.content();
             if (text != null && !text.isBlank()) {
@@ -746,7 +782,7 @@ public class ChatService {
 
             saveSummary(conversationId, newSummary);
 
-            List<com.moodcopilot.entity.dto.CustomChatMessage> recentMessages = new ArrayList<>();
+            List<CustomChatMessage> recentMessages = new ArrayList<>();
             for (int i = middleEndIndex; i < totalMsgs; i++) {
                 recentMessages.add(memory.get(i));
             }
@@ -846,7 +882,7 @@ public class ChatService {
         EffectivePersona persona = personaService.compileForChat(user.getId(), conversationId);
         String context = buildContext(user.getId(), contextPlan.envelope(), refs, null, persona, taskContext);
         // 内存里没有（刚启动、Caffeine 过期、或新会话）时由 chatMemory 从 Redis 恢复历史上下文
-        List<com.moodcopilot.entity.dto.CustomChatMessage> memory = chatMemory(user.getId(), conversationId);
+        List<CustomChatMessage> memory = chatMemory(user.getId(), conversationId);
 
         String summary = null;
         try {
@@ -871,7 +907,7 @@ public class ChatService {
         conversationMapper.update(null, new LambdaUpdateWrapper<ChatConversationEntity>()
                 .eq(ChatConversationEntity::getId, conversationId)
                 .eq(ChatConversationEntity::getUserId, user.getId())
-                .set(ChatConversationEntity::getUpdatedAt, java.time.LocalDateTime.now()));
+                .set(ChatConversationEntity::getUpdatedAt, LocalDateTime.now()));
 
         return new ChatRequest(context, memory, summary, persona, taskContext, plannedEnvelope);
     }
@@ -902,7 +938,7 @@ public class ChatService {
      * 回看是必要的 —— 「那图里的人是谁」这类追问通常不带附件，只看本轮会什么都拿不到。
      * 而 describeImages 有 30 天 Redis 缓存，重复收集几乎不产生额外调用。
      */
-    private List<String> collectCaptionImageUrls(List<com.moodcopilot.entity.dto.CustomChatMessage> memory,
+    private List<String> collectCaptionImageUrls(List<CustomChatMessage> memory,
             List<String> currentTurnImageUrls) {
         LinkedHashSet<String> urls = new LinkedHashSet<>();
         if (currentTurnImageUrls != null) {
@@ -911,7 +947,7 @@ public class ChatService {
         if (memory != null) {
             int userMessagesSeen = 0;
             for (int i = memory.size() - 1; i >= 0 && userMessagesSeen < IMAGE_CAPTION_LOOKBACK_USER_MESSAGES; i--) {
-                com.moodcopilot.entity.dto.CustomChatMessage msg = memory.get(i);
+                CustomChatMessage msg = memory.get(i);
                 if (!"user".equalsIgnoreCase(msg.role())) {
                     continue;
                 }
@@ -951,12 +987,12 @@ public class ChatService {
         return normalized.length() <= maxLength ? normalized : normalized.substring(0, maxLength) + "...";
     }
 
-    private record ChatRequest(String context, List<com.moodcopilot.entity.dto.CustomChatMessage> memory, String summary,
+    private record ChatRequest(String context, List<CustomChatMessage> memory, String summary,
             EffectivePersona persona, TaskContext taskContext, ContextEnvelope envelope) {
     }
 
     @SuppressWarnings("unchecked")
-    private void restoreChatMemoryFromRedis(Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory) {
+    private void restoreChatMemoryFromRedis(Long conversationId, List<CustomChatMessage> memory) {
         if (memory != null && !memory.isEmpty()) {
             return; // 已有内存上下文，无需恢复
         }
@@ -969,7 +1005,7 @@ public class ChatService {
             if (messages == null || messages.isEmpty()) {
                 return;
             }
-            List<com.moodcopilot.entity.dto.CustomChatMessage> history = new java.util.ArrayList<>();
+            List<CustomChatMessage> history = new ArrayList<>();
             for (Map<String, Object> msg : messages) {
                 String role = (String) msg.get("role");
                 if ("ai".equalsIgnoreCase(role)) {
@@ -980,8 +1016,8 @@ public class ChatService {
                     continue;
                 }
                 String reasoningContent = (String) msg.get("reasoningContent");
-                history.add(new com.moodcopilot.entity.dto.CustomChatMessage(
-                    java.util.UUID.randomUUID().toString(), role, content,
+                history.add(new CustomChatMessage(
+                    UUID.randomUUID().toString(), role, content,
                     reasoningContent == null || reasoningContent.isBlank() ? null : reasoningContent,
                     null, null, null, null, readImageUrls(msg)
                 ));
@@ -1117,30 +1153,30 @@ public class ChatService {
         return rows;
     }
 
-    private void appendToChatMemory(Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory,
+    private void appendToChatMemory(Long conversationId, List<CustomChatMessage> memory,
             String role, String content, String reasoningContent) {
         appendToChatMemory(conversationId, memory, role, content, reasoningContent, null);
     }
 
-    private void appendToChatMemory(Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory,
+    private void appendToChatMemory(Long conversationId, List<CustomChatMessage> memory,
             String role, String content, String reasoningContent, List<Map<String, String>> ragReferences) {
         appendToChatMemory(conversationId, memory, role, content, reasoningContent, ragReferences, null);
     }
 
-    private void appendToChatMemory(Long conversationId, List<com.moodcopilot.entity.dto.CustomChatMessage> memory,
+    private void appendToChatMemory(Long conversationId, List<CustomChatMessage> memory,
             String role, String content, String reasoningContent, List<Map<String, String>> ragReferences,
             List<String> imageUrls) {
         if (memory == null) return;
         boolean alreadyHas = false;
         if (!memory.isEmpty()) {
-            com.moodcopilot.entity.dto.CustomChatMessage lastMem = memory.get(memory.size() - 1);
+            CustomChatMessage lastMem = memory.get(memory.size() - 1);
             if (role.equalsIgnoreCase(lastMem.role()) && content != null && content.equals(lastMem.content())) {
                 alreadyHas = true;
             }
         }
         if (!alreadyHas) {
-            memory.add(new com.moodcopilot.entity.dto.CustomChatMessage(
-                java.util.UUID.randomUUID().toString(), role, content, reasoningContent, null, null, null,
+            memory.add(new CustomChatMessage(
+                UUID.randomUUID().toString(), role, content, reasoningContent, null, null, null,
                 asObjectMaps(ragReferences),
                 imageUrls == null || imageUrls.isEmpty() ? null : new ArrayList<>(imageUrls)
             ));
@@ -1234,8 +1270,8 @@ public class ChatService {
     }
 
     private String buildTimeMetadata() {
-        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(businessTimeZone);
-        String currentTime = now.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss EEEE"));
+        ZonedDateTime now = ZonedDateTime.now(businessTimeZone);
+        String currentTime = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss EEEE"));
         return "\n\n<system_metadata>\n【当前系统时间】: " + currentTime
                 + "\n【业务时区】: " + businessTimeZone.getId()
                 + "\n</system_metadata>\n\n";

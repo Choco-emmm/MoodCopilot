@@ -3,6 +3,11 @@ import { post } from '@/utils/request'
 import { clearQuote } from './quote'
 import { connectWebSocket } from '@/utils/socket'
 import { acknowledgeGuestAnnouncementForUser, setAnnouncementUserId } from '@/stores/announcement'
+import {
+  initializeOnboardingForUser,
+  resetOnboardingState,
+  suppressAutoWelcomeForContinuation,
+} from '@/stores/onboarding'
 
 type Continuation = (() => void) | null
 
@@ -36,7 +41,13 @@ export function dismissLogin() {
 
 export function restoreLoggedInUser() {
   const storedUserId = uni.getStorageSync('loginUserId')
-  if (storedUserId) setAnnouncementUserId(Number(storedUserId))
+  if (storedUserId) {
+    const numericUserId = Number(storedUserId)
+    setAnnouncementUserId(numericUserId)
+    if (hasLoginToken()) {
+      void initializeOnboardingForUser(numericUserId)
+    }
+  }
 }
 
 export function loginWithWechat() {
@@ -53,7 +64,10 @@ export function loginWithWechat() {
           return
         }
 
-        if (String(uni.getStorageSync('loginUserId')) !== String(response.data.userId)) clearQuote()
+        if (String(uni.getStorageSync('loginUserId')) !== String(response.data.userId)) {
+          clearQuote()
+          resetOnboardingState()
+        }
         uni.setStorageSync('token', response.data.token)
         uni.setStorageSync('loginUserId', response.data.userId)
         setAnnouncementUserId(response.data.userId)
@@ -65,7 +79,13 @@ export function loginWithWechat() {
 
         const next = continuation
         continuation = null
-        next?.()
+        if (next) {
+          suppressAutoWelcomeForContinuation()
+          next()
+          void initializeOnboardingForUser(response.data.userId, { suppressAutoWelcome: true })
+        } else {
+          void initializeOnboardingForUser(response.data.userId, { suppressAutoWelcome: false })
+        }
       } catch (error) {
         console.error('微信登录失败', error)
       } finally {

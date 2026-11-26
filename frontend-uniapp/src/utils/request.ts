@@ -6,6 +6,11 @@ export interface Result<T = any> {
   data: T;
 }
 
+export interface RequestOptions {
+  silent?: boolean;
+  timeout?: number;
+}
+
 const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
 const isWeChatMiniProgram = typeof globalThis !== 'undefined' && 'wx' in globalThis;
 const defaultBaseUrl = import.meta.env.DEV && !isWeChatMiniProgram
@@ -97,12 +102,19 @@ const extractErrorMessage = (value: unknown): string => {
   return '';
 };
 
-const handleResponseError = (statusCode: number, dataMessage?: unknown, defaultMsg: string = '请求失败') => {
+const handleResponseError = (
+  statusCode: number,
+  dataMessage?: unknown,
+  defaultMsg: string = '请求失败',
+  silent: boolean = false
+) => {
   if (statusCode === 401) {
-    clearQuote();
-    uni.removeStorageSync('token');
-    uni.showToast({ title: '请先登录', icon: 'none' });
-    uni.$emit('unauthorized');
+    if (!silent) {
+      clearQuote();
+      uni.removeStorageSync('token');
+      uni.showToast({ title: '请先登录', icon: 'none' });
+      uni.$emit('unauthorized');
+    }
     const error = new Error('Unauthorized') as Error & { statusCode?: number };
     error.statusCode = statusCode;
     return error;
@@ -113,7 +125,9 @@ const handleResponseError = (statusCode: number, dataMessage?: unknown, defaultM
       : statusCode === 404
         ? '功能暂时不可用，请稍后再试'
         : serverMessage || (statusCode === 429 ? '请求额度已用完，请稍后再试' : defaultMsg);
-    uni.showToast({ title: msg, icon: 'none' });
+    if (!silent) {
+      uni.showToast({ title: msg, icon: 'none' });
+    }
     const error = new Error(msg) as Error & { statusCode?: number };
     error.statusCode = statusCode;
     return error;
@@ -124,8 +138,10 @@ export const request = <T = any>(
   url: string,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
   data?: any,
-  header?: any
+  header?: any,
+  options?: RequestOptions
 ): Promise<Result<T>> => {
+  const silent = Boolean(options?.silent);
   return new Promise((resolve, reject) => {
     const performRequest = (currentToken: string) => {
       const customHeader: any = {
@@ -136,7 +152,7 @@ export const request = <T = any>(
         customHeader['Authorization'] = `Bearer ${currentToken}`;
       }
 
-      uni.request({
+      const requestConfig: UniApp.RequestOptions = {
         url: BASE_URL + url,
         method,
         data,
@@ -144,9 +160,9 @@ export const request = <T = any>(
         success: (res: any) => {
           if (res.statusCode === 200) {
             const result = res.data as Result<T>;
-            if (result.code === 0) result.code = 200;
+            if (result && result.code === 0) result.code = 200;
             resolve(result);
-          } else if (res.statusCode === 401 && isWeChatMiniProgram) {
+          } else if (res.statusCode === 401 && isWeChatMiniProgram && !silent) {
             // 静默登录续期逻辑
             if (!isRefreshing) {
               isRefreshing = true;
@@ -157,7 +173,7 @@ export const request = <T = any>(
               }).catch(err => {
                 isRefreshing = false;
                 processQueue(err);
-                reject(handleResponseError(401, '登录已过期，请重新登录'));
+                reject(handleResponseError(401, '登录已过期，请重新登录', '请求失败', silent));
               });
             } else {
               // 已经在刷新，加入队列等待
@@ -167,36 +183,43 @@ export const request = <T = any>(
               });
             }
           } else {
-            reject(handleResponseError(res.statusCode, res.data?.message));
+            reject(handleResponseError(res.statusCode, res.data?.message, '请求失败', silent));
           }
         },
-        fail: (err) => {
+        fail: () => {
           const error = new Error('网络错误，请稍后重试') as Error & { statusCode?: number };
           error.statusCode = 0;
-          uni.showToast({ title: error.message, icon: 'none' });
+          if (!silent) {
+            uni.showToast({ title: error.message, icon: 'none' });
+          }
           reject(error);
         },
-      });
+      };
+      if (typeof options?.timeout === 'number' && options.timeout > 0) {
+        requestConfig.timeout = options.timeout;
+      }
+
+      uni.request(requestConfig);
     };
 
     performRequest(uni.getStorageSync('token'));
   });
 };
 
-export const get = <T = any>(url: string, data?: any, header?: any) => {
-  return request<T>(url, 'GET', data, header);
+export const get = <T = any>(url: string, data?: any, header?: any, options?: RequestOptions) => {
+  return request<T>(url, 'GET', data, header, options);
 };
 
-export const post = <T = any>(url: string, data?: any, header?: any) => {
-  return request<T>(url, 'POST', data, header);
+export const post = <T = any>(url: string, data?: any, header?: any, options?: RequestOptions) => {
+  return request<T>(url, 'POST', data, header, options);
 };
 
-export const put = <T = any>(url: string, data?: any, header?: any) => {
-  return request<T>(url, 'PUT', data, header);
+export const put = <T = any>(url: string, data?: any, header?: any, options?: RequestOptions) => {
+  return request<T>(url, 'PUT', data, header, options);
 };
 
-export const del = <T = any>(url: string, data?: any, header?: any) => {
-  return request<T>(url, 'DELETE', data, header);
+export const del = <T = any>(url: string, data?: any, header?: any, options?: RequestOptions) => {
+  return request<T>(url, 'DELETE', data, header, options);
 };
 
 export const upload = <T = any>(url: string, filePath: string, name: string = 'file') => {

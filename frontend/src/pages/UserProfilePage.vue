@@ -5,16 +5,26 @@
     <section class="fusion-panel">
       <div class="fusion-bg"></div>
       <div class="fusion-content profile-head">
-      <n-button
-        v-if="isOwner"
-        quaternary
-        circle
-        class="profile-settings-trigger"
-        title="设置"
-        @click="openSettingsModal"
-      >
-        ⚙️
-      </n-button>
+      <div v-if="isOwner" class="profile-owner-actions">
+        <button
+          type="button"
+          class="profile-guide-trigger"
+          data-testid="onboarding-replay-btn"
+          :title="ONBOARDING_COPY.guideEntryDescription"
+          @click="openOnboardingGuide"
+        >
+          {{ ONBOARDING_COPY.guideEntryLabel }}
+        </button>
+        <n-button
+          quaternary
+          circle
+          class="profile-settings-trigger"
+          title="设置"
+          @click="openSettingsModal"
+        >
+          ⚙️
+        </n-button>
+      </div>
       <div class="profile-hero">
         <div class="avatar-wrap">
           <div v-if="profileLoading" class="avatar-img avatar-placeholder">
@@ -240,6 +250,7 @@
     <ProfileSettingsModal
       v-model:show="showSettingsModal"
       :is-owner="isOwner"
+      :initial-expand-theme="settingsExpandTheme"
       @profile-updated="handleProfileUpdated"
       @open-admin-suggestions="showAdminSuggestions = true"
     />
@@ -263,6 +274,8 @@ import { authApi, diaryApi, memoryApi, collectionApi } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { useDiaryStore, type Diary } from '../stores/diary'
 import { useFollowStore } from '../stores/follow'
+import { useOnboardingStore } from '../stores/onboarding'
+import { ONBOARDING_COPY } from '../constants/onboarding'
 import { useInfiniteScroll } from '../composables/useScrollManager'
 import { logWarn } from '../utils/logger'
 
@@ -271,6 +284,11 @@ const router = useRouter()
 const auth = useAuthStore()
 const store = useDiaryStore()
 const followStore = useFollowStore()
+const onboardingStore = useOnboardingStore()
+
+function openOnboardingGuide() {
+  onboardingStore.openWelcomeReplay()
+}
 
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -282,6 +300,7 @@ const profileAvatar = ref<string | null>(null)
 const profileSignature = ref('')
 const profileLoading = ref(true)
 const showSettingsModal = ref(false)
+const settingsExpandTheme = ref(false)
 
 const isSearching = ref(false)
 const showSearchPanel = ref(false)
@@ -306,6 +325,26 @@ const showCollectionModal = ref(false)
 
 const profileUserId = computed(() => Number(route.params.userId))
 const isOwner = computed(() => auth.userId != null && auth.userId === profileUserId.value)
+
+watch(
+  [() => route.query.openSettings, isOwner],
+  ([openSettings, owner]) => {
+    if (openSettings === 'theme' && owner) {
+      settingsExpandTheme.value = true
+      showSettingsModal.value = true
+      const nextQuery = { ...route.query }
+      delete nextQuery.openSettings
+      void router.replace({ query: nextQuery })
+    }
+  },
+  { immediate: true },
+)
+
+watch(showSettingsModal, (visible) => {
+  if (!visible) {
+    settingsExpandTheme.value = false
+  }
+})
 const profileFollowHover = ref(false)
 const profileFollowLabel = computed(() => {
   if (followStore.isPending(profileUserId.value)) {
@@ -586,12 +625,39 @@ function handleProfileUpdated() {
   flex-direction: column;
 }
 
-.profile-settings-trigger {
+.profile-owner-actions {
   position: absolute;
   right: 16px;
   top: 16px;
-  font-size: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   z-index: 10;
+}
+
+.profile-guide-trigger {
+  padding: 4px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.profile-guide-trigger:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: var(--color-surface-hover);
+}
+
+.profile-settings-trigger {
+  font-size: 20px;
 }
 
 .profile-hero {
@@ -1253,6 +1319,12 @@ function handleProfileUpdated() {
   .profile-head,
   .profile-list-panel {
     padding: 14px;
+  }
+
+  .profile-owner-actions {
+    position: static;
+    justify-content: flex-end;
+    margin-bottom: 10px;
   }
 
   .profile-avatar {

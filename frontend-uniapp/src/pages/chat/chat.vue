@@ -57,20 +57,27 @@
             <image src="/static/ai_avatar.png" class="welcome-avatar" mode="aspectFill" />
           </view>
           <text class="welcome-brand">MoodCopilot</text>
-          <text class="welcome-copy">可以聊聊最近的心情，分享你的故事和想法</text>
-          <view v-if="welcomeTopics.length > 0" class="welcome-topics">
-            <text class="topics-title">从一句话开始</text>
-            <view class="topics-list">
-              <view 
-                v-for="(topic, idx) in welcomeTopics" 
-                :key="idx" 
-                class="topic-btn hover-scale"
-                @click="sendTopic(topic)"
+          <text class="welcome-copy">可以聊聊日常记录，也可以一起学习、写作或理清手头的事</text>
+          <view class="starter-prompts-box">
+            <text class="topics-title">{{ hasAvailableDiaries ? '结合记录或直接开始' : '从一句话开始' }}</text>
+            <view class="starter-prompts-list">
+              <view
+                v-for="prompt in activeStarterPrompts"
+                :key="prompt.id"
+                class="starter-prompt-card"
+                role="button"
+                @click="fillStarterPrompt(prompt.text)"
               >
-                <text class="topic-icon">{{ parseTopic(topic).icon || '✨' }}</text>
-                <text class="topic-text">{{ parseTopic(topic).text || topic }}</text>
+                <view class="starter-prompt-copy">
+                  <text class="starter-prompt-label">{{ prompt.label }}</text>
+                  <text class="starter-prompt-text">{{ prompt.text }}</text>
+                </view>
+                <text class="starter-prompt-cue">填入</text>
               </view>
             </view>
+            <text class="starter-prompts-note">
+              点击仅填入输入框，由你决定是否发送；点左下角「+」可主动引用日记。涉及记忆或事件修改时，需前往 Web 端确认。
+            </text>
           </view>
         </view>
 
@@ -162,13 +169,13 @@
       </view>
     </view>
 
-    <!-- 当前会话 Persona 覆盖 -->
+    <!-- 全局 Persona 设置 -->
     <view v-if="showPersonaPanel" class="persona-mask" @click="showPersonaPanel = false">
       <view class="persona-sheet" @click.stop>
         <view class="persona-sheet-header">
           <view>
-            <text class="persona-sheet-title">本次对话风格</text>
-            <text class="persona-sheet-hint">{{ conversationPersonaUsesGlobal ? '当前正在使用全局设置' : '当前会话正在使用独立设置' }}</text>
+            <text class="persona-sheet-title">全局对话风格</text>
+            <text class="persona-sheet-hint">修改后对所有对话与 AI 功能统一生效</text>
           </view>
           <text class="sheet-close" @click="showPersonaPanel = false">×</text>
         </view>
@@ -207,9 +214,9 @@
 
           <view class="persona-actions">
             <button class="persona-save" :disabled="personaSaving" @click="saveConversationPersona">
-              {{ personaSaving ? '保存中...' : '应用到本次对话' }}
+              {{ personaSaving ? '保存中...' : '保存全局风格' }}
             </button>
-            <button class="persona-reset" :disabled="personaSaving" @click="resetConversationPersona">恢复全局设置</button>
+            <button class="persona-reset" :disabled="personaSaving" @click="resetConversationPersona">恢复默认</button>
           </view>
           <text v-if="personaMessage" class="persona-message">{{ personaMessage }}</text>
         </scroll-view>
@@ -321,6 +328,15 @@ import { hasLoginToken, requireLogin } from '@/stores/login';
 import { activeQuote, setQuote, clearQuote } from '@/stores/quote';
 import { currentTheme } from '@/stores/theme';
 import { displayConversationTitle, isPlaceholderConversationTitle } from '@/utils/chatTitle';
+import {
+  CHAT_STARTER_PROMPTS_WITH_DIARY,
+  CHAT_STARTER_PROMPTS_WITHOUT_DIARY,
+} from '@/constants/onboarding';
+import {
+  applyStarterPromptToDraft,
+  onboardingState,
+  refreshAfterBusinessAction,
+} from '@/stores/onboarding';
 
 import { onShow } from '@dcloudio/uni-app';
 
@@ -435,7 +451,6 @@ const conversationPersona = ref({
   customTone: '',
   customResponseStyle: '',
 });
-const conversationPersonaUsesGlobal = ref(true);
 const personaRoleIndex = ref(0);
 const globalPersonaSnapshot = ref({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: [] as string[], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' });
 
@@ -467,19 +482,12 @@ const applyConversationPersona = (data: any) => {
 };
 
 const loadConversationPersona = async () => {
-  const id = conversationId.value;
-  if (!id) return;
   const sequence = personaLoadSequence.value + 1;
   personaLoadSequence.value = sequence;
   personaMessage.value = '';
   try {
-    const [globalRes, overrideRes] = await Promise.all([
-      get<any>('/api/auth/ai-persona'),
-      get<any>(`/api/chat/conversations/${id}/persona`),
-    ]);
-    if (sequence !== personaLoadSequence.value || id !== conversationId.value) return;
-    const usesGlobal = !(overrideRes.code === 200 && overrideRes.data);
-    conversationPersonaUsesGlobal.value = usesGlobal;
+    const globalRes = await get<any>('/api/auth/ai-persona');
+    if (sequence !== personaLoadSequence.value) return;
     const global = globalRes.data || {};
     globalPersonaSnapshot.value = {
       role: global.role || 'personal_assistant',
@@ -489,18 +497,16 @@ const loadConversationPersona = async () => {
       customTone: global.customTone || '',
       customResponseStyle: global.customResponseStyle || '',
     };
-    applyConversationPersona(usesGlobal ? globalRes.data : overrideRes.data);
+    applyConversationPersona(globalRes.data);
   } catch (error) {
-    if (sequence === personaLoadSequence.value && id === conversationId.value) {
+    if (sequence === personaLoadSequence.value) {
       applyConversationPersona(defaultPersona());
-      conversationPersonaUsesGlobal.value = true;
-      console.warn('加载本次对话风格失败', error);
+      console.warn('加载全局对话风格失败', error);
     }
   }
 };
 
 const openPersonaPanel = () => {
-  if (!conversationId.value) return;
   showPersonaPanel.value = true;
   void loadConversationPersona();
 };
@@ -519,19 +525,19 @@ const onPersonaBehaviorChange = (event: any) => {
 };
 
 const saveConversationPersona = async () => {
-  if (!conversationId.value || personaSaving.value) return;
+  if (personaSaving.value) return;
   personaSaving.value = true;
   personaMessage.value = '';
   try {
-    const res = await put(`/api/chat/conversations/${conversationId.value}/persona`, {
+    const res = await put('/api/auth/ai-persona', {
       ...conversationPersona.value,
       customTone: conversationPersona.value.customTone.trim(),
       customResponseStyle: conversationPersona.value.customResponseStyle.trim(),
       disabledBehaviorFlags: [],
     });
     if (res.code === 200) {
-      conversationPersonaUsesGlobal.value = false;
-      personaMessage.value = '本次对话风格已应用';
+      applyConversationPersona(res.data || conversationPersona.value);
+      personaMessage.value = '全局风格已更新';
       uni.showToast({ title: '保存成功', icon: 'success' });
     } else {
       personaMessage.value = res.message || '保存失败';
@@ -544,14 +550,14 @@ const saveConversationPersona = async () => {
 };
 
 const resetConversationPersona = async () => {
-  if (!conversationId.value || personaSaving.value) return;
+  if (personaSaving.value) return;
   personaSaving.value = true;
   personaMessage.value = '';
   try {
-    const res = await del(`/api/chat/conversations/${conversationId.value}/persona`);
+    const res = await put('/api/auth/ai-persona', defaultPersona());
     if (res.code === 200) {
       await loadConversationPersona();
-      personaMessage.value = '已恢复全局设置';
+      personaMessage.value = '已恢复默认全局风格';
     } else {
       personaMessage.value = res.message || '恢复失败';
     }
@@ -585,12 +591,47 @@ const formatDate = (isoString: string) => {
   return `${date.getMonth() + 1}-${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 };
 
+const hasDiaryRecords = ref(false);
+const hasAvailableDiaries = computed(
+  () => hasDiaryRecords.value || onboardingState.value.tasks.FIRST_DIARY === 'COMPLETED',
+);
+const activeStarterPrompts = computed(() =>
+  hasAvailableDiaries.value
+    ? CHAT_STARTER_PROMPTS_WITH_DIARY
+    : CHAT_STARTER_PROMPTS_WITHOUT_DIARY,
+);
+
+const checkHasDiaries = async () => {
+  if (!isLoggedIn.value || onboardingState.value.tasks.FIRST_DIARY === 'COMPLETED') {
+    return;
+  }
+  try {
+    const res = await get('/api/diaries/mine?page=1&size=1', undefined, undefined, { silent: true });
+    if (res.code === 200 && res.data) {
+      const items = res.data.items || res.data.content || res.data || [];
+      hasDiaryRecords.value = Array.isArray(items) && items.length > 0;
+    }
+  } catch {
+    // Silent fallback to general starter prompts.
+  }
+};
+
+const fillStarterPrompt = (promptText: string) => {
+  const { nextDraft, applied } = applyStarterPromptToDraft(inputContent.value, promptText);
+  if (!applied) {
+    uni.showToast({ title: '输入框已有内容，未覆盖', icon: 'none' });
+    return;
+  }
+  inputContent.value = nextDraft;
+};
+
 onMounted(() => {
   void restorePendingEvent();
   const pendingConversationId = readPendingConversation();
   if (isLoggedIn.value) {
     initConversation(pendingConversationId);
     fetchUserInfo();
+    void checkHasDiaries();
   } else {
     loadingInit.value = false;
   }
@@ -896,6 +937,9 @@ const finishTurn = (errorMessage: string | null, isFirstUserMessage: boolean) =>
   messages.value.push({ role: 'assistant', content: reply, createdAt: new Date().toISOString() });
 
   scrollToBottom();
+  if (!errorMessage && text.trim().length > 0) {
+    void refreshAfterBusinessAction();
+  }
   if (isFirstUserMessage && conversationId.value) {
     void waitForConversationTitle(conversationId.value);
   }
@@ -2009,6 +2053,60 @@ const scrollToBottom = (target?: 'waiting') => {
     width: 100%;
     max-width: 400rpx;
     border-radius: 8rpx;
+  }
+
+  .starter-prompts-box {
+    margin-top: 34rpx;
+    width: 100%;
+    max-width: 620rpx;
+  }
+  .starter-prompts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14rpx;
+    margin-top: 16rpx;
+  }
+  .starter-prompt-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18rpx;
+    padding: 20rpx 22rpx;
+    background: var(--theme-surface);
+    border: 1rpx solid var(--theme-border);
+    border-radius: var(--theme-radius-md);
+  }
+  .starter-prompt-copy {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6rpx;
+  }
+  .starter-prompt-label {
+    font-size: 26rpx;
+    font-weight: 600;
+    color: var(--theme-text-primary);
+  }
+  .starter-prompt-text {
+    font-size: 23rpx;
+    line-height: 1.55;
+    color: var(--theme-text-secondary);
+  }
+  .starter-prompt-cue {
+    flex-shrink: 0;
+    padding: 6rpx 14rpx;
+    border: 1rpx solid var(--theme-border);
+    border-radius: var(--theme-radius-sm);
+    font-size: 21rpx;
+    color: var(--theme-primary);
+  }
+  .starter-prompts-note {
+    display: block;
+    margin-top: 18rpx;
+    font-size: 21rpx;
+    line-height: 1.6;
+    color: var(--theme-text-placeholder);
   }
 
 </style>

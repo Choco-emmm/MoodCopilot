@@ -36,6 +36,7 @@
       </view>
 
       <template v-else>
+        <StarterChecklist :latest-diary-id="latestDiaryId" />
         <view v-if="loading && diaries.length === 0" class="loading-state">正在载入日记...</view>
 
         <view v-else-if="diaries.length" class="diary-list">
@@ -126,9 +127,11 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import GlobalUI from '@/components/GlobalUI.vue'
 import MusicCard from '@/components/MusicCard.vue'
+import StarterChecklist from '@/components/onboarding/StarterChecklist.vue'
 import { extractPlainText } from '@/utils/markdown'
 import { get } from '@/utils/request'
 import { requireLogin } from '@/stores/login'
+import { refreshAfterBusinessAction } from '@/stores/onboarding'
 
 const isLoggedIn = ref(false)
 const diaries = ref<any[]>([])
@@ -150,6 +153,10 @@ const todayLabel = computed(() => {
 })
 
 const hasActiveFilters = computed(() => Boolean(searchKeyword.value.trim() || filterStartDate.value || filterEndDate.value))
+const latestDiaryId = computed<number | null>(() => {
+  const firstId = Number(diaries.value[0]?.id)
+  return Number.isFinite(firstId) && firstId > 0 ? firstId : null
+})
 const filterSummary = computed(() => {
   if (searchKeyword.value.trim()) return `关键词：${searchKeyword.value.trim()}`
   if (filterStartDate.value && filterEndDate.value) return `${filterStartDate.value} 至 ${filterEndDate.value}`
@@ -254,6 +261,7 @@ async function fetchDiaries(isLoadMore = false) {
 function onRefresh() {
   isRefreshing.value = true
   void fetchDiaries()
+  void refreshAfterBusinessAction()
 }
 
 function loadMore() {

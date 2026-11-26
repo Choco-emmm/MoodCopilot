@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue';
 import { themeOptions } from '../constants/theme';
 import type { ThemeOption } from '../constants/theme';
+import { recordThemeExplored } from './onboarding';
 export { themeOptions };
 
 const hexToRgb = (hex: string) => {
@@ -65,6 +66,7 @@ export const setThemeMode = (mode: 'light' | 'dark' | 'auto') => {
   themeMode.value = mode;
   uni.setStorageSync('themeMode', mode);
   uni.$emit('themeChanged');
+  void recordThemeExplored();
 };
 
 export const syncNavigationBarColor = () => {
@@ -96,5 +98,6 @@ export const setSpecificTheme = (themeValue: string, isDarkTheme: boolean) => {
     uni.setStorageSync('defaultLightTheme', themeValue);
   }
   uni.$emit('themeChanged');
+  void recordThemeExplored();
 };
 

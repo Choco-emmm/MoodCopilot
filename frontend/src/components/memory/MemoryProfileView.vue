@@ -289,6 +289,7 @@ import MemoryPreview from './MemoryPreview.vue'
 import MemoryPagination from './MemoryPagination.vue'
 import { logWarn } from '../../utils/logger'
 import { useConsolidationStore } from '../../stores/consolidation'
+import { useOnboardingStore } from '../../stores/onboarding'
 
 interface MemoryItem {
   id: number
@@ -304,6 +305,7 @@ interface MemoryItem {
 }
 
 const store = useConsolidationStore()
+const onboardingStore = useOnboardingStore()
 const router = useRouter()
 const dialog = useDialog()
 const memoriesLoading = ref(false)
@@ -517,6 +519,7 @@ async function loadMemories() {
     memoryError.value = ''
     resetMemoryDetails()
     loaded = true
+    void onboardingStore.recordMemoryCenterVisited()
   } catch {
     formalLoadError.value = '正式记忆暂时无法刷新，已保留之前的内容。'
   } finally {

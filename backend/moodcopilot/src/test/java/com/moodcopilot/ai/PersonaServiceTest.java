@@ -40,7 +40,7 @@ class PersonaServiceTest {
     }
 
     @Test
-    void deletingConversationOverrideWritesAResetVersionMarker() {
+    void conversationEndpointsUniformlyOperateOnGlobalPersona() {
         UserPersonaMapper personas = mock(UserPersonaMapper.class);
         ConversationPersonaOverrideMapper overrides = mock(ConversationPersonaOverrideMapper.class);
         ChatConversationMapper conversations = mock(ChatConversationMapper.class);
@@ -48,16 +48,18 @@ class PersonaServiceTest {
         conversation.setId(20L);
         conversation.setUserId(7L);
         when(conversations.selectById(20L)).thenReturn(conversation);
-        when(overrides.selectOne(any())).thenReturn(null);
+        when(personas.selectOne(any())).thenReturn(null);
 
         PersonaService service = service(personas, overrides, conversations, mock(DeepSeekReasoningClient.class));
         service.deleteOverride(7L, 20L);
 
-        var captor = org.mockito.ArgumentCaptor.forClass(ConversationPersonaOverrideEntity.class);
-        verify(overrides).insert(captor.capture());
+        var captor = org.mockito.ArgumentCaptor.forClass(UserPersonaEntity.class);
+        verify(personas).insert(captor.capture());
         assertEquals(1, captor.getValue().getVersion());
-        assertEquals("[]", captor.getValue().getToneJson());
+        assertEquals(PersonaPolicy.DEFAULT_ROLE, captor.getValue().getRole());
+        assertEquals("[\"natural\",\"clear\"]", captor.getValue().getToneJson());
         assertEquals("[]", captor.getValue().getBehaviorFlagsJson());
+        verifyNoInteractions(overrides);
     }
 
     @Test

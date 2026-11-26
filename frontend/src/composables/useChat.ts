@@ -2,20 +2,29 @@
  * useChat — orchestrator that composes all chat sub-composables
  * into a single API for ChatPage.vue to consume.
  */
-import { ref, computed, onMounted, onBeforeUnmount, onActivated, onDeactivated, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, onActivated, onDeactivated, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { diaryApi, lifeEventApi, type LifeEvent } from '../api'
 import { useAuthStore } from '../stores/auth'
+import { useOnboardingStore } from '../stores/onboarding'
+import {
+  CHAT_STARTER_PROMPTS_WITH_DIARY,
+  CHAT_STARTER_PROMPTS_WITHOUT_DIARY,
+} from '../constants/onboarding'
 import { logWarn } from '../utils/logger'
 import { useScrollManager } from './useScrollManager'
 import { useChatConversation, type Message, nextMsgId } from './useChatConversation'
 import { useChatStream, type ChatReference } from './useChatStream'
 import { useChatSync } from './useChatSync'
-import { consumePendingChatEventContext } from '../utils/chatContext'
+import {
+  consumePendingChatDiaryContext,
+  consumePendingChatEventContext,
+} from '../utils/chatContext'
 
 export function useChat() {
   const router = useRouter()
   const authStore = useAuthStore()
+  const onboardingStore = useOnboardingStore()
   const userInitial = computed(() =>
     authStore.displayName ? authStore.displayName.trim().charAt(0).toUpperCase() : '我',
   )
@@ -36,6 +45,17 @@ export function useChat() {
     conv.loadConversations,
     conv.waitForConversationTitle,
     scroll,
+    () => {
+      void onboardingStore.refreshAfterBusinessAction()
+    },
+  )
+
+  watch(
+    stream.awaitingApproval,
+    (blocking) => {
+      onboardingStore.setExternalModalBlocking(blocking)
+    },
+    { immediate: true },
   )
 
   // ── Sync ──
@@ -110,16 +130,54 @@ export function useChat() {
     if (context) await applyEventContext(context.eventId, context)
   }
 
+  function consumePendingDiaryContext() {
+    const context = consumePendingChatDiaryContext()
+    if (!context) return
+    if (stream.references.value.some((r) => r.diaryId === context.diaryId)) return
+    stream.references.value.unshift({
+      label: context.date ? `日记 · ${context.date}` : '日记引用',
+      content: context.snippet || '已附加这篇日记作为参考',
+      fullContent: context.fullContent || context.snippet || '',
+      diaryId: context.diaryId,
+      sourceType: 'diary',
+    })
+  }
+
   function useQuickStarter(text: string, eventId?: number) {
     pendingEventId.value = eventId
     stream.draft.value = text
     handleSend()
   }
 
+  const starterDraftNotice = ref('')
+  let starterDraftNoticeTimer: ReturnType<typeof setTimeout> | null = null
+
+  function fillStarterPrompt(text: string) {
+    if (stream.draft.value.trim().length > 0) {
+      starterDraftNotice.value = '输入框已有内容，未覆盖你的草稿。'
+      if (starterDraftNoticeTimer != null) clearTimeout(starterDraftNoticeTimer)
+      starterDraftNoticeTimer = setTimeout(() => {
+        starterDraftNotice.value = ''
+        starterDraftNoticeTimer = null
+      }, 3000)
+      return
+    }
+    starterDraftNotice.value = ''
+    stream.draft.value = text
+  }
+
   // ── Diary References ──
   const recentDiaryOptions = ref<{ id: number; date: string; snippet: string; fullContent: string }[]>([])
   const recentDiariesLoading = ref(false)
   const recentDiariesError = ref<string | null>(null)
+  const hasOwnDiaries = computed(
+    () =>
+      recentDiaryOptions.value.length > 0 ||
+      onboardingStore.state.tasks.FIRST_DIARY === 'COMPLETED',
+  )
+  const onboardingStarterPrompts = computed(() =>
+    hasOwnDiaries.value ? CHAT_STARTER_PROMPTS_WITH_DIARY : CHAT_STARTER_PROMPTS_WITHOUT_DIARY,
+  )
 
   const recentEventOptions = ref<LifeEvent[]>([])
   const recentEventsLoading = ref(false)
@@ -292,6 +350,7 @@ export function useChat() {
     }
 
     await consumePendingEventContext()
+    consumePendingDiaryContext()
 
     // 推荐话题和引用选项只是辅助内容，不参与会话初始化的关键路径。
     void loadRecentDiaryOptions()
@@ -341,6 +400,11 @@ export function useChat() {
 
   onBeforeUnmount(() => {
     disposed = true
+    if (starterDraftNoticeTimer != null) {
+      clearTimeout(starterDraftNoticeTimer)
+      starterDraftNoticeTimer = null
+    }
+    onboardingStore.setExternalModalBlocking(false)
     stream.abortStream()
     if (window.visualViewport) {
       window.visualViewport.removeEventListener('resize', handleViewportResize)
@@ -352,6 +416,7 @@ export function useChat() {
   // ── Keep-alive: pause/resume without killing the stream ──
   onDeactivated(() => {
     // Stop sync polling while hidden, but do NOT abort the SSE stream
+    onboardingStore.setExternalModalBlocking(false)
     sync.stopAutoSync()
     if (window.visualViewport) {
       window.visualViewport.removeEventListener('resize', handleViewportResize)
@@ -362,8 +427,10 @@ export function useChat() {
   onActivated(async () => {
     if (!mounted) return
     // Resume sync polling and scroll to latest messages
+    onboardingStore.setExternalModalBlocking(stream.awaitingApproval.value)
     sync.startAutoSync()
     await consumePendingEventContext()
+    consumePendingDiaryContext()
     const state = history.state as any
     if (state?.eventId) {
       void applyEventContext(Number(state.eventId))
@@ -438,6 +505,10 @@ export function useChat() {
     quickStarters,
     quickStartersLoading,
     useQuickStarter,
+    hasOwnDiaries,
+    onboardingStarterPrompts,
+    starterDraftNotice,
+    fillStarterPrompt,
     // scroll
     msgBox,
     chatInputArea,
