@@ -1,8 +1,11 @@
 package com.moodcopilot.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.moodcopilot.entity.*;
 import com.moodcopilot.mapper.*;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +47,8 @@ public class AccountMergeService {
     private UserMapper userMapper;
     @Autowired
     private UserProfileMemoryMapper userProfileMemoryMapper;
+    @Autowired
+    private UserOnboardingMapper userOnboardingMapper;
 
     /**
      * Merge sourceUser's data into targetUser.
@@ -125,7 +130,9 @@ public class AccountMergeService {
                 .eq(UserProfileMemoryEntity::getUserId, sourceUserId)
                 .set(UserProfileMemoryEntity::getUserId, targetUserId));
 
-        // 2. Merge user stats and profile if missing
+        mergeUserOnboarding(sourceUserId, targetUserId);
+
+        // 2. Merge user stats and profile if missing (preserve targetUser.onboardingEnrolledVersion)
         targetUser.setExp(targetUser.getExp() + sourceUser.getExp());
         
         if (sourceUser.getWxOpenId() != null && targetUser.getWxOpenId() == null) {
@@ -148,5 +155,35 @@ public class AccountMergeService {
         userMapper.updateById(targetUser);
 
         log.info("Account merge completed.");
+    }
+
+    private void mergeUserOnboarding(Long sourceUserId, Long targetUserId) {
+        if (userOnboardingMapper == null) {
+            return;
+        }
+        List<UserOnboardingEntity> sourceRows = userOnboardingMapper.selectList(
+                new LambdaQueryWrapper<UserOnboardingEntity>()
+                        .eq(UserOnboardingEntity::getUserId, sourceUserId));
+        if (sourceRows == null || sourceRows.isEmpty()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        for (UserOnboardingEntity row : sourceRows) {
+            if (row.getGuideKey() == null || row.getGuideVersion() == null
+                    || row.getScope() == null || row.getStatus() == null) {
+                continue;
+            }
+            LocalDateTime updatedAt = row.getUpdatedAt() != null ? row.getUpdatedAt() : now;
+            userOnboardingMapper.upsertMonotonic(
+                    targetUserId,
+                    row.getGuideKey(),
+                    row.getGuideVersion(),
+                    row.getScope(),
+                    row.getStatus(),
+                    row.getCompletedAt(),
+                    updatedAt);
+        }
+        userOnboardingMapper.delete(new LambdaQueryWrapper<UserOnboardingEntity>()
+                .eq(UserOnboardingEntity::getUserId, sourceUserId));
     }
 }

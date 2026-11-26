@@ -475,6 +475,7 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setStatus(1);
         user.setRole("USER");
+        user.setOnboardingEnrolledVersion(com.moodcopilot.onboarding.OnboardingService.CURRENT_GUIDE_VERSION);
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.insert(user);
@@ -488,18 +489,7 @@ public class AuthService {
             throw new ResponseStatusException(BAD_REQUEST, "微信登录 code 不能为空");
         }
         
-        String url = "https://api.weixin.qq.com/sns/jscode2session?appid=" + wxAppId +
-                "&secret=" + wxAppSecret + "&js_code=" + code + "&grant_type=authorization_code";
-                
-        RestTemplate restTemplate = new RestTemplate();
-        Map response;
-        try {
-            String jsonResponse = restTemplate.getForObject(url, String.class);
-            response = new com.fasterxml.jackson.databind.ObjectMapper().readValue(jsonResponse, Map.class);
-        } catch (Exception e) {
-            log.error("微信登录请求失败", e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "微信登录请求失败");
-        }
+        Map<?, ?> response = fetchWechatSession(code);
         
         if (response == null || (response.containsKey("errcode") && ((Number) response.get("errcode")).intValue() != 0)) {
             log.error("微信登录失败: {}", response);
@@ -522,6 +512,7 @@ public class AuthService {
             user.setPasswordHash("");
             user.setStatus(1);
             user.setRole("USER");
+            user.setOnboardingEnrolledVersion(com.moodcopilot.onboarding.OnboardingService.CURRENT_GUIDE_VERSION);
             user.setCreatedAt(LocalDateTime.now());
             user.setUpdatedAt(LocalDateTime.now());
             userMapper.insert(user);
@@ -531,6 +522,20 @@ public class AuthService {
         
         String token = jwtTokenProvider.generateToken(user.getId(), user.getEmail());
         return response(token, user);
+    }
+
+    Map<?, ?> fetchWechatSession(String code) {
+        String url = "https://api.weixin.qq.com/sns/jscode2session?appid=" + wxAppId +
+                "&secret=" + wxAppSecret + "&js_code=" + code + "&grant_type=authorization_code";
+
+        RestTemplate restTemplate = new RestTemplate();
+        try {
+            String jsonResponse = restTemplate.getForObject(url, String.class);
+            return new com.fasterxml.jackson.databind.ObjectMapper().readValue(jsonResponse, Map.class);
+        } catch (Exception e) {
+            log.error("微信登录请求失败", e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "微信登录请求失败");
+        }
     }
 
     public AuthResponse login(LoginRequest request) {
