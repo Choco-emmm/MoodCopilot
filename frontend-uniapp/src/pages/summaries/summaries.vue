@@ -34,11 +34,6 @@
         </view>
 
         <template v-else>
-          <GuideBubble
-            hint-key="REPORT_AVAILABLE"
-            :eligible="isReportAvailableHintEligible"
-            compact
-          />
           <view class="report-meta">
             <text>{{ report.diaryCount }} 篇日记</text>
             <text v-if="report.generatedAt">更新于 {{ formatGeneratedAt(report.generatedAt) }}</text>
@@ -169,6 +164,10 @@
         </scroll-view>
       </view>
     </view>
+    <GuideBubble
+      hint-key="REPORT_AVAILABLE"
+      :eligible="isReportAvailableHintEligible"
+    />
   </view>
 </template>
 

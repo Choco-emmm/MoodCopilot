@@ -387,8 +387,8 @@ export const ONBOARDING_HINTS: readonly OnboardingHintDefinition[] = [
   {
     key: 'CHAT_CITATION',
     scope: 'GLOBAL',
-    title: '点击可核对回答依据',
-    description: '展开检索依据可以查看本次回答参考了哪些日记、画像或事件，随时可回到原记录核对。',
+    title: '可展开回答中的参考依据',
+    description: '展开回答里的检索依据可查看本次参考了哪些日记、画像或事件，随时可回到原记录核对。',
     anchorId: 'chat-citation-panel',
     priority: 80,
     actionLabel: '知道了',
@@ -730,4 +730,56 @@ export function pickActiveHint(
     }
   }
   return best
+}
+
+export type StarterPromptApplyStatus =
+  | 'applied'
+  | 'replaced_template'
+  | 'needs_confirm'
+  | 'unchanged'
+
+export interface StarterPromptDraftResult {
+  nextDraft: string
+  status: StarterPromptApplyStatus
+}
+
+export function resolveStarterPromptDraft(
+  currentDraft: string,
+  promptText: string,
+  templatePool: readonly string[] = [],
+  options?: {
+    forceReplace?: boolean
+    lastAppliedPrompt?: string | null
+  },
+): StarterPromptDraftResult {
+  const existing = typeof currentDraft === 'string' ? currentDraft : ''
+  const existingTrimmed = existing.trim()
+  const targetTrimmed = typeof promptText === 'string' ? promptText.trim() : ''
+
+  if (!targetTrimmed) {
+    return { nextDraft: existing, status: 'unchanged' }
+  }
+  if (existingTrimmed === targetTrimmed) {
+    return { nextDraft: existing, status: 'unchanged' }
+  }
+  if (existingTrimmed.length === 0) {
+    return { nextDraft: promptText, status: 'applied' }
+  }
+
+  const lastAppliedTrimmed =
+    typeof options?.lastAppliedPrompt === 'string' ? options.lastAppliedPrompt.trim() : ''
+  let matchesTemplate = lastAppliedTrimmed.length > 0 && existingTrimmed === lastAppliedTrimmed
+  if (!matchesTemplate) {
+    for (let i = 0; i < templatePool.length; i += 1) {
+      if (templatePool[i].trim() === existingTrimmed) {
+        matchesTemplate = true
+        break
+      }
+    }
+  }
+
+  if (options?.forceReplace || matchesTemplate) {
+    return { nextDraft: promptText, status: 'replaced_template' }
+  }
+  return { nextDraft: existing, status: 'needs_confirm' }
 }

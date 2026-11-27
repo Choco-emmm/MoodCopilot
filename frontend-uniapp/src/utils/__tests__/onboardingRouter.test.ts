@@ -140,18 +140,41 @@ describe('mini-program onboarding route adapter', () => {
     expect(switchTab).toHaveBeenNthCalledWith(3, { url: '/pages/profile/profile' });
   });
 
-  it('applies starter prompts only when draft is empty and never overwrites existing user text', () => {
-    expect(applyStarterPromptToDraft('', '帮我理清优先级')).toEqual({
+  it('applies starter prompts seamlessly between templates while requiring confirmation for hand-typed drafts', () => {
+    const pool = ['帮我理清优先级', '回顾最近的心情变化'];
+    expect(applyStarterPromptToDraft('', '帮我理清优先级', pool)).toEqual({
       nextDraft: '帮我理清优先级',
       applied: true,
+      status: 'applied',
     });
-    expect(applyStarterPromptToDraft('   \n ', '今天的一件小事：')).toEqual({
+    expect(applyStarterPromptToDraft('   \n ', '今天的一件小事：', pool)).toEqual({
       nextDraft: '今天的一件小事：',
       applied: true,
+      status: 'applied',
     });
-    expect(applyStarterPromptToDraft('我已经写了半篇草稿', '不要覆盖我')).toEqual({
+    // Switching directly between starter templates replaces seamlessly
+    expect(
+      applyStarterPromptToDraft('帮我理清优先级', '回顾最近的心情变化', pool),
+    ).toEqual({
+      nextDraft: '回顾最近的心情变化',
+      applied: true,
+      status: 'replaced_template',
+    });
+    // Hand-typed user draft requires explicit confirmation
+    expect(applyStarterPromptToDraft('我已经写了半篇草稿', '不要覆盖我', pool)).toEqual({
       nextDraft: '我已经写了半篇草稿',
       applied: false,
+      status: 'needs_confirm',
+    });
+    // Confirmed replacement succeeds
+    expect(
+      applyStarterPromptToDraft('我已经写了半篇草稿', '帮我理清优先级', pool, {
+        forceReplace: true,
+      }),
+    ).toEqual({
+      nextDraft: '帮我理清优先级',
+      applied: true,
+      status: 'replaced_template',
     });
   });
 

@@ -23,6 +23,7 @@ import {
   mergeOnboardingStateMonotonic,
   normalizeOnboardingState,
   pickActiveHint,
+  resolveStarterPromptDraft,
   shouldAutoShowWelcome,
 } from '../../shared/onboarding.ts'
 
@@ -295,4 +296,35 @@ test('P2 photography contest demo story has verbatim evidence, concise Chinese a
   assert.equal(initial.stepIndex, 0)
   assert.equal(initial.candidateDecision, 'pending')
   assert.deepEqual(initial.selectedChatPresetIds, [])
+})
+
+test('resolveStarterPromptDraft switches seamlessly between templates and requires confirmation for hand-typed drafts', () => {
+  const pool = [
+    CHAT_STARTER_PROMPTS_WITH_DIARY[0].text,
+    CHAT_STARTER_PROMPTS_WITH_DIARY[1].text,
+  ]
+  assert.deepEqual(resolveStarterPromptDraft('', pool[0], pool), {
+    nextDraft: pool[0],
+    status: 'applied',
+  })
+  assert.deepEqual(resolveStarterPromptDraft(pool[0], pool[0], pool), {
+    nextDraft: pool[0],
+    status: 'unchanged',
+  })
+  assert.deepEqual(resolveStarterPromptDraft(pool[0], pool[1], pool), {
+    nextDraft: pool[1],
+    status: 'replaced_template',
+  })
+  assert.deepEqual(resolveStarterPromptDraft('我手写的一段内容', pool[1], pool), {
+    nextDraft: '我手写的一段内容',
+    status: 'needs_confirm',
+  })
+  assert.deepEqual(
+    resolveStarterPromptDraft('我手写的一段内容', pool[1], pool, { forceReplace: true }),
+    {
+      nextDraft: pool[1],
+      status: 'replaced_template',
+    },
+  )
+  assert.equal(ONBOARDING_HINT_MAP.CHAT_CITATION.title, '可展开回答中的参考依据')
 })

@@ -65,6 +65,7 @@
                 v-for="prompt in activeStarterPrompts"
                 :key="prompt.id"
                 class="starter-prompt-card"
+                :class="{ active: inputContent.trim() === prompt.text.trim() }"
                 role="button"
                 @click="fillStarterPrompt(prompt.text)"
               >
@@ -148,7 +149,10 @@
         <GuideBubble
           :hint-key="activeChatHintKey"
           :eligible="true"
+          :floating="false"
           compact
+          :locate-label="activeChatHintKey === 'CHAT_CITATION' ? '查看依据' : ''"
+          @locate="locateLatestCitationMessage"
         />
       </view>
       <view class="chat-model-row">
@@ -666,13 +670,56 @@ const checkHasDiaries = async () => {
   }
 };
 
-const fillStarterPrompt = (promptText: string) => {
-  const { nextDraft, applied } = applyStarterPromptToDraft(inputContent.value, promptText);
+const lastAppliedStarterPrompt = ref<string | null>(null);
+const allStarterPromptTexts = [
+  ...CHAT_STARTER_PROMPTS_WITH_DIARY.map((item) => item.text),
+  ...CHAT_STARTER_PROMPTS_WITHOUT_DIARY.map((item) => item.text),
+];
+
+const fillStarterPrompt = (promptText: string, forceReplace = false) => {
+  const { nextDraft, applied, status } = applyStarterPromptToDraft(
+    inputContent.value,
+    promptText,
+    allStarterPromptTexts,
+    { forceReplace, lastAppliedPrompt: lastAppliedStarterPrompt.value },
+  );
+  if (status === 'unchanged') {
+    return;
+  }
   if (!applied) {
-    uni.showToast({ title: '输入框已有内容，未覆盖', icon: 'none' });
+    uni.showModal({
+      title: '替换当前输入？',
+      content: '输入框已有你写的内容，是否替换为该推荐问题？',
+      confirmText: '替换',
+      cancelText: '保留草稿',
+      success: (res) => {
+        if (res.confirm) {
+          fillStarterPrompt(promptText, true);
+        }
+      },
+    });
     return;
   }
   inputContent.value = nextDraft;
+  lastAppliedStarterPrompt.value = nextDraft;
+};
+
+const locateLatestCitationMessage = () => {
+  for (let i = messages.value.length - 1; i >= 0; i -= 1) {
+    const candidate = messages.value[i];
+    if (
+      candidate.role === 'assistant' &&
+      Array.isArray(candidate.ragReferences) &&
+      candidate.ragReferences.length > 0
+    ) {
+      candidate._refsExpanded = true;
+      scrollToMessage.value = '';
+      void nextTick(() => {
+        scrollToMessage.value = `msg-${i}`;
+      });
+      return;
+    }
+  }
 };
 
 const mergeRagReferences = (existing: RagReferenceItem[], incoming: unknown[]): RagReferenceItem[] => {
@@ -2221,28 +2268,32 @@ const scrollToBottom = (target?: 'waiting') => {
     font-weight: 600;
     color: var(--theme-text-primary);
   }
+  .starter-prompt-card.active {
+    border-color: var(--theme-primary);
+    background: color-mix(in oklab, var(--theme-primary) 7%, var(--theme-surface));
+  }
   .starter-prompt-text {
-    font-size: 23rpx;
-    line-height: 1.55;
+    font-size: 24rpx;
+    line-height: 1.6;
     color: var(--theme-text-secondary);
   }
   .starter-prompt-cue {
     flex-shrink: 0;
-    padding: 6rpx 14rpx;
+    padding: 6rpx 16rpx;
     border: 1rpx solid var(--theme-border);
-    border-radius: var(--theme-radius-sm);
-    font-size: 21rpx;
+    border-radius: 12rpx;
+    font-size: 22rpx;
     color: var(--theme-primary);
   }
   .starter-prompts-note {
     display: block;
     margin-top: 18rpx;
-    font-size: 21rpx;
+    font-size: 22rpx;
     line-height: 1.6;
     color: var(--theme-text-placeholder);
   }
   .chat-guide-wrap {
-    padding: 0 24rpx;
+    padding: 0 24rpx 8rpx;
   }
   .rag-refs-box {
     margin-bottom: 14rpx;

@@ -4,7 +4,14 @@
 
     <view v-if="loading" class="loading-state">正在打开日记...</view>
 
-    <scroll-view v-else-if="diary" scroll-y class="detail-scroll" :show-scrollbar="false">
+    <scroll-view
+      v-else-if="diary"
+      scroll-y
+      class="detail-scroll"
+      :scroll-into-view="detailScrollTarget"
+      :scroll-with-animation="true"
+      :show-scrollbar="false"
+    >
       <view class="detail-content">
         <view class="diary-entry">
           <view class="entry-header">
@@ -70,7 +77,7 @@
           <text class="analysis-copy">{{ diary.analysisError || '日记已保存，本次分析没有完成。' }}</text>
           <button class="analysis-retry" :disabled="retrying" @click="chooseRetryModel">{{ retrying ? '正在提交...' : '重新分析' }}</button>
         </view>
-        <view v-else-if="diary.analysis?.summary" class="analysis-card">
+        <view v-else-if="diary.analysis?.summary" id="diary-analysis-section" class="analysis-card">
           <text class="analysis-kicker">AI 分析</text>
           
           <view class="analysis-mood-header">
@@ -97,12 +104,6 @@
           </view>
         </view>
 
-        <GuideBubble
-          hint-key="ANALYSIS_READY"
-          :eligible="isAnalysisReadyHintEligible"
-          compact
-        />
-
         <view class="entry-actions">
           <view class="chat-action" @click="quoteToChat">
             <text class="chat-action-icon">✦</text>
@@ -118,6 +119,13 @@
     </scroll-view>
 
     <view v-else class="missing-state">这篇日记暂时无法打开</view>
+
+    <GuideBubble
+      hint-key="ANALYSIS_READY"
+      :eligible="isAnalysisReadyHintEligible"
+      locate-label="去看分析"
+      @locate="scrollToAnalysisSection"
+    />
 
     <view v-if="showCollectionModal" class="modal-overlay" @click="showCollectionModal = false">
       <view class="collection-sheet" @click.stop>
@@ -159,7 +167,15 @@ const myCollections = ref<any[]>([])
 const parentCollections = ref<any[]>([])
 const retrying = ref(false)
 const reportedAnalysisDiaryId = ref<number | null>(null)
+const detailScrollTarget = ref('')
 let analysisPollTimer: ReturnType<typeof setTimeout> | null = null
+
+function scrollToAnalysisSection() {
+  detailScrollTarget.value = ''
+  void nextTick(() => {
+    detailScrollTarget.value = 'diary-analysis-section'
+  })
+}
 
 const diaryMoodColor = computed(() => {
   if (diary.value?.analysis && isOwner.value) {

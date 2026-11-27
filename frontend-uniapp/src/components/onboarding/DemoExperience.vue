@@ -384,11 +384,10 @@ function activeCitationsFor(citations: readonly DemoChatCitation[]): DemoChatCit
 }
 
 .demo-banner {
-  padding: 20rpx 24rpx;
-  background: color-mix(in oklab, var(--theme-primary) 7%, var(--theme-surface));
+  padding: 22rpx 26rpx;
+  background: color-mix(in oklab, var(--theme-primary) 5%, var(--theme-surface));
   border: 1rpx solid var(--theme-border);
-  border-left: 5rpx solid var(--theme-primary);
-  border-radius: var(--theme-radius-md);
+  border-radius: 20rpx;
 }
 
 .demo-banner-head {
@@ -396,57 +395,61 @@ function activeCitationsFor(citations: readonly DemoChatCitation[]): DemoChatCit
   align-items: center;
   justify-content: space-between;
   gap: 16rpx;
-  margin-bottom: 8rpx;
+  margin-bottom: 10rpx;
 }
 
 .demo-badge {
+  padding: 2rpx 14rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: 999rpx;
+  background: var(--theme-surface);
   font-size: 22rpx;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 1rpx;
   color: var(--theme-primary);
 }
 
 .demo-step-counter {
-  font-size: 21rpx;
+  font-size: 22rpx;
   color: var(--theme-text-placeholder);
 }
 
 .demo-banner-text {
   display: block;
-  font-size: 23rpx;
-  line-height: 1.55;
+  font-size: 24rpx;
+  line-height: 1.6;
   color: var(--theme-text-secondary);
 }
 
 .demo-stepper {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10rpx;
+  gap: 12rpx;
 }
 
 .step-tab {
-  padding: 14rpx 8rpx;
+  padding: 16rpx 8rpx;
   border: 1rpx solid var(--theme-border);
-  border-radius: var(--theme-radius-sm);
+  border-radius: 16rpx;
   background: var(--theme-surface);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4rpx;
+  gap: 6rpx;
 }
 
 .step-tab.active {
   border-color: var(--theme-primary);
-  background: color-mix(in oklab, var(--theme-primary) 9%, var(--theme-surface));
+  background: color-mix(in oklab, var(--theme-primary) 8%, var(--theme-surface));
 }
 
 .step-tab.done {
-  border-color: color-mix(in oklab, var(--theme-primary) 45%, var(--theme-border));
+  border-color: color-mix(in oklab, var(--theme-primary) 40%, var(--theme-border));
 }
 
 .step-num {
-  font-size: 19rpx;
-  font-weight: 700;
+  font-size: 22rpx;
+  font-weight: 600;
   color: var(--theme-text-placeholder);
 }
 
@@ -456,7 +459,7 @@ function activeCitationsFor(citations: readonly DemoChatCitation[]): DemoChatCit
 }
 
 .step-label {
-  font-size: 21rpx;
+  font-size: 22rpx;
   color: var(--theme-text-secondary);
   text-align: center;
 }
@@ -467,15 +470,16 @@ function activeCitationsFor(citations: readonly DemoChatCitation[]): DemoChatCit
 }
 
 .step-header {
-  padding-bottom: 14rpx;
-  border-bottom: 1rpx solid var(--theme-border);
+  padding-bottom: 16rpx;
+  border-bottom: 1rpx solid var(--theme-divider);
 }
 
 .step-title {
   display: block;
   font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
-  font-size: 38rpx;
-  font-weight: 700;
+  font-size: 36rpx;
+  font-weight: 600;
+  line-height: 1.4;
   color: var(--theme-text-primary);
 }
 
@@ -488,10 +492,10 @@ function activeCitationsFor(citations: readonly DemoChatCitation[]): DemoChatCit
 }
 
 .demo-panel {
-  padding: 28rpx 26rpx;
+  padding: 32rpx 28rpx;
   background: var(--theme-surface);
   border: 1rpx solid var(--theme-border);
-  border-radius: var(--theme-radius-md);
+  border-radius: 24rpx;
   box-shadow: var(--theme-shadow-panel);
 }
 

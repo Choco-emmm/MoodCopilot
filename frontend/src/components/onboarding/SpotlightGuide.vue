@@ -110,7 +110,9 @@ const routeDismissed = ref(false)
 let activeListeners = false
 let rafId: number | null = null
 let observedAnchor: HTMLElement | null = null
+let observedCard: HTMLElement | null = null
 let resizeObserver: ResizeObserver | null = null
+let cardResizeObserver: ResizeObserver | null = null
 
 const shouldRender = computed(() => {
   if (!isActivated.value || !props.hint || !props.visible || routeDismissed.value) return false
@@ -140,22 +142,53 @@ const cardStyle = computed(() => {
   }
 })
 
+function isRectVisibleInScrollAncestors(el: HTMLElement, rect: DOMRect): boolean {
+  let parent = el.parentElement
+  while (parent && parent !== document.body && parent !== document.documentElement) {
+    const style = window.getComputedStyle(parent)
+    const overflowY = style.overflowY
+    const overflowX = style.overflowX
+    const clipsY = overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden' || overflowY === 'clip'
+    const clipsX = overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'hidden' || overflowX === 'clip'
+    if (clipsY || clipsX) {
+      const pRect = parent.getBoundingClientRect()
+      if (clipsY && (rect.bottom <= pRect.top + 2 || rect.top >= pRect.bottom - 2)) {
+        return false
+      }
+      if (clipsX && (rect.right <= pRect.left + 2 || rect.left >= pRect.right - 2)) {
+        return false
+      }
+    }
+    parent = parent.parentElement
+  }
+  return true
+}
+
 function findVisibleAnchor(anchorId: string): HTMLElement | null {
   if (typeof document === 'undefined' || !anchorId) return null
-  const el = document.querySelector(`[data-guide-id="${anchorId}"]`) as HTMLElement | null
-  if (!el) return null
-  const rect = el.getBoundingClientRect()
-  if (rect.width <= 0 || rect.height <= 0) return null
-  const style = window.getComputedStyle(el)
-  if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) {
-    return null
-  }
+  const nodes = document.querySelectorAll(`[data-guide-id="${anchorId}"]`)
+  if (!nodes.length) return null
   const vh = window.innerHeight || 0
   const vw = window.innerWidth || 0
-  if (rect.bottom < 0 || rect.top > vh || rect.right < 0 || rect.left > vw) {
-    return null
+
+  // 倒序遍历，多实例场景（如聊天多条消息的引用面板）优先定位视口内最新一条可见锚点
+  for (let i = nodes.length - 1; i >= 0; i -= 1) {
+    const el = nodes[i] as HTMLElement
+    const rect = el.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) continue
+    const style = window.getComputedStyle(el)
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) {
+      continue
+    }
+    if (rect.bottom <= 2 || rect.top >= vh - 2 || rect.right <= 2 || rect.left >= vw - 2) {
+      continue
+    }
+    if (!isRectVisibleInScrollAncestors(el, rect)) {
+      continue
+    }
+    return el
   }
-  return el
+  return null
 }
 
 function updateResizeObserver(anchor: HTMLElement | null): void {
@@ -173,15 +206,45 @@ function updateResizeObserver(anchor: HTMLElement | null): void {
   }
 }
 
+function updateCardResizeObserver(card: HTMLElement | null): void {
+  if (observedCard === card) return
+  if (cardResizeObserver) {
+    cardResizeObserver.disconnect()
+    cardResizeObserver = null
+  }
+  observedCard = card
+  if (card && typeof ResizeObserver !== 'undefined') {
+    cardResizeObserver = new ResizeObserver(() => {
+      scheduleMeasure()
+    })
+    cardResizeObserver.observe(card)
+  }
+}
+
+function boxesOverlap(
+  a: { top: number; left: number; width: number; height: number },
+  b: { top: number; left: number; width: number; height: number },
+  padding = 0,
+): boolean {
+  return !(
+    a.left + a.width + padding <= b.left ||
+    b.left + b.width + padding <= a.left ||
+    a.top + a.height + padding <= b.top ||
+    b.top + b.height + padding <= a.top
+  )
+}
+
 function measureAndPosition(): void {
   if (!shouldRender.value || !props.hint) {
     spotlightRect.value = null
     cardPosition.value = null
     fallbackMode.value = false
     updateResizeObserver(null)
+    updateCardResizeObserver(null)
     return
   }
 
+  updateCardResizeObserver(cardRef.value)
   const anchor = findVisibleAnchor(props.hint.anchorId)
   updateResizeObserver(anchor)
 
@@ -196,30 +259,63 @@ function measureAndPosition(): void {
   const vw = window.innerWidth || 390
   const vh = window.innerHeight || 800
 
-  spotlightRect.value = {
+  const anchorBox: AnchorBox = {
     top: Math.max(0, rect.top - SPOTLIGHT_PADDING),
     left: Math.max(0, rect.left - SPOTLIGHT_PADDING),
     width: Math.min(vw, rect.width + SPOTLIGHT_PADDING * 2),
     height: Math.min(vh, rect.height + SPOTLIGHT_PADDING * 2),
   }
+  spotlightRect.value = anchorBox
 
   const cardWidth = Math.min(MAX_CARD_WIDTH, Math.max(220, vw - VIEWPORT_MARGIN * 2))
-  const measuredCardHeight = cardRef.value?.getBoundingClientRect().height || 168
+  const renderedHeight = cardRef.value?.getBoundingClientRect().height || 0
+  const measuredCardHeight = renderedHeight > 0 ? Math.ceil(renderedHeight) : 188
 
-  // nonBlocking 模式优先放在锚点上方，避免遮挡底部操作按钮
+  const idealLeft = rect.left
+  let left = Math.max(
+    VIEWPORT_MARGIN,
+    Math.min(vw - cardWidth - VIEWPORT_MARGIN, idealLeft),
+  )
   let top: number
+
+  // nonBlocking 模式严格避免与审批等目标面板叠压：优先上方，再尝试右侧/左侧，最后无重叠安全角
   if (props.nonBlocking) {
-    const aboveTop = rect.top - measuredCardHeight - CARD_GAP - SPOTLIGHT_PADDING
+    const aboveTop = anchorBox.top - measuredCardHeight - CARD_GAP
     if (aboveTop >= VIEWPORT_MARGIN) {
       top = aboveTop
     } else {
-      fallbackMode.value = true
-      cardPosition.value = null
-      return
+      const rightLeft = anchorBox.left + anchorBox.width + CARD_GAP
+      const leftSideLeft = anchorBox.left - cardWidth - CARD_GAP
+      const sideTop = Math.max(
+        VIEWPORT_MARGIN,
+        Math.min(vh - measuredCardHeight - VIEWPORT_MARGIN, anchorBox.top),
+      )
+      if (rightLeft + cardWidth <= vw - VIEWPORT_MARGIN) {
+        top = sideTop
+        left = rightLeft
+      } else if (leftSideLeft >= VIEWPORT_MARGIN) {
+        top = sideTop
+        left = leftSideLeft
+      } else {
+        const safeTopRight = {
+          top: VIEWPORT_MARGIN,
+          left: Math.max(VIEWPORT_MARGIN, vw - cardWidth - VIEWPORT_MARGIN),
+          width: cardWidth,
+          height: measuredCardHeight,
+        }
+        if (!boxesOverlap(safeTopRight, anchorBox, 4)) {
+          top = safeTopRight.top
+          left = safeTopRight.left
+        } else {
+          fallbackMode.value = true
+          cardPosition.value = null
+          return
+        }
+      }
     }
   } else {
-    const belowTop = rect.bottom + CARD_GAP + SPOTLIGHT_PADDING
-    const aboveTop = rect.top - measuredCardHeight - CARD_GAP - SPOTLIGHT_PADDING
+    const belowTop = anchorBox.top + anchorBox.height + CARD_GAP
+    const aboveTop = anchorBox.top - measuredCardHeight - CARD_GAP
     if (belowTop + measuredCardHeight <= vh - VIEWPORT_MARGIN) {
       top = belowTop
     } else if (aboveTop >= VIEWPORT_MARGIN) {
@@ -228,12 +324,6 @@ function measureAndPosition(): void {
       top = Math.max(VIEWPORT_MARGIN, Math.min(vh - measuredCardHeight - VIEWPORT_MARGIN, belowTop))
     }
   }
-
-  const idealLeft = rect.left
-  const left = Math.max(
-    VIEWPORT_MARGIN,
-    Math.min(vw - cardWidth - VIEWPORT_MARGIN, idealLeft),
-  )
 
   fallbackMode.value = false
   cardPosition.value = { top, left, width: cardWidth }
@@ -269,6 +359,7 @@ function detachListeners(): void {
     rafId = null
   }
   updateResizeObserver(null)
+  updateCardResizeObserver(null)
   if (!activeListeners) return
   activeListeners = false
   window.removeEventListener('resize', scheduleMeasure)
@@ -283,6 +374,7 @@ watch(
       attachListeners()
       await nextTick()
       measureAndPosition()
+      scheduleMeasure()
     } else {
       detachListeners()
       spotlightRect.value = null

@@ -8,11 +8,6 @@
     <view v-if="loading" class="state">正在整理你的事件线索...</view>
     <view v-else-if="events.length === 0" class="state">暂时没有重要事件。你也可以手动记下一件想回来关注的事。</view>
     <view v-else class="event-list">
-      <GuideBubble
-        hint-key="LIFE_EVENT"
-        :eligible="isLifeEventHintEligible"
-        compact
-      />
       <view v-for="event in events" :key="event.id" class="event-item">
         <view class="event-date"><text class="date-main">{{ formatSchedule(event) }}</text><text>{{ statusLabel(event) }}</text><text v-if="phaseLabel(event.temporalPhase)">{{ phaseLabel(event.temporalPhase) }}</text></view>
         <view class="event-main">
@@ -63,6 +58,10 @@
         <view class="editor-actions"><view class="cancel-button" @click="closeEditor">取消</view><view class="save-button" :class="{ disabled: saving }" @click="saveEvent">{{ saving ? '保存中...' : '保存事件' }}</view></view>
       </view>
     </view>
+    <GuideBubble
+      hint-key="LIFE_EVENT"
+      :eligible="isLifeEventHintEligible"
+    />
   </view>
 </template>
 

@@ -10,6 +10,7 @@ import { useOnboardingStore } from '../stores/onboarding'
 import {
   CHAT_STARTER_PROMPTS_WITH_DIARY,
   CHAT_STARTER_PROMPTS_WITHOUT_DIARY,
+  resolveStarterPromptDraft,
 } from '../constants/onboarding'
 import { logWarn } from '../utils/logger'
 import { useScrollManager } from './useScrollManager'
@@ -150,21 +151,63 @@ export function useChat() {
   }
 
   const starterDraftNotice = ref('')
+  const pendingStarterReplaceText = ref<string | null>(null)
+  const lastAppliedStarterPrompt = ref<string | null>(null)
   let starterDraftNoticeTimer: ReturnType<typeof setTimeout> | null = null
 
-  function fillStarterPrompt(text: string) {
-    if (stream.draft.value.trim().length > 0) {
-      starterDraftNotice.value = '输入框已有内容，未覆盖你的草稿。'
+  const allStarterPromptTexts = [
+    ...CHAT_STARTER_PROMPTS_WITH_DIARY.map((item) => item.text),
+    ...CHAT_STARTER_PROMPTS_WITHOUT_DIARY.map((item) => item.text),
+  ]
+
+  function clearStarterNotice() {
+    starterDraftNotice.value = ''
+    pendingStarterReplaceText.value = null
+    if (starterDraftNoticeTimer != null) {
+      clearTimeout(starterDraftNoticeTimer)
+      starterDraftNoticeTimer = null
+    }
+  }
+
+  function fillStarterPrompt(text: string, forceReplace = false) {
+    const result = resolveStarterPromptDraft(stream.draft.value, text, allStarterPromptTexts, {
+      forceReplace,
+      lastAppliedPrompt: lastAppliedStarterPrompt.value,
+    })
+    if (result.status === 'needs_confirm') {
+      pendingStarterReplaceText.value = text
+      starterDraftNotice.value = '输入框已有你写的内容，未直接覆盖。'
       if (starterDraftNoticeTimer != null) clearTimeout(starterDraftNoticeTimer)
       starterDraftNoticeTimer = setTimeout(() => {
-        starterDraftNotice.value = ''
-        starterDraftNoticeTimer = null
-      }, 3000)
+        clearStarterNotice()
+      }, 6000)
       return
     }
-    starterDraftNotice.value = ''
-    stream.draft.value = text
+    clearStarterNotice()
+    if (result.status === 'applied' || result.status === 'replaced_template') {
+      stream.draft.value = result.nextDraft
+      lastAppliedStarterPrompt.value = result.nextDraft
+    }
   }
+
+  function confirmReplaceStarterPrompt() {
+    if (!pendingStarterReplaceText.value) return
+    fillStarterPrompt(pendingStarterReplaceText.value, true)
+  }
+
+  function dismissStarterDraftNotice() {
+    clearStarterNotice()
+  }
+
+  watch(
+    () => stream.draft.value,
+    (next) => {
+      if (next.trim().length === 0) {
+        lastAppliedStarterPrompt.value = null
+        clearStarterNotice()
+      }
+    },
+  )
 
   // ── Diary References ──
   const recentDiaryOptions = ref<{ id: number; date: string; snippet: string; fullContent: string }[]>([])
@@ -508,7 +551,10 @@ export function useChat() {
     hasOwnDiaries,
     onboardingStarterPrompts,
     starterDraftNotice,
+    pendingStarterReplaceText,
     fillStarterPrompt,
+    confirmReplaceStarterPrompt,
+    dismissStarterDraftNotice,
     // scroll
     msgBox,
     chatInputArea,

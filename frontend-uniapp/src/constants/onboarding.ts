@@ -15,6 +15,8 @@ export type {
   OnboardingTaskMeta,
   OptionalTaskKey,
   PlatformGuideScope,
+  StarterPromptApplyStatus,
+  StarterPromptDraftResult,
   TaskKey,
   WelcomeActionItem,
   WelcomeActionKey,
@@ -59,5 +61,6 @@ export {
   mergeOnboardingStateMonotonic,
   normalizeOnboardingState,
   pickActiveHint,
+  resolveStarterPromptDraft,
   shouldAutoShowWelcome,
 } from '../../../shared/onboarding';

@@ -167,20 +167,48 @@ function enqueueRetryMutation(item: QueuedOnboardingMutation): void {
   retryQueue.push(item);
 }
 
-function applyMergedState(userId: number, nextRemote: OnboardingState): OnboardingState {
-  const merged = mergeOnboardingStateMonotonic(onboardingState.value, nextRemote);
-  onboardingState.value = merged;
+function reconcileSessionDedupeWithState(nextState: OnboardingState): void {
+  if (nextState.tasks.FIRST_ANALYSIS_VIEWED !== 'COMPLETED') {
+    reportedAnalysisDiaryIds.clear();
+  }
+  if (nextState.tasks.MEMORY_CENTER_VISITED !== 'COMPLETED') {
+    memoryCenterReportedUserId = null;
+  }
+  if (nextState.tasks.THEME_EXPLORED !== 'COMPLETED') {
+    themeExploredReportedUserId = null;
+  }
+  for (const key of Array.from(handledHintsInSession)) {
+    if (isHintPending(nextState, key)) {
+      handledHintsInSession.delete(key);
+    }
+  }
+}
+
+function applyMergedState(
+  userId: number,
+  nextRemote: OnboardingState,
+  options?: { authoritative?: boolean },
+): OnboardingState {
+  const normalizedRemote = normalizeOnboardingState(nextRemote);
+  const nextState =
+    options?.authoritative && retryQueue.length === 0
+      ? normalizedRemote
+      : mergeOnboardingStateMonotonic(onboardingState.value, normalizedRemote);
+  onboardingState.value = nextState;
   onboardingLoaded.value = true;
-  writeCachedState(userId, merged);
+  if (options?.authoritative && retryQueue.length === 0) {
+    reconcileSessionDedupeWithState(nextState);
+  }
+  writeCachedState(userId, nextState);
 
   if (
     !welcomeReplayMode.value &&
     welcomeOpen.value &&
-    (merged.welcomeStatus === 'COMPLETED' || merged.welcomeStatus === 'SKIPPED')
+    (nextState.welcomeStatus === 'COMPLETED' || nextState.welcomeStatus === 'SKIPPED')
   ) {
     welcomeOpen.value = false;
   }
-  return merged;
+  return nextState;
 }
 
 function maybeTriggerAutoWelcome(state: OnboardingState): void {
@@ -353,7 +381,7 @@ export async function fetchOnboardingState(targetUserId?: number): Promise<Onboa
     }
 
     const remote = normalizeOnboardingState(res.data);
-    const merged = applyMergedState(userId, remote);
+    const merged = applyMergedState(userId, remote, { authoritative: true });
     maybeTriggerAutoWelcome(merged);
     void flushOnboardingRetryQueue();
     return merged;

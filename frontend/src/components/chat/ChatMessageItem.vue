@@ -13,7 +13,7 @@
       <div
         v-if="msg.role === 'ai' && msg.ragReferences?.length"
         class="rag-refs-panel rag-refs-above rag-references-fixed"
-        data-guide-id="chat-citation-panel"
+        :data-guide-id="isLatestCitation !== false ? 'chat-citation-panel' : undefined"
       >
         <button class="rag-refs-toggle" @click="toggleRefs">
           <span class="rag-refs-icon">🔍</span>
@@ -222,6 +222,7 @@ const props = defineProps<{
   userAvatar?: string | null
   userInitial: string
   userName?: string
+  isLatestCitation?: boolean
 }>()
 
 const emit = defineEmits<{

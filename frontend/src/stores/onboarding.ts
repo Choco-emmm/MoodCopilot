@@ -127,12 +127,40 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     return seq === requestSeq && isCurrentSession(gen, targetUserId)
   }
 
-  function applyRemoteState(targetUserId: number, remote: OnboardingState): void {
-    const merged = mergeOnboardingStateMonotonic(state.value, remote)
-    state.value = merged
+  function reconcileReportedCachesWithState(nextState: OnboardingState): void {
+    if (nextState.tasks.FIRST_ANALYSIS_VIEWED !== 'COMPLETED') {
+      analysisViewedReportedDiaries = new Set<number>()
+    }
+    if (nextState.tasks.MEMORY_CENTER_VISITED !== 'COMPLETED') {
+      memoryCenterReportedForUser = null
+    }
+    if (nextState.tasks.THEME_EXPLORED !== 'COMPLETED') {
+      themeExploredReportedForUser = null
+    }
+    for (const key of Array.from(hintReportedKeys)) {
+      if (isHintPending(nextState, key)) {
+        hintReportedKeys.delete(key)
+      }
+    }
+  }
+
+  function applyRemoteState(
+    targetUserId: number,
+    remote: OnboardingState,
+    options?: { authoritative?: boolean },
+  ): void {
+    const normalizedRemote = normalizeOnboardingState(remote)
+    const nextState =
+      options?.authoritative && retryQueue.length === 0
+        ? normalizedRemote
+        : mergeOnboardingStateMonotonic(state.value, normalizedRemote)
+    state.value = nextState
     loaded.value = true
     degraded.value = false
-    writeCachedState(targetUserId, merged)
+    if (options?.authoritative && retryQueue.length === 0) {
+      reconcileReportedCachesWithState(nextState)
+    }
+    writeCachedState(targetUserId, nextState)
   }
 
   function reset(): void {
@@ -195,7 +223,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
         return null
       }
       lastFetchAt = Date.now()
-      applyRemoteState(userId, remote)
+      applyRemoteState(userId, remote, { authoritative: true })
       void flushRetryQueue(userId)
       return state.value
     } catch (err) {

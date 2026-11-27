@@ -6,11 +6,6 @@
       <text class="page-title">时光画卷</text>
       <text class="page-desc">把一段段日子放远一点看，成长藏在那些当时没有察觉的转弯里。</text>
     </view>
-    <GuideBubble
-      hint-key="LIFE_CHAPTER"
-      :eligible="isLifeChapterHintEligible"
-      compact
-    />
     <view v-if="candidates.length" class="candidate-panel">
       <text class="section-label">需要你确认</text><text class="candidate-title">可能是新的阶段</text>
       <view v-for="candidate in candidates" :key="candidate.id" class="candidate-item">
@@ -59,6 +54,10 @@
       <view v-if="gaps.length" class="gaps"><text class="section-label">记录较少的时间段</text><view v-for="gap in gaps" :key="`${gap.startDate}-${gap.endDate}`" class="gap-item"><text>{{ gap.startDate }} - {{ gap.endDate }}</text><text>这段时间暂时没有足够记录</text></view></view>
       <view v-if="nextCursor" class="timeline-load-more" @click="loadMoreChapters">{{ loadingMore ? '正在加载…' : '继续查看更早阶段' }}</view>
     </view>
+    <GuideBubble
+      hint-key="LIFE_CHAPTER"
+      :eligible="isLifeChapterHintEligible"
+    />
   </view>
 </template>
 

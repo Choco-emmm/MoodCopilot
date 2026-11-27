@@ -258,8 +258,12 @@ const handleSelectAction = (actionKey: WelcomeActionKey) => {
 }
 
 .masthead-badge {
+  padding: 4rpx 16rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: 999rpx;
+  background: color-mix(in oklab, var(--theme-primary) 7%, var(--theme-surface));
   font-size: 22rpx;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 2rpx;
   color: var(--theme-primary);
 }
@@ -275,7 +279,7 @@ const handleSelectAction = (actionKey: WelcomeActionKey) => {
 }
 
 .masthead-skip-text {
-  font-size: 25rpx;
+  font-size: 26rpx;
   color: var(--theme-text-secondary);
 }
 
@@ -288,7 +292,7 @@ const handleSelectAction = (actionKey: WelcomeActionKey) => {
 .progress-segment {
   flex: 1;
   height: 4rpx;
-  border-radius: 4rpx;
+  border-radius: 999rpx;
   background: var(--theme-border);
 }
 
@@ -299,14 +303,14 @@ const handleSelectAction = (actionKey: WelcomeActionKey) => {
 .replay-banner {
   margin-bottom: 22rpx;
   padding: 16rpx 20rpx;
-  background: color-mix(in oklab, var(--theme-primary) 7%, var(--theme-surface));
-  border-left: 4rpx solid var(--theme-primary);
-  border-radius: var(--theme-radius-sm);
+  background: color-mix(in oklab, var(--theme-primary) 6%, var(--theme-surface));
+  border: 1rpx solid var(--theme-border);
+  border-radius: 16rpx;
 }
 
 .replay-banner-text {
   display: block;
-  font-size: 23rpx;
+  font-size: 24rpx;
   line-height: 1.5;
   color: var(--theme-text-secondary);
 }
@@ -397,8 +401,8 @@ const handleSelectAction = (actionKey: WelcomeActionKey) => {
   align-items: center;
   justify-content: space-between;
   gap: 20rpx;
-  padding: 24rpx 26rpx;
-  border-radius: var(--theme-radius-md);
+  padding: 24rpx 28rpx;
+  border-radius: 20rpx;
   box-sizing: border-box;
 }
 
@@ -481,12 +485,12 @@ const handleSelectAction = (actionKey: WelcomeActionKey) => {
 
 .footer-btn {
   flex: 1;
-  height: 84rpx;
-  line-height: 84rpx;
+  height: 88rpx;
+  line-height: 88rpx;
   margin: 0;
   padding: 0 24rpx;
-  border-radius: var(--theme-radius-sm);
-  font-size: 28rpx;
+  border-radius: 16rpx;
+  font-size: 26rpx;
   font-weight: 600;
 }
 

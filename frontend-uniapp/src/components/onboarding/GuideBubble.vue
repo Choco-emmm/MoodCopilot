@@ -1,35 +1,46 @@
 <template>
   <view
     v-if="visible && hintDefinition"
-    class="guide-bubble"
-    :class="{ compact }"
+    class="guide-bubble-wrap"
+    :class="{
+      'is-floating': floating,
+      'has-tabbar': floating && hasTabBar,
+      'is-compact': compact,
+    }"
     role="region"
   >
-    <view class="guide-bubble-head">
-      <text class="guide-bubble-badge">{{ ONBOARDING_COPY.hintBadge }}</text>
-      <text class="guide-bubble-close" role="button" @click="handleDismiss">×</text>
-    </view>
-
-    <text class="guide-bubble-title">{{ hintDefinition.title }}</text>
-    <text class="guide-bubble-desc">{{ hintDefinition.description }}</text>
-
-    <view class="guide-bubble-actions">
-      <view
-        class="guide-btn-primary"
-        role="button"
-        @click="handleAcknowledge"
-      >
-        <text class="guide-btn-primary-text">
-          {{ hintDefinition.actionLabel || ONBOARDING_COPY.hintGotItLabel }}
+    <view class="guide-bubble">
+      <view class="guide-bubble-head">
+        <view class="guide-bubble-badge">
+          <text class="guide-bubble-badge-text">{{ ONBOARDING_COPY.hintBadge }}</text>
+        </view>
+        <text class="guide-bubble-dismiss" role="button" @click="handleDismiss">
+          {{ ONBOARDING_COPY.hintDismissLabel }}
         </text>
       </view>
-      <text
-        class="guide-btn-dismiss"
-        role="button"
-        @click="handleDismiss"
-      >
-        {{ ONBOARDING_COPY.hintDismissLabel }}
-      </text>
+
+      <text class="guide-bubble-title">{{ hintDefinition.title }}</text>
+      <text class="guide-bubble-desc">{{ hintDefinition.description }}</text>
+
+      <view class="guide-bubble-actions">
+        <view
+          v-if="locateLabel"
+          class="guide-btn-secondary"
+          role="button"
+          @click="handleLocate"
+        >
+          <text class="guide-btn-secondary-text">{{ locateLabel }}</text>
+        </view>
+        <view
+          class="guide-btn-primary"
+          role="button"
+          @click="handleAcknowledge"
+        >
+          <text class="guide-btn-primary-text">
+            {{ hintDefinition.actionLabel || ONBOARDING_COPY.hintGotItLabel }}
+          </text>
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -48,12 +59,24 @@ const props = withDefaults(
     hintKey: HintKey | null;
     eligible?: boolean;
     compact?: boolean;
+    floating?: boolean;
+    hasTabBar?: boolean;
+    locateLabel?: string;
   }>(),
   {
     eligible: true,
     compact: false,
+    floating: true,
+    hasTabBar: false,
+    locateLabel: '',
   },
 );
+
+const emit = defineEmits<{
+  (event: 'locate', key: HintKey): void;
+  (event: 'seen', key: HintKey): void;
+  (event: 'dismiss', key: HintKey): void;
+}>();
 
 const hasHigherPriorityOverlay = computed(() => {
   const announcementOpen = announcementVisible.value && Boolean(activeAnnouncement.value);
@@ -75,61 +98,100 @@ const visible = computed(() => {
   return canShowHint(props.hintKey, { overlayBlocked: hasHigherPriorityOverlay.value });
 });
 
+function handleLocate() {
+  if (!props.hintKey) return;
+  const key = props.hintKey;
+  emit('locate', key);
+  void recordHintSeen(key);
+  emit('seen', key);
+}
+
 function handleAcknowledge() {
   if (!props.hintKey) return;
-  void recordHintSeen(props.hintKey);
+  const key = props.hintKey;
+  void recordHintSeen(key);
+  emit('seen', key);
 }
 
 function handleDismiss() {
   if (!props.hintKey) return;
-  void dismissHint(props.hintKey);
+  const key = props.hintKey;
+  void dismissHint(key);
+  emit('dismiss', key);
 }
 </script>
 
 <style scoped>
+.guide-bubble-wrap {
+  box-sizing: border-box;
+  margin: 16rpx 0;
+}
+
+.guide-bubble-wrap.is-floating {
+  position: fixed;
+  left: 28rpx;
+  right: 28rpx;
+  bottom: calc(28rpx + env(safe-area-inset-bottom));
+  z-index: 9400;
+  margin: 0;
+  pointer-events: none;
+}
+
+.guide-bubble-wrap.is-floating.has-tabbar {
+  bottom: calc(136rpx + env(safe-area-inset-bottom));
+}
+
 .guide-bubble {
-  margin: 18rpx 0;
-  padding: 22rpx 24rpx 20rpx;
-  background: color-mix(in oklab, var(--theme-primary) 5%, var(--theme-surface));
+  pointer-events: auto;
+  padding: 24rpx 28rpx 22rpx;
+  background: var(--theme-surface);
   border: 1rpx solid var(--theme-border);
-  border-left: 5rpx solid var(--theme-primary);
-  border-radius: var(--theme-radius-md);
-  box-shadow: var(--theme-shadow-panel);
+  border-radius: 24rpx;
+  box-shadow: 0 12rpx 36rpx color-mix(in oklab, var(--theme-primary) 12%, transparent);
   box-sizing: border-box;
 }
 
-.guide-bubble.compact {
-  margin: 12rpx 0;
-  padding: 18rpx 20rpx 16rpx;
+.guide-bubble-wrap.is-compact .guide-bubble {
+  padding: 20rpx 24rpx 18rpx;
 }
 
 .guide-bubble-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12rpx;
-  margin-bottom: 10rpx;
+  gap: 16rpx;
+  margin-bottom: 12rpx;
 }
 
 .guide-bubble-badge {
-  font-size: 20rpx;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  padding: 4rpx 16rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: 999rpx;
+  background: color-mix(in oklab, var(--theme-primary) 7%, var(--theme-surface));
+}
+
+.guide-bubble-badge-text {
+  font-size: 22rpx;
+  font-weight: 600;
+  line-height: 1.4;
   letter-spacing: 2rpx;
   color: var(--theme-primary);
 }
 
-.guide-bubble-close {
-  padding: 2rpx 8rpx;
-  font-size: 32rpx;
-  line-height: 1;
+.guide-bubble-dismiss {
+  padding: 6rpx 4rpx;
+  font-size: 22rpx;
+  line-height: 1.4;
   color: var(--theme-text-placeholder);
 }
 
 .guide-bubble-title {
   display: block;
   font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
-  font-size: 29rpx;
-  font-weight: 700;
+  font-size: 30rpx;
+  font-weight: 600;
   line-height: 1.4;
   color: var(--theme-text-primary);
   margin-bottom: 8rpx;
@@ -138,35 +200,53 @@ function handleDismiss() {
 .guide-bubble-desc {
   display: block;
   font-size: 24rpx;
-  line-height: 1.65;
+  line-height: 1.6;
   color: var(--theme-text-secondary);
 }
 
 .guide-bubble-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16rpx;
-  margin-top: 18rpx;
-  padding-top: 14rpx;
-  border-top: 1rpx solid var(--theme-border);
+  margin-top: 20rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid var(--theme-divider);
+}
+
+.guide-btn-secondary {
+  padding: 12rpx 24rpx;
+  border: 1rpx solid var(--theme-primary);
+  border-radius: 16rpx;
+  background: transparent;
+}
+
+.guide-btn-secondary:active {
+  background: color-mix(in oklab, var(--theme-primary) 8%, var(--theme-surface));
+}
+
+.guide-btn-secondary-text {
+  font-size: 24rpx;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--theme-primary);
 }
 
 .guide-btn-primary {
-  padding: 10rpx 22rpx;
-  border-radius: var(--theme-radius-sm);
+  padding: 12rpx 28rpx;
+  border: 1rpx solid var(--theme-primary);
+  border-radius: 16rpx;
   background: var(--theme-primary);
 }
 
-.guide-btn-primary-text {
-  font-size: 23rpx;
-  font-weight: 600;
-  color: var(--theme-text-on-primary);
+.guide-btn-primary:active {
+  opacity: 0.88;
 }
 
-.guide-btn-dismiss {
-  padding: 8rpx 6rpx;
-  font-size: 22rpx;
-  color: var(--theme-text-secondary);
+.guide-btn-primary-text {
+  font-size: 24rpx;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--theme-text-on-primary);
 }
 </style>

@@ -445,6 +445,17 @@ describe('mini-program onboarding store', () => {
       data: { target: 'HINT', key: 'RELATION_GRAPH', scope: 'MINI_PROGRAM' },
     });
 
+    // Authoritative GET refresh resets local completed hint when retryQueue is empty
+    remoteState = {
+      ...remoteState,
+      hints: {
+        ...remoteState.hints,
+        MEMORY_CANDIDATE: 'NOT_STARTED',
+      },
+    };
+    await store.refreshAfterBusinessAction();
+    expect(store.canShowHint('MEMORY_CANDIDATE')).toBe(true);
+
     // Reset clears session dedupe & overlay block cleanly
     store.setHintOverlayBlocked(true);
     store.resetOnboardingState();

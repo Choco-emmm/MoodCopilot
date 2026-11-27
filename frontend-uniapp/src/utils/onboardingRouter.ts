@@ -1,4 +1,9 @@
-import type { TaskKey, WelcomeActionKey } from '../constants/onboarding';
+import { resolveStarterPromptDraft } from '../constants/onboarding';
+import type {
+  StarterPromptApplyStatus,
+  TaskKey,
+  WelcomeActionKey,
+} from '../constants/onboarding';
 
 export const MINI_PROGRAM_TAB_BAR_PAGES = [
   '/pages/index/index',
@@ -134,12 +139,18 @@ export function executeChecklistTaskAction(
 export function applyStarterPromptToDraft(
   currentDraft: string,
   promptText: string,
-): { nextDraft: string; applied: boolean } {
-  const existing = typeof currentDraft === 'string' ? currentDraft : '';
-  if (existing.trim().length > 0) {
-    return { nextDraft: existing, applied: false };
-  }
-  return { nextDraft: promptText, applied: true };
+  templatePool: readonly string[] = [],
+  options?: {
+    forceReplace?: boolean;
+    lastAppliedPrompt?: string | null;
+  },
+): { nextDraft: string; applied: boolean; status: StarterPromptApplyStatus } {
+  const result = resolveStarterPromptDraft(currentDraft, promptText, templatePool, options);
+  return {
+    nextDraft: result.nextDraft,
+    applied: result.status === 'applied' || result.status === 'replaced_template',
+    status: result.status,
+  };
 }
 
 export function hasRenderableOwnedAnalysis(

@@ -2,17 +2,12 @@
   <view v-if="isChecklistVisible" class="starter-checklist">
     <view class="checklist-header" @click="toggleExpanded">
       <view class="checklist-heading">
+        <text class="checklist-eyebrow">STARTER GUIDE</text>
         <view class="checklist-title-row">
           <text class="checklist-title">{{ ONBOARDING_COPY.checklistTitle }}</text>
           <text class="checklist-progress-label">
             已完成 {{ progress.completed }} / {{ progress.total }}
           </text>
-        </view>
-        <view class="progress-track">
-          <view
-            class="progress-fill"
-            :style="{ width: `${progress.percentage}%` }"
-          />
         </view>
       </view>
       <view class="checklist-toggle">
@@ -21,26 +16,40 @@
       </view>
     </view>
 
+    <view class="progress-track">
+      <view
+        class="progress-fill"
+        :style="{ width: `${progress.percentage}%` }"
+      />
+    </view>
+
     <view v-if="expanded" class="checklist-body">
       <view class="task-list">
         <view
-          v-for="task in CORE_ONBOARDING_TASKS"
+          v-for="(task, index) in CORE_ONBOARDING_TASKS"
           :key="task.key"
           class="task-row"
+          :class="`is-${statusOf(task.key).toLowerCase()}`"
         >
+          <view class="task-index">
+            <text class="task-index-text">
+              {{ statusOf(task.key) === 'COMPLETED' ? '✓' : statusOf(task.key) === 'SKIPPED' ? '—' : `0${index + 1}` }}
+            </text>
+          </view>
+
           <view class="task-main">
             <view class="task-title-row">
+              <text
+                class="task-title"
+                :class="{ 'task-title-done': statusOf(task.key) === 'COMPLETED' || statusOf(task.key) === 'SKIPPED' }"
+              >
+                {{ task.title }}
+              </text>
               <text
                 class="task-status-badge"
                 :class="`status-${statusOf(task.key).toLowerCase()}`"
               >
                 {{ statusLabelOf(task.key) }}
-              </text>
-              <text
-                class="task-title"
-                :class="{ 'task-title-done': statusOf(task.key) === 'COMPLETED' }"
-              >
-                {{ task.title }}
               </text>
             </view>
             <text class="task-desc">{{ task.description }}</text>
@@ -69,25 +78,35 @@
       </view>
 
       <view v-if="OPTIONAL_ONBOARDING_TASKS.length" class="optional-section">
-        <text class="optional-heading">{{ ONBOARDING_COPY.checklistOptionalHeading }}</text>
+        <view class="optional-header">
+          <text class="optional-heading">{{ ONBOARDING_COPY.checklistOptionalHeading }}</text>
+          <text class="optional-note">不计入核心进度</text>
+        </view>
         <view
           v-for="task in OPTIONAL_ONBOARDING_TASKS"
           :key="task.key"
           class="task-row optional-row"
+          :class="`is-${statusOf(task.key).toLowerCase()}`"
         >
+          <view class="task-index">
+            <text class="task-index-text">
+              {{ statusOf(task.key) === 'COMPLETED' ? '✓' : statusOf(task.key) === 'SKIPPED' ? '—' : '·' }}
+            </text>
+          </view>
+
           <view class="task-main">
             <view class="task-title-row">
+              <text
+                class="task-title"
+                :class="{ 'task-title-done': statusOf(task.key) === 'COMPLETED' || statusOf(task.key) === 'SKIPPED' }"
+              >
+                {{ task.title }}
+              </text>
               <text
                 class="task-status-badge"
                 :class="`status-${statusOf(task.key).toLowerCase()}`"
               >
                 {{ statusLabelOf(task.key) }}
-              </text>
-              <text
-                class="task-title"
-                :class="{ 'task-title-done': statusOf(task.key) === 'COMPLETED' }"
-              >
-                {{ task.title }}
               </text>
             </view>
             <text class="task-desc">{{ task.description }}</text>
@@ -194,18 +213,17 @@ function handleDismissChecklist() {
 
 <style scoped>
 .starter-checklist {
-  margin: 18rpx 0 8rpx;
-  padding: 24rpx 24rpx 20rpx;
+  margin: 20rpx 0 12rpx;
+  padding: 28rpx 28rpx 24rpx;
   background: var(--theme-surface);
   border: 1rpx solid var(--theme-border);
-  border-top: 4rpx solid var(--theme-primary);
-  border-radius: var(--theme-radius-md);
+  border-radius: 24rpx;
   box-shadow: var(--theme-shadow-panel);
 }
 
 .checklist-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 20rpx;
 }
@@ -215,39 +233,50 @@ function handleDismissChecklist() {
   min-width: 0;
 }
 
+.checklist-eyebrow {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 600;
+  letter-spacing: 3rpx;
+  line-height: 1.4;
+  color: var(--theme-accent);
+  margin-bottom: 6rpx;
+}
+
 .checklist-title-row {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 14rpx;
-  margin-bottom: 12rpx;
+  flex-wrap: wrap;
+  gap: 16rpx;
 }
 
 .checklist-title {
   font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
-  font-size: 30rpx;
-  font-weight: 700;
+  font-size: 32rpx;
+  font-weight: 600;
+  line-height: 1.4;
   color: var(--theme-text-primary);
 }
 
 .checklist-progress-label {
   font-size: 22rpx;
-  color: var(--theme-primary);
-  font-weight: 600;
+  color: var(--theme-text-secondary);
+  font-weight: 500;
   white-space: nowrap;
 }
 
 .progress-track {
+  margin-top: 18rpx;
   width: 100%;
   height: 6rpx;
-  border-radius: 6rpx;
-  background: var(--theme-border);
+  border-radius: 999rpx;
+  background: color-mix(in oklab, var(--theme-primary) 10%, var(--theme-bg));
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  border-radius: 6rpx;
+  border-radius: 999rpx;
   background: var(--theme-primary);
   transition: width 0.25s ease;
 }
@@ -255,8 +284,10 @@ function handleDismissChecklist() {
 .checklist-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 6rpx;
-  padding: 8rpx 4rpx 8rpx 12rpx;
+  gap: 8rpx;
+  padding: 6rpx 16rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: 12rpx;
   color: var(--theme-text-secondary);
   font-size: 22rpx;
   flex-shrink: 0;
@@ -273,9 +304,9 @@ function handleDismissChecklist() {
 }
 
 .checklist-body {
-  margin-top: 20rpx;
-  padding-top: 12rpx;
-  border-top: 1rpx solid var(--theme-border);
+  margin-top: 22rpx;
+  padding-top: 8rpx;
+  border-top: 1rpx solid var(--theme-divider);
 }
 
 .task-list {
@@ -288,12 +319,50 @@ function handleDismissChecklist() {
   align-items: flex-start;
   justify-content: space-between;
   gap: 18rpx;
-  padding: 18rpx 0;
-  border-bottom: 1rpx solid var(--theme-border);
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid var(--theme-divider);
 }
 
 .task-row:last-child {
   border-bottom: none;
+}
+
+.task-index {
+  width: 44rpx;
+  height: 44rpx;
+  margin-top: 2rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid var(--theme-border);
+  background: color-mix(in oklab, var(--theme-primary) 6%, var(--theme-surface));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.task-index-text {
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 22rpx;
+  font-weight: 600;
+  color: var(--theme-primary);
+  line-height: 1;
+}
+
+.task-row.is-completed .task-index {
+  background: var(--theme-primary);
+  border-color: var(--theme-primary);
+}
+
+.task-row.is-completed .task-index-text {
+  color: var(--theme-text-on-primary);
+}
+
+.task-row.is-skipped .task-index {
+  background: transparent;
+}
+
+.task-row.is-skipped .task-index-text {
+  color: var(--theme-text-placeholder);
 }
 
 .task-main {
@@ -305,24 +374,24 @@ function handleDismissChecklist() {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10rpx;
+  gap: 12rpx;
   margin-bottom: 6rpx;
 }
 
 .task-status-badge {
-  padding: 2rpx 10rpx;
-  border-radius: var(--theme-radius-sm);
-  font-size: 19rpx;
+  padding: 2rpx 14rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
   line-height: 1.5;
   border: 1rpx solid var(--theme-border);
   color: var(--theme-text-secondary);
-  background: transparent;
+  background: color-mix(in oklab, var(--theme-bg) 70%, var(--theme-surface));
 }
 
 .task-status-badge.status-completed {
-  border-color: var(--theme-primary);
+  border-color: color-mix(in oklab, var(--theme-primary) 35%, transparent);
   color: var(--theme-primary);
-  background: color-mix(in oklab, var(--theme-primary) 8%, var(--theme-surface));
+  background: color-mix(in oklab, var(--theme-primary) 9%, var(--theme-surface));
 }
 
 .task-status-badge.status-skipped {
@@ -333,17 +402,17 @@ function handleDismissChecklist() {
   font-size: 26rpx;
   font-weight: 600;
   color: var(--theme-text-primary);
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
 .task-title-done {
-  color: var(--theme-text-secondary);
+  color: var(--theme-text-placeholder);
 }
 
 .task-desc {
   display: block;
-  font-size: 22rpx;
-  line-height: 1.55;
+  font-size: 24rpx;
+  line-height: 1.6;
   color: var(--theme-text-secondary);
 }
 
@@ -351,47 +420,62 @@ function handleDismissChecklist() {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8rpx;
+  gap: 10rpx;
   flex-shrink: 0;
 }
 
 .task-action-btn {
-  padding: 8rpx 18rpx;
+  padding: 10rpx 22rpx;
   border: 1rpx solid var(--theme-primary);
-  border-radius: var(--theme-radius-sm);
+  border-radius: 14rpx;
   background: transparent;
 }
 
+.task-action-btn:active {
+  background: color-mix(in oklab, var(--theme-primary) 10%, var(--theme-surface));
+}
+
 .task-action-text {
-  font-size: 22rpx;
-  font-weight: 600;
+  font-size: 24rpx;
+  font-weight: 500;
   color: var(--theme-primary);
-  line-height: 1.2;
+  line-height: 1.3;
 }
 
 .task-skip-link {
-  font-size: 20rpx;
+  font-size: 22rpx;
   color: var(--theme-text-placeholder);
   padding: 4rpx 6rpx;
 }
 
 .optional-section {
   margin-top: 12rpx;
-  padding-top: 16rpx;
+  padding-top: 20rpx;
   border-top: 1rpx dashed var(--theme-border);
 }
 
+.optional-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-bottom: 6rpx;
+}
+
 .optional-heading {
-  display: block;
-  font-size: 21rpx;
+  font-size: 24rpx;
   font-weight: 600;
   letter-spacing: 1rpx;
   color: var(--theme-text-secondary);
-  margin-bottom: 4rpx;
+}
+
+.optional-note {
+  font-size: 22rpx;
+  color: var(--theme-text-placeholder);
 }
 
 .optional-row {
-  padding: 14rpx 0 8rpx;
+  padding: 16rpx 0 8rpx;
 }
 
 .checklist-footer {
@@ -399,20 +483,20 @@ function handleDismissChecklist() {
   align-items: center;
   justify-content: space-between;
   gap: 16rpx;
-  margin-top: 14rpx;
-  padding-top: 16rpx;
-  border-top: 1rpx solid var(--theme-border);
+  margin-top: 16rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx solid var(--theme-divider);
 }
 
 .checklist-footer-note {
   flex: 1;
-  font-size: 20rpx;
-  line-height: 1.45;
+  font-size: 22rpx;
+  line-height: 1.5;
   color: var(--theme-text-placeholder);
 }
 
 .checklist-dismiss-link {
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: var(--theme-text-secondary);
   padding: 6rpx 4rpx;
   flex-shrink: 0;
