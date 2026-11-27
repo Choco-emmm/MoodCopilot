@@ -114,7 +114,7 @@ let resizeObserver: ResizeObserver | null = null
 
 const shouldRender = computed(() => {
   if (!isActivated.value || !props.hint || !props.visible || routeDismissed.value) return false
-  if (onboarding.isWelcomeOpen) return false
+  if (onboarding.isWelcomeOpen || onboarding.demoOpen) return false
   if (!props.nonBlocking && Boolean(aiPreview.current)) return false
   return true
 })

@@ -26,7 +26,13 @@ import {
   shouldAutoShowWelcome,
 } from '../../shared/onboarding.ts'
 
-test('shared/onboarding metadata matches P0-A/P0-B contract', () => {
+import {
+  ONBOARDING_DEMO_STEPS,
+  ONBOARDING_DEMO_STORY,
+  createInitialDemoSessionState,
+} from '../../shared/onboardingDemo.ts'
+
+test('shared/onboarding metadata matches P0-A/P0-B/P2 contract', () => {
   assert.equal(ONBOARDING_GUIDE_VERSION, 1)
   assert.deepEqual([...CORE_TASK_KEYS], [
     'FIRST_DIARY',
@@ -42,8 +48,9 @@ test('shared/onboarding metadata matches P0-A/P0-B contract', () => {
   assert.equal(WELCOME_SLIDES[2].title, '你的记忆，由你决定')
   assert.deepEqual(
     WELCOME_ACTIONS.map((a) => a.label),
-    ['记录今天', '找 AI 聊聊', '稍后探索'],
+    ['记录今天', '找 AI 聊聊', '先体验一下', '稍后探索'],
   )
+  assert.ok(WELCOME_ACTIONS.some((a) => a.key === 'TRY_DEMO' && a.label === '先体验一下'))
 })
 
 test('shouldAutoShowWelcome and isChecklistActive gate enrollment and status accurately', () => {
@@ -253,4 +260,39 @@ test('P1 hint registry covers all 10 hints with strict WEB vs MINI_PROGRAM scope
 
   // Returns null when all eligible hints are already seen/dismissed
   assert.equal(pickActiveHint(state, ['ANALYSIS_READY', 'LIFE_EVENT'], 'WEB'), null)
+})
+
+test('P2 photography contest demo story has verbatim evidence, concise Chinese attributeKeys, and explicit preset disclaimer', () => {
+  assert.equal(ONBOARDING_DEMO_STORY.storyTitle, '摄影比赛')
+  assert.equal(ONBOARDING_DEMO_STEPS.length, 4)
+  assert.ok(ONBOARDING_DEMO_STORY.chatDisclaimer.includes('非实时 AI'))
+  assert.ok(ONBOARDING_DEMO_STORY.memories.length >= 3)
+  assert.ok(ONBOARDING_DEMO_STORY.memories.some((m) => m.kind === 'candidate'))
+
+  for (const memory of ONBOARDING_DEMO_STORY.memories) {
+    assert.ok(
+      ONBOARDING_DEMO_STORY.diary.content.includes(memory.evidence),
+      `demo memory ${memory.id} evidence is not a verbatim substring of diary.content`,
+    )
+    assert.ok(
+      /^[\u4e00-\u9fa5]{2,12}$/.test(memory.attributeKey),
+      `demo memory ${memory.id} attributeKey "${memory.attributeKey}" must be concise Chinese`,
+    )
+  }
+
+  assert.ok(ONBOARDING_DEMO_STORY.chatPresets.length >= 2)
+  for (const preset of ONBOARDING_DEMO_STORY.chatPresets) {
+    assert.ok(preset.citations.length >= 1)
+    for (const cite of preset.citations) {
+      assert.ok(
+        ONBOARDING_DEMO_STORY.diary.content.includes(cite.excerpt),
+        `demo citation ${cite.id} excerpt must come from demo diary`,
+      )
+    }
+  }
+
+  const initial = createInitialDemoSessionState()
+  assert.equal(initial.stepIndex, 0)
+  assert.equal(initial.candidateDecision, 'pending')
+  assert.deepEqual(initial.selectedChatPresetIds, [])
 })

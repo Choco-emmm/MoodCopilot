@@ -865,13 +865,12 @@ try {
     assert(document.querySelector('[data-testid="onboarding-welcome-dialog"]'), 'welcome did not auto-open for enrolled user')
     assert(postedEvents.some((e) => e.eventType === 'WELCOME_STARTED' && e.scope === 'WEB'), 'WELCOME_STARTED was not sent')
 
-    // Step through 3 cards to action screen and verify NO 先体验一下
+    // Step through 3 cards to action screen and verify P2 TRY_DEMO is available
     document.querySelector('[data-testid="onboarding-next-btn"]').click(); await flush()
     document.querySelector('[data-testid="onboarding-next-btn"]').click(); await flush()
     document.querySelector('[data-testid="onboarding-next-btn"]').click(); await flush()
     const dialogText = document.querySelector('[data-testid="onboarding-welcome-dialog"]').textContent
-    assert(dialogText.includes('记录今天') && dialogText.includes('找 AI 聊聊') && dialogText.includes('稍后探索'), 'post-welcome actions missing')
-    assert(!dialogText.includes('先体验一下'), 'P2 sandbox action should not appear in P0-B')
+    assert(dialogText.includes('记录今天') && dialogText.includes('找 AI 聊聊') && dialogText.includes('先体验一下') && dialogText.includes('稍后探索'), 'post-welcome actions missing')
 
     // Click 记录今天 -> completes welcome and routes to /write
     document.querySelector('[data-testid="onboarding-action-WRITE_TODAY"]').click(); await flush()
@@ -1182,6 +1181,70 @@ try {
     assert(document.querySelector('[data-testid="spotlight-guide"]')?.getAttribute('data-hint-key') === 'CHAT_CITATION', 'reactivated KeepAlive SpotlightGuide stayed stuck hidden')
 
     appKeepAlive.unmount()
+  })
+  await check('P2 DemoExperience runs photography contest walkthrough with zero API writes, local replay, and clean /write handoff', async () => {
+    const { createApp, h, createPinia, setActivePinia, createRouter, createMemoryHistory } = f
+    const { api } = await import('/src/api/core.ts')
+    const { useAuthStore } = await import('/src/stores/auth.ts')
+    const { useOnboardingStore } = await import('/src/stores/onboarding.ts')
+    const { default: OnboardingHost } = await import('/src/components/onboarding/OnboardingHost.vue')
+
+    localStorage.clear()
+    localStorage.setItem('token', 'p2-demo-token')
+    const apiRequests = []
+    api.defaults.adapter = async (config) => {
+      apiRequests.push({ method: config.method, url: config.url })
+      return { data: { code: 0, message: 'OK', data: {} }, status: 200, statusText: 'OK', headers: {}, config }
+    }
+
+    const pinia = createPinia(); setActivePinia(pinia)
+    const auth = useAuthStore(); auth.token = 'p2-demo-token'; auth.userId = 515
+    const onboarding = useOnboardingStore()
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/', component: { render: () => null } },
+        { path: '/write', component: { render: () => null } },
+      ],
+    })
+    await router.push('/')
+    const app = createApp({ render: () => h(OnboardingHost) })
+    app.use(pinia).use(router).mount('#app'); await flush()
+
+    onboarding.openDemoExperience(); await flush()
+    assert(document.querySelector('[data-testid="demo-step-diary"]'), 'step 1 diary did not render')
+    assert(document.documentElement.scrollWidth <= innerWidth, 'DemoExperience overflowed 390px viewport')
+
+    document.querySelector('[data-testid="demo-next-btn"]').click(); await flush()
+    assert(document.querySelector('[data-testid="demo-step-analysis"]'), 'step 2 analysis did not render')
+
+    document.querySelector('[data-testid="demo-next-btn"]').click(); await flush()
+    assert(document.querySelector('[data-testid="demo-step-memory"]'), 'step 3 memory did not render')
+    document.querySelector('[data-testid="demo-evidence-toggle-demo-mem-goal"]').click(); await flush()
+    assert(document.querySelector('[data-testid="demo-evidence-demo-mem-goal"]'), 'verbatim evidence did not expand')
+    document.querySelector('[data-testid="demo-candidate-approve"]').click(); await flush()
+    assert(document.querySelector('[data-testid="demo-memory-demo-mem-goal"]').textContent.includes('已演示确认'), 'local candidate confirm did not update')
+
+    document.querySelector('[data-testid="demo-next-btn"]').click(); await flush()
+    assert(document.querySelector('[data-testid="demo-step-chat"]'), 'step 4 chat did not render')
+    assert(document.querySelector('[data-testid="demo-chat-disclaimer"]').textContent.includes('非实时 AI'), 'preset disclaimer missing')
+    document.querySelector('[data-testid="demo-chat-preset-contest-nerves"]').click(); await flush()
+    assert(document.querySelector('[data-testid="demo-chat-thread"]'), 'preset chat turn did not render')
+    assert(document.querySelector('[data-testid="demo-citation-preview"]'), 'demo citation preview did not render')
+
+    // Replay resets local demo state back to step 1
+    document.querySelector('[data-testid="demo-replay-btn"]').click(); await flush()
+    assert(document.querySelector('[data-testid="demo-step-diary"]'), 'replay did not reset to step 1')
+
+    // Start real writing navigates to /write with ZERO draft storage and ZERO API requests
+    document.querySelector('[data-testid="demo-start-real-write-btn"]').click()
+    await new Promise((r) => setTimeout(r, 20)); await flush()
+    assert(!onboarding.demoOpen, 'demoOpen did not close on start real writing')
+    assert(router.currentRoute.value.path === '/write', 'start real writing did not navigate to /write')
+    assert(!localStorage.getItem('moodcopilot:draft'), 'demo text must never be written to real diary draft storage')
+    assert(apiRequests.length === 0, `demo sandbox triggered unexpected API requests: ${JSON.stringify(apiRequests)}`)
+
+    app.unmount()
   })
 } finally { await browser.close(); await server.close() }
 process.exitCode = failed ? 1 : 0

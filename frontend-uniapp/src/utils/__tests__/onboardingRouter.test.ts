@@ -5,23 +5,35 @@ import {
   describeWriteSaveNextStep,
   executeChecklistTaskAction,
   executeWelcomeAction,
+  exitOnboardingDemoPage,
   hasRenderableOwnedAnalysis,
   isMiniProgramTabBarPage,
   isRouteSafeForAutoWelcome,
   navigateMiniProgramRoute,
   normalizeMiniProgramRoute,
+  openOnboardingDemoPage,
+  startRealWritingFromDemo,
 } from '../onboardingRouter';
 
 describe('mini-program onboarding route adapter', () => {
   const switchTab = vi.fn();
   const navigateTo = vi.fn();
+  const redirectTo = vi.fn();
+  const navigateBack = vi.fn();
+  const setStorageSync = vi.fn();
 
   beforeEach(() => {
     switchTab.mockReset();
     navigateTo.mockReset();
+    redirectTo.mockReset();
+    navigateBack.mockReset();
+    setStorageSync.mockReset();
     vi.stubGlobal('uni', {
       switchTab,
       navigateTo,
+      redirectTo,
+      navigateBack,
+      setStorageSync,
     });
   });
 
@@ -68,9 +80,34 @@ describe('mini-program onboarding route adapter', () => {
     expect(navigateTo).not.toHaveBeenCalled();
 
     switchTab.mockReset();
+    executeWelcomeAction('TRY_DEMO');
+    expect(navigateTo).toHaveBeenCalledWith({ url: '/pages/onboarding-demo/onboarding-demo' });
+    expect(switchTab).not.toHaveBeenCalled();
+
+    navigateTo.mockReset();
     executeWelcomeAction('EXPLORE_LATER');
     expect(switchTab).not.toHaveBeenCalled();
     expect(navigateTo).not.toHaveBeenCalled();
+  });
+
+  it('routes demo entry/exit and real-write transition cleanly without prefill or storage writes', () => {
+    openOnboardingDemoPage();
+    expect(navigateTo).toHaveBeenCalledWith({ url: '/pages/onboarding-demo/onboarding-demo' });
+    expect(isRouteSafeForAutoWelcome('/pages/onboarding-demo/onboarding-demo')).toBe(false);
+    expect(isRouteSafeForAutoWelcome('pages/onboarding-demo/onboarding-demo')).toBe(false);
+
+    startRealWritingFromDemo();
+    expect(redirectTo).toHaveBeenCalledTimes(1);
+    expect(redirectTo.mock.calls[0][0].url).toBe('/pages/write/write');
+    expect(setStorageSync).not.toHaveBeenCalled();
+
+    // Exit uses navigateBack and falls back to index tabBar on failure
+    navigateBack.mockImplementationOnce((opts?: { fail?: () => void }) => {
+      opts?.fail?.();
+    });
+    exitOnboardingDemoPage();
+    expect(navigateBack).toHaveBeenCalledTimes(1);
+    expect(switchTab).toHaveBeenCalledWith({ url: '/pages/index/index' });
   });
 
   it('restricts auto-welcome to safe tabBar pages and blocks editing subpages', () => {

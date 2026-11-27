@@ -5,12 +5,18 @@
     @skip="handleSkip"
     @choose-action="handleChooseAction"
   />
+  <DemoExperience
+    :open="onboarding.demoOpen"
+    @close="onboarding.closeDemoExperience()"
+    @start-writing="handleStartRealWriting"
+  />
 </template>
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import WelcomeDialog from './WelcomeDialog.vue'
+import DemoExperience from './DemoExperience.vue'
 import { useAuthStore } from '../../stores/auth'
 import { useAiPreviewStore } from '../../stores/aiPreview'
 import { useOnboardingStore } from '../../stores/onboarding'
@@ -59,7 +65,7 @@ function hasBlockingOverlayInDom(): boolean {
 
 function canAutoTriggerNow(): boolean {
   if (!auth.isAuthenticated || auth.userId == null) return false
-  if (!onboarding.canAutoShowWelcome || onboarding.isWelcomeOpen) return false
+  if (!onboarding.canAutoShowWelcome || onboarding.isWelcomeOpen || onboarding.demoOpen) return false
   if (isRouteBlocked()) return false
   if (Boolean(aiPreview.current)) return false
   if (onboarding.externalModalBlocking) return false
@@ -119,6 +125,10 @@ async function handleSkip(): Promise<void> {
 
 async function handleChooseAction(action: WelcomeActionKey): Promise<void> {
   await onboarding.completeWelcome()
+  if (action === 'TRY_DEMO') {
+    onboarding.openDemoExperience()
+    return
+  }
   if (action === 'WRITE_TODAY') {
     if (route.path !== '/write') {
       void router.push('/write')
@@ -129,6 +139,13 @@ async function handleChooseAction(action: WelcomeActionKey): Promise<void> {
     if (route.path !== '/chat') {
       void router.push('/chat')
     }
+  }
+}
+
+function handleStartRealWriting(): void {
+  onboarding.closeDemoExperience()
+  if (route.path !== '/write') {
+    void router.push('/write')
   }
 }
 </script>

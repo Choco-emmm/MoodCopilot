@@ -30,11 +30,14 @@ import {
   describeWriteSaveNextStep,
   executeChecklistTaskAction,
   executeWelcomeAction,
+  exitOnboardingDemoPage,
   hasRenderableOwnedAnalysis,
   isMiniProgramTabBarPage,
   isRouteSafeForAutoWelcome,
   navigateMiniProgramRoute,
   normalizeMiniProgramRoute,
+  openOnboardingDemoPage,
+  startRealWritingFromDemo,
 } from '../utils/onboardingRouter';
 
 export {
@@ -42,11 +45,14 @@ export {
   describeWriteSaveNextStep,
   executeChecklistTaskAction,
   executeWelcomeAction,
+  exitOnboardingDemoPage,
   hasRenderableOwnedAnalysis,
   isMiniProgramTabBarPage,
   isRouteSafeForAutoWelcome,
   navigateMiniProgramRoute,
   normalizeMiniProgramRoute,
+  openOnboardingDemoPage,
+  startRealWritingFromDemo,
 };
 
 export const MINI_PROGRAM_GUIDE_SCOPE: PlatformGuideScope = 'MINI_PROGRAM';

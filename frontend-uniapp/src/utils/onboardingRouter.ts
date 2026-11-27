@@ -56,6 +56,36 @@ export function navigateMiniProgramRoute(url: string): void {
   uni.navigateTo({ url: normalizedUrl });
 }
 
+export function openOnboardingDemoPage(): void {
+  navigateMiniProgramRoute('/pages/onboarding-demo/onboarding-demo');
+}
+
+export function exitOnboardingDemoPage(): void {
+  if (typeof uni.navigateBack === 'function') {
+    uni.navigateBack({
+      fail: () => {
+        uni.switchTab({ url: '/pages/index/index' });
+      },
+    });
+    return;
+  }
+  uni.switchTab({ url: '/pages/index/index' });
+}
+
+export function startRealWritingFromDemo(): void {
+  const writeUrl = '/pages/write/write';
+  if (typeof uni.redirectTo === 'function') {
+    uni.redirectTo({
+      url: writeUrl,
+      fail: () => {
+        uni.navigateTo({ url: writeUrl });
+      },
+    });
+    return;
+  }
+  uni.navigateTo({ url: writeUrl });
+}
+
 export function executeWelcomeAction(actionKey: WelcomeActionKey): void {
   if (actionKey === 'WRITE_TODAY') {
     navigateMiniProgramRoute('/pages/write/write');
@@ -63,6 +93,10 @@ export function executeWelcomeAction(actionKey: WelcomeActionKey): void {
   }
   if (actionKey === 'CHAT_WITH_AI') {
     navigateMiniProgramRoute('/pages/chat/chat');
+    return;
+  }
+  if (actionKey === 'TRY_DEMO') {
+    openOnboardingDemoPage();
     return;
   }
   // EXPLORE_LATER intentionally stays on the current page.

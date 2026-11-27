@@ -187,11 +187,12 @@ describe('shared onboarding pure helpers', () => {
     );
   });
 
-  it('provides 3 welcome slides and 3 non-social P0-B actions', () => {
+  it('provides 3 welcome slides and 4 non-social P2 actions including TRY_DEMO', () => {
     expect(WELCOME_SLIDES).toHaveLength(3);
     expect(WELCOME_ACTIONS.map((item) => item.key)).toEqual([
       'WRITE_TODAY',
       'CHAT_WITH_AI',
+      'TRY_DEMO',
       'EXPLORE_LATER',
     ]);
   });

@@ -120,7 +120,7 @@ export interface WelcomeSlide {
   highlights: readonly string[]
 }
 
-export type WelcomeActionKey = 'WRITE_TODAY' | 'CHAT_WITH_AI' | 'EXPLORE_LATER'
+export type WelcomeActionKey = 'WRITE_TODAY' | 'CHAT_WITH_AI' | 'TRY_DEMO' | 'EXPLORE_LATER'
 
 export interface WelcomeActionItem {
   key: WelcomeActionKey
@@ -214,6 +214,12 @@ export const WELCOME_ACTIONS: readonly WelcomeActionItem[] = [
     key: 'CHAT_WITH_AI',
     label: '找 AI 聊聊',
     description: '开启一段对话，聊日常、学习或任何想法',
+    emphasis: 'secondary',
+  },
+  {
+    key: 'TRY_DEMO',
+    label: '先体验一下',
+    description: '用「摄影比赛」虚拟示例走一遍完整流程，不写入真实数据',
     emphasis: 'secondary',
   },
   {
@@ -330,6 +336,8 @@ export const ONBOARDING_COPY = {
   welcomeActionsSubheading: '一切都可以按你的节奏慢慢来，随时可以从个人页重看这份指南。',
   guideEntryLabel: '使用指南',
   guideEntryDescription: '重新查看初次相遇介绍',
+  demoEntryLabel: '体验示例',
+  demoEntryDescription: '用虚拟故事体验完整流程，不会写入真实记录',
   checklistTitle: '新手上手清单',
   checklistOptionalHeading: '可选探索',
   checklistDismissLabel: '收起清单',
