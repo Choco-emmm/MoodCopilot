@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <a href="https://moodcopilot.dpdns.org/">🌐 在线体验（网页版）</a>
+  <a href="https://app.moodcopilot.top/">🌐 在线体验（网页版）</a>
   &nbsp;·&nbsp;
   <a href="./docs/小程序码.png">📱 微信小程序</a>
   &nbsp;·&nbsp;
@@ -230,6 +230,8 @@ docker compose up -d --build
 ```
 
 `docker-compose.yml` 面向服务器场景：`web` 服务在容器内监听 3000，`frontend`（Nginx）对外发布 80/443 并反代 `/api`、`/ws` 与 SSE。若只想在本机看网页版，给 `web` 加上 `3000:3000` 端口映射后访问 <http://localhost:3000>，或直接用上面第 3 步。
+
+生产环境对外域名是 <https://app.moodcopilot.top>（HTTPS + HTTP/2 直连源站，vhost 见 `nginx/conf.d/app.conf`，证书放在服务器的 `nginx/ssl/`）；Cloudflare Tunnel 提供的 <https://moodcopilot.dpdns.org> 保留为备用入口。
 
 ### 测试
 
