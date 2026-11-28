@@ -28,9 +28,23 @@
     <div class="initial-loader">
       <div class="loader-pulse"></div>
       <div class="loader-text">MoodCopilot</div>
-      <div class="loader-subtext" style="margin-top: 12px; font-size: 13px; opacity: 0.6; font-weight: normal;">首次加载可能需要一些时间，请耐心等待...</div>
+      <div class="loader-subtext" id="loader-hint" hidden></div>
     </div>
   </div>
+  <script>
+    // 骨架屏只说真实发生的事：正常加载不显示任何等待文案，
+    // 超时后才提示“慢”或“失败”，而不是每次打开都写“首次加载”。
+    (function() {
+      function setHint(text) {
+        var el = document.getElementById('loader-hint');
+        if (!el || !el.isConnected) return;
+        el.textContent = text;
+        el.hidden = false;
+      }
+      setTimeout(function() { setHint('网络较慢，仍在加载…'); }, 8000);
+      setTimeout(function() { setHint('加载失败，请刷新页面重试'); }, 20000);
+    })();
+  </script>
   <style>
     .initial-loader {
       display: flex;
@@ -66,6 +80,12 @@
       letter-spacing: 1px;
       opacity: 0.8;
       animation: text-pulse 1.5s ease-in-out infinite;
+    }
+    #loader-hint {
+      margin-top: 12px;
+      font-size: 13px;
+      opacity: 0.6;
+      font-weight: normal;
     }
     @keyframes initial-pulse {
       0% { transform: scale(0.8); opacity: 0.3; }

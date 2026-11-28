@@ -48,16 +48,10 @@ export default defineConfig(({ mode }) => {
       allowedHosts: ['moodcopilot.dpdns.org'],
     },
     build: {
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            'vue-vendor': ['vue', 'vue-router', 'pinia'],
-            'ui-vendor': ['naive-ui'],
-            'editor-vendor': ['@wangeditor/editor', 'marked', 'dompurify'],
-            'utils-vendor': ['axios', 'cropperjs', '@vicons/ionicons5']
-          }
-        }
-      }
+      // 不再按库做 manualChunks：按库分包会把「任意页面用到的同库模块」塞进同一个
+      // chunk，入口只要碰其中一个，就会把整包（编辑器、日期选择器、数据表格…）预加载。
+      // 交给 Rollup 按动态 import 的自然边界切分，编辑器只随 /write 下载。
+      chunkSizeWarningLimit: 900
     }
   }
 })

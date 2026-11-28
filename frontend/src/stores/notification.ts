@@ -4,7 +4,6 @@ import { notificationApi } from '../api'
 import router from '../router'
 import { logWarn } from '../utils/logger'
 import { useReportStore } from './report'
-import { renderSafeMarkdown } from '../utils/markdown'
 
 export interface Notification {
   id: number
@@ -20,6 +19,20 @@ export interface Notification {
   isRead: boolean
   readAt: string | null
   createdAt: string
+}
+
+/**
+ * 通知正文可能是模型写的 markdown。marked/DOMPurify 只在真的弹出通知时才需要，
+ * 所以这里动态加载，避免它们跟着入口一起进首屏。
+ */
+async function renderNotificationBody(message: string) {
+  try {
+    const { renderSafeMarkdown } = await import('../utils/markdown')
+    return h('div', { class: 'md-content notif-markdown', innerHTML: renderSafeMarkdown(message) })
+  } catch {
+    // 加载失败时退回纯文本，不能因为渲染器没到就吞掉通知
+    return h('div', { class: 'md-content notif-markdown' }, message)
+  }
 }
 
 /** 画像/图谱/画卷这类「AI 整理好了」通知的停留时长；倒计时条走的就是它。 */
@@ -49,7 +62,7 @@ export const useNotificationStore = defineStore('notification', () => {
       || type === 'CHAPTER_UPDATED'
   }
 
-  function createInsightUpdateToast(type: string, message?: string, diff?: any) {
+  async function createInsightUpdateToast(type: string, message?: string, diff?: any) {
     if (!window.$notification) return
 
     const title = type === 'PROFILE_UPDATED'
@@ -95,10 +108,7 @@ export const useNotificationStore = defineStore('notification', () => {
     }
 
     // 通知正文是模型写的（记忆值、章节摘要都可能带 markdown），按纯文本渲染会把 ** 原样露出来
-    const body = h('div', {
-      class: 'md-content notif-markdown',
-      innerHTML: renderSafeMarkdown(message || fallbackMessage)
-    })
+    const body = await renderNotificationBody(message || fallbackMessage)
 
     window.$notification.create({
       title,
@@ -222,10 +232,10 @@ export const useNotificationStore = defineStore('notification', () => {
             const notification = payload.data as Notification
             mergeIncomingNotification(notification)
             if (isInsightUpdateType(notification?.type) && notification?.isRead === false) {
-              createInsightUpdateToast(notification.type, notification.message)
+              void createInsightUpdateToast(notification.type, notification.message)
             }
           } else if (isInsightUpdateType(payload?.type)) {
-            createInsightUpdateToast(payload.type, payload.data?.message, payload.data?.diff)
+            void createInsightUpdateToast(payload.type, payload.data?.message, payload.data?.diff)
           } else if (payload?.type === 'REPORT_GENERATED') {
             const period = payload.data?.period
             const offset = payload.data?.offset
