@@ -16,6 +16,7 @@
               <router-link
                 :to="item.path"
                 :class="['nav-link', item.cls, { active: route.path === item.path }]"
+                :data-guide-id="item.guideId"
               >
                 <n-badge v-if="item.id === 'notif'" :value="notif.unreadCount" :max="99" :show="notif.unreadCount > 0" class="nav-bell-badge" dot>
                   <span class="nav-link-icon" aria-hidden="true" v-html="item.icon"></span>
@@ -37,7 +38,7 @@
               </n-badge>
             </span>
           </router-link>
-          <router-link :to="profilePath" class="masthead-user-link">
+          <router-link :to="profilePath" class="masthead-user-link" data-guide-id="nav-profile">
             <img v-if="auth.avatar" :src="auth.avatar" class="avatar-sm-nav avatar-sm-nav-img" decoding="async" />
             <span v-else class="avatar-sm-nav">{{ auth.displayName?.charAt(0) }}</span>
             <span class="masthead-user-name">{{ auth.displayName }}</span>
@@ -97,12 +98,20 @@ const navItems = computed(() => {
 
   const bellIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`
 
-  const items = [
-    { label: '广场', shortLabel: '广场', icon: homeIcon, path: '/', cls: 'nav-link-home' },
-    { label: 'MoodCopilot', shortLabel: 'AI', icon: aiIcon, path: '/chat', cls: 'nav-link-ai' },
-    { label: '记录', shortLabel: '记录', icon: writeIcon, path: '/write', cls: 'nav-link-write' },
+  const items: Array<{
+    id?: string
+    label: string
+    shortLabel: string
+    icon: string
+    path: string
+    cls: string
+    guideId?: string
+  }> = [
+    { label: '广场', shortLabel: '广场', icon: homeIcon, path: '/', cls: 'nav-link-home', guideId: 'nav-square' },
+    { label: 'MoodCopilot', shortLabel: 'AI', icon: aiIcon, path: '/chat', cls: 'nav-link-ai', guideId: 'nav-ai' },
+    { label: '记录', shortLabel: '记录', icon: writeIcon, path: '/write', cls: 'nav-link-write', guideId: 'nav-write' },
     { id: 'notif', label: '通知', shortLabel: '消息', icon: bellIcon, path: '/notifications', cls: 'nav-link-notif mobile-only' },
-    { id: 'mine', label: '我的', shortLabel: '我的', icon: profileIcon, path: profilePath.value, cls: 'nav-link-mine mobile-only' },
+    { id: 'mine', label: '我的', shortLabel: '我的', icon: profileIcon, path: profilePath.value, cls: 'nav-link-mine mobile-only', guideId: 'nav-profile' },
   ]
   if (auth.isAdmin) {
     items.push(

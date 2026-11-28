@@ -1,5 +1,11 @@
 <template>
-  <scroll-view scroll-y class="analysis-page" :style="globalThemeStyle">
+  <scroll-view
+    scroll-y
+    class="analysis-page"
+    :scroll-into-view="analysisScrollTarget"
+    :scroll-with-animation="true"
+    :style="globalThemeStyle"
+  >
     <GlobalUI :tabIndex="1" />
     <view class="header">
       <text class="title">洞察</text>
@@ -122,10 +128,7 @@
         <text class="section-title">你的专属记忆</text>
         <button class="section-action" @click="previewConsolidate" :loading="isConsolidating">整理记忆</button>
       </view>
-      <text class="section-desc">这里保存你的个人记忆；近期状态只用于当前关怀参考，不会作为核心长期画像。</text>
-      <view class="memory-control-note">
-        <text class="memory-control-note-text">{{ ONBOARDING_COPY.memoryCenterSummary }}</text>
-      </view>
+      <text class="section-desc">汇集系统整理与由你确认的长期记忆，每条均可查看原文依据、修改或删除；近期状态仅作当下关怀参考。</text>
       <view class="candidate-section" v-if="candidates.length > 0 || loadingCandidates || candidateError">
         <view class="candidate-heading">
           <view class="candidate-heading-main">
@@ -231,7 +234,7 @@
     </view>
 
     <!-- 关系图谱 -->
-    <view class="section">
+    <view id="relation-graph-section" class="section">
       <view class="section-title-row">
         <text class="section-title">羁绊图谱</text>
         <button class="section-action" @click="previewGraphConsolidate" :loading="isGraphConsolidating">整理图谱</button>
@@ -365,20 +368,49 @@
         </view>
       </view>
     </view>
+
+    <GuideBubble
+      v-if="activeAnalysisHintKey"
+      :hint-key="activeAnalysisHintKey"
+      :eligible="activeAnalysisHintKey === 'MEMORY_CANDIDATE' ? hasPendingCandidates : hasRelationGraphData"
+      has-tab-bar
+      :locate-label="activeAnalysisHintKey === 'RELATION_GRAPH' ? '去看图谱' : ''"
+      @locate="scrollToRelationGraph"
+    />
   </scroll-view>
 </template>
 
 <script setup lang="ts">
 import GlobalUI from '@/components/GlobalUI.vue';
+import GuideBubble from '@/components/onboarding/GuideBubble.vue';
 
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { get, post, put, del } from '@/utils/request';
 import { parseMarkdown } from '@/utils/markdown';
 import { hasLoginToken, requireLogin } from '@/stores/login';
 import { currentTheme } from '@/stores/theme';
-import { ONBOARDING_COPY } from '@/constants/onboarding';
-import { recordMemoryCenterVisited } from '@/stores/onboarding';
+import type { HintKey } from '@/constants/onboarding';
+import { pickActiveMiniProgramHint, recordMemoryCenterVisited } from '@/stores/onboarding';
+
+const analysisScrollTarget = ref('');
+function scrollToRelationGraph() {
+  const triggerScrollViewFallback = () => {
+    analysisScrollTarget.value = '';
+    void nextTick(() => {
+      analysisScrollTarget.value = 'relation-graph-section';
+    });
+  };
+  if (typeof uni !== 'undefined' && typeof uni.pageScrollTo === 'function') {
+    uni.pageScrollTo({
+      selector: '#relation-graph-section',
+      duration: 300,
+      fail: triggerScrollViewFallback,
+    });
+    return;
+  }
+  triggerScrollViewFallback();
+}
 
 const loadingReport = ref(false);
 const weeklyReport = ref<any>(null);
@@ -486,6 +518,23 @@ const graphOperationLabel = (operation?: string) => ({
   MERGE: '合并重复关系', DEDUP: '去除重复', NORMALIZE: '统一表达',
 }[operation || ''] || '整理建议');
 const isLoggedIn = ref(hasLoginToken());
+
+const hasPendingCandidates = computed(
+  () => isLoggedIn.value && !loadingCandidates.value && !candidateError.value && candidates.value.length > 0,
+);
+const hasRelationGraphData = computed(
+  () => isLoggedIn.value && !loadingGraph.value && !graphError.value && triples.value.length > 0,
+);
+const activeAnalysisHintKey = computed<HintKey | null>(() => {
+  const eligible: HintKey[] = [];
+  if (hasPendingCandidates.value) {
+    eligible.push('MEMORY_CANDIDATE');
+  }
+  if (hasRelationGraphData.value) {
+    eligible.push('RELATION_GRAPH');
+  }
+  return pickActiveMiniProgramHint(eligible)?.key ?? null;
+});
 
 const loadAllData = async () => {
   fetchMemory();
@@ -2519,19 +2568,6 @@ const deleteTriple = (id: number) => {
   .candidate-approve, .candidate-reject { flex: 1; }
 }
 
-.memory-control-note {
-  margin: 0 0 20rpx;
-  padding: 14rpx 18rpx;
-  border-left: 4rpx solid var(--theme-primary);
-  border-radius: var(--theme-radius-sm);
-  background: color-mix(in oklab, var(--theme-primary) 5%, var(--theme-surface));
-}
-.memory-control-note-text {
-  display: block;
-  font-size: 22rpx;
-  line-height: 1.6;
-  color: var(--theme-text-secondary);
-}
 .empty-subtext {
   display: block;
   margin-top: 10rpx;

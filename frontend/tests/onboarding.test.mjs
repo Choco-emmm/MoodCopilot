@@ -5,22 +5,31 @@ import {
   CORE_TASK_KEYS,
   ALL_TASK_KEYS,
   ALL_HINT_KEYS,
+  ONBOARDING_HINTS,
+  ONBOARDING_HINT_MAP,
   CORE_ONBOARDING_TASKS,
   OPTIONAL_ONBOARDING_TASKS,
   CHAT_STARTER_PROMPTS_WITH_DIARY,
   CHAT_STARTER_PROMPTS_WITHOUT_DIARY,
+  MINI_PROGRAM_WELCOME_TOUR_STEPS,
+  WEB_WELCOME_TOUR_STEPS,
   WELCOME_SLIDES,
   WELCOME_ACTIONS,
   buildOnboardingCacheKey,
   computeCoreTaskProgress,
   createDefaultOnboardingState,
+  getHintsForScope,
   isChecklistActive,
+  isHintAllowedForScope,
+  isHintPending,
   mergeOnboardingStateMonotonic,
   normalizeOnboardingState,
+  pickActiveHint,
+  resolveStarterPromptDraft,
   shouldAutoShowWelcome,
 } from '../../shared/onboarding.ts'
 
-test('shared/onboarding metadata matches P0-A/P0-B contract', () => {
+test('shared/onboarding metadata matches P0-A/P0-B/spotlight tour contract', () => {
   assert.equal(ONBOARDING_GUIDE_VERSION, 1)
   assert.deepEqual([...CORE_TASK_KEYS], [
     'FIRST_DIARY',
@@ -38,6 +47,16 @@ test('shared/onboarding metadata matches P0-A/P0-B contract', () => {
     WELCOME_ACTIONS.map((a) => a.label),
     ['记录今天', '找 AI 聊聊', '稍后探索'],
   )
+  // User-facing copy should not expose internal jargon like "上下文"
+  for (const slide of WELCOME_SLIDES) {
+    assert.ok(!slide.description.includes('上下文'))
+    for (const h of slide.highlights) {
+      assert.ok(!h.includes('上下文'))
+    }
+  }
+  for (const hint of ONBOARDING_HINTS) {
+    assert.ok(!hint.title.includes('上下文') && !hint.description.includes('上下文'))
+  }
 })
 
 test('shouldAutoShowWelcome and isChecklistActive gate enrollment and status accurately', () => {
@@ -208,4 +227,98 @@ test('P0-C task metadata separates 4 core tasks from optional theme task and pro
   assert.equal(computeCoreTaskProgress(onlyOptionalDone).completed, 0)
   assert.equal(computeCoreTaskProgress(onlyOptionalDone).total, 4)
   assert.equal(isChecklistActive(onlyOptionalDone), true)
+})
+
+test('P1 hint registry covers all 10 hints with strict WEB vs MINI_PROGRAM scope filtering and priority picking', () => {
+  assert.equal(ONBOARDING_HINTS.length, 10)
+  for (const key of ALL_HINT_KEYS) {
+    assert.ok(ONBOARDING_HINT_MAP[key], `missing hint metadata for ${key}`)
+    assert.ok(ONBOARDING_HINT_MAP[key].anchorId.length > 0)
+  }
+
+  const webHints = getHintsForScope('WEB')
+  const mpHints = getHintsForScope('MINI_PROGRAM')
+  assert.equal(webHints.length, 10)
+  assert.equal(mpHints.length, 8)
+  assert.equal(isHintAllowedForScope('PUBLIC_DIARY_WEB', 'WEB'), true)
+  assert.equal(isHintAllowedForScope('TOOL_APPROVAL_WEB', 'WEB'), true)
+  assert.equal(isHintAllowedForScope('PUBLIC_DIARY_WEB', 'MINI_PROGRAM'), false)
+  assert.equal(isHintAllowedForScope('TOOL_APPROVAL_WEB', 'MINI_PROGRAM'), false)
+
+  const state = createDefaultOnboardingState({
+    enrolledVersion: 1,
+    hints: {
+      ANALYSIS_READY: 'COMPLETED',
+      LIFE_EVENT: 'SKIPPED',
+    },
+  })
+  assert.equal(isHintPending(state, 'ANALYSIS_READY'), false)
+  assert.equal(isHintPending(state, 'LIFE_EVENT'), false)
+  assert.equal(isHintPending(state, 'CHAT_CITATION'), true)
+
+  // Picks highest priority eligible hint for WEB
+  const pickedWeb = pickActiveHint(state, ['CHAT_CITATION', 'MODEL_PRO', 'TOOL_APPROVAL_WEB'], 'WEB')
+  assert.equal(pickedWeb?.key, 'TOOL_APPROVAL_WEB')
+
+  // Filters out WEB-only hints on MINI_PROGRAM and picks next highest priority
+  const pickedMp = pickActiveHint(state, ['CHAT_CITATION', 'MODEL_PRO', 'TOOL_APPROVAL_WEB'], 'MINI_PROGRAM')
+  assert.equal(pickedMp?.key, 'MODEL_PRO')
+
+  // Returns null when all eligible hints are already seen/dismissed
+  assert.equal(pickActiveHint(state, ['ANALYSIS_READY', 'LIFE_EVENT'], 'WEB'), null)
+})
+
+test('real-UI spotlight welcome tour defines 4 plain steps per platform and keeps mini-program strictly non-social', () => {
+  assert.equal(WEB_WELCOME_TOUR_STEPS.length, 4)
+  assert.equal(MINI_PROGRAM_WELCOME_TOUR_STEPS.length, 4)
+  assert.deepEqual(
+    WEB_WELCOME_TOUR_STEPS.map((s) => s.anchorId),
+    ['nav-write', 'nav-ai', 'nav-profile', 'nav-square'],
+  )
+  assert.deepEqual(
+    MINI_PROGRAM_WELCOME_TOUR_STEPS.map((s) => s.anchorId),
+    ['mp-nav-write', 'mp-nav-analysis', 'mp-nav-chat', 'mp-nav-profile'],
+  )
+
+  for (const step of [...WEB_WELCOME_TOUR_STEPS, ...MINI_PROGRAM_WELCOME_TOUR_STEPS]) {
+    assert.ok(!step.title.includes('上下文') && !step.description.includes('上下文'))
+  }
+  const socialPattern = /广场|社区|关注|举报|粉丝/
+  for (const step of MINI_PROGRAM_WELCOME_TOUR_STEPS) {
+    assert.ok(
+      !socialPattern.test(step.title) && !socialPattern.test(step.description),
+      `mini-program tour step "${step.id}" must stay strictly private/non-social`,
+    )
+  }
+})
+
+test('resolveStarterPromptDraft switches seamlessly between templates and requires confirmation for hand-typed drafts', () => {
+  const pool = [
+    CHAT_STARTER_PROMPTS_WITH_DIARY[0].text,
+    CHAT_STARTER_PROMPTS_WITH_DIARY[1].text,
+  ]
+  assert.deepEqual(resolveStarterPromptDraft('', pool[0], pool), {
+    nextDraft: pool[0],
+    status: 'applied',
+  })
+  assert.deepEqual(resolveStarterPromptDraft(pool[0], pool[0], pool), {
+    nextDraft: pool[0],
+    status: 'unchanged',
+  })
+  assert.deepEqual(resolveStarterPromptDraft(pool[0], pool[1], pool), {
+    nextDraft: pool[1],
+    status: 'replaced_template',
+  })
+  assert.deepEqual(resolveStarterPromptDraft('我手写的一段内容', pool[1], pool), {
+    nextDraft: '我手写的一段内容',
+    status: 'needs_confirm',
+  })
+  assert.deepEqual(
+    resolveStarterPromptDraft('我手写的一段内容', pool[1], pool, { forceReplace: true }),
+    {
+      nextDraft: pool[1],
+      status: 'replaced_template',
+    },
+  )
+  assert.equal(ONBOARDING_HINT_MAP.CHAT_CITATION.title, '可展开回答中的参考依据')
 })

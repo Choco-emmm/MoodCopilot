@@ -5,15 +5,20 @@ import {
   computeCoreTaskProgress,
   createDefaultOnboardingState,
   isChecklistActive,
+  isHintAllowedForScope,
+  isHintPending,
   isOnboardingEnrolled,
   maxGuideStatus,
   mergeOnboardingStateMonotonic,
   normalizeOnboardingState,
+  pickActiveHint,
   shouldAutoShowWelcome,
 } from '../constants/onboarding';
 import type {
+  HintKey,
   OnboardingDismissRequest,
   OnboardingEventRequest,
+  OnboardingHintDefinition,
   OnboardingState,
   PlatformGuideScope,
   TaskKey,
@@ -55,12 +60,41 @@ interface QueuedOnboardingMutation {
 
 const MAX_RETRY_QUEUE_SIZE = 20;
 
+export interface SpotlightAnchorRect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+export const spotlightAnchorRects = ref<Record<string, SpotlightAnchorRect>>({});
+
+export function registerSpotlightAnchorRect(
+  anchorId: string,
+  rect: SpotlightAnchorRect | null,
+): void {
+  if (!anchorId) return;
+  if (!rect || rect.width <= 0 || rect.height <= 0) {
+    return;
+  }
+  spotlightAnchorRects.value = {
+    ...spotlightAnchorRects.value,
+    [anchorId]: {
+      top: rect.top,
+      left: rect.left,
+      width: rect.width,
+      height: rect.height,
+    },
+  };
+}
+
 export const onboardingBoundUserId = ref<number | null>(null);
 export const onboardingState = ref<OnboardingState>(createDefaultOnboardingState());
 export const onboardingLoaded = ref(false);
 export const onboardingLoading = ref(false);
 export const welcomeOpen = ref(false);
 export const welcomeReplayMode = ref(false);
+export const hintOverlayBlocked = ref(false);
 export const activeOnboardingHostId = ref<string | null>(null);
 export const activeOnboardingRoute = ref('');
 
@@ -80,6 +114,7 @@ let welcomeStartedNotifiedUserId: number | null = null;
 let memoryCenterReportedUserId: number | null = null;
 let themeExploredReportedUserId: number | null = null;
 const reportedAnalysisDiaryIds = new Set<number>();
+const handledHintsInSession = new Set<HintKey>();
 let flushingRetryQueue = false;
 let retryQueue: QueuedOnboardingMutation[] = [];
 
@@ -154,20 +189,48 @@ function enqueueRetryMutation(item: QueuedOnboardingMutation): void {
   retryQueue.push(item);
 }
 
-function applyMergedState(userId: number, nextRemote: OnboardingState): OnboardingState {
-  const merged = mergeOnboardingStateMonotonic(onboardingState.value, nextRemote);
-  onboardingState.value = merged;
+function reconcileSessionDedupeWithState(nextState: OnboardingState): void {
+  if (nextState.tasks.FIRST_ANALYSIS_VIEWED !== 'COMPLETED') {
+    reportedAnalysisDiaryIds.clear();
+  }
+  if (nextState.tasks.MEMORY_CENTER_VISITED !== 'COMPLETED') {
+    memoryCenterReportedUserId = null;
+  }
+  if (nextState.tasks.THEME_EXPLORED !== 'COMPLETED') {
+    themeExploredReportedUserId = null;
+  }
+  for (const key of Array.from(handledHintsInSession)) {
+    if (isHintPending(nextState, key)) {
+      handledHintsInSession.delete(key);
+    }
+  }
+}
+
+function applyMergedState(
+  userId: number,
+  nextRemote: OnboardingState,
+  options?: { authoritative?: boolean },
+): OnboardingState {
+  const normalizedRemote = normalizeOnboardingState(nextRemote);
+  const nextState =
+    options?.authoritative && retryQueue.length === 0
+      ? normalizedRemote
+      : mergeOnboardingStateMonotonic(onboardingState.value, normalizedRemote);
+  onboardingState.value = nextState;
   onboardingLoaded.value = true;
-  writeCachedState(userId, merged);
+  if (options?.authoritative && retryQueue.length === 0) {
+    reconcileSessionDedupeWithState(nextState);
+  }
+  writeCachedState(userId, nextState);
 
   if (
     !welcomeReplayMode.value &&
     welcomeOpen.value &&
-    (merged.welcomeStatus === 'COMPLETED' || merged.welcomeStatus === 'SKIPPED')
+    (nextState.welcomeStatus === 'COMPLETED' || nextState.welcomeStatus === 'SKIPPED')
   ) {
     welcomeOpen.value = false;
   }
-  return merged;
+  return nextState;
 }
 
 function maybeTriggerAutoWelcome(state: OnboardingState): void {
@@ -249,6 +312,8 @@ export function resetOnboardingState(options?: { resetHosts?: boolean }): void {
   memoryCenterReportedUserId = null;
   themeExploredReportedUserId = null;
   reportedAnalysisDiaryIds.clear();
+  handledHintsInSession.clear();
+  hintOverlayBlocked.value = false;
 
   onboardingBoundUserId.value = null;
   onboardingState.value = createDefaultOnboardingState();
@@ -338,7 +403,7 @@ export async function fetchOnboardingState(targetUserId?: number): Promise<Onboa
     }
 
     const remote = normalizeOnboardingState(res.data);
-    const merged = applyMergedState(userId, remote);
+    const merged = applyMergedState(userId, remote, { authoritative: true });
     maybeTriggerAutoWelcome(merged);
     void flushOnboardingRetryQueue();
     return merged;
@@ -530,6 +595,10 @@ export function markWelcomeDisplayed(): void {
 export function openWelcomeReplay(): void {
   welcomeReplayMode.value = true;
   welcomeOpen.value = true;
+  const currentRoute = readTopPageRoute() || activeOnboardingRoute.value;
+  if (currentRoute && currentRoute !== '/pages/index/index') {
+    navigateMiniProgramRoute('/pages/index/index');
+  }
 }
 
 export function closeWelcomeReplay(): void {
@@ -677,6 +746,99 @@ export async function refreshAfterBusinessAction(): Promise<OnboardingState | nu
     return initializeOnboardingForUser(userId, { suppressAutoWelcome: true, forceRefresh: true });
   }
   return fetchOnboardingState(userId);
+}
+
+export function setHintOverlayBlocked(blocked: boolean): void {
+  hintOverlayBlocked.value = blocked;
+}
+
+export function canShowHint(
+  hintKey: HintKey,
+  options?: { overlayBlocked?: boolean },
+): boolean {
+  if (!onboardingBoundUserId.value || !onboardingLoaded.value) {
+    return false;
+  }
+  if (welcomeOpen.value || welcomeReplayMode.value) {
+    return false;
+  }
+  if (hintOverlayBlocked.value || options?.overlayBlocked) {
+    return false;
+  }
+  if (!isHintAllowedForScope(hintKey, MINI_PROGRAM_GUIDE_SCOPE)) {
+    return false;
+  }
+  if (handledHintsInSession.has(hintKey)) {
+    return false;
+  }
+  return isHintPending(onboardingState.value, hintKey);
+}
+
+export function pickActiveMiniProgramHint(
+  eligibleKeys: readonly HintKey[],
+  options?: { overlayBlocked?: boolean },
+): OnboardingHintDefinition | null {
+  if (!onboardingBoundUserId.value || !onboardingLoaded.value) {
+    return null;
+  }
+  if (welcomeOpen.value || welcomeReplayMode.value) {
+    return null;
+  }
+  if (hintOverlayBlocked.value || options?.overlayBlocked) {
+    return null;
+  }
+  const filteredKeys = eligibleKeys.filter((key) => !handledHintsInSession.has(key));
+  return pickActiveHint(onboardingState.value, filteredKeys, MINI_PROGRAM_GUIDE_SCOPE);
+}
+
+export async function recordHintSeen(hintKey: HintKey): Promise<OnboardingState | null> {
+  const userId = onboardingBoundUserId.value;
+  if (!userId || !isHintAllowedForScope(hintKey, MINI_PROGRAM_GUIDE_SCOPE)) {
+    return null;
+  }
+  if (!isHintPending(onboardingState.value, hintKey) || handledHintsInSession.has(hintKey)) {
+    return onboardingState.value;
+  }
+
+  handledHintsInSession.add(hintKey);
+  onboardingState.value = {
+    ...onboardingState.value,
+    hints: {
+      ...onboardingState.value.hints,
+      [hintKey]: maxGuideStatus(onboardingState.value.hints[hintKey], 'COMPLETED'),
+    },
+  };
+  writeCachedState(userId, onboardingState.value);
+
+  return recordOnboardingEvent({
+    eventType: 'HINT_SEEN',
+    hintKey,
+  });
+}
+
+export async function dismissHint(hintKey: HintKey): Promise<OnboardingState | null> {
+  const userId = onboardingBoundUserId.value;
+  if (!userId || !isHintAllowedForScope(hintKey, MINI_PROGRAM_GUIDE_SCOPE)) {
+    return null;
+  }
+  if (!isHintPending(onboardingState.value, hintKey) || handledHintsInSession.has(hintKey)) {
+    return onboardingState.value;
+  }
+
+  handledHintsInSession.add(hintKey);
+  onboardingState.value = {
+    ...onboardingState.value,
+    hints: {
+      ...onboardingState.value.hints,
+      [hintKey]: maxGuideStatus(onboardingState.value.hints[hintKey], 'SKIPPED'),
+    },
+  };
+  writeCachedState(userId, onboardingState.value);
+
+  return dismissOnboarding({
+    target: 'HINT',
+    key: hintKey,
+  });
 }
 
 export function getPendingOnboardingRetryCount(): number {

@@ -87,7 +87,10 @@
         <!-- 本人的 AI 分析 -->
         <template v-if="isOwner">
           <div class="section-divider" />
-          <AiAnalysisCard :diary="diary" :compact="true" />
+          <div data-guide-id="diary-analysis-card">
+            <AiAnalysisCard :diary="diary" :compact="true" />
+          </div>
+          <SpotlightGuide :hint="analysisReadyHint" />
           <div
             v-if="hasRenderedAnalysis && !dismissedAnalysisChatCta"
             class="analysis-chat-cta"
@@ -242,6 +245,7 @@ import { formatLegacyContent } from '../utils/markdown'
 import { useAuthStore } from '../stores/auth'
 import AppHeader from '../components/AppHeader.vue'
 import AiAnalysisCard from '../components/AiAnalysisCard.vue'
+import SpotlightGuide from '../components/onboarding/SpotlightGuide.vue'
 import MusicCard from '../components/MusicCard.vue'
 import ImageGallery from '../components/ImageGallery.vue'
 import SimilarDiariesPanel from '../components/SimilarDiariesPanel.vue'
@@ -305,6 +309,9 @@ const hasRenderedAnalysis = computed(() => {
   return !NON_COMPLETE_ANALYSIS_STATUSES.has(status)
 })
 const dismissedAnalysisChatCta = ref(false)
+const analysisReadyHint = computed(() =>
+  hasRenderedAnalysis.value ? onboardingStore.pickEligibleHint(['ANALYSIS_READY']) : null,
+)
 
 watch(
   [hasRenderedAnalysis, () => diary.value?.id],

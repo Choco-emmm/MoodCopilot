@@ -7,7 +7,7 @@
         <text class="page-title">日记</text>
         <text class="page-date">{{ todayLabel }}</text>
       </view>
-      <view class="write-header-button" @click="goToWrite">
+      <view id="guide-mp-nav-write" class="write-header-button" @click="goToWrite">
         <text class="write-header-plus">+</text>
         <text>写日记</text>
       </view>
@@ -123,15 +123,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app'
 import GlobalUI from '@/components/GlobalUI.vue'
 import MusicCard from '@/components/MusicCard.vue'
 import StarterChecklist from '@/components/onboarding/StarterChecklist.vue'
 import { extractPlainText } from '@/utils/markdown'
 import { get } from '@/utils/request'
 import { requireLogin } from '@/stores/login'
-import { refreshAfterBusinessAction } from '@/stores/onboarding'
+import {
+  refreshAfterBusinessAction,
+  registerSpotlightAnchorRect,
+  welcomeOpen,
+} from '@/stores/onboarding'
 
 const isLoggedIn = ref(false)
 const diaries = ref<any[]>([])
@@ -165,8 +169,45 @@ const filterSummary = computed(() => {
   return '按关键词或时间范围查找'
 })
 
+function measureWriteGuideAnchor() {
+  if (typeof uni === 'undefined' || typeof uni.createSelectorQuery !== 'function') return
+  uni
+    .createSelectorQuery()
+    .select('#guide-mp-nav-write')
+    .boundingClientRect((res: any) => {
+      const rect = Array.isArray(res) ? res[0] : res
+      if (rect && rect.width > 0 && rect.height > 0) {
+        registerSpotlightAnchorRect('mp-nav-write', {
+          top: rect.top,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height,
+        })
+      }
+    })
+    .exec()
+}
+
+watch(welcomeOpen, (open) => {
+  if (open) {
+    nextTick(() => {
+      measureWriteGuideAnchor()
+      setTimeout(measureWriteGuideAnchor, 120)
+    })
+  }
+})
+
+onShow(() => {
+  nextTick(() => {
+    measureWriteGuideAnchor()
+  })
+})
+
 onMounted(() => {
   checkLoginStatus()
+  nextTick(() => {
+    measureWriteGuideAnchor()
+  })
   uni.$on('refreshFeed', refreshAfterLogin)
   uni.$on('login-success', refreshAfterLogin)
   uni.$on('websocket-reconnected', onWsReconnected)

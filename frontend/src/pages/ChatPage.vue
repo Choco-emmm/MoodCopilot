@@ -168,16 +168,33 @@
                   v-for="prompt in onboardingStarterPrompts"
                   :key="prompt.id"
                   type="button"
-                  class="chat-onboarding-starter-chip"
+                  :class="['chat-onboarding-starter-chip', { 'is-active': draft.trim() === prompt.text.trim() }]"
                   :data-testid="`chat-starter-${prompt.id}`"
                   @click="fillStarterPrompt(prompt.text)"
                 >
                   {{ prompt.label }}
                 </button>
               </div>
-              <p v-if="starterDraftNotice" class="chat-onboarding-starter-notice" role="status">
-                {{ starterDraftNotice }}
-              </p>
+              <div v-if="starterDraftNotice" class="chat-onboarding-starter-notice" role="status">
+                <span>{{ starterDraftNotice }}</span>
+                <div v-if="pendingStarterReplaceText" class="chat-onboarding-starter-notice-actions">
+                  <button
+                    type="button"
+                    class="chat-onboarding-starter-replace-btn"
+                    data-testid="chat-starter-confirm-replace"
+                    @click="confirmReplaceStarterPrompt"
+                  >
+                    替换当前输入
+                  </button>
+                  <button
+                    type="button"
+                    class="chat-onboarding-starter-keep-btn"
+                    @click="dismissStarterDraftNotice"
+                  >
+                    保留草稿
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -188,6 +205,7 @@
             :user-avatar="authStore.avatar"
             :user-initial="userInitial"
             :user-name="authStore.displayName || '我'"
+            :is-latest-citation="msg.id === latestCitationMessageId"
             @go-diary="goToDiary"
             @quote="handleQuote"
           />
@@ -254,7 +272,7 @@
              浮层会把消息区一并盖住，用户既看不到 AI 刚说了什么，也切不了别的页面。
              也刻意不给「点背景关闭」—— 这一轮正停在半路，必须有一个明确的结论（记或不记）。 -->
         <section v-if="awaitingApproval && approvalItem" class="chat-approval-panel" role="dialog"
-          aria-labelledby="chat-approval-title">
+          aria-labelledby="chat-approval-title" data-guide-id="chat-tool-approval">
           <div class="chat-approval-heading">
             <strong id="chat-approval-title">{{ approvalTitleText }}</strong>
             <span>{{ approvalHintText }}</span>
@@ -353,7 +371,7 @@
             :recent-events-error="recentEventsError"
             @send="send"
             @send-enter="handleDraftEnter"
-            @update:use-reasoning="useReasoning = $event"
+            @update:use-reasoning="handleReasoningToggle"
             @retry="retryLastReply"
             @remove-ref="removeRef"
             @add-diary-ref="addDiaryRef"
@@ -367,6 +385,10 @@
         </div>
       </div>
     </div>
+    <SpotlightGuide
+      :hint="activeChatHint"
+      :non-blocking="activeChatHint?.key === 'TOOL_APPROVAL_WEB'"
+    />
   </main>
 </template>
 
@@ -377,7 +399,10 @@ import ChatSidebar from '../components/chat/ChatSidebar.vue'
 import ChatMessageItem from '../components/chat/ChatMessageItem.vue'
 import ChatStreamingItem from '../components/chat/ChatStreamingItem.vue'
 import ChatInputBox from '../components/chat/ChatInputBox.vue'
+import SpotlightGuide from '../components/onboarding/SpotlightGuide.vue'
 import { useChat } from '../composables/useChat'
+import { useOnboardingStore } from '../stores/onboarding'
+import type { HintKey } from '../constants/onboarding'
 import { displayConversationTitle } from '../utils/chatTitle'
 import { chatApi, type PendingApprovalItem } from '../api/social'
 import { authApi } from '../api/auth'
@@ -399,10 +424,46 @@ const {
   recentEventOptions, recentEventsLoading, recentEventsError,
   addEventRef, loadRecentEventOptions,
   quickStarters, quickStartersLoading, useQuickStarter,
-  hasOwnDiaries, onboardingStarterPrompts, starterDraftNotice, fillStarterPrompt,
+  hasOwnDiaries, onboardingStarterPrompts, starterDraftNotice, pendingStarterReplaceText, fillStarterPrompt, confirmReplaceStarterPrompt, dismissStarterDraftNotice,
   msgBox, chatInputArea,
   handleDraftFocus, handleDraftEnter, goToDiary,
 } = useChat()
+
+const onboardingStore = useOnboardingStore()
+const userSelectedPro = ref(false)
+
+function handleReasoningToggle(next: boolean) {
+  useReasoning.value = next
+  if (next) {
+    userSelectedPro.value = true
+  }
+}
+
+const latestCitationMessageId = computed(() => {
+  for (let i = messages.value.length - 1; i >= 0; i -= 1) {
+    const m = messages.value[i]
+    if (m.role === 'ai' && Boolean(m.ragReferences?.length)) {
+      return m.id
+    }
+  }
+  return null
+})
+
+const hasRenderedChatCitation = computed(() => latestCitationMessageId.value !== null)
+
+const activeChatHint = computed(() => {
+  const candidates: HintKey[] = []
+  if (awaitingApproval.value && approvalItem.value) {
+    candidates.push('TOOL_APPROVAL_WEB')
+  }
+  if (userSelectedPro.value && useReasoning.value) {
+    candidates.push('MODEL_PRO')
+  }
+  if (hasRenderedChatCitation.value) {
+    candidates.push('CHAT_CITATION')
+  }
+  return onboardingStore.pickEligibleHint(candidates)
+})
 
 // ── 工具执行前的人工批准 ──
 
@@ -2242,16 +2303,56 @@ body.chat-keyboard-open .chat-input-wrapper {
     background-color var(--duration-fast) var(--ease-out);
 }
 
-.chat-onboarding-starter-chip:hover {
+.chat-onboarding-starter-chip:hover,
+.chat-onboarding-starter-chip.is-active {
   color: var(--color-primary);
   border-color: var(--color-primary);
-  background: var(--color-surface-hover);
+  background: color-mix(in oklab, var(--color-primary) 8%, var(--color-surface));
 }
 
 .chat-onboarding-starter-notice {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   font-size: var(--text-xs);
   color: var(--color-text-muted);
+}
+
+.chat-onboarding-starter-notice-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-onboarding-starter-replace-btn {
+  padding: 2px 10px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.chat-onboarding-starter-replace-btn:hover {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.chat-onboarding-starter-keep-btn {
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.chat-onboarding-starter-keep-btn:hover {
+  color: var(--color-text);
 }
 
 @media (max-width: 768px) {

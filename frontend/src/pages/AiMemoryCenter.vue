@@ -15,11 +15,11 @@
 
       <n-tabs v-model:value="activeTab" type="line" justify-content="center" size="large" style="margin-top: 20px;" display-directive="show">
         <n-tab-pane name="profile" tab="长期画像">
-          <MemoryProfileView />
+          <MemoryProfileView :active="activeTab === 'profile'" />
         </n-tab-pane>
         
         <n-tab-pane name="graph" tab="关系图谱">
-          <MemoryGraphView />
+          <MemoryGraphView :active="activeTab === 'graph'" />
         </n-tab-pane>
       </n-tabs>
     </section>

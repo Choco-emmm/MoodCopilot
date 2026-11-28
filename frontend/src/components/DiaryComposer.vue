@@ -24,10 +24,13 @@
           v-for="opt in visibilityOptions"
           :key="opt.value"
           :class="['composer-vis-opt', { active: visibility === opt.value }]"
-          @click="visibility = opt.value as 'PRIVATE' | 'PUBLIC'"
+          :data-guide-id="opt.value === 'PUBLIC' ? 'diary-visibility-public' : undefined"
+          @click="handleVisibilitySelect(opt.value as 'PRIVATE' | 'PUBLIC')"
         >{{ opt.label }}</button>
       </div>
     </div>
+
+    <SpotlightGuide :hint="publicDiaryHint" />
 
     <p v-if="!isEditMode" class="composer-guide-note" data-testid="composer-guide-note">
       新日记默认仅自己可见；开启 AI 分析后会在详情页展示情绪线索，也可随时关闭或切换模型。
@@ -153,16 +156,32 @@
           v-for="prompt in WRITING_INSPIRATION_PROMPTS"
           :key="prompt"
           type="button"
-          class="composer-inspiration-chip"
+          :class="['composer-inspiration-chip', { 'is-active': plainText === `${prompt}：` }]"
           data-testid="composer-inspiration-chip"
           @click="applyInspirationPrompt(prompt)"
         >
           {{ prompt }}
         </button>
       </div>
-      <p v-if="inspirationNotice" class="composer-inspiration-notice" role="status">
-        {{ inspirationNotice }}
-      </p>
+      <div v-if="inspirationNotice" class="composer-inspiration-notice" role="status">
+        <span>{{ inspirationNotice }}</span>
+        <div v-if="pendingInspirationReplace" class="composer-inspiration-notice-actions">
+          <button
+            type="button"
+            class="composer-inspiration-replace-btn"
+            @click="confirmReplaceInspiration"
+          >
+            替换当前内容
+          </button>
+          <button
+            type="button"
+            class="composer-inspiration-keep-btn"
+            @click="clearInspirationNotice"
+          >
+            保留草稿
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- 音乐附件 -->
@@ -297,9 +316,11 @@ import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import type { IDomEditor, IToolbarConfig, IEditorConfig } from '@wangeditor/editor'
 import { useDiaryStore, type MusicMeta } from '../stores/diary'
 import { useOnboardingStore } from '../stores/onboarding'
+import { resolveStarterPromptDraft } from '../constants/onboarding'
 import { musicApi, imageApi, collectionApi } from '../api'
 import type { DiaryImageMetaPayload } from '../api/diary'
 import MusicCard from './MusicCard.vue'
+import SpotlightGuide from './onboarding/SpotlightGuide.vue'
 import { formatLegacyContent } from '../utils/markdown'
 import { prepareImageUpload } from '../utils/imageCompression'
 import { NButton, NSpin, NEmpty } from 'naive-ui'
@@ -326,9 +347,25 @@ const WRITING_INSPIRATION_PROMPTS = [
   '此刻的身体和情绪状态',
   '今天一件值得肯定自己的小事',
 ] as const
+const WRITING_INSPIRATION_TEXTS = WRITING_INSPIRATION_PROMPTS.map((item) => `${item}：`)
 const inspirationNotice = ref('')
+const pendingInspirationReplace = ref<string | null>(null)
+const lastAppliedInspiration = ref<string | null>(null)
 let inspirationNoticeTimer: ReturnType<typeof setTimeout> | null = null
 const lastSavedDiaryId = ref<number | null>(null)
+const publicToggledByUser = ref(false)
+const publicDiaryHint = computed(() =>
+  publicToggledByUser.value && visibility.value === 'PUBLIC'
+    ? onboardingStore.pickEligibleHint(['PUBLIC_DIARY_WEB'])
+    : null,
+)
+
+function handleVisibilitySelect(next: 'PRIVATE' | 'PUBLIC') {
+  if (next === 'PUBLIC' && visibility.value !== 'PUBLIC') {
+    publicToggledByUser.value = true
+  }
+  visibility.value = next
+}
 
 const DRAFT_KEY = 'moodcopilot:draft'
 
@@ -457,18 +494,36 @@ function handleEditorCreated(editor: IDomEditor) {
   editorRef.value = editor
 }
 
-function applyInspirationPrompt(promptText: string) {
-  if (plainText.value.length > 0) {
-    inspirationNotice.value = '编辑器已有文字，未覆盖你的草稿。'
+function clearInspirationNotice() {
+  inspirationNotice.value = ''
+  pendingInspirationReplace.value = null
+  if (inspirationNoticeTimer != null) {
+    clearTimeout(inspirationNoticeTimer)
+    inspirationNoticeTimer = null
+  }
+}
+
+function applyInspirationPrompt(promptText: string, forceReplace = false) {
+  const formattedText = `${promptText}：`
+  const result = resolveStarterPromptDraft(plainText.value, formattedText, WRITING_INSPIRATION_TEXTS, {
+    forceReplace,
+    lastAppliedPrompt: lastAppliedInspiration.value,
+  })
+  if (result.status === 'needs_confirm') {
+    pendingInspirationReplace.value = promptText
+    inspirationNotice.value = '编辑器已有你写的内容，未直接覆盖。'
     if (inspirationNoticeTimer != null) clearTimeout(inspirationNoticeTimer)
     inspirationNoticeTimer = setTimeout(() => {
-      inspirationNotice.value = ''
-      inspirationNoticeTimer = null
-    }, 3000)
+      clearInspirationNotice()
+    }, 6000)
     return
   }
-  inspirationNotice.value = ''
-  const nextHtml = `<p>${promptText}：</p>`
+  clearInspirationNotice()
+  if (result.status !== 'applied' && result.status !== 'replaced_template') {
+    return
+  }
+  lastAppliedInspiration.value = formattedText
+  const nextHtml = `<p>${formattedText}</p>`
   htmlContent.value = nextHtml
   if (editorRef.value) {
     try {
@@ -478,6 +533,11 @@ function applyInspirationPrompt(promptText: string) {
       // 编辑器未就绪时由 v-model 同步
     }
   }
+}
+
+function confirmReplaceInspiration() {
+  if (!pendingInspirationReplace.value) return
+  applyInspirationPrompt(pendingInspirationReplace.value, true)
 }
 
 onMounted(() => {
@@ -1820,16 +1880,56 @@ async function handleSave() {
     background-color var(--duration-fast) var(--ease-out);
 }
 
-.composer-inspiration-chip:hover {
+.composer-inspiration-chip:hover,
+.composer-inspiration-chip.is-active {
   color: var(--color-primary);
   border-color: var(--color-primary);
-  background: var(--color-surface-hover);
+  background: color-mix(in oklab, var(--color-primary) 8%, var(--color-surface));
 }
 
 .composer-inspiration-notice {
   margin: 8px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   font-size: var(--text-xs);
   color: var(--color-text-muted);
+}
+
+.composer-inspiration-notice-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.composer-inspiration-replace-btn {
+  padding: 2px 10px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.composer-inspiration-replace-btn:hover {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.composer-inspiration-keep-btn {
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.composer-inspiration-keep-btn:hover {
+  color: var(--color-text);
 }
 
 .composer-status-text {

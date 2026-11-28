@@ -55,13 +55,14 @@
     <view v-if="mode === 'create' && !savedNextStep" class="inspiration-section">
       <view class="inspiration-head">
         <text class="inspiration-title">写点什么？轻点填入一句开头</text>
-        <text class="inspiration-note">仅在空白时填入，不会覆盖已写内容</text>
+        <text class="inspiration-note">可切换灵感，手写正文前会先征求你的确认</text>
       </view>
       <view class="inspiration-list">
         <view
           v-for="prompt in writeInspirations"
           :key="prompt.id"
           class="inspiration-chip"
+          :class="{ active: content.trim() === prompt.text.trim() }"
           role="button"
           @click="applyInspiration(prompt.text)"
         >
@@ -215,13 +216,35 @@ const writeInspirations = [
   { id: 'fragment', label: '随手记一个念头', text: '刚才突然想到的一个念头：' },
 ] as const;
 
-const applyInspiration = (promptText: string) => {
-  const { nextDraft, applied } = applyStarterPromptToDraft(content.value, promptText);
+const writeInspirationTexts = writeInspirations.map((item) => item.text);
+const lastAppliedInspiration = ref<string | null>(null);
+
+const applyInspiration = (promptText: string, forceReplace = false) => {
+  const { nextDraft, applied, status } = applyStarterPromptToDraft(
+    content.value,
+    promptText,
+    writeInspirationTexts,
+    { forceReplace, lastAppliedPrompt: lastAppliedInspiration.value },
+  );
+  if (status === 'unchanged') {
+    return;
+  }
   if (!applied) {
-    uni.showToast({ title: '已有正文内容，未覆盖', icon: 'none' });
+    uni.showModal({
+      title: '替换当前正文？',
+      content: '编辑器已有你写的内容，是否替换为这句写作灵感？',
+      confirmText: '替换',
+      cancelText: '保留草稿',
+      success: (res) => {
+        if (res.confirm) {
+          applyInspiration(promptText, true);
+        }
+      },
+    });
     return;
   }
   content.value = nextDraft;
+  lastAppliedInspiration.value = nextDraft;
 };
 
 const goToSavedDetail = () => {
@@ -994,10 +1017,18 @@ const previewImage = (current: string) => {
   gap: 12rpx;
 }
 .inspiration-chip {
-  padding: 10rpx 16rpx;
+  padding: 10rpx 18rpx;
   border: 1rpx solid var(--theme-border);
-  border-radius: var(--theme-radius-sm);
+  border-radius: 999rpx;
   background: var(--theme-bg);
+}
+.inspiration-chip.active {
+  border-color: var(--theme-primary);
+  background: color-mix(in oklab, var(--theme-primary) 8%, var(--theme-surface));
+}
+.inspiration-chip.active .inspiration-chip-text {
+  color: var(--theme-primary);
+  font-weight: 500;
 }
 .inspiration-chip-text {
   font-size: 22rpx;
@@ -1007,26 +1038,25 @@ const previewImage = (current: string) => {
   display: block;
   margin-top: 14rpx;
   padding-top: 12rpx;
-  border-top: 1rpx solid var(--theme-border);
-  font-size: 21rpx;
-  line-height: 1.55;
+  border-top: 1rpx solid var(--theme-divider);
+  font-size: 22rpx;
+  line-height: 1.6;
   color: var(--theme-text-placeholder);
 }
 
 .save-next-card {
   margin-bottom: 20rpx;
-  padding: 24rpx;
+  padding: 28rpx;
   border: 1rpx solid var(--theme-border);
-  border-top: 4rpx solid var(--theme-primary);
-  border-radius: var(--theme-radius-md);
+  border-radius: 24rpx;
   background: var(--theme-surface);
   box-shadow: var(--theme-shadow-panel);
 }
 .save-next-eyebrow {
   display: block;
-  font-size: 20rpx;
+  font-size: 22rpx;
   font-weight: 600;
-  letter-spacing: 1rpx;
+  letter-spacing: 2rpx;
   color: var(--theme-primary);
   margin-bottom: 8rpx;
 }
@@ -1034,14 +1064,15 @@ const previewImage = (current: string) => {
   display: block;
   font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
   font-size: 32rpx;
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 1.4;
   color: var(--theme-text-primary);
   margin-bottom: 8rpx;
 }
 .save-next-desc {
   display: block;
   font-size: 24rpx;
-  line-height: 1.65;
+  line-height: 1.6;
   color: var(--theme-text-secondary);
 }
 .save-next-actions {
@@ -1051,16 +1082,16 @@ const previewImage = (current: string) => {
   gap: 14rpx;
   margin-top: 20rpx;
   padding-top: 18rpx;
-  border-top: 1rpx solid var(--theme-border);
+  border-top: 1rpx solid var(--theme-divider);
 }
 .save-next-btn {
   flex: 1;
   min-width: 210rpx;
-  height: 70rpx;
-  line-height: 70rpx;
+  height: 76rpx;
+  line-height: 76rpx;
   margin: 0;
   padding: 0 20rpx;
-  border-radius: var(--theme-radius-sm);
+  border-radius: 16rpx;
   font-size: 24rpx;
   font-weight: 600;
 }
@@ -1080,7 +1111,7 @@ const previewImage = (current: string) => {
   width: 100%;
   text-align: center;
   padding-top: 8rpx;
-  font-size: 23rpx;
+  font-size: 24rpx;
   color: var(--theme-text-secondary);
 }
 </style>

@@ -1,115 +1,109 @@
 <template>
   <view
     v-if="visible"
-    class="welcome-mask"
+    class="tour-layer"
     :style="themeStyle"
-    @click="handleSkip"
+    @touchmove.stop.prevent
   >
+    <!-- 四向暗色遮罩，在真实按钮/导航栏项周围抠出明亮聚光灯窗 -->
+    <template v-if="spotlightHole">
+      <view class="tour-dim-panel" :style="dimTopStyle" />
+      <view class="tour-dim-panel" :style="dimBottomStyle" />
+      <view class="tour-dim-panel" :style="dimLeftStyle" />
+      <view class="tour-dim-panel" :style="dimRightStyle" />
+      <view class="tour-spotlight-ring" :style="ringStyle" />
+    </template>
+    <view v-else class="tour-dim-full" />
+
+    <!-- 紧贴高亮控件的杂志风编辑部气泡卡 -->
     <view
-      class="welcome-sheet"
-      :style="sheetDynamicStyle"
+      class="tour-card"
+      :class="{
+        'is-centered': !spotlightHole,
+        'is-below': spotlightHole && cardPlacement === 'below',
+        'is-above': spotlightHole && cardPlacement === 'above',
+      }"
+      :style="cardStyle"
       @click.stop
     >
-      <view class="sheet-handle" />
+      <view
+        v-if="spotlightHole"
+        class="tour-arrow"
+        :style="{ left: `${arrowLeftPx}px` }"
+      />
 
-      <view class="welcome-masthead">
-        <view class="masthead-left">
-          <text class="masthead-badge">
+      <view class="tour-header">
+        <view class="tour-meta">
+          <text class="tour-badge">
             {{ replayMode ? ONBOARDING_COPY.welcomeReplayBadge : ONBOARDING_COPY.welcomeBadge }}
           </text>
-          <text class="masthead-step">{{ stepCounterLabel }}</text>
+          <text class="tour-counter">{{ stepCounterLabel }}</text>
         </view>
-        <view
-          class="masthead-skip"
-          role="button"
-          @click="handleSkip"
-        >
-          <text class="masthead-skip-text">
+        <view class="tour-skip" role="button" @click="handleSkip">
+          <text class="tour-skip-text">
             {{ replayMode ? ONBOARDING_COPY.welcomeReplayCloseLabel : ONBOARDING_COPY.welcomeSkipLabel }}
           </text>
         </view>
       </view>
 
-      <view class="progress-rail">
+      <view class="tour-progress">
         <view
-          v-for="idx in totalSteps"
-          :key="idx"
-          class="progress-segment"
-          :class="{ active: idx - 1 <= currentStep }"
+          v-for="(step, idx) in steps"
+          :key="step.id"
+          class="tour-progress-bar"
+          :class="{ active: idx === currentStepIndex, passed: idx < currentStepIndex }"
+          role="button"
+          @click="goToStep(idx)"
         />
       </view>
 
-      <view v-if="replayMode" class="replay-banner">
-        <text class="replay-banner-text">{{ ONBOARDING_COPY.welcomeReplayNote }}</text>
+      <view class="tour-body">
+        <text class="tour-title">{{ currentStep.title }}</text>
+        <text class="tour-desc">{{ currentStep.description }}</text>
       </view>
 
-      <scroll-view scroll-y class="welcome-scroll">
-        <view v-if="currentSlide" class="slide-body">
-          <text class="slide-eyebrow">{{ currentSlide.stepNumber }} · {{ currentSlide.eyebrow }}</text>
-          <text class="slide-title">{{ currentSlide.title }}</text>
-          <text class="slide-description">{{ currentSlide.description }}</text>
-
-          <view class="slide-divider" />
-
-          <view class="highlight-list">
-            <view
-              v-for="(item, index) in currentSlide.highlights"
-              :key="index"
-              class="highlight-row"
+      <view class="tour-footer">
+        <template v-if="!isLastStep">
+          <view class="footer-row">
+            <button
+              v-if="currentStepIndex > 0"
+              class="footer-btn footer-secondary"
+              @click="goPrev"
             >
-              <view class="highlight-mark" />
-              <text class="highlight-text">{{ item }}</text>
-            </view>
-          </view>
-        </view>
-
-        <view v-else class="actions-body">
-          <text class="slide-eyebrow">START · 开始探索</text>
-          <text class="slide-title">{{ ONBOARDING_COPY.welcomeActionsHeading }}</text>
-          <text class="slide-description">{{ ONBOARDING_COPY.welcomeActionsSubheading }}</text>
-
-          <view class="action-list">
-            <view
-              v-for="action in WELCOME_ACTIONS"
-              :key="action.key"
-              class="action-item"
-              :class="`action-${action.emphasis}`"
-              role="button"
-              @click="handleSelectAction(action.key)"
+              {{ ONBOARDING_COPY.welcomePrevLabel }}
+            </button>
+            <button
+              class="footer-btn footer-primary"
+              @click="goNext"
             >
-              <view class="action-copy">
-                <text class="action-label">{{ action.label }}</text>
-                <text class="action-desc">{{ action.description }}</text>
-              </view>
-              <text class="action-arrow">›</text>
-            </view>
+              {{ ONBOARDING_COPY.welcomeNextLabel }}
+            </button>
           </view>
-        </view>
-      </scroll-view>
-
-      <view class="welcome-footer">
-        <template v-if="currentSlide">
-          <button
-            v-if="currentStep > 0"
-            class="footer-btn footer-secondary"
-            @click="goPrev"
-          >
-            {{ ONBOARDING_COPY.welcomePrevLabel }}
-          </button>
-          <button
-            class="footer-btn footer-primary"
-            @click="goNext"
-          >
-            {{ isLastSlide ? ONBOARDING_COPY.welcomeToActionsLabel : ONBOARDING_COPY.welcomeNextLabel }}
-          </button>
         </template>
+
         <template v-else>
-          <button
-            class="footer-btn footer-secondary"
-            @click="goPrev"
-          >
-            {{ ONBOARDING_COPY.welcomePrevLabel }}
-          </button>
+          <view class="footer-row">
+            <button
+              class="footer-btn footer-secondary"
+              @click="handleSelectAction('CHAT_WITH_AI')"
+            >
+              找 AI 聊聊
+            </button>
+            <button
+              class="footer-btn footer-primary"
+              @click="handleSelectAction('WRITE_TODAY')"
+            >
+              记录今天
+            </button>
+          </view>
+          <view class="footer-links">
+            <text class="footer-link" role="button" @click="goPrev">
+              ← {{ ONBOARDING_COPY.welcomePrevLabel }}
+            </text>
+            <text class="footer-link" role="button" @click="handleSelectAction('EXPLORE_LATER')">
+              稍后探索
+            </text>
+          </view>
         </template>
       </view>
     </view>
@@ -117,14 +111,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import {
+  MINI_PROGRAM_WELCOME_TOUR_STEPS,
   ONBOARDING_COPY,
-  WELCOME_ACTIONS,
-  WELCOME_SLIDES,
 } from '@/constants/onboarding';
 import type { WelcomeActionKey } from '@/constants/onboarding';
+import { spotlightAnchorRects } from '@/stores/onboarding';
+import type { SpotlightAnchorRect } from '@/stores/onboarding';
 import { themeStyle } from '@/stores/theme';
+
+const SPOTLIGHT_PADDING = 5;
+const CARD_HORIZONTAL_MARGIN = 16;
+const CARD_GAP = 14;
 
 const props = defineProps<{
   visible: boolean;
@@ -136,28 +135,157 @@ const emit = defineEmits<{
   (event: 'select-action', actionKey: WelcomeActionKey): void;
 }>();
 
-const currentStep = ref(0);
-const keyboardHeight = ref(0);
+const steps = MINI_PROGRAM_WELCOME_TOUR_STEPS;
+const currentStepIndex = ref(0);
 
-const totalSteps = WELCOME_SLIDES.length + 1;
-const isLastSlide = computed(() => currentStep.value === WELCOME_SLIDES.length - 1);
-const currentSlide = computed(() =>
-  currentStep.value < WELCOME_SLIDES.length ? WELCOME_SLIDES[currentStep.value] : null,
+const currentStep = computed(() => steps[currentStepIndex.value] || steps[0]);
+const isLastStep = computed(() => currentStepIndex.value >= steps.length - 1);
+
+const stepCounterLabel = computed(
+  () => `${String(currentStepIndex.value + 1).padStart(2, '0')} / ${String(steps.length).padStart(2, '0')}`,
 );
 
-const stepCounterLabel = computed(() => {
-  if (currentStep.value < WELCOME_SLIDES.length) {
-    return `${String(currentStep.value + 1).padStart(2, '0')} / ${String(WELCOME_SLIDES.length).padStart(2, '0')}`;
+function getViewportMetrics(): { width: number; height: number; safeBottom: number } {
+  try {
+    const info =
+      typeof uni !== 'undefined' && typeof (uni as any).getWindowInfo === 'function'
+        ? (uni as any).getWindowInfo()
+        : typeof uni !== 'undefined' && typeof uni.getSystemInfoSync === 'function'
+          ? uni.getSystemInfoSync()
+          : null;
+    const width = Number(info?.windowWidth) > 0 ? Number(info.windowWidth) : 375;
+    const height = Number(info?.windowHeight) > 0 ? Number(info.windowHeight) : 667;
+    const safeAreaBottom = Number(info?.safeArea?.bottom);
+    const safeBottom =
+      Number.isFinite(safeAreaBottom) && safeAreaBottom > 0 && safeAreaBottom <= height
+        ? Math.max(0, height - safeAreaBottom)
+        : 0;
+    return { width, height, safeBottom };
+  } catch {
+    return { width: 375, height: 667, safeBottom: 0 };
   }
-  return '选择起点';
+}
+
+function getFallbackTabRect(anchorId: string): SpotlightAnchorRect | null {
+  const tabIndexMap: Record<string, number> = {
+    'mp-nav-diary': 0,
+    'mp-nav-analysis': 1,
+    'mp-nav-chat': 2,
+    'mp-nav-profile': 3,
+  };
+  const tabIdx = tabIndexMap[anchorId];
+  if (tabIdx === undefined) return null;
+  const { width, height, safeBottom } = getViewportMetrics();
+  const tabHeight = Math.round((96 * width) / 750);
+  const itemWidth = width / 4;
+  return {
+    left: Math.round(tabIdx * itemWidth) + 6,
+    top: Math.max(0, height - safeBottom - tabHeight + 2),
+    width: Math.max(40, Math.round(itemWidth) - 12),
+    height: Math.max(38, tabHeight - 4),
+  };
+}
+
+const spotlightHole = computed<SpotlightAnchorRect | null>(() => {
+  const anchorId = currentStep.value.anchorId;
+  const measured = spotlightAnchorRects.value[anchorId] || getFallbackTabRect(anchorId);
+  if (!measured) return null;
+  const { width: vw, height: vh } = getViewportMetrics();
+  const left = Math.max(2, measured.left - SPOTLIGHT_PADDING);
+  const top = Math.max(2, measured.top - SPOTLIGHT_PADDING);
+  const right = Math.min(vw - 2, measured.left + measured.width + SPOTLIGHT_PADDING);
+  const bottom = Math.min(vh - 2, measured.top + measured.height + SPOTLIGHT_PADDING);
+  return {
+    left,
+    top,
+    width: Math.max(24, right - left),
+    height: Math.max(24, bottom - top),
+  };
 });
 
-const sheetDynamicStyle = computed(() => {
-  if (keyboardHeight.value <= 0) {
-    return {};
-  }
+const cardPlacement = computed<'below' | 'above'>(() => {
+  if (!spotlightHole.value) return 'below';
+  const { height: vh } = getViewportMetrics();
+  const centerY = spotlightHole.value.top + spotlightHole.value.height / 2;
+  return centerY < vh * 0.48 ? 'below' : 'above';
+});
+
+const arrowLeftPx = computed(() => {
+  if (!spotlightHole.value) return 40;
+  const { width: vw } = getViewportMetrics();
+  const cardWidth = Math.max(240, vw - CARD_HORIZONTAL_MARGIN * 2);
+  const anchorCenterX = spotlightHole.value.left + spotlightHole.value.width / 2;
+  return Math.max(24, Math.min(cardWidth - 24, anchorCenterX - CARD_HORIZONTAL_MARGIN));
+});
+
+const dimTopStyle = computed(() => {
+  if (!spotlightHole.value) return {};
   return {
-    paddingBottom: `${keyboardHeight.value + 20}px`,
+    top: '0px',
+    left: '0px',
+    right: '0px',
+    height: `${spotlightHole.value.top}px`,
+  };
+});
+
+const dimBottomStyle = computed(() => {
+  if (!spotlightHole.value) return {};
+  const top = spotlightHole.value.top + spotlightHole.value.height;
+  return {
+    top: `${top}px`,
+    left: '0px',
+    right: '0px',
+    bottom: '0px',
+  };
+});
+
+const dimLeftStyle = computed(() => {
+  if (!spotlightHole.value) return {};
+  return {
+    top: `${spotlightHole.value.top}px`,
+    left: '0px',
+    width: `${spotlightHole.value.left}px`,
+    height: `${spotlightHole.value.height}px`,
+  };
+});
+
+const dimRightStyle = computed(() => {
+  if (!spotlightHole.value) return {};
+  const left = spotlightHole.value.left + spotlightHole.value.width;
+  return {
+    top: `${spotlightHole.value.top}px`,
+    left: `${left}px`,
+    right: '0px',
+    height: `${spotlightHole.value.height}px`,
+  };
+});
+
+const ringStyle = computed(() => {
+  if (!spotlightHole.value) return {};
+  return {
+    top: `${spotlightHole.value.top}px`,
+    left: `${spotlightHole.value.left}px`,
+    width: `${spotlightHole.value.width}px`,
+    height: `${spotlightHole.value.height}px`,
+  };
+});
+
+const cardStyle = computed(() => {
+  if (!spotlightHole.value) return {};
+  const { height: vh } = getViewportMetrics();
+  if (cardPlacement.value === 'below') {
+    const top = spotlightHole.value.top + spotlightHole.value.height + CARD_GAP;
+    return {
+      left: `${CARD_HORIZONTAL_MARGIN}px`,
+      right: `${CARD_HORIZONTAL_MARGIN}px`,
+      top: `${top}px`,
+    };
+  }
+  const bottom = Math.max(16, vh - spotlightHole.value.top + CARD_GAP);
+  return {
+    left: `${CARD_HORIZONTAL_MARGIN}px`,
+    right: `${CARD_HORIZONTAL_MARGIN}px`,
+    bottom: `${bottom}px`,
   };
 });
 
@@ -165,37 +293,26 @@ watch(
   () => props.visible,
   (nextVisible) => {
     if (nextVisible) {
-      currentStep.value = 0;
+      currentStepIndex.value = 0;
     }
   },
   { immediate: true },
 );
 
-const handleKeyboardHeightChange = (res: { height?: number }) => {
-  keyboardHeight.value = typeof res?.height === 'number' && res.height > 0 ? res.height : 0;
+const goToStep = (index: number) => {
+  if (index < 0 || index >= steps.length) return;
+  currentStepIndex.value = index;
 };
 
-onMounted(() => {
-  if (typeof uni !== 'undefined' && typeof uni.onKeyboardHeightChange === 'function') {
-    uni.onKeyboardHeightChange(handleKeyboardHeightChange);
-  }
-});
-
-onUnmounted(() => {
-  if (typeof uni !== 'undefined' && typeof uni.offKeyboardHeightChange === 'function') {
-    uni.offKeyboardHeightChange(handleKeyboardHeightChange);
-  }
-});
-
 const goPrev = () => {
-  if (currentStep.value > 0) {
-    currentStep.value -= 1;
+  if (currentStepIndex.value > 0) {
+    currentStepIndex.value -= 1;
   }
 };
 
 const goNext = () => {
-  if (currentStep.value < WELCOME_SLIDES.length) {
-    currentStep.value += 1;
+  if (currentStepIndex.value < steps.length - 1) {
+    currentStepIndex.value += 1;
   }
 };
 
@@ -209,284 +326,178 @@ const handleSelectAction = (actionKey: WelcomeActionKey) => {
 </script>
 
 <style scoped>
-.welcome-mask {
+.tour-layer {
   position: fixed;
   top: 0;
   right: 0;
   bottom: 0;
   left: 0;
   z-index: 9500;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+}
+
+.tour-dim-panel,
+.tour-dim-full {
+  position: fixed;
   background: var(--theme-overlay);
 }
 
-.welcome-sheet {
-  width: 100%;
-  max-height: 86vh;
-  padding: 20rpx 40rpx calc(36rpx + env(safe-area-inset-bottom));
+.tour-dim-full {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.tour-spotlight-ring {
+  position: fixed;
+  border-radius: 20rpx;
+  border: 4rpx solid var(--theme-primary);
+  box-shadow: 0 0 0 8rpx color-mix(in oklab, var(--theme-primary) 26%, transparent);
+  pointer-events: none;
   box-sizing: border-box;
+}
+
+.tour-card {
+  position: fixed;
+  padding: 28rpx 30rpx 26rpx;
   background: var(--theme-surface);
+  border: 1rpx solid var(--theme-border);
   border-top: 6rpx solid var(--theme-primary);
-  border-radius: var(--theme-radius-lg) var(--theme-radius-lg) 0 0;
+  border-radius: 24rpx;
   box-shadow: var(--theme-shadow-dialog);
-  display: flex;
-  flex-direction: column;
+  box-sizing: border-box;
 }
 
-.sheet-handle {
-  width: 64rpx;
-  height: 6rpx;
-  margin: 0 auto 24rpx;
-  border-radius: 6rpx;
-  background: var(--theme-border);
+.tour-card.is-centered {
+  top: 50%;
+  left: 32rpx;
+  right: 32rpx;
+  transform: translateY(-50%);
 }
 
-.welcome-masthead {
+.tour-arrow {
+  position: absolute;
+  width: 20rpx;
+  height: 20rpx;
+  background: var(--theme-surface);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.tour-card.is-below .tour-arrow {
+  top: -14rpx;
+  border-left: 4rpx solid var(--theme-primary);
+  border-top: 4rpx solid var(--theme-primary);
+}
+
+.tour-card.is-above .tour-arrow {
+  bottom: -11rpx;
+  border-right: 1rpx solid var(--theme-border);
+  border-bottom: 1rpx solid var(--theme-border);
+}
+
+.tour-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20rpx;
-  padding-bottom: 18rpx;
+  gap: 16rpx;
+  margin-bottom: 14rpx;
 }
 
-.masthead-left {
+.tour-meta {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.tour-badge {
+  padding: 4rpx 14rpx;
+  border: 1rpx solid var(--theme-border);
+  border-radius: 999rpx;
+  background: color-mix(in oklab, var(--theme-primary) 7%, var(--theme-surface));
+  font-size: 22rpx;
+  font-weight: 600;
+  letter-spacing: 1rpx;
+  color: var(--theme-primary);
+}
+
+.tour-counter {
+  font-size: 22rpx;
+  color: var(--theme-text-placeholder);
+}
+
+.tour-skip {
+  padding: 6rpx 4rpx 6rpx 16rpx;
+}
+
+.tour-skip-text {
+  font-size: 24rpx;
+  color: var(--theme-text-secondary);
+}
+
+.tour-progress {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10rpx;
+  margin-bottom: 20rpx;
+}
+
+.tour-progress-bar {
+  height: 6rpx;
+  border-radius: 999rpx;
+  background: var(--theme-border);
+}
+
+.tour-progress-bar.passed {
+  background: color-mix(in oklab, var(--theme-primary) 48%, transparent);
+}
+
+.tour-progress-bar.active {
+  background: var(--theme-primary);
+}
+
+.tour-body {
+  margin-bottom: 24rpx;
+}
+
+.tour-title {
+  display: block;
+  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
+  font-size: 34rpx;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--theme-text-primary);
+  margin-bottom: 10rpx;
+}
+
+.tour-desc {
+  display: block;
+  font-size: 26rpx;
+  line-height: 1.7;
+  color: var(--theme-text-secondary);
+}
+
+.tour-footer {
+  padding-top: 20rpx;
+  border-top: 1rpx solid var(--theme-border);
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+}
+
+.footer-row {
   display: flex;
   align-items: center;
   gap: 16rpx;
 }
 
-.masthead-badge {
-  font-size: 22rpx;
-  font-weight: 700;
-  letter-spacing: 2rpx;
-  color: var(--theme-primary);
-}
-
-.masthead-step {
-  font-size: 22rpx;
-  color: var(--theme-text-placeholder);
-  letter-spacing: 1rpx;
-}
-
-.masthead-skip {
-  padding: 8rpx 4rpx 8rpx 20rpx;
-}
-
-.masthead-skip-text {
-  font-size: 25rpx;
-  color: var(--theme-text-secondary);
-}
-
-.progress-rail {
-  display: flex;
-  gap: 12rpx;
-  margin-bottom: 24rpx;
-}
-
-.progress-segment {
-  flex: 1;
-  height: 4rpx;
-  border-radius: 4rpx;
-  background: var(--theme-border);
-}
-
-.progress-segment.active {
-  background: var(--theme-primary);
-}
-
-.replay-banner {
-  margin-bottom: 22rpx;
-  padding: 16rpx 20rpx;
-  background: color-mix(in oklab, var(--theme-primary) 7%, var(--theme-surface));
-  border-left: 4rpx solid var(--theme-primary);
-  border-radius: var(--theme-radius-sm);
-}
-
-.replay-banner-text {
-  display: block;
-  font-size: 23rpx;
-  line-height: 1.5;
-  color: var(--theme-text-secondary);
-}
-
-.welcome-scroll {
-  max-height: 54vh;
-}
-
-.slide-body,
-.actions-body {
-  padding: 6rpx 0 16rpx;
-}
-
-.slide-eyebrow {
-  display: block;
-  font-size: 22rpx;
-  font-weight: 600;
-  letter-spacing: 2rpx;
-  color: var(--theme-primary);
-  margin-bottom: 14rpx;
-}
-
-.slide-title {
-  display: block;
-  font-family: "Noto Serif SC", "Songti SC", "STSong", serif;
-  font-size: 42rpx;
-  font-weight: 700;
-  line-height: 1.35;
-  color: var(--theme-text-primary);
-  margin-bottom: 16rpx;
-}
-
-.slide-description {
-  display: block;
-  font-size: 28rpx;
-  line-height: 1.7;
-  color: var(--theme-text-secondary);
-}
-
-.slide-divider {
-  height: 1rpx;
-  margin: 28rpx 0 22rpx;
-  background: var(--theme-border);
-}
-
-.highlight-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.highlight-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 18rpx;
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid var(--theme-border);
-}
-
-.highlight-row:last-child {
-  border-bottom: none;
-}
-
-.highlight-mark {
-  width: 10rpx;
-  height: 10rpx;
-  margin-top: 15rpx;
-  flex-shrink: 0;
-  border-radius: 2rpx;
-  background: var(--theme-primary);
-}
-
-.highlight-text {
-  flex: 1;
-  font-size: 26rpx;
-  line-height: 1.65;
-  color: var(--theme-text-primary);
-}
-
-.action-list {
-  display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-  margin-top: 28rpx;
-}
-
-.action-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20rpx;
-  padding: 24rpx 26rpx;
-  border-radius: var(--theme-radius-md);
-  box-sizing: border-box;
-}
-
-.action-primary {
-  background: var(--theme-primary);
-  border: 1rpx solid var(--theme-primary);
-}
-
-.action-primary .action-label,
-.action-primary .action-arrow {
-  color: var(--theme-text-on-primary);
-}
-
-.action-primary .action-desc {
-  color: color-mix(in oklab, var(--theme-text-on-primary) 82%, transparent);
-}
-
-.action-secondary {
-  background: var(--theme-surface);
-  border: 1rpx solid var(--theme-border);
-}
-
-.action-secondary .action-label,
-.action-secondary .action-arrow {
-  color: var(--theme-text-primary);
-}
-
-.action-secondary .action-desc {
-  color: var(--theme-text-secondary);
-}
-
-.action-ghost {
-  background: transparent;
-  border: 1rpx solid transparent;
-  border-top: 1rpx solid var(--theme-border);
-  border-radius: 0;
-  padding: 22rpx 8rpx 12rpx;
-}
-
-.action-ghost .action-label {
-  color: var(--theme-text-secondary);
-}
-
-.action-ghost .action-desc,
-.action-ghost .action-arrow {
-  color: var(--theme-text-placeholder);
-}
-
-.action-copy {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6rpx;
-}
-
-.action-label {
-  font-size: 30rpx;
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-.action-desc {
-  font-size: 24rpx;
-  line-height: 1.5;
-}
-
-.action-arrow {
-  font-size: 36rpx;
-  line-height: 1;
-}
-
-.welcome-footer {
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  margin-top: 26rpx;
-  padding-top: 22rpx;
-  border-top: 1rpx solid var(--theme-border);
-}
-
 .footer-btn {
   flex: 1;
-  height: 84rpx;
-  line-height: 84rpx;
+  height: 80rpx;
+  line-height: 80rpx;
   margin: 0;
-  padding: 0 24rpx;
-  border-radius: var(--theme-radius-sm);
-  font-size: 28rpx;
+  padding: 0 20rpx;
+  border-radius: 16rpx;
+  font-size: 26rpx;
   font-weight: 600;
 }
 
@@ -503,5 +514,17 @@ const handleSelectAction = (actionKey: WelcomeActionKey) => {
   background: transparent;
   color: var(--theme-text-primary);
   border: 1rpx solid var(--theme-border);
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6rpx;
+}
+
+.footer-link {
+  font-size: 24rpx;
+  color: var(--theme-text-secondary);
 }
 </style>

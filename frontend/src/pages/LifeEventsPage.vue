@@ -11,7 +11,7 @@
       <button class="add-button" type="button" @click="openCreate">＋ 添加事件</button>
     </section>
 
-    <section class="event-list" aria-live="polite">
+    <section class="event-list" aria-live="polite" data-guide-id="life-event-list">
       <div v-if="loading" class="state">正在整理你的事件线索...</div>
       <div v-else-if="error" class="state error">{{ error }}</div>
       <div v-else-if="events.length === 0" class="state empty">
@@ -102,16 +102,20 @@
         <div class="editor-actions"><button class="secondary-button" type="button" @click="closeEditor">取消</button><button class="save-button" type="button" :disabled="saving" @click="saveEvent">{{ saving ? '保存中...' : '保存事件' }}</button></div>
       </section>
     </div>
+    <SpotlightGuide :hint="lifeEventHint" />
   </main>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
+import SpotlightGuide from '../components/onboarding/SpotlightGuide.vue'
 import { lifeEventApi, type LifeDiaryOption, type LifeEvent, type LifeEventPayload } from '../api/life'
+import { useOnboardingStore } from '../stores/onboarding'
 
 const router = useRouter()
+const onboardingStore = useOnboardingStore()
 const events = ref<LifeEvent[]>([])
 const diaries = ref<LifeDiaryOption[]>([])
 const diaryKeyword = ref('')
@@ -131,6 +135,11 @@ const form = ref<LifeEventPayload>({ title: '', description: '', targetDate: '',
 const undoEvent = ref<LifeEvent | null>(null)
 const eventInfoOpen = ref(false)
 let undoTimer: ReturnType<typeof setTimeout> | undefined
+const lifeEventHint = computed(() =>
+  !loading.value && !error.value && events.value.length > 0
+    ? onboardingStore.pickEligibleHint(['LIFE_EVENT'])
+    : null,
+)
 
 onMounted(loadEvents)
 

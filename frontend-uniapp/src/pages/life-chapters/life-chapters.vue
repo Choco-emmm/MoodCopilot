@@ -54,12 +54,17 @@
       <view v-if="gaps.length" class="gaps"><text class="section-label">记录较少的时间段</text><view v-for="gap in gaps" :key="`${gap.startDate}-${gap.endDate}`" class="gap-item"><text>{{ gap.startDate }} - {{ gap.endDate }}</text><text>这段时间暂时没有足够记录</text></view></view>
       <view v-if="nextCursor" class="timeline-load-more" @click="loadMoreChapters">{{ loadingMore ? '正在加载…' : '继续查看更早阶段' }}</view>
     </view>
+    <GuideBubble
+      hint-key="LIFE_CHAPTER"
+      :eligible="isLifeChapterHintEligible"
+    />
   </view>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import GlobalUI from '@/components/GlobalUI.vue'
+import GuideBubble from '@/components/onboarding/GuideBubble.vue'
 import { get, request } from '@/utils/request'
 import { hasLoginToken, requireLogin } from '@/stores/login'
 
@@ -78,6 +83,9 @@ const candidates = ref<TimelineCandidate[]>([])
 const gaps = ref<{ startDate: string; endDate: string }[]>([])
 const nextCursor = ref<string | null>(null)
 const loadingMore = ref(false)
+const isLifeChapterHintEligible = computed(
+  () => !loading.value && (chapters.value.length > 0 || candidates.value.length > 0),
+)
 
 onMounted(() => {
   if (!hasLoginToken()) {

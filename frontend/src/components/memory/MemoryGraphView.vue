@@ -1,5 +1,5 @@
 <template>
-  <section class="memory-graph" aria-label="因果关联网络">
+  <section class="memory-graph" aria-label="因果关联网络" data-guide-id="memory-relation-graph">
     <header class="section-head graph-header-controls">
       <div>
         <h3 class="graph-header-title">因果关联网络</h3>
@@ -94,6 +94,7 @@
         </footer>
       </template>
     </template>
+    <SpotlightGuide :hint="relationGraphHint" :visible="props.active" />
   </section>
 </template>
 
@@ -104,6 +105,8 @@ import { useDialog } from 'naive-ui'
 import { graphApi } from '../../api'
 import { logWarn } from '../../utils/logger'
 import { useConsolidationStore } from '../../stores/consolidation'
+import { useOnboardingStore } from '../../stores/onboarding'
+import SpotlightGuide from '../onboarding/SpotlightGuide.vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { GraphChart } from 'echarts/charts'
@@ -121,13 +124,20 @@ interface TripleItem {
   diaryId?: unknown
   sourceDiaryIds?: unknown
 }
+const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
 const PAGE_SIZE = 20
 const store = useConsolidationStore()
+const onboardingStore = useOnboardingStore()
 const dialog = useDialog()
 const chartRef = ref<InstanceType<typeof VChart> | null>(null)
 const isGraphListView = ref(false)
 const graphLoading = ref(false)
 const hasLoaded = ref(store.triples.length > 0)
+const relationGraphHint = computed(() =>
+  props.active && hasLoaded.value && store.triples.length > 0
+    ? onboardingStore.pickEligibleHint(['RELATION_GRAPH'])
+    : null,
+)
 const loadError = ref('')
 const search = ref('')
 const polarity = ref('all')

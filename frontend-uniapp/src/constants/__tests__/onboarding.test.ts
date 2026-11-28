@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MINI_PROGRAM_WELCOME_TOUR_STEPS,
   ONBOARDING_GUIDE_VERSION,
+  ONBOARDING_HINTS,
+  WEB_WELCOME_TOUR_STEPS,
   WELCOME_ACTIONS,
   WELCOME_SLIDES,
   buildOnboardingCacheKey,
   computeCoreTaskProgress,
   createDefaultOnboardingState,
+  getHintsForScope,
   isChecklistActive,
+  isHintAllowedForScope,
+  isHintPending,
   mergeOnboardingStateMonotonic,
+  pickActiveHint,
   shouldAutoShowWelcome,
 } from '../onboarding';
 
@@ -182,12 +189,74 @@ describe('shared onboarding pure helpers', () => {
     );
   });
 
-  it('provides 3 welcome slides and 3 non-social P0-B actions', () => {
-    expect(WELCOME_SLIDES).toHaveLength(3);
+  it('provides 4 real-UI spotlight tour steps per platform with plain non-social mini-program wording', () => {
+    expect(WEB_WELCOME_TOUR_STEPS).toHaveLength(4);
+    expect(MINI_PROGRAM_WELCOME_TOUR_STEPS).toHaveLength(4);
+    expect(MINI_PROGRAM_WELCOME_TOUR_STEPS.map((s) => s.anchorId)).toEqual([
+      'mp-nav-write',
+      'mp-nav-analysis',
+      'mp-nav-chat',
+      'mp-nav-profile',
+    ]);
     expect(WELCOME_ACTIONS.map((item) => item.key)).toEqual([
       'WRITE_TODAY',
       'CHAT_WITH_AI',
       'EXPLORE_LATER',
     ]);
+    for (const step of MINI_PROGRAM_WELCOME_TOUR_STEPS) {
+      expect(step.title).not.toContain('上下文');
+      expect(step.description).not.toContain('上下文');
+      expect(step.description).not.toMatch(/广场|社区|关注|举报/);
+    }
+    for (const hint of ONBOARDING_HINTS) {
+      expect(hint.title).not.toContain('上下文');
+      expect(hint.description).not.toContain('上下文');
+    }
+  });
+
+  it('filters P1 hint registry by scope so Web-only hints never appear on Mini-Program', () => {
+    expect(ONBOARDING_HINTS).toHaveLength(10);
+
+    const miniProgramHints = getHintsForScope('MINI_PROGRAM');
+    expect(miniProgramHints).toHaveLength(8);
+    expect(miniProgramHints.map((h) => h.key)).not.toContain('PUBLIC_DIARY_WEB');
+    expect(miniProgramHints.map((h) => h.key)).not.toContain('TOOL_APPROVAL_WEB');
+    expect(isHintAllowedForScope('PUBLIC_DIARY_WEB', 'MINI_PROGRAM')).toBe(false);
+    expect(isHintAllowedForScope('TOOL_APPROVAL_WEB', 'MINI_PROGRAM')).toBe(false);
+    expect(isHintAllowedForScope('ANALYSIS_READY', 'MINI_PROGRAM')).toBe(true);
+    expect(isHintAllowedForScope('PUBLIC_DIARY_WEB', 'WEB')).toBe(true);
+  });
+
+  it('picks at most one highest-priority pending hint for the given scope', () => {
+    const state = createDefaultOnboardingState({
+      enrolledVersion: 1,
+      hints: {
+        MODEL_PRO: 'COMPLETED',
+        MEMORY_CANDIDATE: 'SKIPPED',
+      },
+    });
+
+    expect(isHintPending(state, 'MODEL_PRO')).toBe(false);
+    expect(isHintPending(state, 'MEMORY_CANDIDATE')).toBe(false);
+    expect(isHintPending(state, 'CHAT_CITATION')).toBe(true);
+
+    // Web-only hints are ignored on MINI_PROGRAM, completed MODEL_PRO is skipped -> CHAT_CITATION wins
+    expect(
+      pickActiveHint(
+        state,
+        ['TOOL_APPROVAL_WEB', 'MODEL_PRO', 'RELATION_GRAPH', 'CHAT_CITATION'],
+        'MINI_PROGRAM',
+      )?.key,
+    ).toBe('CHAT_CITATION');
+
+    // Once MEMORY_CANDIDATE is skipped, RELATION_GRAPH becomes active
+    expect(
+      pickActiveHint(state, ['MEMORY_CANDIDATE', 'RELATION_GRAPH'], 'MINI_PROGRAM')?.key,
+    ).toBe('RELATION_GRAPH');
+
+    // Returns null when no eligible pending hint matches scope
+    expect(
+      pickActiveHint(state, ['PUBLIC_DIARY_WEB', 'MODEL_PRO'], 'MINI_PROGRAM'),
+    ).toBeNull();
   });
 });

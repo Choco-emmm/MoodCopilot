@@ -65,6 +65,7 @@
                 v-for="prompt in activeStarterPrompts"
                 :key="prompt.id"
                 class="starter-prompt-card"
+                :class="{ active: inputContent.trim() === prompt.text.trim() }"
                 role="button"
                 @click="fillStarterPrompt(prompt.text)"
               >
@@ -93,6 +94,23 @@
             <image src="/static/ai_avatar.png" class="avatar-img" mode="aspectFill" />
           </view>
           <view class="bubble" :class="msg.role === 'user' ? 'user-bubble' : 'ai-bubble'" @longpress="handleLongPress(msg)">
+            <view v-if="msg.role === 'assistant' && msg.ragReferences && msg.ragReferences.length" class="rag-refs-box">
+              <view class="rag-refs-toggle" role="button" @click.stop="toggleMessageReferences(msg)">
+                <text class="rag-refs-toggle-text">已参考 {{ msg.ragReferences.length }} 条记录依据</text>
+                <text class="rag-refs-toggle-arrow">{{ msg._refsExpanded ? '⌃' : '⌄' }}</text>
+              </view>
+              <view v-if="msg._refsExpanded" class="rag-refs-list">
+                <view
+                  v-for="(refItem, refIdx) in msg.ragReferences"
+                  :key="refIdx"
+                  class="rag-ref-row"
+                  @click.stop="openRagReference(refItem)"
+                >
+                  <text class="rag-ref-meta">{{ ragReferenceLabel(refItem) }}</text>
+                  <text class="rag-ref-snippet">{{ ragReferenceSnippet(refItem) }}</text>
+                </view>
+              </view>
+            </view>
             <view v-if="msg.imageUrls && msg.imageUrls.length" class="message-images">
               <image v-for="(url, imgIndex) in msg.imageUrls" :key="imgIndex" :src="getFullUrl(url)" class="message-image" mode="widthFix" @click.stop="previewImage(getFullUrl(url), msg.imageUrls.map(u => getFullUrl(u)))" />
             </view>
@@ -110,6 +128,9 @@
             <image src="/static/ai_avatar.png" class="avatar-img" mode="aspectFill" />
           </view>
           <view v-if="streamingContent" class="bubble ai-bubble">
+            <view v-if="streamingRagReferences.length" class="rag-refs-box">
+              <text class="rag-refs-toggle-text">已参考 {{ streamingRagReferences.length }} 条记录依据</text>
+            </view>
             <text class="message-text streaming-text">{{ streamingContent }}</text>
           </view>
           <view v-else class="bubble ai-bubble typing-indicator">
@@ -124,6 +145,16 @@
 
     <!-- 底部输入框区域 -->
     <view class="chat-bottom-wrapper">
+      <view v-if="activeChatHintKey" class="chat-guide-wrap">
+        <GuideBubble
+          :hint-key="activeChatHintKey"
+          :eligible="true"
+          :floating="false"
+          compact
+          :locate-label="activeChatHintKey === 'CHAT_CITATION' ? '查看依据' : ''"
+          @locate="locateLatestCitationMessage"
+        />
+      </view>
       <view class="chat-model-row">
         <text class="chat-model-label">回复模式</text>
         <picker :range="chatModelOptions" :value="useReasoning ? 1 : 0" @change="onChatModelChange">
@@ -324,6 +355,7 @@ import { parseMarkdown, extractPlainText } from '@/utils/markdown';
 import { startChatStream } from '@/utils/chatStream';
 import type { ChatStreamHandle } from '@/utils/chatStream';
 import GlobalUI from '@/components/GlobalUI.vue';
+import GuideBubble from '@/components/onboarding/GuideBubble.vue';
 import { hasLoginToken, requireLogin } from '@/stores/login';
 import { activeQuote, setQuote, clearQuote } from '@/stores/quote';
 import { currentTheme } from '@/stores/theme';
@@ -332,9 +364,12 @@ import {
   CHAT_STARTER_PROMPTS_WITH_DIARY,
   CHAT_STARTER_PROMPTS_WITHOUT_DIARY,
 } from '@/constants/onboarding';
+import type { HintKey } from '@/constants/onboarding';
 import {
   applyStarterPromptToDraft,
+  navigateMiniProgramRoute,
   onboardingState,
+  pickActiveMiniProgramHint,
   refreshAfterBusinessAction,
 } from '@/stores/onboarding';
 
@@ -362,11 +397,24 @@ async function editConversationTitle() {
   });
 }
 
+interface RagReferenceItem {
+  type?: string;
+  diaryId?: string | number;
+  eventId?: string | number;
+  date?: string;
+  title?: string;
+  key?: string;
+  value?: string;
+  snippet?: string;
+}
+
 interface Message {
   role: 'user' | 'assistant';
   content: string
   reasoningContent?: string
   _reasoningExpanded?: boolean;
+  _refsExpanded?: boolean;
+  ragReferences?: RagReferenceItem[];
   createdAt?: string;
   imageUrls?: string[];
 }
@@ -382,6 +430,8 @@ const scrollToMessage = ref('');
 
 const isStreaming = ref(false);
 const streamingContent = ref('');
+const streamingRagReferences = ref<RagReferenceItem[]>([]);
+const userSelectedPro = ref(false);
 // 流式期间用独立 ref 渲染纯文本：不往 messages 里塞半成品（避免 :key="index" 抖动），
 // 也不对半截 markdown 反复跑 parseMarkdown（未闭合的 ** 和半张表格会渲染成乱码）
 const STREAM_TICK_MS = 40;
@@ -455,7 +505,11 @@ const personaRoleIndex = ref(0);
 const globalPersonaSnapshot = ref({ role: 'personal_assistant', tone: ['natural', 'clear'], behaviorFlags: [] as string[], disabledBehaviorFlags: [] as string[], customTone: '', customResponseStyle: '' });
 
 const onChatModelChange = (event: any) => {
-  useReasoning.value = Number(event.detail.value) === 1;
+  const nextUseReasoning = Number(event.detail.value) === 1;
+  useReasoning.value = nextUseReasoning;
+  if (nextUseReasoning) {
+    userSelectedPro.value = true;
+  }
 };
 
 const defaultPersona = () => ({
@@ -616,14 +670,124 @@ const checkHasDiaries = async () => {
   }
 };
 
-const fillStarterPrompt = (promptText: string) => {
-  const { nextDraft, applied } = applyStarterPromptToDraft(inputContent.value, promptText);
+const lastAppliedStarterPrompt = ref<string | null>(null);
+const allStarterPromptTexts = [
+  ...CHAT_STARTER_PROMPTS_WITH_DIARY.map((item) => item.text),
+  ...CHAT_STARTER_PROMPTS_WITHOUT_DIARY.map((item) => item.text),
+];
+
+const fillStarterPrompt = (promptText: string, forceReplace = false) => {
+  const { nextDraft, applied, status } = applyStarterPromptToDraft(
+    inputContent.value,
+    promptText,
+    allStarterPromptTexts,
+    { forceReplace, lastAppliedPrompt: lastAppliedStarterPrompt.value },
+  );
+  if (status === 'unchanged') {
+    return;
+  }
   if (!applied) {
-    uni.showToast({ title: '输入框已有内容，未覆盖', icon: 'none' });
+    uni.showModal({
+      title: '替换当前输入？',
+      content: '输入框已有你写的内容，是否替换为该推荐问题？',
+      confirmText: '替换',
+      cancelText: '保留草稿',
+      success: (res) => {
+        if (res.confirm) {
+          fillStarterPrompt(promptText, true);
+        }
+      },
+    });
     return;
   }
   inputContent.value = nextDraft;
+  lastAppliedStarterPrompt.value = nextDraft;
 };
+
+const locateLatestCitationMessage = () => {
+  for (let i = messages.value.length - 1; i >= 0; i -= 1) {
+    const candidate = messages.value[i];
+    if (
+      candidate.role === 'assistant' &&
+      Array.isArray(candidate.ragReferences) &&
+      candidate.ragReferences.length > 0
+    ) {
+      candidate._refsExpanded = true;
+      scrollToMessage.value = '';
+      void nextTick(() => {
+        scrollToMessage.value = `msg-${i}`;
+      });
+      return;
+    }
+  }
+};
+
+const mergeRagReferences = (existing: RagReferenceItem[], incoming: unknown[]): RagReferenceItem[] => {
+  const result = [...existing];
+  const seen = new Set(
+    result.map((item) => `${item.type || ''}:${item.diaryId || ''}:${item.eventId || ''}:${item.key || ''}:${item.snippet || item.value || ''}`),
+  );
+  for (const raw of incoming) {
+    if (!raw || typeof raw !== 'object') continue;
+    const item = raw as RagReferenceItem;
+    const sig = `${item.type || ''}:${item.diaryId || ''}:${item.eventId || ''}:${item.key || ''}:${item.snippet || item.value || ''}`;
+    if (!seen.has(sig)) {
+      seen.add(sig);
+      result.push(item);
+    }
+  }
+  return result;
+};
+
+const toggleMessageReferences = (msg: Message) => {
+  msg._refsExpanded = !msg._refsExpanded;
+};
+
+const ragReferenceLabel = (item: RagReferenceItem): string => {
+  if (item.type === 'profile_memory') return item.key ? `记忆 · ${item.key}` : '个人记忆';
+  if (item.type === 'graph_memory') return '关系图谱';
+  if (item.type === 'event_memory') return item.title ? `事件 · ${item.title}` : '重要事件';
+  return item.date ? `日记 · ${item.date}` : '日记记录';
+};
+
+const ragReferenceSnippet = (item: RagReferenceItem): string => {
+  const raw = item.snippet || item.value || item.title || '';
+  return raw ? extractPlainText(String(raw)) : '查看原记录';
+};
+
+const openRagReference = (item: RagReferenceItem) => {
+  const diaryId = Number(item.diaryId);
+  if (Number.isFinite(diaryId) && diaryId > 0) {
+    navigateMiniProgramRoute(`/pages/detail/detail?id=${Math.floor(diaryId)}`);
+    return;
+  }
+  if (item.type === 'event_memory') {
+    navigateMiniProgramRoute('/pages/life-events/life-events');
+    return;
+  }
+  if (item.type === 'profile_memory' || item.type === 'graph_memory') {
+    navigateMiniProgramRoute('/pages/analysis/analysis');
+  }
+};
+
+const hasRenderedChatCitation = computed(
+  () =>
+    streamingRagReferences.value.length > 0 ||
+    messages.value.some(
+      (msg) => msg.role === 'assistant' && Array.isArray(msg.ragReferences) && msg.ragReferences.length > 0,
+    ),
+);
+
+const activeChatHintKey = computed<HintKey | null>(() => {
+  const eligible: HintKey[] = [];
+  if (useReasoning.value && userSelectedPro.value) {
+    eligible.push('MODEL_PRO');
+  }
+  if (hasRenderedChatCitation.value) {
+    eligible.push('CHAT_CITATION');
+  }
+  return pickActiveMiniProgramHint(eligible)?.key ?? null;
+});
 
 onMounted(() => {
   void restorePendingEvent();
@@ -847,6 +1011,8 @@ const loadHistory = async () => {
       messages.value = msgs.map((message: any) => ({
         ...message,
         role: message?.role === 'user' ? 'user' : 'assistant',
+        ragReferences: Array.isArray(message?.ragReferences) ? message.ragReferences : undefined,
+        _refsExpanded: false,
       }));
       if (messages.value.length === 0) {
         fetchWelcomeTopics();
@@ -934,7 +1100,15 @@ const finishTurn = (errorMessage: string | null, isFirstUserMessage: boolean) =>
 
   // 已经流出一部分却在中途失败时，保留已生成的内容比整段丢掉更合理
   const reply = text || errorMessage || '抱歉，我现在有点走神，请稍后再试';
-  messages.value.push({ role: 'assistant', content: reply, createdAt: new Date().toISOString() });
+  const collectedRefs = streamingRagReferences.value.length ? [...streamingRagReferences.value] : undefined;
+  streamingRagReferences.value = [];
+  messages.value.push({
+    role: 'assistant',
+    content: reply,
+    ragReferences: collectedRefs,
+    _refsExpanded: false,
+    createdAt: new Date().toISOString(),
+  });
 
   scrollToBottom();
   if (!errorMessage && text.trim().length > 0) {
@@ -959,6 +1133,7 @@ const abortActiveStream = () => {
   pendingStreamText = '';
   revealedLength = 0;
   streamingContent.value = '';
+  streamingRagReferences.value = [];
   isStreaming.value = false;
   isWaiting.value = false;
   sendRequestGuard.value = false;
@@ -993,6 +1168,7 @@ const sendMessage = async () => {
   pendingStreamText = '';
   revealedLength = 0;
   streamingContent.value = '';
+  streamingRagReferences.value = [];
   scrollToBottom('waiting');
 
   // 失败一律走 onError，这里不需要 try/catch
@@ -1010,6 +1186,10 @@ const sendMessage = async () => {
       onChunk: (text) => {
         if (currentStreamSessionId !== streamSessionId) return;
         appendStreamText(text);
+      },
+      onReferences: (items) => {
+        if (currentStreamSessionId !== streamSessionId) return;
+        streamingRagReferences.value = mergeRagReferences(streamingRagReferences.value, items);
       },
       onDone: () => {
         if (currentStreamSessionId !== streamSessionId) return;
@@ -2088,25 +2268,83 @@ const scrollToBottom = (target?: 'waiting') => {
     font-weight: 600;
     color: var(--theme-text-primary);
   }
+  .starter-prompt-card.active {
+    border-color: var(--theme-primary);
+    background: color-mix(in oklab, var(--theme-primary) 7%, var(--theme-surface));
+  }
   .starter-prompt-text {
-    font-size: 23rpx;
-    line-height: 1.55;
+    font-size: 24rpx;
+    line-height: 1.6;
     color: var(--theme-text-secondary);
   }
   .starter-prompt-cue {
     flex-shrink: 0;
-    padding: 6rpx 14rpx;
+    padding: 6rpx 16rpx;
     border: 1rpx solid var(--theme-border);
-    border-radius: var(--theme-radius-sm);
-    font-size: 21rpx;
+    border-radius: 12rpx;
+    font-size: 22rpx;
     color: var(--theme-primary);
   }
   .starter-prompts-note {
     display: block;
     margin-top: 18rpx;
-    font-size: 21rpx;
+    font-size: 22rpx;
     line-height: 1.6;
     color: var(--theme-text-placeholder);
+  }
+  .chat-guide-wrap {
+    padding: 0 24rpx 8rpx;
+  }
+  .rag-refs-box {
+    margin-bottom: 14rpx;
+    padding: 12rpx 14rpx;
+    border: 1rpx solid var(--theme-border);
+    border-radius: var(--theme-radius-sm);
+    background: color-mix(in oklab, var(--theme-primary) 4%, var(--theme-surface));
+  }
+  .rag-refs-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12rpx;
+  }
+  .rag-refs-toggle-text {
+    font-size: 22rpx;
+    font-weight: 600;
+    color: var(--theme-primary);
+  }
+  .rag-refs-toggle-arrow {
+    font-size: 22rpx;
+    color: var(--theme-text-placeholder);
+  }
+  .rag-refs-list {
+    margin-top: 10rpx;
+    padding-top: 10rpx;
+    border-top: 1rpx solid var(--theme-border);
+    display: flex;
+    flex-direction: column;
+    gap: 10rpx;
+  }
+  .rag-ref-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4rpx;
+    padding-bottom: 8rpx;
+    border-bottom: 1rpx dashed var(--theme-border);
+  }
+  .rag-ref-row:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+  .rag-ref-meta {
+    font-size: 20rpx;
+    font-weight: 600;
+    color: var(--theme-primary);
+  }
+  .rag-ref-snippet {
+    font-size: 22rpx;
+    line-height: 1.5;
+    color: var(--theme-text-secondary);
   }
 
 </style>

@@ -120,6 +120,14 @@ export interface WelcomeSlide {
   highlights: readonly string[]
 }
 
+export interface WelcomeTourStep {
+  id: string
+  stepNumber: string
+  anchorId: string
+  title: string
+  description: string
+}
+
 export type WelcomeActionKey = 'WRITE_TODAY' | 'CHAT_WITH_AI' | 'EXPLORE_LATER'
 
 export interface WelcomeActionItem {
@@ -153,6 +161,17 @@ export interface CoreTaskProgress {
   remainingKeys: CoreTaskKey[]
 }
 
+export interface OnboardingHintDefinition {
+  key: HintKey
+  scope: GuideScope
+  title: string
+  description: string
+  anchorId: string
+  /** 数值越大优先级越高 */
+  priority: number
+  actionLabel?: string
+}
+
 export const WELCOME_SLIDES: readonly WelcomeSlide[] = [
   {
     id: 'record',
@@ -175,7 +194,7 @@ export const WELCOME_SLIDES: readonly WelcomeSlide[] = [
     highlights: [
       '自动梳理日记中的情绪线索与回应，帮助你看见变化',
       '从日常片段中提炼可追溯的长期记忆与关系脉络',
-      '对话时既能结合你的记录上下文，也能处理学习、写作与工作问题',
+      '对话时既能结合你写过的记录，也能处理学习、写作与工作问题',
     ],
   },
   {
@@ -189,6 +208,68 @@ export const WELCOME_SLIDES: readonly WelcomeSlide[] = [
       '每条记忆都保留原文依据，可随时核对、编辑或删除',
       '涉及改写或失效的记忆变更会先交给你确认，不会擅自覆盖',
     ],
+  },
+]
+
+export const WEB_WELCOME_TOUR_STEPS: readonly WelcomeTourStep[] = [
+  {
+    id: 'write',
+    stepNumber: '01',
+    anchorId: 'nav-write',
+    title: '从这里写下今天',
+    description: '几句话、照片或正在听的音乐都可以记录；新日记默认仅自己可见，保存后可查看 AI 情绪分析。',
+  },
+  {
+    id: 'chat',
+    stepNumber: '02',
+    anchorId: 'nav-ai',
+    title: '随时找 AI 聊聊',
+    description: '既能结合你写过的记录聊近况，也能聊学习、写作与规划；回答里可随时展开核对参考依据。',
+  },
+  {
+    id: 'profile',
+    stepNumber: '03',
+    anchorId: 'nav-profile',
+    title: '个人主页与长期整理',
+    description: '这里汇集了你的日记、记忆中心、情绪报告、重要事件与时光画卷，随时可换主题或重看指南。',
+  },
+  {
+    id: 'square',
+    stepNumber: '04',
+    anchorId: 'nav-square',
+    title: '按自己的节奏开始吧',
+    description: '广场里可以看到大家愿意公开的记录；你也可以一直保持私密，现在就选一个起点出发。',
+  },
+]
+
+export const MINI_PROGRAM_WELCOME_TOUR_STEPS: readonly WelcomeTourStep[] = [
+  {
+    id: 'write',
+    stepNumber: '01',
+    anchorId: 'mp-nav-write',
+    title: '从这里写下今天',
+    description: '记下一句话、照片或正在听的音乐；日记仅自己可见，保存后 AI 会帮你梳理情绪脉络。',
+  },
+  {
+    id: 'analysis',
+    stepNumber: '02',
+    anchorId: 'mp-nav-analysis',
+    title: '在「洞察」看记忆与报告',
+    description: '集中查看情绪报告、个人记忆与关系图谱；每条记忆都能核对原话，由你决定留存或修改。',
+  },
+  {
+    id: 'chat',
+    stepNumber: '03',
+    anchorId: 'mp-nav-chat',
+    title: '在「陪伴」和 AI 聊聊',
+    description: '聊心情、解惑或讨论学习与工作都可以，回答会结合你的记录并支持随时核对参考依据。',
+  },
+  {
+    id: 'profile',
+    stepNumber: '04',
+    anchorId: 'mp-nav-profile',
+    title: '在「我的」管理更多设置',
+    description: '这里有重要事件、时光画卷、合集与纸张主题切换；之后想重看引导，也能从「使用指南」打开。',
   },
 ]
 
@@ -309,21 +390,130 @@ export const CHAT_STARTER_PROMPTS_WITHOUT_DIARY: readonly ChatStarterPrompt[] = 
 export const ONBOARDING_COPY = {
   welcomeBadge: '初次相遇',
   welcomeReplayBadge: '使用指南',
-  welcomeReplayNote: '当前为重播模式，不会重置你已完成的进度。',
+  welcomeReplayNote: '重播模式 · 不会重置你的引导进度',
   welcomeSkipLabel: '跳过',
-  welcomePrevLabel: '上一页',
-  welcomeNextLabel: '下一页',
+  welcomePrevLabel: '上一步',
+  welcomeNextLabel: '下一步',
   welcomeToActionsLabel: '下一步',
   welcomeReplayCloseLabel: '关闭指南',
   welcomeActionsHeading: '接下来，想从哪里开始？',
   welcomeActionsSubheading: '一切都可以按你的节奏慢慢来，随时可以从个人页重看这份指南。',
   guideEntryLabel: '使用指南',
-  guideEntryDescription: '重新查看初次相遇介绍',
+  guideEntryDescription: '在界面上逐步指引核心功能入口',
   checklistTitle: '新手上手清单',
   checklistOptionalHeading: '可选探索',
   checklistDismissLabel: '收起清单',
   memoryCenterSummary: '这里汇集系统整理与由你确认的长期记忆，每条都可查看原文依据、随时修改或删除。',
+  hintBadge: '功能提示',
+  hintGotItLabel: '知道了',
+  hintDismissLabel: '不再提示',
 } as const
+
+export const ONBOARDING_HINTS: readonly OnboardingHintDefinition[] = [
+  {
+    key: 'TOOL_APPROVAL_WEB',
+    scope: 'WEB',
+    title: '逐条确认记忆变更',
+    description: '涉及写入、修改、合并或删除长期记忆时，会先请你逐条批准或拒绝，也可以直接修正内容后再确认。',
+    anchorId: 'chat-tool-approval',
+    priority: 100,
+    actionLabel: '知道了',
+  },
+  {
+    key: 'PUBLIC_DIARY_WEB',
+    scope: 'WEB',
+    title: '公开日记仅分享正文',
+    description: '切换到公开后，日记正文与作者名会出现在社区，其他人无法看到你的完整 AI 分析；是否公开由你决定。',
+    anchorId: 'diary-visibility-public',
+    priority: 95,
+    actionLabel: '我知道了',
+  },
+  {
+    key: 'MODEL_PRO',
+    scope: 'GLOBAL',
+    title: '已切换为深度思考',
+    description: '深度思考会花更多时间拆解复杂问题并消耗独立额度；平时也可随时切回普通对话，始终由你手动选择。',
+    anchorId: 'chat-model-pro',
+    priority: 90,
+    actionLabel: '知道了',
+  },
+  {
+    key: 'ANALYSIS_READY',
+    scope: 'GLOBAL',
+    title: 'AI 分析已生成',
+    description: '分析基于你的日记记录整理情绪线索与回应，帮助你看见变化，也方便回头对照原始记录。',
+    anchorId: 'diary-analysis-card',
+    priority: 85,
+    actionLabel: '知道了',
+  },
+  {
+    key: 'CHAT_CITATION',
+    scope: 'GLOBAL',
+    title: '可展开回答中的参考依据',
+    description: '展开回答里的检索依据可查看本次参考了哪些日记、画像或事件，随时可回到原记录核对。',
+    anchorId: 'chat-citation-panel',
+    priority: 80,
+    actionLabel: '知道了',
+  },
+  {
+    key: 'MEMORY_CANDIDATE',
+    scope: 'GLOBAL',
+    title: '有待确认的记忆候选',
+    description: '候选记忆不会擅自覆盖已有画像；你可以展开查看原文依据，逐条决定确认、修改或拒绝。',
+    anchorId: 'memory-candidate-section',
+    priority: 75,
+    actionLabel: '知道了',
+  },
+  {
+    key: 'RELATION_GRAPH',
+    scope: 'GLOBAL',
+    title: '探索你的关系图谱',
+    description: '这里汇集从日记提炼的事件与感受线索，支持搜索、按极性筛选，也可查看关联的原日记。',
+    anchorId: 'memory-relation-graph',
+    priority: 70,
+    actionLabel: '知道了',
+  },
+  {
+    key: 'REPORT_AVAILABLE',
+    scope: 'GLOBAL',
+    title: '情绪报告已就绪',
+    description: '这里整理了阶段情绪分布与趋势，你可以按需手动生成 AI 总结，系统不会擅自消耗额度。',
+    anchorId: 'report-summary-section',
+    priority: 65,
+    actionLabel: '知道了',
+  },
+  {
+    key: 'LIFE_EVENT',
+    scope: 'GLOBAL',
+    title: '管理你的重要事件',
+    description: '重要事件支持「待跟进」与「已跟进」状态；带着事件聊天只会在对话里参考这件事，不会自动改动状态。',
+    anchorId: 'life-event-list',
+    priority: 60,
+    actionLabel: '知道了',
+  },
+  {
+    key: 'LIFE_CHAPTER',
+    scope: 'GLOBAL',
+    title: '时光画卷已可查看',
+    description: '时光画卷将一段段日记与事件整理为阶段章节，可按需展开来源或手动刷新，不会自动消耗额度。',
+    anchorId: 'life-chapter-list',
+    priority: 55,
+    actionLabel: '知道了',
+  },
+]
+
+export const ONBOARDING_HINT_MAP: Record<HintKey, OnboardingHintDefinition> = {
+  TOOL_APPROVAL_WEB: ONBOARDING_HINTS[0],
+  PUBLIC_DIARY_WEB: ONBOARDING_HINTS[1],
+  MODEL_PRO: ONBOARDING_HINTS[2],
+  ANALYSIS_READY: ONBOARDING_HINTS[3],
+  CHAT_CITATION: ONBOARDING_HINTS[4],
+  MEMORY_CANDIDATE: ONBOARDING_HINTS[5],
+  RELATION_GRAPH: ONBOARDING_HINTS[6],
+  REPORT_AVAILABLE: ONBOARDING_HINTS[7],
+  LIFE_EVENT: ONBOARDING_HINTS[8],
+  LIFE_CHAPTER: ONBOARDING_HINTS[9],
+}
 
 function hasOwn(obj: object, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(obj, key)
@@ -560,4 +750,98 @@ export function buildOnboardingCacheKey(
   scope: GuideScope = 'WEB',
 ): string {
   return `moodcopilot:onboarding:v${version}:${scope}:${String(userId)}`
+}
+
+export function isHintAllowedForScope(key: HintKey, scope: PlatformGuideScope): boolean {
+  const def = ONBOARDING_HINT_MAP[key]
+  if (!def) return false
+  return def.scope === 'GLOBAL' || def.scope === scope
+}
+
+export function getHintsForScope(scope: PlatformGuideScope): readonly OnboardingHintDefinition[] {
+  const result: OnboardingHintDefinition[] = []
+  for (let i = 0; i < ONBOARDING_HINTS.length; i += 1) {
+    const def = ONBOARDING_HINTS[i]
+    if (def.scope === 'GLOBAL' || def.scope === scope) {
+      result.push(def)
+    }
+  }
+  result.sort((a, b) => b.priority - a.priority)
+  return result
+}
+
+export function isHintPending(state: OnboardingState, key: HintKey): boolean {
+  const status = state.hints[key]
+  return status !== 'COMPLETED' && status !== 'SKIPPED'
+}
+
+export function pickActiveHint(
+  state: OnboardingState,
+  eligibleKeys: readonly HintKey[],
+  scope: PlatformGuideScope,
+): OnboardingHintDefinition | null {
+  let best: OnboardingHintDefinition | null = null
+  for (let i = 0; i < eligibleKeys.length; i += 1) {
+    const key = eligibleKeys[i]
+    if (!isHintAllowedForScope(key, scope) || !isHintPending(state, key)) {
+      continue
+    }
+    const def = ONBOARDING_HINT_MAP[key]
+    if (!best || def.priority > best.priority) {
+      best = def
+    }
+  }
+  return best
+}
+
+export type StarterPromptApplyStatus =
+  | 'applied'
+  | 'replaced_template'
+  | 'needs_confirm'
+  | 'unchanged'
+
+export interface StarterPromptDraftResult {
+  nextDraft: string
+  status: StarterPromptApplyStatus
+}
+
+export function resolveStarterPromptDraft(
+  currentDraft: string,
+  promptText: string,
+  templatePool: readonly string[] = [],
+  options?: {
+    forceReplace?: boolean
+    lastAppliedPrompt?: string | null
+  },
+): StarterPromptDraftResult {
+  const existing = typeof currentDraft === 'string' ? currentDraft : ''
+  const existingTrimmed = existing.trim()
+  const targetTrimmed = typeof promptText === 'string' ? promptText.trim() : ''
+
+  if (!targetTrimmed) {
+    return { nextDraft: existing, status: 'unchanged' }
+  }
+  if (existingTrimmed === targetTrimmed) {
+    return { nextDraft: existing, status: 'unchanged' }
+  }
+  if (existingTrimmed.length === 0) {
+    return { nextDraft: promptText, status: 'applied' }
+  }
+
+  const lastAppliedTrimmed =
+    typeof options?.lastAppliedPrompt === 'string' ? options.lastAppliedPrompt.trim() : ''
+  let matchesTemplate = lastAppliedTrimmed.length > 0 && existingTrimmed === lastAppliedTrimmed
+  if (!matchesTemplate) {
+    for (let i = 0; i < templatePool.length; i += 1) {
+      if (templatePool[i].trim() === existingTrimmed) {
+        matchesTemplate = true
+        break
+      }
+    }
+  }
+
+  if (options?.forceReplace || matchesTemplate) {
+    return { nextDraft: promptText, status: 'replaced_template' }
+  }
+  return { nextDraft: existing, status: 'needs_confirm' }
 }

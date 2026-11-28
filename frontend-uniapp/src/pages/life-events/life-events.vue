@@ -58,12 +58,17 @@
         <view class="editor-actions"><view class="cancel-button" @click="closeEditor">取消</view><view class="save-button" :class="{ disabled: saving }" @click="saveEvent">{{ saving ? '保存中...' : '保存事件' }}</view></view>
       </view>
     </view>
+    <GuideBubble
+      hint-key="LIFE_EVENT"
+      :eligible="isLifeEventHintEligible"
+    />
   </view>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import GlobalUI from '@/components/GlobalUI.vue'
+import GuideBubble from '@/components/onboarding/GuideBubble.vue'
 import { del, get, post, put } from '@/utils/request'
 import { hasLoginToken, requireLogin } from '@/stores/login'
 import { currentTheme } from '@/stores/theme'
@@ -88,6 +93,7 @@ const selectedDiaryIds = ref<number[]>([])
 const form = ref<EventForm>({ title: '', description: '', followUpNote: '', targetDate: '', endDate: '', startTime: '', endTime: '' })
 const undoEvent = ref<LifeEvent | null>(null)
 const eventInfoOpen = ref(false)
+const isLifeEventHintEligible = computed(() => !loading.value && events.value.length > 0)
 let undoTimer: ReturnType<typeof setTimeout> | undefined
 
 onMounted(() => { if (!hasLoginToken()) { requireLogin(); loading.value = false; return } void loadEvents() })
