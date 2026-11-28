@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MINI_PROGRAM_WELCOME_TOUR_STEPS,
   ONBOARDING_GUIDE_VERSION,
   ONBOARDING_HINTS,
+  WEB_WELCOME_TOUR_STEPS,
   WELCOME_ACTIONS,
   WELCOME_SLIDES,
   buildOnboardingCacheKey,
@@ -187,14 +189,29 @@ describe('shared onboarding pure helpers', () => {
     );
   });
 
-  it('provides 3 welcome slides and 4 non-social P2 actions including TRY_DEMO', () => {
-    expect(WELCOME_SLIDES).toHaveLength(3);
+  it('provides 4 real-UI spotlight tour steps per platform with plain non-social mini-program wording', () => {
+    expect(WEB_WELCOME_TOUR_STEPS).toHaveLength(4);
+    expect(MINI_PROGRAM_WELCOME_TOUR_STEPS).toHaveLength(4);
+    expect(MINI_PROGRAM_WELCOME_TOUR_STEPS.map((s) => s.anchorId)).toEqual([
+      'mp-nav-write',
+      'mp-nav-analysis',
+      'mp-nav-chat',
+      'mp-nav-profile',
+    ]);
     expect(WELCOME_ACTIONS.map((item) => item.key)).toEqual([
       'WRITE_TODAY',
       'CHAT_WITH_AI',
-      'TRY_DEMO',
       'EXPLORE_LATER',
     ]);
+    for (const step of MINI_PROGRAM_WELCOME_TOUR_STEPS) {
+      expect(step.title).not.toContain('上下文');
+      expect(step.description).not.toContain('上下文');
+      expect(step.description).not.toMatch(/广场|社区|关注|举报/);
+    }
+    for (const hint of ONBOARDING_HINTS) {
+      expect(hint.title).not.toContain('上下文');
+      expect(hint.description).not.toContain('上下文');
+    }
   });
 
   it('filters P1 hint registry by scope so Web-only hints never appear on Mini-Program', () => {

@@ -120,7 +120,15 @@ export interface WelcomeSlide {
   highlights: readonly string[]
 }
 
-export type WelcomeActionKey = 'WRITE_TODAY' | 'CHAT_WITH_AI' | 'TRY_DEMO' | 'EXPLORE_LATER'
+export interface WelcomeTourStep {
+  id: string
+  stepNumber: string
+  anchorId: string
+  title: string
+  description: string
+}
+
+export type WelcomeActionKey = 'WRITE_TODAY' | 'CHAT_WITH_AI' | 'EXPLORE_LATER'
 
 export interface WelcomeActionItem {
   key: WelcomeActionKey
@@ -186,7 +194,7 @@ export const WELCOME_SLIDES: readonly WelcomeSlide[] = [
     highlights: [
       '自动梳理日记中的情绪线索与回应，帮助你看见变化',
       '从日常片段中提炼可追溯的长期记忆与关系脉络',
-      '对话时既能结合你的记录上下文，也能处理学习、写作与工作问题',
+      '对话时既能结合你写过的记录，也能处理学习、写作与工作问题',
     ],
   },
   {
@@ -203,6 +211,68 @@ export const WELCOME_SLIDES: readonly WelcomeSlide[] = [
   },
 ]
 
+export const WEB_WELCOME_TOUR_STEPS: readonly WelcomeTourStep[] = [
+  {
+    id: 'write',
+    stepNumber: '01',
+    anchorId: 'nav-write',
+    title: '从这里写下今天',
+    description: '几句话、照片或正在听的音乐都可以记录；新日记默认仅自己可见，保存后可查看 AI 情绪分析。',
+  },
+  {
+    id: 'chat',
+    stepNumber: '02',
+    anchorId: 'nav-ai',
+    title: '随时找 AI 聊聊',
+    description: '既能结合你写过的记录聊近况，也能聊学习、写作与规划；回答里可随时展开核对参考依据。',
+  },
+  {
+    id: 'profile',
+    stepNumber: '03',
+    anchorId: 'nav-profile',
+    title: '个人主页与长期整理',
+    description: '这里汇集了你的日记、记忆中心、情绪报告、重要事件与时光画卷，随时可换主题或重看指南。',
+  },
+  {
+    id: 'square',
+    stepNumber: '04',
+    anchorId: 'nav-square',
+    title: '按自己的节奏开始吧',
+    description: '广场里可以看到大家愿意公开的记录；你也可以一直保持私密，现在就选一个起点出发。',
+  },
+]
+
+export const MINI_PROGRAM_WELCOME_TOUR_STEPS: readonly WelcomeTourStep[] = [
+  {
+    id: 'write',
+    stepNumber: '01',
+    anchorId: 'mp-nav-write',
+    title: '从这里写下今天',
+    description: '记下一句话、照片或正在听的音乐；日记仅自己可见，保存后 AI 会帮你梳理情绪脉络。',
+  },
+  {
+    id: 'analysis',
+    stepNumber: '02',
+    anchorId: 'mp-nav-analysis',
+    title: '在「洞察」看记忆与报告',
+    description: '集中查看情绪报告、个人记忆与关系图谱；每条记忆都能核对原话，由你决定留存或修改。',
+  },
+  {
+    id: 'chat',
+    stepNumber: '03',
+    anchorId: 'mp-nav-chat',
+    title: '在「陪伴」和 AI 聊聊',
+    description: '聊心情、解惑或讨论学习与工作都可以，回答会结合你的记录并支持随时核对参考依据。',
+  },
+  {
+    id: 'profile',
+    stepNumber: '04',
+    anchorId: 'mp-nav-profile',
+    title: '在「我的」管理更多设置',
+    description: '这里有重要事件、时光画卷、合集与纸张主题切换；之后想重看引导，也能从「使用指南」打开。',
+  },
+]
+
 export const WELCOME_ACTIONS: readonly WelcomeActionItem[] = [
   {
     key: 'WRITE_TODAY',
@@ -214,12 +284,6 @@ export const WELCOME_ACTIONS: readonly WelcomeActionItem[] = [
     key: 'CHAT_WITH_AI',
     label: '找 AI 聊聊',
     description: '开启一段对话，聊日常、学习或任何想法',
-    emphasis: 'secondary',
-  },
-  {
-    key: 'TRY_DEMO',
-    label: '先体验一下',
-    description: '用「摄影比赛」虚拟示例走一遍完整流程，不写入真实数据',
     emphasis: 'secondary',
   },
   {
@@ -326,18 +390,16 @@ export const CHAT_STARTER_PROMPTS_WITHOUT_DIARY: readonly ChatStarterPrompt[] = 
 export const ONBOARDING_COPY = {
   welcomeBadge: '初次相遇',
   welcomeReplayBadge: '使用指南',
-  welcomeReplayNote: '当前为重播模式，不会重置你已完成的进度。',
+  welcomeReplayNote: '重播模式 · 不会重置你的引导进度',
   welcomeSkipLabel: '跳过',
-  welcomePrevLabel: '上一页',
-  welcomeNextLabel: '下一页',
+  welcomePrevLabel: '上一步',
+  welcomeNextLabel: '下一步',
   welcomeToActionsLabel: '下一步',
   welcomeReplayCloseLabel: '关闭指南',
   welcomeActionsHeading: '接下来，想从哪里开始？',
   welcomeActionsSubheading: '一切都可以按你的节奏慢慢来，随时可以从个人页重看这份指南。',
   guideEntryLabel: '使用指南',
-  guideEntryDescription: '重新查看初次相遇介绍',
-  demoEntryLabel: '体验示例',
-  demoEntryDescription: '用虚拟故事体验完整流程，不会写入真实记录',
+  guideEntryDescription: '在界面上逐步指引核心功能入口',
   checklistTitle: '新手上手清单',
   checklistOptionalHeading: '可选探索',
   checklistDismissLabel: '收起清单',
@@ -424,7 +486,7 @@ export const ONBOARDING_HINTS: readonly OnboardingHintDefinition[] = [
     key: 'LIFE_EVENT',
     scope: 'GLOBAL',
     title: '管理你的重要事件',
-    description: '重要事件支持「待跟进」与「已跟进」状态；带着事件聊天只会注入上下文，不会自动改动状态。',
+    description: '重要事件支持「待跟进」与「已跟进」状态；带着事件聊天只会在对话里参考这件事，不会自动改动状态。',
     anchorId: 'life-event-list',
     priority: 60,
     actionLabel: '知道了',

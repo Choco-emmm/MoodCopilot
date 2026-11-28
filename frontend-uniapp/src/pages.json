@@ -128,14 +128,6 @@
 				"navigationBarTextStyle": "black",
 				"animationType": "none"
 			}
-		},
-		{
-			"path": "pages/onboarding-demo/onboarding-demo",
-			"style": {
-				"navigationBarTitleText": "体验示例",
-				"navigationBarTextStyle": "black",
-				"animationType": "none"
-			}
 		}
 	],
 	"globalStyle": {

@@ -30,14 +30,11 @@ import {
   describeWriteSaveNextStep,
   executeChecklistTaskAction,
   executeWelcomeAction,
-  exitOnboardingDemoPage,
   hasRenderableOwnedAnalysis,
   isMiniProgramTabBarPage,
   isRouteSafeForAutoWelcome,
   navigateMiniProgramRoute,
   normalizeMiniProgramRoute,
-  openOnboardingDemoPage,
-  startRealWritingFromDemo,
 } from '../utils/onboardingRouter';
 
 export {
@@ -45,14 +42,11 @@ export {
   describeWriteSaveNextStep,
   executeChecklistTaskAction,
   executeWelcomeAction,
-  exitOnboardingDemoPage,
   hasRenderableOwnedAnalysis,
   isMiniProgramTabBarPage,
   isRouteSafeForAutoWelcome,
   navigateMiniProgramRoute,
   normalizeMiniProgramRoute,
-  openOnboardingDemoPage,
-  startRealWritingFromDemo,
 };
 
 export const MINI_PROGRAM_GUIDE_SCOPE: PlatformGuideScope = 'MINI_PROGRAM';
@@ -65,6 +59,34 @@ interface QueuedOnboardingMutation {
 }
 
 const MAX_RETRY_QUEUE_SIZE = 20;
+
+export interface SpotlightAnchorRect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+export const spotlightAnchorRects = ref<Record<string, SpotlightAnchorRect>>({});
+
+export function registerSpotlightAnchorRect(
+  anchorId: string,
+  rect: SpotlightAnchorRect | null,
+): void {
+  if (!anchorId) return;
+  if (!rect || rect.width <= 0 || rect.height <= 0) {
+    return;
+  }
+  spotlightAnchorRects.value = {
+    ...spotlightAnchorRects.value,
+    [anchorId]: {
+      top: rect.top,
+      left: rect.left,
+      width: rect.width,
+      height: rect.height,
+    },
+  };
+}
 
 export const onboardingBoundUserId = ref<number | null>(null);
 export const onboardingState = ref<OnboardingState>(createDefaultOnboardingState());
@@ -573,6 +595,10 @@ export function markWelcomeDisplayed(): void {
 export function openWelcomeReplay(): void {
   welcomeReplayMode.value = true;
   welcomeOpen.value = true;
+  const currentRoute = readTopPageRoute() || activeOnboardingRoute.value;
+  if (currentRoute && currentRoute !== '/pages/index/index') {
+    navigateMiniProgramRoute('/pages/index/index');
+  }
 }
 
 export function closeWelcomeReplay(): void {

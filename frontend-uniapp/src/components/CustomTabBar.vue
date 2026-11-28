@@ -35,38 +35,83 @@
 </template>
 
 <script setup lang="ts">
+import { getCurrentInstance, nextTick, onMounted, watch } from 'vue';
 import { themeStyle } from '@/stores/theme';
+import { registerSpotlightAnchorRect, welcomeOpen } from '@/stores/onboarding';
 
 const props = defineProps<{
   current: number
 }>();
+
+const instance = getCurrentInstance();
 
 const list = [
   {
     pagePath: '/pages/index/index',
     text: '日记',
     iconPath: '/static/tabs/diary.png',
-    maskClass: 'mask-diary'
+    maskClass: 'mask-diary',
+    anchorId: 'mp-nav-diary',
   },
   {
     pagePath: '/pages/analysis/analysis',
     text: '洞察',
     iconPath: '/static/tabs/analysis.png',
-    maskClass: 'mask-analysis'
+    maskClass: 'mask-analysis',
+    anchorId: 'mp-nav-analysis',
   },
   {
     pagePath: '/pages/chat/chat',
     text: '陪伴',
     iconPath: '/static/tabs/chat.png',
-    maskClass: 'mask-chat'
+    maskClass: 'mask-chat',
+    anchorId: 'mp-nav-chat',
   },
   {
     pagePath: '/pages/profile/profile',
     text: '我的',
     iconPath: '/static/tabs/profile.png',
-    maskClass: 'mask-profile'
+    maskClass: 'mask-profile',
+    anchorId: 'mp-nav-profile',
   }
 ];
+
+const measureTabAnchors = () => {
+  if (typeof uni === 'undefined' || typeof uni.createSelectorQuery !== 'function') return;
+  const query = instance?.proxy ? uni.createSelectorQuery().in(instance.proxy) : uni.createSelectorQuery();
+  query
+    .selectAll('.tab-item')
+    .boundingClientRect((rects: any) => {
+      if (!Array.isArray(rects)) return;
+      rects.forEach((rect, idx) => {
+        const item = list[idx];
+        if (item && rect && rect.width > 0 && rect.height > 0) {
+          registerSpotlightAnchorRect(item.anchorId, {
+            top: rect.top,
+            left: rect.left,
+            width: rect.width,
+            height: rect.height,
+          });
+        }
+      });
+    })
+    .exec();
+};
+
+onMounted(() => {
+  nextTick(() => {
+    measureTabAnchors();
+  });
+});
+
+watch(welcomeOpen, (open) => {
+  if (open) {
+    nextTick(() => {
+      measureTabAnchors();
+      setTimeout(measureTabAnchors, 120);
+    });
+  }
+});
 
 const switchTab = (url: string, index: number) => {
   if (props.current === index) return;

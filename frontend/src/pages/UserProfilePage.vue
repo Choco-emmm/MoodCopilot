@@ -9,15 +9,6 @@
         <button
           type="button"
           class="profile-guide-trigger"
-          data-testid="onboarding-demo-btn"
-          :title="ONBOARDING_COPY.demoEntryDescription"
-          @click="openOnboardingDemo"
-        >
-          {{ ONBOARDING_COPY.demoEntryLabel }}
-        </button>
-        <button
-          type="button"
-          class="profile-guide-trigger"
           data-testid="onboarding-replay-btn"
           :title="ONBOARDING_COPY.guideEntryDescription"
           @click="openOnboardingGuide"
@@ -297,10 +288,6 @@ const onboardingStore = useOnboardingStore()
 
 function openOnboardingGuide() {
   onboardingStore.openWelcomeReplay()
-}
-
-function openOnboardingDemo() {
-  onboardingStore.openDemoExperience()
 }
 
 const loading = ref(false)

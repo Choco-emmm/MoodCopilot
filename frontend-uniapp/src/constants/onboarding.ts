@@ -21,6 +21,7 @@ export type {
   WelcomeActionItem,
   WelcomeActionKey,
   WelcomeSlide,
+  WelcomeTourStep,
 } from '../../../shared/onboarding';
 
 export {
@@ -34,6 +35,7 @@ export {
   GUIDE_SCOPES,
   GUIDE_STATUSES,
   GUIDE_STATUS_RANK,
+  MINI_PROGRAM_WELCOME_TOUR_STEPS,
   ONBOARDING_COPY,
   ONBOARDING_DISMISS_TARGETS,
   ONBOARDING_EVENT_TYPES,
@@ -43,6 +45,7 @@ export {
   ONBOARDING_TASKS,
   OPTIONAL_ONBOARDING_TASKS,
   OPTIONAL_TASK_KEYS,
+  WEB_WELCOME_TOUR_STEPS,
   WELCOME_ACTIONS,
   WELCOME_SLIDES,
   buildOnboardingCacheKey,

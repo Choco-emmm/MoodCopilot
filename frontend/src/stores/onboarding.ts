@@ -87,7 +87,6 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   const degraded = ref(false)
   const replayMode = ref(false)
   const autoWelcomeActive = ref(false)
-  const demoOpen = ref(false)
   const externalModalBlocking = ref(false)
 
   let sessionGen = 0
@@ -174,7 +173,6 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     degraded.value = false
     replayMode.value = false
     autoWelcomeActive.value = false
-    demoOpen.value = false
     externalModalBlocking.value = false
     lastFetchAt = 0
     welcomeStartedSentForUser = null
@@ -449,7 +447,7 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     if (boundUserId.value == null || !loaded.value) return false
     if (!isHintAllowedForScope(hintKey, 'WEB')) return false
     if (!isHintPending(state.value, hintKey)) return false
-    if (isWelcomeOpen.value || demoOpen.value) return false
+    if (isWelcomeOpen.value) return false
     if (hintKey !== 'TOOL_APPROVAL_WEB' && externalModalBlocking.value) return false
     return true
   }
@@ -523,22 +521,11 @@ export const useOnboardingStore = defineStore('onboarding', () => {
   }
 
   function openWelcomeReplay(): void {
-    demoOpen.value = false
     replayMode.value = true
   }
 
   function closeWelcomeReplay(): void {
     replayMode.value = false
-  }
-
-  function openDemoExperience(): void {
-    replayMode.value = false
-    autoWelcomeActive.value = false
-    demoOpen.value = true
-  }
-
-  function closeDemoExperience(): void {
-    demoOpen.value = false
   }
 
   function setExternalModalBlocking(blocking: boolean): void {
@@ -557,7 +544,6 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     degraded,
     replayMode,
     autoWelcomeActive,
-    demoOpen,
     externalModalBlocking,
     coreProgress,
     canAutoShowWelcome,
@@ -582,8 +568,6 @@ export const useOnboardingStore = defineStore('onboarding', () => {
     skipWelcome,
     openWelcomeReplay,
     closeWelcomeReplay,
-    openDemoExperience,
-    closeDemoExperience,
     setExternalModalBlocking,
     getPendingRetryCount,
     reset,

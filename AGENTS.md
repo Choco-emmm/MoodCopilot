@@ -245,3 +245,12 @@
 - 语言约束指令必须拼接到**最后一条用户消息的绝对末尾**（`REASONING_LANGUAGE_INSTRUCTION`，仅推理模式），禁止只放在系统提示词中，否则容易被忽略。
 - 推理模型输出工具调用（Tool Call）时，必须保留并回传本轮工具调用前产生的 `reasoning_content`（见 `ChatAgentLoop` 构造的 assistant 消息）。截断或遗漏该字段会直接导致 DeepSeek API 返回 400。
 - 出站消息体清洗只允许**补空**，不得无条件覆写：`assistant` + `tool_calls` 的 `content`/`reasoning_content` 只有在缺失时才补空串。无条件置空会抹掉模型发起工具调用之前已经说出口的正文。
+
+### 双端新手引导（Onboarding）
+
+- **资格与持久化边界**：新手引导资格由 `users.onboarding_enrolled_version` 控制，存量账号与种子数据保持 `0`（绝不自动弹欢迎层）；仅 `AuthService.register` 与 `wxLogin` 新建用户分支在落库时置 `1`，普通登录、改密、重置密码和非合并邮箱绑定不得改写。进度存储在 `user_onboarding`（唯一键 `(user_id, guide_key, guide_version, scope)`）；账号合并（`AccountMergeService`）须在删除源用户前单调合并 `user_onboarding`，并保持目标账号 `onboarding_enrolled_version` 不变。
+- **MySQL 8.0 单调写入顺序**：`UserOnboardingMapper.upsertMonotonic` 的 `ON DUPLICATE KEY UPDATE` 必须保持 `updated_at → completed_at → status` 的赋值顺序（MySQL 8.0 按从左到右求值，先改 `status` 会导致后续时间戳判断读到新值，而 H2 测试会掩盖该问题）。`COMPLETED` 为严格终态不可降级；严禁在引导表或日志中保存日记正文、聊天内容、情绪标签或隐私信息。
+- **接口、业务钩子与权威刷新**：`/api/onboarding*` 复用 `@AuthenticationPrincipal UserEntity` 与 `ApiResponse.ok(...)`（`code: 0`）；`/events` 与 `/dismiss` 仅接受白名单事件，禁止伪造 `FIRST_DIARY`/`FIRST_CHAT_REPLY`，`ANALYSIS_VIEWED` 必须校验本人归属与真实 `diary_analysis` 记录。`FIRST_DIARY` 通过 `DiaryCreatedEvent` + `@TransactionalEventListener(AFTER_COMMIT)` + `REQUIRES_NEW` 写入，`FIRST_CHAT_REPLY` 仅在 `ChatService.addAssistantTurn` 持久化非空回复后写入（审批暂停、取消、报错或落盘失败均不计数）；引导写入失败不得回滚日记或阻塞聊天。本地缓存（按 `userId + version + scope` 分键）仅作加速，本地 `retryQueue` 为空时 `GET /api/onboarding` 成功响应应权威覆盖本地状态。
+- **共享定义与交互约束**：`shared/onboarding.ts` 必须同时兼容 Web（TS 5.x）与小程序（TS 4.9），禁止引入 DOM/Node/`uni` 全局对象；两端通过 `constants/onboarding.ts` 薄重导出。聊天推荐问题与写作灵感统一使用 `resolveStarterPromptDraft`（模板之间直接替换，手写草稿须经用户显式确认才替换，且不得自动发送、自动新建会话或自动切换 Pro）；「使用指南」重播仅走本地 replay 模式，不清空远端进度。
+- **弹层互斥与平台适配**：欢迎层与上下文提示的优先级严格低于登录/隐私、系统公告、全局模态弹窗与聊天工具审批；每个上下文提示必须以真实数据或用户明确操作为前置条件，禁止仅凭访问页面误弹。Web `SpotlightGuide` 在 `<KeepAlive>` 路由（如 `/chat`、`/ai-memory`）必须按 `onActivated`/`onDeactivated` 隔离防跨页泄漏，多锚点场景取视口与滚动容器内最新可见项，且 `nonBlocking` 模式不得与审批面板叠压；小程序 `GuideBubble` 采用底部悬浮编辑部浮卡（禁止嵌在列表卡片内部形成“卡片套卡片”，禁止自动强行滚屏劫持滚动，仅在用户点击定位按钮时滚动，原生滚动页优先调用 `uni.pageScrollTo`），且不得接入 Web 专属提示或任何公开社交入口。
+- **真实界面聚光灯引导、统计与发布回退**：初次相遇与个人页「使用指南」采用真实界面四向遮罩聚光灯导览（`WEB_WELCOME_TOUR_STEPS` 高亮顶部/底部真实导航入口，`MINI_PROGRAM_WELCOME_TOUR_STEPS` 在首页高亮「+ 写日记」与底部「洞察 / 陪伴 / 我的」真实 Tab，小程序从个人页重播时先 `uni.switchTab` 回首页），文案禁止暴露「上下文」等内部术语；不再维护独立的「摄影比赛」虚拟演示弹窗。管理员汇总统计（`GET /api/admin/onboarding/metrics`）仅基于 `users` 与 `user_onboarding` 只读聚合，分母严格限定为 `onboarding_enrolled_version >= guideVersion`，不另建行为追踪系统。上线时先部署兼容后端再发布前端；回退时不得通过回滚数据库迁移删除用户进度。

@@ -58,6 +58,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SettingSection: typeof import('./src/components/SettingSection.vue')['default']
     SimilarDiariesPanel: typeof import('./src/components/SimilarDiariesPanel.vue')['default']
+    SpotlightGuide: typeof import('./src/components/onboarding/SpotlightGuide.vue')['default']
     StarterChecklist: typeof import('./src/components/onboarding/StarterChecklist.vue')['default']
     WelcomeDialog: typeof import('./src/components/onboarding/WelcomeDialog.vue')['default']
   }
